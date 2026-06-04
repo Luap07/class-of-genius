@@ -1,0 +1,31 @@
+/* font */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+
+
+
+/* styles */
+@import "tailwindcss";
+
+*{
+      font-family: "Roboto", sans-serif;
+
+}
+
+/* src/index.css */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+@keyframes bounce-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-bounce-scroll {
+  /* 'alternate' makes it go back and forth */
+  animation: bounce-scroll 80s linear infinite alternate;
+}

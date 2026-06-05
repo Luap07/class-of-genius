@@ -14,6 +14,8 @@ import art from './art.jpg';
 import geography from './geography.jpg';
 import science from './science.png';
 import accounting from './account.jpg';
+import emily from './emily.png';
+import thomas from './Thomas.jpg';
 
 
 export {
@@ -32,5 +34,7 @@ export {
     art,
     geography,
     science,
-    accounting
+    accounting,
+    emily,
+    thomas
 }

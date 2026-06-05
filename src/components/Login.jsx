@@ -1,26 +1,28 @@
 import React, { useState, useEffect } from "react";
+import Cog from "../assets/cog.png";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  sendEmailVerification,
   updateProfile,
 } from "firebase/auth";
 import { auth } from "../firebase";
+import { useNavigate } from "react-router-dom";
 
 const Login = () => {
+  const navigate = useNavigate();
+
   const [isSignup, setIsSignup] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const [showPassword, setShowPassword] = useState(false);
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // clear fields when switching mode
   useEffect(() => {
     setUsername("");
     setEmail("");
@@ -29,6 +31,7 @@ const Login = () => {
     setError("");
   }, [isSignup]);
 
+  // ✅ SIGN UP
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
@@ -41,19 +44,17 @@ const Login = () => {
     try {
       setLoading(true);
 
-      const userCredential = await createUserWithEmailAndPassword(
+      const userCred = await createUserWithEmailAndPassword(
         auth,
         email,
         password
       );
 
-      await updateProfile(userCredential.user, {
+      await updateProfile(userCred.user, {
         displayName: username,
       });
 
-      await sendEmailVerification(userCredential.user);
-
-      alert("Account created! Check your email for verification.");
+      alert("Account created successfully!");
 
       setIsSignup(false);
     } catch (err) {
@@ -63,6 +64,7 @@ const Login = () => {
     setLoading(false);
   };
 
+  // ✅ LOGIN (FIXED NAVIGATION)
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -72,7 +74,9 @@ const Login = () => {
 
       await signInWithEmailAndPassword(auth, email, password);
 
-      alert("Login successful!");
+      // 🔥 FIX: GO TO DASHBOARD
+      navigate("/dashboard");
+
     } catch (err) {
       setError("Invalid email or password");
     }
@@ -80,164 +84,123 @@ const Login = () => {
     setLoading(false);
   };
 
-  const handleForgotPassword = async () => {
-    if (!email) {
-      setError("Enter your email first");
-      return;
-    }
-
-    try {
-      await sendPasswordResetEmail(auth, email);
-      alert("Password reset email sent!");
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 flex items-center justify-center bg-blue-900/10 backdrop-blur-sm z-50 p-4">
 
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white via-blue-50 to-white">
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, #2563eb 1.5px, transparent 1.5px)",
-            backgroundSize: "22px 22px",
-          }}
-        />
-      </div>
+      {/* CARD */}
+      <div className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/40 p-8">
 
-      {/* Blur */}
-      <div className="absolute inset-0 backdrop-blur-md bg-white/20" />
+        {/* LOGO */}
+        <div className="flex justify-center mb-4">
+          <img src={Cog} className="w-12 h-12" alt="logo" />
+        </div>
 
-      {/* Card */}
-      <div className="relative z-[60] w-full max-w-md">
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8">
+        {/* TITLE */}
+        <h2 className="text-center text-2xl font-bold text-blue-600">
+          {isSignup ? "Explore as a Genius" : "Welcome back Genius"}
+        </h2>
 
-          <h1 className="text-3xl font-bold text-center text-blue-600">
-            Class Of Genius
-          </h1>
+        <p className="text-center text-gray-500 mt-1 mb-6">
+          {isSignup
+            ? "Create your account to start learning"
+            : "Sign in to continue your journey"}
+        </p>
 
-          <p className="text-center text-slate-500 mt-2 mb-6">
-            {isSignup ? "Create your account" : "Welcome back"}
-          </p>
+        {/* ERROR */}
+        {error && (
+          <p className="text-red-500 text-sm text-center mb-3">{error}</p>
+        )}
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-100 text-red-600 rounded-xl text-sm">
-              {error}
-            </div>
+        {/* FORM */}
+        <form
+          onSubmit={isSignup ? handleSignup : handleLogin}
+          className="space-y-4"
+        >
+          {isSignup && (
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full p-3 border rounded-xl outline-none text-gray-700"
+            />
           )}
 
-          <form
-            autoComplete="off"
-            onSubmit={isSignup ? handleSignup : handleLogin}
-            className="space-y-4"
-          >
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-3 border rounded-xl outline-none text-gray-700"
+          />
 
-            {isSignup && (
-              <input
-                type="text"
-                placeholder="Username"
-                value={username}
-                autoComplete="off"
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500"
-              />
-            )}
-
+          {/* PASSWORD */}
+          <div className="relative">
             <input
-              type="email"
-              placeholder="Email Address"
-              value={email}
-              autoComplete="off"
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500"
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 border rounded-xl outline-none text-gray-700 pr-16"
             />
 
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                value={password}
-                autoComplete="new-password"
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-3 border border-slate-200 rounded-xl pr-16 outline-none focus:border-blue-500"
-              />
-
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-blue-600 font-semibold"
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-            </div>
-
-            {isSignup && (
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="Confirm Password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500"
-              />
-            )}
-
-            {!isSignup && (
-              <div className="text-right">
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Forgot Password?
-                </button>
-              </div>
-            )}
-
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-blue-600 font-semibold"
             >
-              {loading
-                ? "Please wait..."
-                : isSignup
-                ? "Create Account"
-                : "Login"}
+              {showPassword ? "Hide" : "Show"}
             </button>
-          </form>
-
-          {/* TOGGLE LINKS */}
-          <div className="mt-6 text-center text-slate-600">
-            {isSignup ? (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setIsSignup(false)}
-                  className="text-blue-600 font-semibold underline cursor-pointer hover:text-blue-700"
-                >
-                  Login
-                </button>
-              </>
-            ) : (
-              <>
-                Don't have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setIsSignup(true)}
-                  className="text-blue-600 font-semibold underline cursor-pointer hover:text-blue-700"
-                >
-                  Sign Up
-                </button>
-              </>
-            )}
           </div>
 
+          {/* CONFIRM PASSWORD (SIGNUP ONLY) */}
+          {isSignup && (
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full p-3 border rounded-xl outline-none text-gray-700"
+            />
+          )}
+
+          {/* BUTTON */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition"
+          >
+            {loading ? "Please wait..." : isSignup ? "Sign Up" : "Login"}
+          </button>
+        </form>
+
+        {/* SWITCH */}
+        <div className="mt-6 text-center text-gray-600 text-sm">
+          {isSignup ? (
+            <p>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => setIsSignup(false)}
+                className="text-blue-600 font-semibold underline cursor-pointer"
+              >
+                Login
+              </button>
+            </p>
+          ) : (
+            <p>
+              Don’t have an account?{" "}
+              <button
+                type="button"
+                onClick={() => setIsSignup(true)}
+                className="text-blue-600 font-semibold underline cursor-pointer"
+              >
+                Sign Up
+              </button>
+            </p>
+          )}
         </div>
+
       </div>
     </div>
   );

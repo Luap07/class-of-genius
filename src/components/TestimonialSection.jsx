@@ -1,5 +1,5 @@
 import React from 'react';
-import { home_bg } from '../assets/index'; 
+import { thomas } from '../assets/index'; 
 
 const TestimonialSection = () => {
   return (
@@ -12,7 +12,7 @@ const TestimonialSection = () => {
         <div className="text-center bg-white p-10 md:p-16 rounded-2xl shadow-xl border border-gray-100">
           
           <div className="w-20 h-20 rounded-full mx-auto mb-8 bg-gray-200 overflow-hidden shadow-inner">
-            <img src={home_bg} alt="Tutor" className="w-full h-full object-cover" />
+            <img src={thomas} alt="Tutor" className="w-full h-full object-cover" />
           </div>
 
           <p className="text-5xl text-blue-800 font-serif leading-none mb-4">“</p>
@@ -27,7 +27,7 @@ const TestimonialSection = () => {
           <p className="text-5xl text-blue-800 font-serif leading-none mt-4 rotate-180 inline-block">“</p>
           
           <div className="mt-8">
-            <h4 className="font-bold text-lg text-gray-900">Emily Watson</h4>
+            <h4 className="font-bold text-lg text-gray-900">Thomas Anderson</h4>
             <p className="text-gray-500 text-sm">Student</p>
           </div>
         </div>

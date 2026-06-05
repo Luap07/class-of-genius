@@ -1,41 +1,37 @@
 import { useContext } from "react";
-import { StudyContext } from "../context/StudyContext";
-import { Navigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase";
 
 const Dashboard = () => {
-  const { user, logout } = useContext(StudyContext);
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
 
-  // If user is not logged in, redirect to login page
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
+  const handleLogout = async () => {
+    await signOut(auth);   // ✅ logout from Firebase
+    navigate("/");         // ✅ send back to landing page
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto bg-white p-8 rounded-2xl shadow-sm border">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">Welcome to your Dashboard</h1>
+
+        <h1 className="text-3xl font-bold mb-4">
+          Welcome to Dashboard
+        </h1>
+
         <p className="text-gray-600 mb-6">
-          Hello, <span className="font-semibold text-purple-700">{user.email}</span>! 
-          You are now successfully logged into the Class Of Genius platform.
+          Hello <span className="font-semibold">{user?.email}</span>
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-6 border rounded-xl shadow-sm">
-            <h3 className="font-bold text-lg mb-2">My Progress</h3>
-            <p className="text-gray-500">Track your learning journey here.</p>
-          </div>
-          <div className="p-6 border rounded-xl shadow-sm">
-            <h3 className="font-bold text-lg mb-2">Recent Courses</h3>
-            <p className="text-gray-500">Access your saved material.</p>
-          </div>
-        </div>
-
-        <button 
-          onClick={logout} 
-          className="mt-8 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+        <button
+          onClick={handleLogout}
+          className="mt-6 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
         >
           Logout
         </button>
+
       </div>
     </div>
   );

@@ -9,8 +9,8 @@ const Footer = () => {
         {/* Contact */}
         <div>
           <h3 className="font-bold mb-4">Contact Info</h3>
-          <p className="text-gray-400 text-sm mb-2">+123 456 7890</p>
-          <p className="text-gray-400 text-sm">info@edutech.com</p>
+          <p className="text-gray-400 text-sm mb-2">+2348104264197</p>
+          <p className="text-gray-400 text-sm">classofgenius4@gmail.com</p>
         </div>
 
         {/* Links */}
@@ -27,7 +27,7 @@ const Footer = () => {
           </div>
         </div>
       </div>
-      <div className="text-center text-gray-600 text-xs mt-12 border-t border-gray-800 pt-8">© 2025 EduTech Prime. All rights reserved.</div>
+      <div className="text-center text-gray-600 text-xs mt-12 border-t border-gray-800 pt-8">© 2026 ClassOfGenius Prime. All rights reserved.</div>
     </footer>
   );
 };

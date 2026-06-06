@@ -1,4 +1,4 @@
-# Logs
+# ================= LOGS =================
 logs
 *.log
 npm-debug.log*
@@ -7,18 +7,46 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# ================= DEPENDENCIES =================
 node_modules
+
+# ================= BUILD OUTPUT =================
 dist
 dist-ssr
+build
+
+# ================= ENV FILES (IMPORTANT) =================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ================= LOCAL FILES =================
 *.local
 
-# Editor directories and files
+# ================= VITE CACHE =================
+.vite
+
+# ================= FIREBASE =================
+firebase-debug.log
+
+# ================= EDITOR FILES =================
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# ================= OS FILES =================
 .DS_Store
+Thumbs.db
+
+# ================= VISUAL STUDIO =================
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# ================= OPTIONAL (SAFE CLEANUP) =================
+coverage
+*.tsbuildinfo

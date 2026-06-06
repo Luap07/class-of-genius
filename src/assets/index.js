@@ -16,6 +16,17 @@ import science from './science.png';
 import accounting from './account.jpg';
 import emily from './emily.png';
 import thomas from './Thomas.jpg';
+import cbt from './cbt.jpeg';
+import live from './live.jpg';
+import novel from './novel.jpg';
+import curriculum from './curriculum.jpg';
+import lms from './lms.jpg';
+import adventure from './adventure.jpg';
+import avatar1 from './avatar1.png';
+import avatar2 from './avatar2.png';
+import avatar3 from './avatar3.png';
+import avatar4 from './avatar4.png';
+import avatar5 from './avatar5.png';
 
 
 export {
@@ -36,5 +47,17 @@ export {
     science,
     accounting,
     emily,
-    thomas
+    thomas,
+    cbt,
+    live,
+    novel,
+    curriculum,
+    lms,
+    adventure,
+    avatar1,
+    avatar2,
+    avatar3,
+    avatar4,
+    avatar5
+
 }

@@ -3,14 +3,23 @@ import { Navigate } from "react-router-dom";
 import { StudyContext } from "../context/StudyContext";
 
 const ProtectedRoute = ({ children }) => {
-  const { user } = useContext(StudyContext);
+  const { user, loading } = useContext(StudyContext);
 
-  // If there is no user, redirect them to the login page
+  // 🔥 WAIT FOR FIREBASE TO FINISH CHECKING AUTH
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
+  }
+
+  // 🔥 NOT LOGGED IN → REDIRECT
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // If the user exists, return the children (the page they wanted to visit)
+  // 🔥 LOGGED IN → ALLOW ACCESS
   return children;
 };
 

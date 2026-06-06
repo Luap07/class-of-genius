@@ -31,22 +31,28 @@ const Login = () => {
     setError("");
   }, [isSignup]);
 
-  // ✅ SIGN UP
+  // SIGN UP
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
+
+    if (!username.trim()) {
+      setError("Username is required");
+      setLoading(false);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
+      setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
-
       const userCred = await createUserWithEmailAndPassword(
         auth,
-        email,
+        email.trim(),
         password
       );
 
@@ -54,45 +60,72 @@ const Login = () => {
         displayName: username,
       });
 
-      alert("Account created successfully!");
-
       setIsSignup(false);
-    } catch (err) {
-      setError(err.message);
-    }
+      setUsername("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
 
-    setLoading(false);
+      navigate("/dashboard", { replace: true }); // ✅ go straight to dashboard
+    } catch (err) {
+      console.log(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ✅ LOGIN (FIXED NAVIGATION)
+  // LOGIN
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
     try {
-      setLoading(true);
+      await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password
+      );
 
-      await signInWithEmailAndPassword(auth, email, password);
-
-      // 🔥 FIX: GO TO DASHBOARD
-      navigate("/dashboard");
-
+      navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError("Invalid email or password");
-    }
+      console.log(err);
 
-    setLoading(false);
+      switch (err.code) {
+        case "auth/user-not-found":
+          setError("No account found with this email.");
+          break;
+
+        case "auth/wrong-password":
+        case "auth/invalid-credential":
+          setError("Invalid email or password.");
+          break;
+
+        case "auth/invalid-email":
+          setError("Please enter a valid email.");
+          break;
+
+        case "auth/too-many-requests":
+          setError("Too many attempts. Try again later.");
+          break;
+
+        default:
+          setError(err.message);
+      }
+    } finally {
+      setLoading(false); // 🔥 THIS FIXES YOUR "LOADING FOREVER" ISSUE
+    }
   };
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-blue-900/10 backdrop-blur-sm z-50 p-4">
 
-      {/* CARD */}
-      <div className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/40 p-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
 
         {/* LOGO */}
         <div className="flex justify-center mb-4">
-          <img src={Cog} className="w-12 h-12" alt="logo" />
+          <img src={Cog} alt="logo" className="w-14 h-14" />
         </div>
 
         {/* TITLE */}
@@ -100,15 +133,16 @@ const Login = () => {
           {isSignup ? "Explore as a Genius" : "Welcome back Genius"}
         </h2>
 
-        <p className="text-center text-gray-500 mt-1 mb-6">
+        <p className="text-center text-gray-500 mt-2 mb-6">
           {isSignup
             ? "Create your account to start learning"
             : "Sign in to continue your journey"}
         </p>
 
-        {/* ERROR */}
         {error && (
-          <p className="text-red-500 text-sm text-center mb-3">{error}</p>
+          <div className="mb-4 text-center text-red-500 text-sm">
+            {error}
+          </div>
         )}
 
         {/* FORM */}
@@ -116,13 +150,14 @@ const Login = () => {
           onSubmit={isSignup ? handleSignup : handleLogin}
           className="space-y-4"
         >
+
           {isSignup && (
             <input
               type="text"
               placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full p-3 border rounded-xl outline-none text-gray-700"
+              className="w-full p-3 border rounded-xl"
             />
           )}
 
@@ -131,36 +166,24 @@ const Login = () => {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 border rounded-xl outline-none text-gray-700"
+            className="w-full p-3 border rounded-xl"
           />
 
-          {/* PASSWORD */}
-          <div className="relative">
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 border rounded-xl outline-none text-gray-700 pr-16"
-            />
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-3 border rounded-xl"
+          />
 
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-blue-600 font-semibold"
-            >
-              {showPassword ? "Hide" : "Show"}
-            </button>
-          </div>
-
-          {/* CONFIRM PASSWORD (SIGNUP ONLY) */}
           {isSignup && (
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Confirm Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full p-3 border rounded-xl outline-none text-gray-700"
+              className="w-full p-3 border rounded-xl"
             />
           )}
 
@@ -168,36 +191,28 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition"
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold"
           >
             {loading ? "Please wait..." : isSignup ? "Sign Up" : "Login"}
           </button>
         </form>
 
         {/* SWITCH */}
-        <div className="mt-6 text-center text-gray-600 text-sm">
+        <div className="mt-6 text-center text-sm text-gray-600">
           {isSignup ? (
-            <p>
-              Already have an account?{" "}
-              <button
-                type="button"
-                onClick={() => setIsSignup(false)}
-                className="text-blue-600 font-semibold underline cursor-pointer"
-              >
-                Login
-              </button>
-            </p>
+            <button
+              onClick={() => setIsSignup(false)}
+              className="text-blue-600 font-semibold"
+            >
+              Already have an account? Login
+            </button>
           ) : (
-            <p>
-              Don’t have an account?{" "}
-              <button
-                type="button"
-                onClick={() => setIsSignup(true)}
-                className="text-blue-600 font-semibold underline cursor-pointer"
-              >
-                Sign Up
-              </button>
-            </p>
+            <button
+              onClick={() => setIsSignup(true)}
+              className="text-blue-600 font-semibold"
+            >
+              Don’t have an account? Sign Up
+            </button>
           )}
         </div>
 
@@ -205,5 +220,6 @@ const Login = () => {
     </div>
   );
 };
+
 
 export default Login;

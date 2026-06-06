@@ -1,31 +1,59 @@
-/* font */
+/* ================= FONTS ================= */
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 
-
-
-/* styles */
+/* ================= TAILWIND ================= */
 @import "tailwindcss";
 
-*{
-      font-family: "Roboto", sans-serif;
-
+/* ================= BASE FONT ================= */
+* {
+  font-family: "Roboto", sans-serif;
 }
 
-/* src/index.css */
+/* ================= SCROLLBAR HIDE ================= */
 .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  display: none;
 }
+
 .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
+/* ================= KEYFRAMES ================= */
 @keyframes bounce-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
-.animate-bounce-scroll {
-  /* 'alternate' makes it go back and forth */
-  animation: bounce-scroll 80s linear infinite alternate;
+@keyframes slide-continuous {
+  0% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(8px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* ================= CUSTOM ANIMATIONS ================= */
+@layer utilities {
+
+  .animate-bounce-scroll {
+    animation: bounce-scroll 80s linear infinite alternate;
+  }
+
+  .animate-slide-continuous {
+    animation: slide-continuous 1.5s ease-in-out infinite;
+  }
+
+  /* 🔥 THIS FIXES YOUR ISSUE */
+  .animate-spin-slow {
+    animation: spin 2.2s linear infinite;
+  }
 }

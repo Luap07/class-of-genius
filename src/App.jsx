@@ -1,16 +1,16 @@
+import { useContext } from "react";
+
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
-  useLocation,
 } from "react-router-dom";
-
-import { useContext } from "react";
 
 import { AuthProvider, AuthContext } from "./context/AuthContext";
 import { DocumentProvider } from "./context/DocumentContext";
 import { SearchProvider } from "./context/SearchContext";
+import { ConnectProvider } from "./context/ConnectContext";
 
 import Navbar from "./components/Navbar";
 
@@ -25,6 +25,7 @@ import History from "./pages/History";
 import DashboardLayout from "./layout/DashboardLayout";
 
 /* ================= PROTECTED ROUTE ================= */
+
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
 
@@ -39,55 +40,76 @@ const ProtectedRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" replace />;
 };
 
-/* ================= PUBLIC LAYOUT (FIXED NAVBAR ISSUE) ================= */
-const PublicLayout = () => {
-  const location = useLocation();
+/* ================= PUBLIC LAYOUT ================= */
 
+const PublicLayout = () => {
   return (
-    <div>
-      {/* NAVBAR ALWAYS SHOWS HERE */}
+    <>
       <Navbar />
 
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
       </Routes>
-    </div>
+    </>
   );
 };
 
 /* ================= APP ================= */
+
 function App() {
   return (
     <AuthProvider>
       <SearchProvider>
         <DocumentProvider>
-          <Router>
-            <Routes>
+          <ConnectProvider>
+            <Router>
+              <Routes>
+                {/* PUBLIC */}
+                <Route path="/*" element={<PublicLayout />} />
 
-              {/* PUBLIC ROUTES */}
-              <Route path="/*" element={<PublicLayout />} />
+                {/* PROTECTED */}
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <DashboardLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route
+                    path="/dashboard"
+                    element={<Dashboard />}
+                  />
 
-              {/* DASHBOARD (NO NAVBAR HERE — ONLY SIDEBAR + HEADER) */}
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/libraries" element={<Libraries />} />
-                <Route path="/downloads" element={<Downloads />} />
-                <Route path="/history" element={<History />} />
-                <Route path="/connects" element={<Connects />} />
-              </Route>
+                  <Route
+                    path="/libraries"
+                    element={<Libraries />}
+                  />
 
-              {/* FALLBACK */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+                  <Route
+                    path="/downloads"
+                    element={<Downloads />}
+                  />
 
-            </Routes>
-          </Router>
+                  <Route
+                    path="/history"
+                    element={<History />}
+                  />
+
+                  <Route
+                    path="/connects"
+                    element={<Connects />}
+                  />
+                </Route>
+
+                {/* FALLBACK */}
+                <Route
+                  path="*"
+                  element={<Navigate to="/" replace />}
+                />
+              </Routes>
+            </Router>
+          </ConnectProvider>
         </DocumentProvider>
       </SearchProvider>
     </AuthProvider>

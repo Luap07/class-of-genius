@@ -49,7 +49,10 @@ const DashboardHeader = () => {
         ":" +
         String(now.getMinutes()).padStart(2, "0");
 
-      if (current === reminderTime && Notification.permission === "granted") {
+      if (
+        current === reminderTime &&
+        Notification.permission === "granted"
+      ) {
         new Notification("📚 Study Reminder", {
           body: "Time to continue your learning session!",
         });
@@ -77,19 +80,61 @@ const DashboardHeader = () => {
     window.location.href = "/";
   };
 
+  // ✅ FIXED FAQ SCROLL FUNCTION
+  const scrollToFAQ = () => {
+    const el = document.getElementById("faq-section");
+    if (el) {
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  };
+
   return (
-    <header className="sticky top-0 bg-gray-50 z-20 px-6 py-5 shadow-sm">
+    <header className="sticky top-0 z-20 bg-gray-50 shadow-sm px-4 md:px-6 py-4">
 
-      {/* DESKTOP */}
-      <div className="hidden md:flex items-center justify-between">
+      {/* MOBILE TOP NAV */}
+      <div className="flex md:hidden justify-center gap-6 text-sm font-medium mb-3">
 
-        <div className="w-1/3">
-          <h1 className="text-3xl font-bold">
+        <Link to="/dashboard" className="flex items-center gap-1">
+          <LayoutDashboard size={16} />
+          Dashboard
+        </Link>
+
+        <div className="relative" onClick={() => setShowInsight(!showInsight)}>
+          <button className="flex items-center gap-1">
+            <Lightbulb size={16} />
+            Insight
+          </button>
+
+          {showInsight && (
+            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-64 bg-black text-white text-xs p-3 rounded-lg shadow-lg z-50">
+              Education is the foundation of success — consistency builds mastery.
+            </div>
+          )}
+        </div>
+
+        {/* ✅ FIXED FAQ BUTTON */}
+        <button onClick={scrollToFAQ} className="flex items-center gap-1">
+          <HelpCircle size={16} />
+          FAQs
+        </button>
+
+      </div>
+
+      {/* MAIN HEADER */}
+      <div className="flex items-center justify-between">
+
+        {/* LEFT */}
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl md:text-3xl font-bold text-left">
             👋 Welcome, {username.split(" ")[0]}
           </h1>
         </div>
 
-        <div className="w-1/3 flex justify-center gap-10 font-medium">
+        {/* CENTER */}
+        <div className="hidden md:flex items-center gap-10 font-medium">
 
           <Link to="/dashboard" className="flex items-center gap-2">
             <LayoutDashboard size={18} />
@@ -101,38 +146,39 @@ const DashboardHeader = () => {
             onMouseEnter={() => setShowInsight(true)}
             onMouseLeave={() => setShowInsight(false)}
           >
-            <button
-              onClick={() => setShowInsight(!showInsight)}
-              className="flex items-center gap-2"
-            >
+            <button className="flex items-center gap-2">
               <Lightbulb size={18} />
               Insight
             </button>
 
             {showInsight && (
               <div className="absolute top-8 left-0 w-72 bg-black text-white text-xs p-3 rounded-lg shadow-lg z-50">
-                Education is the foundation of success — consistency builds mastery
+                Education is the foundation of success — consistency builds mastery.
               </div>
             )}
           </div>
 
-          <a href="#faq-section" className="flex items-center gap-2">
+          {/* ✅ FIXED FAQ BUTTON */}
+          <button onClick={scrollToFAQ} className="flex items-center gap-2">
             <HelpCircle size={18} />
             FAQs
-          </a>
+          </button>
+
         </div>
 
-        <div className="w-1/3 flex justify-end items-center gap-4">
+        {/* RIGHT */}
+        <div className="flex items-center gap-4">
 
           {/* NOTIFICATION */}
           <div className="relative">
+
             <button onClick={() => setShowReminderMenu(!showReminderMenu)}>
               <Bell />
             </button>
 
             {showReminderMenu && (
               <div className="absolute right-0 mt-3 w-64 bg-white border rounded-xl shadow p-3 z-50">
-                <p className="text-sm mb-2">📚 Read today’s lesson</p>
+                <p className="text-sm mb-2">📚 Read today's lesson</p>
                 <p className="text-sm mb-2">🧠 CBT practice ready</p>
                 <p className="text-sm mb-2">📖 Continue reading</p>
 
@@ -144,6 +190,7 @@ const DashboardHeader = () => {
                 />
               </div>
             )}
+
           </div>
 
           {/* PROFILE */}
@@ -154,7 +201,11 @@ const DashboardHeader = () => {
               className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold overflow-hidden"
             >
               {profileImage ? (
-                <img src={profileImage} className="w-full h-full object-cover" />
+                <img
+                  src={profileImage}
+                  className="w-full h-full object-cover"
+                  alt="profile"
+                />
               ) : (
                 firstLetter
               )}
@@ -177,32 +228,6 @@ const DashboardHeader = () => {
                   onChange={handleUpload}
                 />
 
-                {/* ❌ ACCOUNT SETTINGS REMOVED */}
-
-                <div className="p-2 mt-2 rounded hover:bg-gray-100">
-                  <p className="font-semibold">🔵 Study Streak</p>
-
-                  <div className="grid grid-cols-7 gap-1 mt-2">
-                    {Array.from({ length: 21 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`w-3 h-3 rounded-sm ${
-                          Math.random() > 0.4
-                            ? "bg-green-500"
-                            : "bg-gray-200"
-                        }`}
-                      />
-                    ))}
-                  </div>
-
-                  <p className="text-xs mt-2">
-                    Current: {streak.current}
-                  </p>
-                  <p className="text-xs">
-                    Longest: {streak.longest}
-                  </p>
-                </div>
-
                 <button
                   onClick={handleLogout}
                   className="w-full text-left p-2 text-red-600 hover:bg-red-50 rounded"
@@ -214,7 +239,9 @@ const DashboardHeader = () => {
             )}
 
           </div>
+
         </div>
+
       </div>
     </header>
   );

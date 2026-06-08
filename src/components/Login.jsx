@@ -1,25 +1,15 @@
 import React, { useState, useEffect } from "react";
 import Cog from "../assets/cog.png";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-} from "firebase/auth";
-import { auth } from "../firebase";
+import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
   const navigate = useNavigate();
-
   const [isSignup, setIsSignup] = useState(false);
-
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  const [showPassword, setShowPassword] = useState(false);
-
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -37,12 +27,6 @@ const Login = () => {
     setError("");
     setLoading(true);
 
-    if (!username.trim()) {
-      setError("Username is required");
-      setLoading(false);
-      return;
-    }
-
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       setLoading(false);
@@ -50,25 +34,20 @@ const Login = () => {
     }
 
     try {
-      const userCred = await createUserWithEmailAndPassword(
-        auth,
-        email.trim(),
-        password
-      );
-
-      await updateProfile(userCred.user, {
-        displayName: username,
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+        options: {
+          data: { username: username },
+        },
       });
 
-      setIsSignup(false);
-      setUsername("");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-
-      navigate("/dashboard", { replace: true }); // ✅ go straight to dashboard
+      if (error) throw error;
+      
+      // Removed setIsSignup(false) so it doesn't revert to login
+      // Automatically navigate to dashboard after successful signup
+      navigate("/dashboard", { replace: true });
     } catch (err) {
-      console.log(err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -82,75 +61,33 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(
-        auth,
-        email.trim(),
-        password
-      );
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
 
+      if (error) throw error;
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      console.log(err);
-
-      switch (err.code) {
-        case "auth/user-not-found":
-          setError("No account found with this email.");
-          break;
-
-        case "auth/wrong-password":
-        case "auth/invalid-credential":
-          setError("Invalid email or password.");
-          break;
-
-        case "auth/invalid-email":
-          setError("Please enter a valid email.");
-          break;
-
-        case "auth/too-many-requests":
-          setError("Too many attempts. Try again later.");
-          break;
-
-        default:
-          setError(err.message);
-      }
+      setError(err.message || "Invalid login credentials");
     } finally {
-      setLoading(false); // 🔥 THIS FIXES YOUR "LOADING FOREVER" ISSUE
+      setLoading(false);
     }
   };
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-blue-900/10 backdrop-blur-sm z-50 p-4">
-
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
-
-        {/* LOGO */}
         <div className="flex justify-center mb-4">
           <img src={Cog} alt="logo" className="w-14 h-14" />
         </div>
-
-        {/* TITLE */}
         <h2 className="text-center text-2xl font-bold text-blue-600">
           {isSignup ? "Explore as a Genius" : "Welcome back Genius"}
         </h2>
-
-        <p className="text-center text-gray-500 mt-2 mb-6">
-          {isSignup
-            ? "Create your account to start learning"
-            : "Sign in to continue your journey"}
-        </p>
-
-        {error && (
-          <div className="mb-4 text-center text-red-500 text-sm">
-            {error}
-          </div>
-        )}
-
-        {/* FORM */}
-        <form
-          onSubmit={isSignup ? handleSignup : handleLogin}
-          className="space-y-4"
-        >
-
+        
+        {error && <p className="text-red-500 text-center mt-2">{error}</p>}
+        
+        <form onSubmit={isSignup ? handleSignup : handleLogin} className="space-y-4 mt-6">
           {isSignup && (
             <input
               type="text"
@@ -158,36 +95,35 @@ const Login = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full p-3 border rounded-xl"
+              required
             />
           )}
-
           <input
             type="email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full p-3 border rounded-xl"
+            required
           />
-
           <input
-            type={showPassword ? "text" : "password"}
+            type="password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full p-3 border rounded-xl"
+            required
           />
-
           {isSignup && (
             <input
-              type={showPassword ? "text" : "password"}
+              type="password"
               placeholder="Confirm Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full p-3 border rounded-xl"
+              required
             />
           )}
-
-          {/* BUTTON */}
           <button
             type="submit"
             disabled={loading}
@@ -196,30 +132,14 @@ const Login = () => {
             {loading ? "Please wait..." : isSignup ? "Sign Up" : "Login"}
           </button>
         </form>
-
-        {/* SWITCH */}
         <div className="mt-6 text-center text-sm text-gray-600">
-          {isSignup ? (
-            <button
-              onClick={() => setIsSignup(false)}
-              className="text-blue-600 font-semibold"
-            >
-              Already have an account? Login
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsSignup(true)}
-              className="text-blue-600 font-semibold"
-            >
-              Don’t have an account? Sign Up
-            </button>
-          )}
+          <button onClick={() => setIsSignup(!isSignup)} className="text-blue-600 font-semibold">
+            {isSignup ? "Already have an account? Login" : "Don’t have an account? Sign Up"}
+          </button>
         </div>
-
       </div>
     </div>
   );
 };
-
 
 export default Login;

@@ -1,12 +1,14 @@
-/* ================= FONTS ================= */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
-
-/* ================= TAILWIND ================= */
 @import "tailwindcss";
 
-/* ================= BASE FONT ================= */
+/* ================= GLOBAL FONT ================= */
 * {
   font-family: "Roboto", sans-serif;
+}
+
+/* ================= GLOBAL DARK MODE ================= */
+html, body {
+  @apply bg-white text-slate-900 dark:bg-slate-900 dark:text-white;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ================= SCROLLBAR HIDE ================= */
@@ -17,43 +19,4 @@
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
-}
-
-/* ================= KEYFRAMES ================= */
-@keyframes bounce-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-@keyframes slide-continuous {
-  0% {
-    transform: translateX(0);
-  }
-  50% {
-    transform: translateX(8px);
-  }
-  100% {
-    transform: translateX(0);
-  }
-}
-
-/* ================= CUSTOM ANIMATIONS ================= */
-@layer utilities {
-
-  .animate-bounce-scroll {
-    animation: bounce-scroll 80s linear infinite alternate;
-  }
-
-  .animate-slide-continuous {
-    animation: slide-continuous 1.5s ease-in-out infinite;
-  }
-
-  /* 🔥 THIS FIXES YOUR ISSUE */
-  .animate-spin-slow {
-    animation: spin 2.2s linear infinite;
-  }
 }

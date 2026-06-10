@@ -7,83 +7,75 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 left-0 w-full z-50 
-      bg-gradient-to-r from-white via-blue-50/40 to-white 
-      backdrop-blur-xl 
-      border-b border-blue-100/50 
-      shadow-sm">
-
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <nav className="fixed top-0 left-0 w-full z-50 p-4 backdrop-blur-xl border-b bg-white/80 border-blue-100 text-slate-900 transition-colors">
+      <div className="flex justify-between items-center max-w-7xl mx-auto">
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 font-bold text-xl text-slate-900">
+        <Link to="/" className="flex items-center gap-2 font-bold text-xl">
           <img src={Cog} alt="Logo" className="w-8 h-8" />
           <span>Class Of Genius</span>
         </Link>
 
         {/* Desktop Menu */}
-        <ul className="hidden md:flex items-center gap-8 font-medium text-slate-700">
-          <li><Link to="/" className="hover:text-blue-600 transition">Home</Link></li>
-          <li><Link to="/about" className="hover:text-blue-600 transition">About</Link></li>
-          <li><Link to="/services" className="hover:text-blue-600 transition">Services</Link></li>
-          <li><Link to="/contact" className="hover:text-blue-600 transition">Contact</Link></li>
+        <ul className="hidden md:flex items-center gap-8 font-medium">
+          <li><Link to="/">Home</Link></li>
+          <li><Link to="/about">About</Link></li>
+          <li><Link to="/services">Services</Link></li>
+          <li><Link to="/contact">Contact</Link></li>
         </ul>
 
-        {/* Desktop Buttons */}
+        {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-3">
           <Link
             to="/login"
-            className="px-4 py-2 text-sm rounded-full border border-blue-600 text-blue-600 hover:bg-blue-50 transition"
+            className="px-4 py-2 text-sm rounded-full border border-blue-600 text-blue-600"
           >
             Get Started
           </Link>
 
           <Link
             to="/contact"
-            className="px-4 py-2 text-sm rounded-full bg-blue-600 text-white hover:bg-blue-700 transition shadow-md"
+            className="px-4 py-2 text-sm rounded-full bg-blue-600 text-white"
           >
             Contact Us
           </Link>
         </div>
 
         {/* Mobile Button */}
-        <button
-          className="md:hidden text-2xl text-slate-900"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {isOpen ? <FaTimes /> : <FaBars />}
-        </button>
-
+        <div className="flex md:hidden">
+          <button onClick={() => setIsOpen(!isOpen)} className="text-2xl">
+            {isOpen ? <FaTimes /> : <FaBars />}
+          </button>
+        </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* MOBILE MENU */}
       {isOpen && (
-        <div className="md:hidden bg-white w-full border-t border-blue-100 flex flex-col items-center py-6 gap-4 shadow-xl">
-          <Link to="/" onClick={() => setIsOpen(false)}>Home</Link>
-          <Link to="/about" onClick={() => setIsOpen(false)}>About</Link>
-          <Link to="/services" onClick={() => setIsOpen(false)}>Services</Link>
-          <Link to="/contact" onClick={() => setIsOpen(false)}>Contact</Link>
+        <div className="md:hidden mt-4 px-6 py-6 space-y-4 rounded-xl shadow-lg bg-white text-slate-900">
+          <Link onClick={() => setIsOpen(false)} to="/" className="block">Home</Link>
+          <Link onClick={() => setIsOpen(false)} to="/about" className="block">About</Link>
+          <Link onClick={() => setIsOpen(false)} to="/services" className="block">Services</Link>
+          <Link onClick={() => setIsOpen(false)} to="/contact" className="block">Contact</Link>
 
-          <div className="flex flex-col gap-3 mt-3 w-full px-6">
-            <Link
-              to="/login"
-              onClick={() => setIsOpen(false)}
-              className="text-center py-2 border border-blue-600 text-blue-600 rounded-full"
-            >
-              Get Started
-            </Link>
+          <hr />
 
-            <Link
-              to="/contact"
-              onClick={() => setIsOpen(false)}
-              className="text-center py-2 bg-blue-600 text-white rounded-full"
-            >
-              Contact Us
-            </Link>
-          </div>
+          <Link
+            onClick={() => setIsOpen(false)}
+            to="/login"
+            className="block px-4 py-2 rounded-full border border-blue-600 text-blue-600 text-center"
+          >
+            Get Started
+          </Link>
+
+          <Link
+            onClick={() => setIsOpen(false)}
+            to="/contact"
+            className="block px-4 py-2 rounded-full bg-blue-600 text-white text-center"
+          >
+            Contact Us
+          </Link>
         </div>
       )}
-
     </nav>
   );
 };

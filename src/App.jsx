@@ -1,5 +1,4 @@
 import { useContext } from "react";
-
 import {
   BrowserRouter as Router,
   Routes,
@@ -7,10 +6,10 @@ import {
   Navigate,
 } from "react-router-dom";
 
-import { AuthProvider, AuthContext } from "./context/AuthContext";
+import { AuthContext, AuthProvider } from "./context/AuthContext";
+import { ConnectProvider } from "./context/ConnectContext";
 import { DocumentProvider } from "./context/DocumentContext";
 import { SearchProvider } from "./context/SearchContext";
-import { ConnectProvider } from "./context/ConnectContext";
 
 import Navbar from "./components/Navbar";
 
@@ -20,6 +19,8 @@ import Dashboard from "./pages/Dashboard";
 import Libraries from "./pages/Libraries";
 import Downloads from "./pages/Downloads";
 import Connects from "./pages/Connects";
+import Requests from "./pages/Requests";
+import Connections from "./pages/Connections";
 import History from "./pages/History";
 
 import DashboardLayout from "./layout/DashboardLayout";
@@ -60,9 +61,9 @@ const PublicLayout = () => {
 function App() {
   return (
     <AuthProvider>
-      <SearchProvider>
-        <DocumentProvider>
-          <ConnectProvider>
+      <ConnectProvider>
+        <SearchProvider>
+          <DocumentProvider>
             <Router>
               <Routes>
                 {/* PUBLIC */}
@@ -100,6 +101,16 @@ function App() {
                     path="/connects"
                     element={<Connects />}
                   />
+
+                  <Route
+                    path="/requests"
+                    element={<Requests />}
+                  />
+
+                  <Route
+                    path="/connections"
+                    element={<Connections />}
+                  />
                 </Route>
 
                 {/* FALLBACK */}
@@ -109,9 +120,9 @@ function App() {
                 />
               </Routes>
             </Router>
-          </ConnectProvider>
-        </DocumentProvider>
-      </SearchProvider>
+          </DocumentProvider>
+        </SearchProvider>
+      </ConnectProvider>
     </AuthProvider>
   );
 }

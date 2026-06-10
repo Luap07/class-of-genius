@@ -1,5 +1,15 @@
-import React from 'react';
-import { biology, chemistry, physics, maths, art, geography, science, accounting } from '../assets/index.js';
+import React, { useContext } from "react";
+import { ConnectContext } from "../context/ConnectContext";
+import {
+  biology,
+  chemistry,
+  physics,
+  maths,
+  art,
+  geography,
+  science,
+  accounting
+} from "../assets/index.js";
 
 const subjectData = [
   { name: "Biology", img: biology, desc: "Life Science" },
@@ -13,30 +23,57 @@ const subjectData = [
 ];
 
 const SubjectCarousel = () => {
+  const { darkMode } = useContext(ConnectContext);
+
   return (
-    <section className="py-16 bg-white overflow-hidden px-6 md:px-12">
-      <h2 className="text-3xl font-bold mb-10 text-center text-slate-900">Explore Our Subjects</h2>
-      
+    <section
+      className={`py-16 overflow-hidden px-6 md:px-12 transition-colors duration-300 ${ darkMode ? "bg-slate-950 text-white" : "bg-white text-slate-900" }`}
+    >
+      <h2 className="text-3xl font-bold mb-10 text-center">Explore Our Subjects</h2>
       <div className="flex w-full overflow-hidden">
         <div className="flex space-x-6 animate-bounce-scroll whitespace-nowrap w-max">
           {[...subjectData, ...subjectData].map((sub, index) => (
-            <div 
+            <div
               key={index}
-              className="relative group w-64 h-80 flex-shrink-0 rounded-3xl overflow-hidden shadow-lg cursor-pointer transition-transform duration-500 hover:scale-105"
+              className="relative group w-64 h-80 flex-shrink-0 rounded-3xl overflow-hidden cursor-pointer transition-transform duration-500 hover:scale-105"
             >
-              <img 
-                src={sub.img} 
-                alt={sub.name} 
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+              {/* IMAGE */}
+              <img
+                src={sub.img}
+                alt={sub.name}
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
               />
-              
-              <div className="absolute inset-0 bg-gradient-to-t from-blue-900/90 to-transparent" />
-              
-              <div className="absolute bottom-6 left-6 text-white">
-                <h3 className="text-2xl font-bold">{sub.name}</h3>
-                <p className="text-sm text-blue-100 opacity-90 mt-1">
-                  {sub.desc}
-                </p>
+
+              {/* SOFT OVERLAY */}
+              <div
+                className={`absolute inset-0 ${
+                  darkMode
+                    ? "bg-black/40"
+                    : "bg-blue-900/20"
+                }`}
+              />
+
+              {/* GLASS CARD */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[85%]">
+                <div
+                  className={`backdrop-blur-xl rounded-2xl px-4 py-3 border shadow-lg transition-all duration-300 ${
+                    darkMode
+                      ? "bg-white/10 border-white/10"
+                      : "bg-white/40 border-white/50"
+                  }`}
+                >
+                  <h3 className="text-lg font-bold">
+                    {sub.name}
+                  </h3>
+
+                  <p
+                    className={`text-xs mt-1 ${
+                      darkMode ? "text-gray-300" : "text-slate-700"
+                    }`}
+                  >
+                    {sub.desc}
+                  </p>
+                </div>
               </div>
             </div>
           ))}
@@ -45,5 +82,4 @@ const SubjectCarousel = () => {
     </section>
   );
 };
-
 export default SubjectCarousel;

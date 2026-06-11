@@ -1,68 +1,140 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { FaBars, FaTimes } from "react-icons/fa";
+import {
+  Home,
+  Info,
+  Settings,
+  Phone,
+  Sparkles,
+} from "lucide-react";
+
 import Cog from "../assets/cog.png";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 left-0 w-full z-50 p-4 backdrop-blur-xl border-b bg-white/80 border-blue-100 text-slate-900 transition-colors">
-      <div className="flex justify-between items-center max-w-7xl mx-auto">
+    <nav className="fixed top-0 left-0 w-full z-50 text-white">
 
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 font-bold text-xl">
-          <img src={Cog} alt="Logo" className="w-8 h-8" />
-          <span>Class Of Genius</span>
+      {/* BACKGROUND */}
+      <div className="
+        absolute inset-0
+        bg-gradient-to-r from-[#05070f] via-[#0b1220] to-[#05070f]
+        backdrop-blur-xl
+        border-b border-white/10
+      " />
+
+      {/* MAIN CONTAINER (FIXED PADDING PROPERLY) */}
+      <div className="relative max-w-7xl mx-auto px-6 md:px-10 py-4 flex justify-between items-center">
+
+        {/* ================= LOGO ================= */}
+        <Link
+          to="/"
+          className="flex items-center gap-3 font-bold text-xl"
+        >
+          <img
+            src={Cog}
+            alt="logo"
+            className="w-9 h-9 hover:rotate-12 transition duration-300"
+          />
+
+          <span className="tracking-wide">
+            Scholiqen
+          </span>
         </Link>
 
-        {/* Desktop Menu */}
-        <ul className="hidden md:flex items-center gap-8 font-medium">
-          <li><Link to="/">Home</Link></li>
-          <li><Link to="/about">About</Link></li>
-          <li><Link to="/services">Services</Link></li>
-          <li><Link to="/contact">Contact</Link></li>
+        {/* ================= DESKTOP NAV ================= */}
+        <ul className="hidden md:flex items-center gap-10 text-sm font-medium">
+
+          <li>
+            <Link className="flex items-center gap-2 hover:text-blue-400 transition" to="/">
+              <Home size={16} />
+              Home
+            </Link>
+          </li>
+
+          <li>
+            <Link className="flex items-center gap-2 hover:text-blue-400 transition" to="/about">
+              <Info size={16} />
+              About
+            </Link>
+          </li>
+
+          <li>
+            <Link className="flex items-center gap-2 hover:text-blue-400 transition" to="/services">
+              <Settings size={16} />
+              Services
+            </Link>
+          </li>
+
+          <li>
+            <Link className="flex items-center gap-2 hover:text-blue-400 transition" to="/contact">
+              <Phone size={16} />
+              Contact
+            </Link>
+          </li>
+
         </ul>
 
-        {/* Desktop Actions */}
+        {/* ================= RIGHT BUTTON ================= */}
         <div className="hidden md:flex items-center gap-3">
+
           <Link
             to="/login"
-            className="px-4 py-2 text-sm rounded-full border border-blue-600 text-blue-600"
+            className="px-5 py-2 rounded-full border border-blue-500 text-blue-300 hover:bg-blue-500/10 transition"
           >
             Get Started
           </Link>
 
           <Link
             to="/contact"
-            className="px-4 py-2 text-sm rounded-full bg-blue-600 text-white"
+            className="px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-500 transition shadow-lg shadow-blue-500/20"
           >
             Contact Us
           </Link>
+
         </div>
 
-        {/* Mobile Button */}
-        <div className="flex md:hidden">
-          <button onClick={() => setIsOpen(!isOpen)} className="text-2xl">
-            {isOpen ? <FaTimes /> : <FaBars />}
-          </button>
-        </div>
+        {/* ================= MOBILE BUTTON ================= */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="md:hidden text-2xl"
+        >
+          {isOpen ? <FaTimes /> : <FaBars />}
+        </button>
       </div>
 
-      {/* MOBILE MENU */}
+      {/* ================= MOBILE MENU ================= */}
       {isOpen && (
-        <div className="md:hidden mt-4 px-6 py-6 space-y-4 rounded-xl shadow-lg bg-white text-slate-900">
-          <Link onClick={() => setIsOpen(false)} to="/" className="block">Home</Link>
-          <Link onClick={() => setIsOpen(false)} to="/about" className="block">About</Link>
-          <Link onClick={() => setIsOpen(false)} to="/services" className="block">Services</Link>
-          <Link onClick={() => setIsOpen(false)} to="/contact" className="block">Contact</Link>
+        <div className="
+          md:hidden mx-4 mt-3 p-5 rounded-2xl
+          bg-[#0b1220]/95 border border-white/10
+          backdrop-blur-xl space-y-4
+        ">
 
-          <hr />
+          <Link onClick={() => setIsOpen(false)} className="flex items-center gap-2" to="/">
+            <Home size={16} /> Home
+          </Link>
+
+          <Link onClick={() => setIsOpen(false)} className="flex items-center gap-2" to="/about">
+            <Info size={16} /> About
+          </Link>
+
+          <Link onClick={() => setIsOpen(false)} className="flex items-center gap-2" to="/services">
+            <Settings size={16} /> Services
+          </Link>
+
+          <Link onClick={() => setIsOpen(false)} className="flex items-center gap-2" to="/contact">
+            <Phone size={16} /> Contact
+          </Link>
+
+          <hr className="border-white/10" />
 
           <Link
             onClick={() => setIsOpen(false)}
             to="/login"
-            className="block px-4 py-2 rounded-full border border-blue-600 text-blue-600 text-center"
+            className="block text-center py-2 rounded-full border border-blue-500 text-blue-300"
           >
             Get Started
           </Link>
@@ -70,10 +142,11 @@ const Navbar = () => {
           <Link
             onClick={() => setIsOpen(false)}
             to="/contact"
-            className="block px-4 py-2 rounded-full bg-blue-600 text-white text-center"
+            className="block text-center py-2 rounded-full bg-blue-600"
           >
             Contact Us
           </Link>
+
         </div>
       )}
     </nav>

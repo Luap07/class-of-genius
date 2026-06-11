@@ -5,13 +5,46 @@
   font-family: "Roboto", sans-serif;
 }
 
-/* ================= GLOBAL DARK MODE ================= */
+/* ================= BASE APP BACKGROUND ================= */
 html, body {
-  @apply bg-white text-slate-900 dark:bg-slate-900 dark:text-white;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  transition: all 0.3s ease;
+
+  /* default light background */
+  background: #f8fafc;
+  color: #0f172a;
 }
 
-/* ================= SCROLLBAR HIDE ================= */
+/* ================= DARK MODE (CLASS BASED - IMPORTANT) ================= */
+.dark html,
+.dark body {
+  background: #070b14;
+  color: #ffffff;
+}
+
+/* ================= GLOBAL SCROLLBAR (CLEAN + MODERN) ================= */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b1220;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #3b82f6, #1e293b);
+  border-radius: 10px;
+  border: 2px solid #0b1220;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #60a5fa;
+}
+
+/* ================= HIDE SCROLLBAR UTILITY ================= */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }

@@ -38,7 +38,12 @@ const Libraries = () => {
   );
 
   return (
-    <div className="p-6">
+    <div
+      className="
+        p-6 min-h-screen text-white
+        bg-gradient-to-b from-[#070b14] via-[#0a0f1f] to-[#05070f]
+      "
+    >
 
       {/* ================= HEADER ================= */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
@@ -53,33 +58,31 @@ const Libraries = () => {
             placeholder="Search files..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border rounded-lg"
+            className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
           />
         </div>
 
-        {/* VIEW TOGGLE (FIXED + FUNCTIONAL) */}
+        {/* VIEW TOGGLE */}
         <div className="flex gap-2">
 
           <button
             onClick={() => changeView("grid")}
-            className={`p-2 border rounded-lg transition ${
+            className={`p-2 rounded-lg transition border border-white/10 ${
               view === "grid"
-                ? "bg-blue-100 text-blue-600"
-                : "hover:bg-gray-100"
+                ? "bg-blue-600 text-white"
+                : "hover:bg-white/10"
             }`}
-            title="Grid view"
           >
             <Grid3X3 size={18} />
           </button>
 
           <button
             onClick={() => changeView("list")}
-            className={`p-2 border rounded-lg transition ${
+            className={`p-2 rounded-lg transition border border-white/10 ${
               view === "list"
-                ? "bg-blue-100 text-blue-600"
-                : "hover:bg-gray-100"
+                ? "bg-blue-600 text-white"
+                : "hover:bg-white/10"
             }`}
-            title="List view"
           >
             <List size={18} />
           </button>
@@ -96,7 +99,7 @@ const Libraries = () => {
             {pinned.map((doc) => (
               <div
                 key={doc.id}
-                className="p-3 border rounded-xl bg-yellow-50"
+                className="p-3 rounded-xl bg-white/5 border border-white/10"
               >
                 <p className="font-medium truncate">
                   {doc?.name}
@@ -109,7 +112,7 @@ const Libraries = () => {
 
       {/* ================= EMPTY STATE ================= */}
       {filteredDocs.length === 0 ? (
-        <div className="text-center text-gray-500 mt-10">
+        <div className="text-center text-gray-400 mt-10">
           📭 No files found in your Drive
         </div>
       ) : (
@@ -121,10 +124,9 @@ const Libraries = () => {
               {filteredDocs.map((doc) => (
                 <div
                   key={doc.id}
-                  className="border rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition"
+                  className="rounded-xl p-4 bg-white/5 border border-white/10 hover:bg-white/10 transition"
                 >
 
-                  {/* FILE TITLE */}
                   <div className="flex items-center gap-2 mb-3">
                     <FileText size={18} />
                     <span className="font-semibold truncate">
@@ -132,12 +134,10 @@ const Libraries = () => {
                     </span>
                   </div>
 
-                  {/* TYPE */}
-                  <p className="text-xs text-gray-500 mb-3">
+                  <p className="text-xs text-gray-400 mb-3">
                     {doc?.type || "File"}
                   </p>
 
-                  {/* ACTIONS */}
                   <div className="flex flex-wrap gap-3 text-sm">
 
                     <button
@@ -145,28 +145,28 @@ const Libraries = () => {
                         openDocument(doc);
                         window.open(doc.url, "_blank");
                       }}
-                      className="text-blue-600"
+                      className="text-blue-400"
                     >
                       Open
                     </button>
 
                     <button
                       onClick={() => addDownload(doc)}
-                      className="text-green-600 flex items-center gap-1"
+                      className="text-green-400 flex items-center gap-1"
                     >
                       <Download size={14} /> Save
                     </button>
 
                     <button
                       onClick={() => togglePin(doc)}
-                      className="text-yellow-600 flex items-center gap-1"
+                      className="text-yellow-400 flex items-center gap-1"
                     >
                       <Pin size={14} /> Pin
                     </button>
 
                     <button
                       onClick={() => removeDocument(doc.id)}
-                      className="text-red-500 flex items-center gap-1"
+                      className="text-red-400 flex items-center gap-1"
                     >
                       <Trash2 size={14} /> Delete
                     </button>
@@ -185,14 +185,14 @@ const Libraries = () => {
               {filteredDocs.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center justify-between border rounded-lg p-3 bg-white"
+                  className="flex items-center justify-between rounded-lg p-3 bg-white/5 border border-white/10"
                 >
 
                   <div className="flex items-center gap-3">
                     <FileText size={18} />
                     <div>
                       <p className="font-medium">{doc?.name}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-400">
                         {doc?.type || "File"}
                       </p>
                     </div>
@@ -205,31 +205,16 @@ const Libraries = () => {
                         openDocument(doc);
                         window.open(doc.url, "_blank");
                       }}
-                      className="text-blue-600"
+                      className="text-blue-400"
                     >
                       Open
                     </button>
 
-                    <button
-                      onClick={() => addDownload(doc)}
-                      className="text-green-600"
-                    >
-                      Download
-                    </button>
+                    <button className="text-green-400">Download</button>
 
-                    <button
-                      onClick={() => togglePin(doc)}
-                      className="text-yellow-600"
-                    >
-                      Pin
-                    </button>
+                    <button className="text-yellow-400">Pin</button>
 
-                    <button
-                      onClick={() => removeDocument(doc.id)}
-                      className="text-red-500"
-                    >
-                      Delete
-                    </button>
+                    <button className="text-red-400">Delete</button>
 
                   </div>
 

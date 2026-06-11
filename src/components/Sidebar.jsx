@@ -1,30 +1,28 @@
 import React, { useState, useEffect, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Search,
   History,
   Library,
-  Users,
   Download,
   CloudSun,
   PanelLeft,
   X,
+  ChevronRight,
 } from "lucide-react";
 
 import { StudyContext } from "../context/StudyContext";
 
 const Sidebar = () => {
-  const navigate = useNavigate(); // 🔥 ADDED
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [weather, setWeather] = useState(null);
   const [weatherError, setWeatherError] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
   const [searchValue, setSearchValue] = useState("");
-  const [history, setHistory] = useState(
-    JSON.parse(localStorage.getItem("searchHistory")) || []
-  );
-
+  const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
 
   const studyContext = useContext(StudyContext);
@@ -34,6 +32,18 @@ const Sidebar = () => {
     user?.displayName ||
     user?.email?.split("@")[0] ||
     "Genius";
+
+  const progress = 0;
+
+  const navItems = [
+    { title: "Libraries", icon: Library, path: "/libraries" },
+    { title: "Downloads", icon: Download, path: "/downloads" },
+    {
+      title: "History",
+      icon: History,
+      action: () => setShowHistory(!showHistory),
+    },
+  ];
 
   const handleSearchSubmit = () => {
     const trimmed = searchValue.trim();
@@ -45,21 +55,19 @@ const Sidebar = () => {
     ].slice(0, 10);
 
     setHistory(newHistory);
-    localStorage.setItem("searchHistory", JSON.stringify(newHistory));
-
     setSearchValue("");
   };
 
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const apiKey = import.meta.env.VITE_WEATHER_API_KEY;
-
-        const response = await fetch(
-          `https://api.openweathermap.org/data/2.5/weather?q=Lagos&units=metric&appid=${apiKey}`
+        const res = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?q=Lagos&units=metric&appid=${
+            import.meta.env.VITE_WEATHER_API_KEY
+          }`
         );
 
-        const data = await response.json();
+        const data = await res.json();
 
         if (Number(data.cod) !== 200) {
           setWeatherError("Weather unavailable");
@@ -67,7 +75,7 @@ const Sidebar = () => {
         }
 
         setWeather(data);
-      } catch (error) {
+      } catch {
         setWeatherError("Unable to load weather");
       }
     };
@@ -80,7 +88,7 @@ const Sidebar = () => {
       {/* MOBILE TOGGLE */}
       <button
         onClick={() => setIsOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 bg-white shadow-lg rounded-xl p-2"
+        className="lg:hidden fixed top-4 left-4 z-50 bg-white shadow-xl rounded-xl p-2"
       >
         <PanelLeft size={24} />
       </button>
@@ -88,123 +96,158 @@ const Sidebar = () => {
       {/* OVERLAY */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
           onClick={() => setIsOpen(false)}
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
         />
       )}
 
       {/* SIDEBAR */}
-      <aside className={`
-        fixed lg:sticky top-0 left-0 z-50
-        w-64 h-screen bg-white border-r
-        p-6 flex flex-col justify-between
-        transition-transform duration-300
-        ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-      `}>
-
-        <div className="lg:hidden flex justify-end mb-4">
-          <button onClick={() => setIsOpen(false)}>
-            <X />
-          </button>
-        </div>
-
+      <aside
+        className={`
+fixed lg:sticky top-0 left-0 z-50
+h-screen w-72
+bg-gradient-to-b from-slate-900 via-slate-950 to-black
+text-white border-r border-slate-800
+flex flex-col justify-between p-5
+transition-transform duration-300
+${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+`}
+      >
+        {/* TOP */}
         <div>
+          {/* CLOSE BTN (mobile) */}
+          <div className="lg:hidden flex justify-end mb-4">
+            <button onClick={() => setIsOpen(false)}>
+              <X />
+            </button>
+          </div>
 
           {/* USER */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
-              {userName.charAt(0).toUpperCase()}
-            </div>
-
-            <div>
-              <h2 className="font-bold text-lg">{userName}</h2>
-              <p className="text-xs text-gray-500">Welcome Back</p>
-            </div>
+          <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-4 shadow-xl mb-6">
+            <h2 className="font-bold text-lg">{userName}</h2>
+            <p className="text-xs text-blue-100">Welcome Back</p>
           </div>
 
           {/* SEARCH */}
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-gray-400" />
+          <div className="relative mb-5">
+            <Search
+              size={18}
+              className="absolute left-3 top-3 text-gray-400"
+            />
 
-              <input
-                type="text"
-                value={searchValue}
-                placeholder="Search documents..."
-                onChange={(e) => setSearchValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSearchSubmit();
-                }}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 rounded-lg"
-              />
-            </div>
+            <input
+              value={searchValue}
+              placeholder="Search..."
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={(e) =>
+                e.key === "Enter" && handleSearchSubmit()
+              }
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-3 outline-none focus:border-blue-500"
+            />
           </div>
 
           {/* HISTORY */}
           {showHistory && (
-            <div className="mb-4 bg-gray-50 p-3 rounded-lg">
-              {history.map((item, i) => (
-                <div
-                  key={i}
-                  className="text-sm p-2 hover:bg-white rounded cursor-pointer"
-                  onClick={() => setSearchValue(item)}
-                >
-                  🔎 {item}
-                </div>
-              ))}
+            <div className="mb-5 bg-slate-800/60 rounded-xl p-3 max-h-40 overflow-auto">
+              {history.length === 0 ? (
+                <p className="text-xs text-gray-400">
+                  No history yet
+                </p>
+              ) : (
+                history.map((item, i) => (
+                  <div
+                    key={i}
+                    onClick={() => setSearchValue(item)}
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-700 cursor-pointer text-sm"
+                  >
+                    <ChevronRight size={14} />
+                    {item}
+                  </div>
+                ))
+              )}
             </div>
           )}
 
-          {/* NAVIGATION (NOW REAL DRIVE NAVIGATION) */}
-          <nav className="flex flex-col gap-3">
+          {/* NAVIGATION */}
+          <nav className="flex flex-col gap-2">
+            {navItems.map((item, i) => {
+              const Icon = item.icon;
+              const active =
+                location.pathname === item.path;
 
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-blue-50"
-            >
-              <History size={20} />
-              History
-            </button>
-
-            <button
-              onClick={() => navigate("/libraries")}
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-blue-50"
-            >
-              <Library size={20} />
-              Libraries (Drive)
-            </button>
-
-            <button
-              onClick={() => navigate("/connects")}
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-blue-50"
-            >
-              <Users size={20} />
-              Connects
-            </button>
-
-            <button
-              onClick={() => navigate("/downloads")}
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-blue-50"
-            >
-              <Download size={20} />
-              Downloads
-            </button>
-
+              return (
+                <button
+                  key={i}
+                  onClick={() =>
+                    item.path
+                      ? navigate(item.path)
+                      : item.action()
+                  }
+                  className={`
+flex items-center gap-3 p-3 rounded-xl transition-all duration-300
+hover:bg-slate-800 hover:translate-x-1
+${
+  active
+    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+    : "text-gray-300"
+}
+`}
+                >
+                  <Icon size={18} />
+                  {item.title}
+                </button>
+              );
+            })}
           </nav>
         </div>
 
-        {/* WEATHER */}
-        <div className="bg-white p-4 rounded-xl border">
-          <div className="flex justify-between items-center">
+        {/* BOTTOM SECTION */}
+        <div className="space-y-4">
+          {/* PROGRESS RING */}
+          <div className="flex items-center justify-between bg-slate-800/40 p-3 rounded-xl border border-slate-700">
             <div>
-              <p className="text-xs text-gray-500">Lagos Forecast</p>
-              <p className="font-bold">
-                {weather?.main?.temp
-                  ? `${Math.round(weather.main.temp)}°C`
-                  : weatherError || "Loading..."}
-              </p>
+              <p className="text-xs text-gray-400">Progress</p>
+              <p className="font-bold text-sm">{progress}%</p>
             </div>
-            <CloudSun className="text-blue-500" />
+
+            <svg className="w-10 h-10 rotate-[-90deg]">
+              <circle
+                cx="20"
+                cy="20"
+                r="16"
+                stroke="#1f2937"
+                strokeWidth="4"
+                fill="none"
+              />
+              <circle
+                cx="20"
+                cy="20"
+                r="16"
+                stroke="#3b82f6"
+                strokeWidth="4"
+                fill="none"
+                strokeDasharray="100"
+                strokeDashoffset={100}
+              />
+            </svg>
+          </div>
+
+          {/* WEATHER */}
+          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-400">
+                  Lagos Weather
+                </p>
+                <p className="text-lg font-bold">
+                  {weather?.main?.temp
+                    ? `${Math.round(weather.main.temp)}°C`
+                    : weatherError || "Loading..."}
+                </p>
+              </div>
+
+              <CloudSun className="text-blue-400" />
+            </div>
           </div>
         </div>
       </aside>

@@ -32,28 +32,13 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen text-lg font-semibold">
+      <div className="flex items-center justify-center h-screen">
         Loading...
       </div>
     );
   }
 
   return user ? children : <Navigate to="/login" replace />;
-};
-
-/* ================= PUBLIC LAYOUT ================= */
-
-const PublicLayout = () => {
-  return (
-    <>
-      <Navbar />
-
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-      </Routes>
-    </>
-  );
 };
 
 /* ================= APP ================= */
@@ -66,11 +51,26 @@ function App() {
           <DocumentProvider>
             <Router>
               <Routes>
-                {/* PUBLIC */}
-                <Route path="/*" element={<PublicLayout />} />
 
-                {/* PROTECTED */}
+                {/* PUBLIC ROUTES */}
                 <Route
+                  path="/login"
+                  element={<Login />}
+                />
+
+                <Route
+                  path="/"
+                  element={
+                    <>
+                      <Navbar />
+                      <Home />
+                    </>
+                  }
+                />
+
+                {/* PROTECTED ROUTES WRAPPED PROPERLY */}
+                <Route
+                  path="/"
                   element={
                     <ProtectedRoute>
                       <DashboardLayout />
@@ -78,37 +78,37 @@ function App() {
                   }
                 >
                   <Route
-                    path="/dashboard"
+                    path="dashboard"
                     element={<Dashboard />}
                   />
 
                   <Route
-                    path="/libraries"
+                    path="libraries"
                     element={<Libraries />}
                   />
 
                   <Route
-                    path="/downloads"
+                    path="downloads"
                     element={<Downloads />}
                   />
 
                   <Route
-                    path="/history"
+                    path="history"
                     element={<History />}
                   />
 
                   <Route
-                    path="/connects"
+                    path="connects"
                     element={<Connects />}
                   />
 
                   <Route
-                    path="/requests"
+                    path="requests"
                     element={<Requests />}
                   />
 
                   <Route
-                    path="/connections"
+                    path="connections"
                     element={<Connections />}
                   />
                 </Route>
@@ -118,6 +118,7 @@ function App() {
                   path="*"
                   element={<Navigate to="/" replace />}
                 />
+
               </Routes>
             </Router>
           </DocumentProvider>

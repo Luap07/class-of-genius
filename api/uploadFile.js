@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../src/lib/supabaseClient";
 
 export const uploadFile = async (file, userId) => {
   const fileName = `${Date.now()}_${file.name}`;

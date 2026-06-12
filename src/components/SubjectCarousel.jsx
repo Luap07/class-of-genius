@@ -34,7 +34,7 @@ const SubjectCarousel = () => {
           className={`absolute inset-0 transition-all duration-500 ${
             darkMode
               ? "bg-gradient-to-br from-[#070b14] via-[#0b1220] to-[#070a12]"
-              : "bg-gradient-to-br from-blue-50 via-white to-slate-100"
+              : "bg-gradient-to-br from-[#070b14] via-[#0b1220] to-[#070a12]"
           }`}
         />
 
@@ -45,7 +45,7 @@ const SubjectCarousel = () => {
 
       {/* ================= TITLE ================= */}
       <h2 className={`text-3xl font-bold text-center mb-12 ${
-        darkMode ? "text-white" : "text-slate-900"
+        darkMode ? "text-white" : "text-white/90"
       }`}>
         Explore Our Subjects
       </h2>

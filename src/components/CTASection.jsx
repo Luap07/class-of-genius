@@ -8,7 +8,7 @@ const CTASection = () => {
   return (
     <section
       className={`py-24 px-6 text-center transition-colors duration-300 ${
-        darkMode ? "bg-slate-900 text-white" : "bg-gray-800 text-white"
+        darkMode ? "bg-slate-900 text-white" : "bg-[#070b14] text-white"
       }`}
     >
       <div>

@@ -4,7 +4,10 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
 } from "react-router-dom";
+
+import { AnimatePresence, motion } from "framer-motion";
 
 import { AuthContext, AuthProvider } from "./context/AuthContext";
 import { ConnectProvider } from "./context/ConnectContext";
@@ -22,6 +25,7 @@ import Connects from "./pages/Connects";
 import Requests from "./pages/Requests";
 import Connections from "./pages/Connections";
 import History from "./pages/History";
+import Contact from "./components/Contact";
 
 import DashboardLayout from "./layout/DashboardLayout";
 
@@ -41,6 +45,78 @@ const ProtectedRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" replace />;
 };
 
+/* ================= PAGE WRAPPER ================= */
+
+const PageWrapper = ({ children }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -20 }}
+    transition={{ duration: 0.3 }}
+  >
+    {children}
+  </motion.div>
+);
+
+/* ================= ROUTES COMPONENT (IMPORTANT) ================= */
+
+const AnimatedRoutes = () => {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+
+        {/* PUBLIC ROUTES */}
+        <Route path="/login" element={<Login />} />
+
+        <Route
+          path="/"
+          element={
+            <>
+              <Navbar />
+              <PageWrapper>
+                <Home />
+              </PageWrapper>
+            </>
+          }
+        />
+
+        {/* CONTACT PAGE */}
+        <Route
+          path="/contact"
+          element={
+            <PageWrapper>
+              <Contact />
+            </PageWrapper>
+          }
+        />
+
+        {/* PROTECTED ROUTES */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="dashboard" element={<PageWrapper><Dashboard /></PageWrapper>} />
+          <Route path="libraries" element={<PageWrapper><Libraries /></PageWrapper>} />
+          <Route path="downloads" element={<PageWrapper><Downloads /></PageWrapper>} />
+          <Route path="history" element={<PageWrapper><History /></PageWrapper>} />
+          <Route path="connects" element={<PageWrapper><Connects /></PageWrapper>} />
+          <Route path="requests" element={<PageWrapper><Requests /></PageWrapper>} />
+          <Route path="connections" element={<PageWrapper><Connections /></PageWrapper>} />
+        </Route>
+
+        {/* FALLBACK */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+
+      </Routes>
+    </AnimatePresence>
+  );
+};
+
 /* ================= APP ================= */
 
 function App() {
@@ -50,76 +126,7 @@ function App() {
         <SearchProvider>
           <DocumentProvider>
             <Router>
-              <Routes>
-
-                {/* PUBLIC ROUTES */}
-                <Route
-                  path="/login"
-                  element={<Login />}
-                />
-
-                <Route
-                  path="/"
-                  element={
-                    <>
-                      <Navbar />
-                      <Home />
-                    </>
-                  }
-                />
-
-                {/* PROTECTED ROUTES WRAPPED PROPERLY */}
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <DashboardLayout />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route
-                    path="dashboard"
-                    element={<Dashboard />}
-                  />
-
-                  <Route
-                    path="libraries"
-                    element={<Libraries />}
-                  />
-
-                  <Route
-                    path="downloads"
-                    element={<Downloads />}
-                  />
-
-                  <Route
-                    path="history"
-                    element={<History />}
-                  />
-
-                  <Route
-                    path="connects"
-                    element={<Connects />}
-                  />
-
-                  <Route
-                    path="requests"
-                    element={<Requests />}
-                  />
-
-                  <Route
-                    path="connections"
-                    element={<Connections />}
-                  />
-                </Route>
-
-                {/* FALLBACK */}
-                <Route
-                  path="*"
-                  element={<Navigate to="/" replace />}
-                />
-
-              </Routes>
+              <AnimatedRoutes />
             </Router>
           </DocumentProvider>
         </SearchProvider>

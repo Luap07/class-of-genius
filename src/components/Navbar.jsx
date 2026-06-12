@@ -8,6 +8,7 @@ import {
   Phone,
   Sparkles,
 } from "lucide-react";
+import contact from "../components/Contact";
 
 import Cog from "../assets/cog.png";
 

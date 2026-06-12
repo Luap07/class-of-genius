@@ -1,22 +1,27 @@
-import React from "react";
+import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import DashboardHeader from "../components/DashboardHeader";
 
 const DashboardLayout = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 text-black">
-      {/* SIDEBAR */}
-      <Sidebar />
+    <div className="h-screen flex bg-slate-50">
+
+      {/* SIDEBAR CONTROLLED HERE */}
+      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
 
       {/* MAIN AREA */}
-      <main className="flex-1 overflow-y-auto bg-gray-50">
-        {/* HEADER */}
-        <DashboardHeader />
+      <div className="flex-1 flex flex-col lg:pl-72">
 
-        {/* ROUTED CONTENT */}
-        <Outlet />
-      </main>
+        <DashboardHeader setSidebarOpen={setSidebarOpen} />
+
+        <main className="flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+
+      </div>
     </div>
   );
 };

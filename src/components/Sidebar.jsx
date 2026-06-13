@@ -8,6 +8,7 @@ import {
   CloudSun,
   X,
   PanelLeft,
+  Inbox, // ✅ added
 } from "lucide-react";
 
 import { StudyContext } from "../context/StudyContext";
@@ -30,7 +31,18 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
   const navItems = [
     { title: "Libraries", icon: Library, path: "/libraries" },
     { title: "Downloads", icon: Download, path: "/downloads" },
-    { title: "History", icon: History, action: () => setShowHistory(!showHistory) },
+    {
+      title: "History",
+      icon: History,
+      action: () => setShowHistory(!showHistory),
+    },
+
+    // ✅ CONTACT INBOX ADDED HERE
+    {
+      title: "Contact Inbox",
+      icon: Inbox,
+      path: "/contact-inbox",
+    },
   ];
 
   const handleSearchSubmit = () => {
@@ -44,7 +56,9 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Lagos&units=metric&appid=${import.meta.env.VITE_WEATHER_API_KEY}`);
+        const res = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?q=Lagos&units=metric&appid=${import.meta.env.VITE_WEATHER_API_KEY}`
+        );
         const data = await res.json();
         if (Number(data.cod) !== 200) {
           setWeatherError("Weather unavailable");
@@ -62,7 +76,10 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
     <>
       {/* BACKDROP */}
       {open && (
-        <div onClick={() => setOpen(false)} className="fixed inset-0 bg-black/40 z-40 lg:hidden" />
+        <div
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+        />
       )}
 
       {/* TOGGLE BUTTON */}
@@ -73,7 +90,7 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
         <PanelLeft size={22} />
       </button>
 
-      {/* SIDEBAR: Changed lg:sticky to lg:fixed to remove the whitespace gap */}
+      {/* SIDEBAR */}
       <aside
         className={`
           fixed top-0 left-0 z-50 h-screen w-72
@@ -85,12 +102,14 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
           lg:fixed lg:left-0
         `}
       >
-        {/* CLOSE BTN */}
+        {/* CLOSE BUTTON */}
         <div className="lg:hidden flex justify-end mb-4">
-          <button onClick={() => setOpen(false)}><X /></button>
+          <button onClick={() => setOpen(false)}>
+            <X />
+          </button>
         </div>
 
-        {/* TOP CONTENT */}
+        {/* TOP */}
         <div className="flex-1">
           <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-4 mb-6">
             <h2 className="font-bold text-lg">{userName}</h2>
@@ -112,14 +131,21 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
             {navItems.map((item, i) => {
               const Icon = item.icon;
               const active = location.pathname === item.path;
+
               return (
                 <button
                   key={i}
                   onClick={() => {
-                    if (item.path) { navigate(item.path); setOpen(false); }
-                    else { item.action(); }
+                    if (item.path) {
+                      navigate(item.path);
+                      setOpen(false);
+                    } else {
+                      item.action();
+                    }
                   }}
-                  className={`flex items-center gap-3 p-3 rounded-xl ${active ? "bg-blue-600" : "hover:bg-slate-800"}`}
+                  className={`flex items-center gap-3 p-3 rounded-xl ${
+                    active ? "bg-blue-600" : "hover:bg-slate-800"
+                  }`}
                 >
                   <Icon size={18} />
                   {item.title}
@@ -135,7 +161,9 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
             <div>
               <p className="text-xs text-gray-400">Lagos Weather</p>
               <p className="text-lg font-bold">
-                {weather?.main?.temp ? `${Math.round(weather.main.temp)}°C` : weatherError || "Loading..."}
+                {weather?.main?.temp
+                  ? `${Math.round(weather.main.temp)}°C`
+                  : weatherError || "Loading..."}
               </p>
             </div>
             <CloudSun className="text-blue-400" />

@@ -30,6 +30,8 @@ import Connects from "./pages/Connects";
 import Requests from "./pages/Requests";
 import Connections from "./pages/Connections";
 import History from "./pages/History";
+import About from "./pages/About";
+import Services from "./pages/Services"; // ✅ ADDED
 
 /* ================= LAYOUT ================= */
 import DashboardLayout from "./layout/DashboardLayout";
@@ -61,7 +63,7 @@ const PageWrapper = ({ children }) => (
   </motion.div>
 );
 
-/* ================= ROUTES (FIXED) ================= */
+/* ================= ROUTES ================= */
 const AnimatedRoutes = () => {
   const location = useLocation();
 
@@ -69,7 +71,7 @@ const AnimatedRoutes = () => {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
 
-        {/* PUBLIC */}
+        {/* PUBLIC ROUTES */}
         <Route
           path="/"
           element={
@@ -93,6 +95,33 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* ABOUT */}
+        <Route
+          path="/about"
+          element={
+            <>
+              <Navbar />
+              <PageWrapper>
+                <About />
+              </PageWrapper>
+            </>
+          }
+        />
+
+        {/* SERVICES (NEW) */}
+        <Route
+          path="/services"
+          element={
+            <>
+              <Navbar />
+              <PageWrapper>
+                <Services />
+              </PageWrapper>
+            </>
+          }
+        />
+
+        {/* CONTACT INBOX */}
         <Route
           path="/contact-inbox"
           element={
@@ -104,7 +133,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* PROTECTED DASHBOARD */}
+        {/* DASHBOARD (PROTECTED) */}
         <Route
           element={
             <ProtectedRoute>
@@ -129,7 +158,7 @@ const AnimatedRoutes = () => {
   );
 };
 
-/* ================= APP WRAPPER ================= */
+/* ================= APP ================= */
 function App() {
   return (
     <AuthProvider>

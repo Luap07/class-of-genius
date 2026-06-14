@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import Cog from "../assets/cog.jpeg";
+import Cog from "../assets/cog.png";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { ConnectContext } from "../context/ConnectContext";

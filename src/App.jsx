@@ -31,7 +31,11 @@ import Requests from "./pages/Requests";
 import Connections from "./pages/Connections";
 import History from "./pages/History";
 import About from "./pages/About";
-import Services from "./pages/Services"; // ✅ ADDED
+import Services from "./pages/Services";
+
+/* ================= AI TUTOR ================= */
+import AITutor from "./pages/AITutor";
+import AITutorSession from "./pages/AITutorSession";
 
 /* ================= LAYOUT ================= */
 import DashboardLayout from "./layout/DashboardLayout";
@@ -71,7 +75,7 @@ const AnimatedRoutes = () => {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
 
-        {/* PUBLIC ROUTES */}
+        {/* ================= PUBLIC ROUTES ================= */}
         <Route
           path="/"
           element={
@@ -89,13 +93,15 @@ const AnimatedRoutes = () => {
         <Route
           path="/contact"
           element={
-            <PageWrapper>
-              <Contact />
-            </PageWrapper>
+            <>
+              <Navbar />
+              <PageWrapper>
+                <Contact />
+              </PageWrapper>
+            </>
           }
         />
 
-        {/* ABOUT */}
         <Route
           path="/about"
           element={
@@ -108,7 +114,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* SERVICES (NEW) */}
         <Route
           path="/services"
           element={
@@ -121,7 +126,29 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* CONTACT INBOX */}
+        {/* ================= AI TUTOR ================= */}
+        <Route
+          path="/ai-tutor"
+          element={
+            <>
+              <Navbar />
+              <PageWrapper>
+                <AITutor />
+              </PageWrapper>
+            </>
+          }
+        />
+
+        <Route
+          path="/ai-tutor/session"
+          element={
+            <PageWrapper>
+              <AITutorSession />
+            </PageWrapper>
+          }
+        />
+
+        {/* ================= CONTACT INBOX ================= */}
         <Route
           path="/contact-inbox"
           element={
@@ -133,7 +160,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* DASHBOARD (PROTECTED) */}
+        {/* ================= DASHBOARD ================= */}
         <Route
           element={
             <ProtectedRoute>
@@ -141,16 +168,16 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         >
-          <Route path="dashboard" element={<PageWrapper><Dashboard /></PageWrapper>} />
-          <Route path="libraries" element={<PageWrapper><Libraries /></PageWrapper>} />
-          <Route path="downloads" element={<PageWrapper><Downloads /></PageWrapper>} />
-          <Route path="history" element={<PageWrapper><History /></PageWrapper>} />
-          <Route path="connects" element={<PageWrapper><Connects /></PageWrapper>} />
-          <Route path="requests" element={<PageWrapper><Requests /></PageWrapper>} />
-          <Route path="connections" element={<PageWrapper><Connections /></PageWrapper>} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="libraries" element={<Libraries />} />
+          <Route path="downloads" element={<Downloads />} />
+          <Route path="history" element={<History />} />
+          <Route path="connects" element={<Connects />} />
+          <Route path="requests" element={<Requests />} />
+          <Route path="connections" element={<Connections />} />
         </Route>
 
-        {/* FALLBACK */}
+        {/* ================= FALLBACK ================= */}
         <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>

@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useRef } from "react";
+import { createContext, useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 export const ConnectContext = createContext();
@@ -13,8 +13,6 @@ export const ConnectProvider = ({ children }) => {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-
-  const channelRef = useRef(null);
 
   // =========================
   // GET AUTH USER
@@ -31,14 +29,19 @@ export const ConnectProvider = ({ children }) => {
   // =========================
   // ACTIVE USERS
   // =========================
-  const activeUsers = users.filter((user) => user.is_online === true);
+  const activeUsers = users.filter(
+    (user) => user.is_online === true
+  );
 
   // =========================
   // SEARCH FILTER
   // =========================
   const filteredUsers = users.filter((user) => {
     if (!search) return true;
-    return (user.username || "").toLowerCase().includes(search.toLowerCase());
+
+    return (user.username || "")
+      .toLowerCase()
+      .includes(search.toLowerCase());
   });
 
   // =========================
@@ -46,8 +49,12 @@ export const ConnectProvider = ({ children }) => {
   // =========================
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase.from("profiles").select("*");
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*");
+
       if (error) throw error;
+
       setUsers(data || []);
     } catch (err) {
       console.error("Fetch Users Error:", err.message);
@@ -58,115 +65,65 @@ export const ConnectProvider = ({ children }) => {
   // FETCH CONNECTIONS
   // =========================
   const fetchConnections = async () => {
-  if (!currentUser?.id) return;
+    if (!currentUser?.id) return;
 
-  const { data, error } = await supabase
-    .from("connections")
-    .select("*");
+    try {
+      const { data, error } = await supabase
+        .from("connections")
+        .select("*");
 
-  if (error) {
-    console.log("Fetch error:", error.message);
-    return;
-  }
+      if (error) throw error;
 
-  const all = data || [];
+      const all = data || [];
 
-  setPendingRequests(
-    all.filter(
-      (c) =>
-        c.status === "pending" &&
-        c.receiver_id === currentUser.id
-    )
-  );
+      setPendingRequests(
+        all.filter(
+          (c) =>
+            c.status === "pending" &&
+            c.receiver_id === currentUser.id
+        )
+      );
 
-  setConnections(
-    all.filter((c) => c.status === "accepted")
-  );
-};
-  
-  // REALTIME
+      setConnections(
+        all.filter((c) => c.status === "accepted")
+      );
+    } catch (err) {
+      console.error(err.message);
+    }
+  };
+
+  // =========================
+  // INITIAL LOAD
   // =========================
   useEffect(() => {
     if (!currentUser) return;
 
     fetchUsers();
     fetchConnections();
-
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
-    const channel = supabase
-      .channel(`realtime_sync_${crypto.randomUUID()}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "profiles" },
-        () => fetchUsers()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "connections" },
-        () => fetchConnections()
-      );
-
-    channel.subscribe();
-    channelRef.current = channel;
-
-    return () => {
-      supabase.removeChannel(channel);
-      channelRef.current = null;
-    };
   }, [currentUser]);
 
   // =========================
   // SEND REQUEST
   // =========================
- const sendRequest = async (senderId, receiverId) => {
-  console.log("CLICKED:", senderId, receiverId);
+  const sendRequest = async (senderId, receiverId) => {
+    if (!senderId || !receiverId) return;
 
-  if (!senderId || !receiverId) return;
-
-  try {
-    setLoading(true);
-
-    const { data, error } = await supabase
-      .from("connections")
-      .insert([
-        {
-          sender_id: senderId,
-          receiver_id: receiverId,
-          status: "pending",
-        },
-      ])
-      .select();
-
-    if (error) {
-      console.log("❌ ERROR:", error.message);
-      return;
-    }
-
-    console.log("✅ SUCCESS:", data);
-
-    await fetchConnections();
-  } catch (err) {
-    console.log("❌ CATCH:", err.message);
-  } finally {
-    setLoading(false);
-  }
-};
-  // =========================
-  // DISCONNECT
-  // =========================
-  const disconnect = async (senderId, receiverId) => {
     try {
       setLoading(true);
-      await supabase
+
+      const { error } = await supabase
         .from("connections")
-        .delete()
-        .or(
-          `and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`
-        );
+        .insert([
+          {
+            sender_id: senderId,
+            receiver_id: receiverId,
+            status: "pending",
+          },
+        ]);
+
+      if (error) throw error;
+
+      await fetchConnections();
     } catch (err) {
       console.error(err.message);
     } finally {
@@ -180,7 +137,17 @@ export const ConnectProvider = ({ children }) => {
   const acceptRequest = async (id) => {
     try {
       setLoading(true);
-      await supabase.from("connections").update({ status: "accepted" }).eq("id", id);
+
+      const { error } = await supabase
+        .from("connections")
+        .update({
+          status: "accepted",
+        })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      await fetchConnections();
     } catch (err) {
       console.error(err.message);
     } finally {
@@ -194,7 +161,42 @@ export const ConnectProvider = ({ children }) => {
   const declineRequest = async (id) => {
     try {
       setLoading(true);
-      await supabase.from("connections").delete().eq("id", id);
+
+      const { error } = await supabase
+        .from("connections")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      await fetchConnections();
+    } catch (err) {
+      console.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // =========================
+  // DISCONNECT
+  // =========================
+  const disconnect = async (
+    senderId,
+    receiverId
+  ) => {
+    try {
+      setLoading(true);
+
+      const { error } = await supabase
+        .from("connections")
+        .delete()
+        .or(
+          `and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`
+        );
+
+      if (error) throw error;
+
+      await fetchConnections();
     } catch (err) {
       console.error(err.message);
     } finally {

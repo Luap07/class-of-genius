@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import Cog from "../assets/cog.png";
+import Cog from "../assets/cog.jpeg";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { ConnectContext } from "../context/ConnectContext";
@@ -10,6 +10,7 @@ const Login = () => {
   const { darkMode } = useContext(ConnectContext);
 
   const [isSignup, setIsSignup] = useState(false);
+
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,6 +20,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  /* ================= RESET FIELDS ================= */
   useEffect(() => {
     setUsername("");
     setEmail("");
@@ -27,7 +29,7 @@ const Login = () => {
     setError("");
   }, [isSignup]);
 
-  // ================= SIGN UP =================
+  /* ================= SIGN UP ================= */
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
@@ -39,57 +41,79 @@ const Login = () => {
 
     setLoading(true);
 
-    try {
-      const { error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { data: { username } },
-      });
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { username },
+      },
+    });
 
-      if (error) throw error;
-
-      alert("Account created successfully!");
+    if (error) {
+      setError(error.message);
+    } else {
+      alert("Account created successfully 🎉 Check your email!");
       setIsSignup(false);
-    } catch (err) {
-      setError(err.message || "Signup failed");
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   };
 
-  // ================= LOGIN =================
+  /* ================= LOGIN ================= */
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-      if (error) throw error;
-
+    if (error) {
+      setError(error.message);
+    } else {
       navigate("/dashboard");
-    } catch (err) {
-      setError(err.message || "Login failed");
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
+  };
+
+  /* ================= FORGOT PASSWORD ================= */
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Enter your email first");
+      return;
+    }
+
+    setLoading(true);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.trim(),
+      {
+        redirectTo: "http://localhost:5173/reset-password",
+      }
+    );
+
+    if (error) {
+      setError(error.message);
+    } else {
+      alert("Reset link sent to your email 📩");
+    }
+
+    setLoading(false);
   };
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 px-4">
 
-      {/* 🌟 PROFESSIONAL BACKGROUND */}
+      {/* BACKGROUND */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#070b14] via-[#0b1220] to-[#05070f]" />
 
-      {/* glow effects */}
       <div className="absolute w-[500px] h-[500px] bg-blue-500/20 blur-[150px] top-0 left-0" />
       <div className="absolute w-[500px] h-[500px] bg-indigo-500/20 blur-[150px] bottom-0 right-0" />
 
-      {/* GLASS CARD */}
+      {/* CARD */}
       <div className="relative w-full max-w-md rounded-3xl p-8 backdrop-blur-2xl border border-white/10 bg-white/5 shadow-2xl">
 
         {/* LOGO */}
@@ -123,7 +147,7 @@ const Login = () => {
               placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-gray-400 outline-none border border-white/10 focus:border-blue-500"
+              className="w-full px-4 py-3 rounded-xl bg-white/10 text-white border border-white/10"
               required
             />
           )}
@@ -134,7 +158,7 @@ const Login = () => {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-gray-400 outline-none border border-white/10 focus:border-blue-500"
+            className="w-full px-4 py-3 rounded-xl bg-white/10 text-white border border-white/10"
             required
           />
 
@@ -145,7 +169,7 @@ const Login = () => {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-gray-400 outline-none border border-white/10 focus:border-blue-500"
+              className="w-full px-4 py-3 rounded-xl bg-white/10 text-white border border-white/10"
               required
             />
 
@@ -157,23 +181,24 @@ const Login = () => {
               {showPassword ? <FaEyeSlash /> : <FaEye />}
             </button>
           </div>
-                    {/* CONFIRM PASSWORD (SIGNUP ONLY) */}
+
+          {/* CONFIRM PASSWORD */}
           {isSignup && (
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Confirm Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/10 text-white placeholder-gray-400 outline-none border border-white/10 focus:border-blue-500"
+              className="w-full px-4 py-3 rounded-xl bg-white/10 text-white border border-white/10"
               required
             />
           )}
 
-          {/* SUBMIT BUTTON */}
+          {/* BUTTON */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-blue-700 transition-all duration-300 shadow-lg shadow-blue-500/20 disabled:opacity-50"
+            className="w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600"
           >
             {loading
               ? "Please wait..."
@@ -183,7 +208,17 @@ const Login = () => {
           </button>
         </form>
 
-        {/* TOGGLE SIGNUP / LOGIN */}
+        {/* FORGOT PASSWORD */}
+        {!isSignup && (
+          <p
+            onClick={handleForgotPassword}
+            className="text-center text-sm text-blue-400 mt-4 cursor-pointer hover:text-blue-300"
+          >
+            Forgot Password?
+          </p>
+        )}
+
+        {/* TOGGLE */}
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-400">
             {isSignup
@@ -193,15 +228,15 @@ const Login = () => {
 
           <button
             onClick={() => setIsSignup(!isSignup)}
-            className="mt-2 text-blue-400 font-semibold hover:text-blue-300 transition"
+            className="mt-2 text-blue-400 font-semibold"
           >
             {isSignup ? "Login here" : "Create one"}
           </button>
         </div>
 
-        {/* FOOTER LINE */}
+        {/* FOOTER */}
         <div className="mt-6 border-t border-white/10 pt-4 text-center text-xs text-gray-500">
-          Secure login powered by Scholiqen
+          Secure authentication powered by Supabase
         </div>
       </div>
     </div>

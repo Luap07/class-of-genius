@@ -1,5 +1,5 @@
-import Cog from './cog.png';
-import full_cog from './full_cog.png';
+import Cog from './Cog.png';
+import full_cog from './full_cog.jpeg';
 import home_bg from './home_bg.png';
 import course_icon from './course_icon.png';
 import ai_tutoring_icon from './ai_tutoring_icon.png';

@@ -10,7 +10,7 @@ const Footer = () => {
         <div>
           <h3 className="font-bold mb-4">Contact Info</h3>
           <p className="text-gray-400 text-sm mb-2">+2348104264197</p>
-          <p className="text-gray-400 text-sm">classofgenius4@gmail.com</p>
+          <p className="text-gray-400 text-sm">scholiqengmail.com</p>
         </div>
 
         {/* Links */}

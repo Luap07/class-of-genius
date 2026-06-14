@@ -58,7 +58,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   const [events, setEvents] = useState([]);
-  const [progress, setProgress] = useState(0); // ✅ RESTORED PROGRESS
+  const [progress, setProgress] = useState(0);
   const [newsIndex, setNewsIndex] = useState(0);
 
   const newsList = [
@@ -92,7 +92,7 @@ const Dashboard = () => {
   return (
     <section className="min-h-screen px-8 py-10 text-white bg-[#070b14]">
 
-      {/* ================= PROGRESS (RESTORED) ================= */}
+      {/* ================= PROGRESS ================= */}
       <div className="p-6 rounded-2xl border border-white/10 bg-black/40 mb-8">
         <h2 className="text-xl font-bold">Learning Progress</h2>
         <p className="text-gray-300">
@@ -153,7 +153,7 @@ const Dashboard = () => {
         <MyCalendar events={events} setEvents={setEvents} />
       </div>
 
-      {/* ================= FAQ (RESTORED EXACT STRUCTURE) ================= */}
+      {/* ================= FAQ ================= */}
       <div className="border-t border-white/10 pt-10 grid md:grid-cols-3 gap-6">
 
         <div>
@@ -171,18 +171,14 @@ const Dashboard = () => {
         </div>
 
         <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-          <h3 className="font-semibold mb-2">
-            Do I need long hours?
-          </h3>
+          <h3 className="font-semibold mb-2">Do I need long hours?</h3>
           <p className="text-gray-400 text-sm">
             No — smart consistency beats long hours.
           </p>
         </div>
 
         <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-          <h3 className="font-semibold mb-2">
-            Can I use daily?
-          </h3>
+          <h3 className="font-semibold mb-2">Can I use daily?</h3>
           <p className="text-gray-400 text-sm">
             Yes — designed for daily learning.
           </p>
@@ -190,7 +186,7 @@ const Dashboard = () => {
 
       </div>
 
-      {/* ================= FOOTER (FULL RESTORED + YOUR QUOTE BACK) ================= */}
+      {/* ================= FOOTER ================= */}
       <footer className="mt-20 border-t border-white/10 pt-10 text-center text-gray-400">
 
         <div className="flex justify-center gap-8 mb-6">
@@ -199,7 +195,6 @@ const Dashboard = () => {
           <a className="hover:text-white transition">Contact</a>
         </div>
 
-        {/* 🔥 YOUR ORIGINAL QUOTE RESTORED */}
         <p className="italic text-gray-300 mb-4">
           Mastering these concepts today is the foundation for the software you'll build tomorrow.
         </p>

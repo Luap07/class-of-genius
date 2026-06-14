@@ -7,46 +7,40 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  /* ================= INIT SESSION ================= */
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+    const init = async () => {
+      setLoading(true);
 
-        setUser(session?.user ?? null);
-      } catch (err) {
-        console.error("Auth initialization error:", err);
-      } finally {
-        setLoading(false);
-      }
+      const { data } = await supabase.auth.getSession();
+      setUser(data?.session?.user || null);
+
+      setLoading(false);
     };
 
-    initAuth();
+    init();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
+    /* ================= LISTEN AUTH CHANGES ================= */
+    const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setUser(session?.user ?? null);
+        setUser(session?.user || null);
       }
     );
 
     return () => {
-      subscription.unsubscribe();
+      listener.subscription.unsubscribe();
     };
   }, []);
 
+  /* ================= LOGOUT ================= */
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-      }}
-    >
+    <AuthContext.Provider value={{ user, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
-export default AuthProvider;

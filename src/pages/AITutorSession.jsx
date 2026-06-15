@@ -1,162 +1,109 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Bot, User } from "lucide-react";
+import { Send } from "lucide-react";
+import AITutorSidebar from "../components/AITutorSidebar";
+import ChatHeader from "../components/ChatHeader";
+import ChatBubble from "../components/ChatBubble";
+import TypingAnimation from "../components/TypingAnimation";
 
 const AITutorSession = () => {
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem("ai_chat_history");
-    return saved
-      ? JSON.parse(saved)
-      : [
-          {
-            role: "ai",
-            text: "I am your AI Tutor 🤖 — I’m here to help you learn!",
-            time: new Date().toLocaleTimeString(),
-          },
-        ];
+    return saved ? JSON.parse(saved) : [{
+      role: "ai",
+      text: "👋 Welcome to Scholiqen AI Tutor. Ask anything and I’ll guide you step-by-step.",
+      time: new Date().toLocaleTimeString(),
+    }];
   });
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-
   const chatRef = useRef(null);
 
-  /* ================= AUTO SCROLL ================= */
   useEffect(() => {
-    chatRef.current?.scrollTo({
-      top: chatRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  /* ================= SAVE HISTORY ================= */
   useEffect(() => {
     localStorage.setItem("ai_chat_history", JSON.stringify(messages));
   }, [messages]);
 
-  /* ================= SEND MESSAGE ================= */
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    const userMsg = {
-      role: "user",
-      text: input,
-      time: new Date().toLocaleTimeString(),
-    };
-
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
-
-    const question = input;
+    const userText = input;
     setInput("");
+    
+    // Add user message
+    const userMsg = { role: "user", text: userText, time: new Date().toLocaleTimeString() };
+    setMessages((prev) => [...prev, userMsg]);
+    
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5000/ai-tutor", {
+      const response = await fetch("http://localhost:5000/ai-tutor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question: userText }),
       });
 
-      const data = await res.json();
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let aiText = "";
 
-      const aiMsg = {
-        role: "ai",
-        text: data.answer || "I couldn't process that.",
-        time: new Date().toLocaleTimeString(),
-      };
+      // Add a placeholder AI message
+      setMessages((prev) => [...prev, { role: "ai", text: "", time: new Date().toLocaleTimeString() }]);
+      setLoading(false);
 
-      setMessages((prev) => [...prev, aiMsg]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        aiText += decoder.decode(value, { stream: true });
+        
+        // Update the last message (the AI's) in real-time
+        setMessages((prev) => {
+          const newMsgs = [...prev];
+          newMsgs[newMsgs.length - 1].text = aiText;
+          return newMsgs;
+        });
+      }
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "ai",
-          text: "⚠️ Error connecting to AI server.",
-          time: new Date().toLocaleTimeString(),
-        },
-      ]);
+      setMessages((prev) => [...prev, { role: "ai", text: "⚠️ Server connection failed.", time: new Date().toLocaleTimeString() }]);
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  /* ================= UI ================= */
+  const newChat = () => {
+    const starter = [{ role: "ai", text: "🧠 New session started. How can I help you?", time: new Date().toLocaleTimeString() }];
+    setMessages(starter);
+  };
+
   return (
-    <div className="h-screen flex flex-col bg-[#05070f] text-white">
+    <div className="h-screen w-full flex bg-[#05070f] text-white overflow-hidden">
+      <AITutorSidebar chats={[]} activeChat={null} setActiveChat={() => {}} createNewChat={newChat} />
+      
+      <div className="flex-1 flex flex-col min-h-0">
+        <ChatHeader />
+        
+        <div ref={chatRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+          {messages.map((msg, index) => (
+            <ChatBubble key={index} message={msg} />
+          ))}
+          {loading && <TypingAnimation />}
+        </div>
 
-      {/* HEADER */}
-      <div className="p-4 border-b border-white/10 text-center font-bold text-blue-400">
-        🧠 AI Tutor Session
-      </div>
-
-      {/* CHAT AREA */}
-      <div
-        ref={chatRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
-      >
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex items-end gap-2 ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-
-            {/* AI ICON */}
-            {msg.role === "ai" && (
-              <div className="p-2 rounded-full bg-blue-600/20">
-                <Bot size={18} className="text-blue-400" />
-              </div>
-            )}
-
-            {/* MESSAGE BOX */}
-            <div
-              className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-lg ${
-                msg.role === "user"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white/10 text-white"
-              }`}
-            >
-              {msg.text}
-
-              <div className="text-[10px] opacity-60 mt-1">
-                {msg.time}
-              </div>
-            </div>
-
-            {/* USER ICON */}
-            {msg.role === "user" && (
-              <div className="p-2 rounded-full bg-white/10">
-                <User size={18} className="text-white/70" />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {/* LOADING */}
-        {loading && (
-          <div className="text-gray-400 text-sm animate-pulse">
-            AI is thinking...
-          </div>
-        )}
-      </div>
-
-      {/* INPUT */}
-      <div className="p-4 border-t border-white/10 flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask anything..."
-          className="flex-1 p-3 rounded-xl bg-white/5 border border-white/10 outline-none focus:border-blue-500"
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-        />
-
-        <button
-          onClick={sendMessage}
-          className="px-4 py-3 bg-blue-600 rounded-xl hover:bg-blue-500 transition"
-        >
-          <Send size={18} />
-        </button>
+        <div className="border-t border-white/10 p-4 flex gap-2 bg-[#090d18]">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            placeholder="Ask anything..."
+            className="flex-1 p-3 rounded-xl bg-white/5 border border-white/10 outline-none focus:border-blue-500 transition"
+          />
+          <button onClick={sendMessage} className="px-5 py-3 bg-blue-600 rounded-xl hover:bg-blue-500 transition">
+            <Send size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

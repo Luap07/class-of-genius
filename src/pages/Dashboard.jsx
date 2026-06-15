@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import Novels from "../pages/Novels";
+
+// Components
 import MyCalendar from "../components/MyCalendar";
 import {
   cbt,
@@ -10,6 +13,7 @@ import {
   My_School_Calendar,
   live,
 } from "../assets";
+
 import { Newspaper, Calendar, Brain } from "lucide-react";
 
 /* ================= CARD ================= */
@@ -24,6 +28,7 @@ const Card = ({ title, bgImage, onClick }) => {
       <img
         src={bgImage}
         className="absolute inset-0 w-full h-full object-cover"
+        alt={title}
       />
       <div className="absolute inset-0 bg-black/50" />
 
@@ -35,7 +40,7 @@ const Card = ({ title, bgImage, onClick }) => {
   );
 };
 
-/* ================= AI TUTOR CARD ================= */
+/* ================= AI TUTOR ================= */
 const AITutorCard = ({ onClick }) => {
   return (
     <motion.div
@@ -58,8 +63,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   const [events, setEvents] = useState([]);
-  const [progress, setProgress] = useState(0);
-  const [newsIndex, setNewsIndex] = useState(0);
+  const [progress] = useState(0);
 
   const newsList = [
     {
@@ -79,6 +83,8 @@ const Dashboard = () => {
     },
   ];
 
+  const [newsIndex, setNewsIndex] = useState(0);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setNewsIndex((p) => (p + 1) % newsList.length);
@@ -92,7 +98,7 @@ const Dashboard = () => {
   return (
     <section className="min-h-screen px-8 py-10 text-white bg-[#070b14]">
 
-      {/* ================= PROGRESS ================= */}
+      {/* PROGRESS */}
       <div className="p-6 rounded-2xl border border-white/10 bg-black/40 mb-8">
         <h2 className="text-xl font-bold">Learning Progress</h2>
         <p className="text-gray-300">
@@ -111,16 +117,15 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* ================= GRID ================= */}
+      {/* GRID */}
       <div className="grid md:grid-cols-3 gap-6 mb-10">
 
         <Card title="LMS Portal" bgImage={lms} onClick={() => navigate("/libraries")} />
-
-        <Card title="My School Calendar" bgImage={My_School_Calendar} onClick={() => navigate("/calendar")} />
-
+        <Card title="My Calendar" bgImage={My_School_Calendar} onClick={() => navigate("/calendar")} />
         <Card title="Live Class" bgImage={live} onClick={() => navigate("/live")} />
 
-        <Card title="Novel Library" bgImage={novel} onClick={() => navigate("/novel")} />
+        {/* ✅ FIXED HERE */}
+        <Card title="Novel Library" bgImage={novel} onClick={() => navigate("/novels")} />
 
         <Card title="CBT Test" bgImage={cbt} onClick={() => navigate("/cbt")} />
 
@@ -128,9 +133,8 @@ const Dashboard = () => {
 
       </div>
 
-      {/* ================= NEWS ================= */}
+      {/* NEWS */}
       <div className="p-6 rounded-2xl border border-white/10 bg-black/40 mb-10">
-
         <div className="flex items-center gap-2 mb-3">
           <Newspaper size={18} />
           <h2 className="font-bold">School News</h2>
@@ -139,12 +143,10 @@ const Dashboard = () => {
         <h3 className="font-semibold text-lg">{currentNews.title}</h3>
         <p className="text-gray-300">{currentNews.body}</p>
         <p className="text-xs text-gray-500 mt-2">{currentNews.source}</p>
-
       </div>
 
-      {/* ================= CALENDAR ================= */}
+      {/* CALENDAR */}
       <div className="p-6 rounded-2xl border border-white/10 bg-black/40 mb-12">
-
         <div className="flex items-center gap-2 mb-4">
           <Calendar size={18} />
           <h2 className="font-bold">My School Calendar</h2>
@@ -152,8 +154,7 @@ const Dashboard = () => {
 
         <MyCalendar events={events} setEvents={setEvents} />
       </div>
-
-      {/* ================= FAQ ================= */}
+       {/* ================= FAQ ================= */}
       <div className="border-t border-white/10 pt-10 grid md:grid-cols-3 gap-6">
 
         <div>
@@ -204,6 +205,7 @@ const Dashboard = () => {
         </p>
 
       </footer>
+
 
     </section>
   );

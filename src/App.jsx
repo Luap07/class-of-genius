@@ -33,14 +33,19 @@ import History from "./pages/History";
 import About from "./pages/About";
 import Services from "./pages/Services";
 
-/* ================= AI TUTOR ================= */
+/* ================= NOVELS ================= */
+import Novels from "./pages/Novels";
+
+/* ================= AI & CBT ================= */
 import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
+import ExamDashboard from "./pages/ExamDashboard";
+import CBTSession from "./components/CBTSession";
 
 /* ================= LAYOUT ================= */
 import DashboardLayout from "./layout/DashboardLayout";
 
-/* ================= PROTECTED ROUTE ================= */
+/* ================= PROTECTED ================= */
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
 
@@ -55,13 +60,14 @@ const ProtectedRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" replace />;
 };
 
-/* ================= PAGE WRAPPER ================= */
+/* ================= WRAPPER ================= */
 const PageWrapper = ({ children }) => (
   <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -20 }}
-    transition={{ duration: 0.3 }}
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    transition={{ duration: 0.2 }}
+    className="w-full"
   >
     {children}
   </motion.div>
@@ -75,7 +81,7 @@ const AnimatedRoutes = () => {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
 
-        {/* ================= PUBLIC ROUTES ================= */}
+        {/* HOME */}
         <Route
           path="/"
           element={
@@ -88,8 +94,10 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* LOGIN */}
         <Route path="/login" element={<Login />} />
 
+        {/* STATIC PAGES */}
         <Route
           path="/contact"
           element={
@@ -126,7 +134,17 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= AI TUTOR ================= */}
+        {/* ================= 📚 NOVELS (NO NAVBAR FIX) ================= */}
+        <Route
+          path="/novels"
+          element={
+            <PageWrapper>
+              <Novels />
+            </PageWrapper>
+          }
+        />
+
+        {/* AI */}
         <Route
           path="/ai-tutor"
           element={
@@ -138,17 +156,23 @@ const AnimatedRoutes = () => {
             </>
           }
         />
+        <Route path="/ai-tutor/session" element={<AITutorSession />} />
 
+        {/* CBT */}
         <Route
-          path="/ai-tutor/session"
+          path="/cbt"
           element={
-            <PageWrapper>
-              <AITutorSession />
-            </PageWrapper>
+            <>
+              <Navbar />
+              <PageWrapper>
+                <ExamDashboard />
+              </PageWrapper>
+            </>
           }
         />
+        <Route path="/cbt/session/:examType" element={<CBTSession />} />
 
-        {/* ================= CONTACT INBOX ================= */}
+        {/* CONTACT INBOX (PROTECTED) */}
         <Route
           path="/contact-inbox"
           element={
@@ -160,7 +184,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= DASHBOARD ================= */}
+        {/* DASHBOARD (PROTECTED) */}
         <Route
           element={
             <ProtectedRoute>
@@ -177,7 +201,7 @@ const AnimatedRoutes = () => {
           <Route path="connections" element={<Connections />} />
         </Route>
 
-        {/* ================= FALLBACK ================= */}
+        {/* FALLBACK */}
         <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>

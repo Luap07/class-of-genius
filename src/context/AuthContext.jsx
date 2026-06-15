@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-export const AuthContext = createContext();
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -9,26 +9,36 @@ export const AuthProvider = ({ children }) => {
 
   /* ================= INIT SESSION ================= */
   useEffect(() => {
-    const init = async () => {
+    let mounted = true;
+
+    const initAuth = async () => {
       setLoading(true);
 
-      const { data } = await supabase.auth.getSession();
-      setUser(data?.session?.user || null);
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (!error && mounted) {
+        setUser(session?.user ?? null);
+      }
 
       setLoading(false);
     };
 
-    init();
+    initAuth();
 
-    /* ================= LISTEN AUTH CHANGES ================= */
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user || null);
-      }
-    );
+    /* ================= AUTH LISTENER ================= */
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
 
     return () => {
-      listener.subscription.unsubscribe();
+      mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 

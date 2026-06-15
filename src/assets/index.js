@@ -23,6 +23,19 @@ import curriculum from './curriculum.jpg';
 import lms from './lms.jpg';
 import adventure from './adventure.jpg';
 import My_School_Calendar from './My_School_Calendar.jpg';
+import adventures from './adventures.jpg';
+import africa_literature from './africa_literature.jpg';
+import fantasy from './fantasy.jpg';
+import history from './history.jpg';
+import mystery from './mystery.jpg';
+import romance from './romance.jpg';
+import sci_fic from './sci-fic.jpg';
+import comedy from './comedy.jpg';
+import thriller from './thriller.jpg';
+import christian from './christian.jpg';
+import educational from './educational.jpg'
+
+
 export {
     Cog,
     full_cog,
@@ -48,6 +61,17 @@ export {
     curriculum,
     lms,
     adventure,
-    My_School_Calendar
+    My_School_Calendar, 
+    adventures,
+    africa_literature,
+    fantasy,
+    history,
+    mystery,
+    romance,
+    sci_fic,
+    comedy,
+    thriller,
+    christian,
+    educational
 
 }

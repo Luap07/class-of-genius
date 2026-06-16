@@ -1,4 +1,5 @@
 import { useContext } from "react";
+import AdminDashboard from "./pages/AdminDashboard";
 import {
   BrowserRouter as Router,
   Routes,
@@ -36,6 +37,7 @@ import Services from "./pages/Services";
 /* ================= NOVELS ================= */
 import Novels from "./pages/Novels";
 import StoryReader from "./pages/StoryReader";
+import UploadNovel from "./pages/UploadNovel";
 
 /* ================= AI & CBT ================= */
 import AITutor from "./pages/AITutor";
@@ -92,6 +94,18 @@ const AnimatedRoutes = () => {
                 <Home />
               </PageWrapper>
             </>
+          }
+        />
+
+        {/* ================= 🔐 ADMIN PANEL (NEW) ================= */}
+        <Route
+          path="/novels/admin"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <AdminDashboard />
+              </PageWrapper>
+            </ProtectedRoute>
           }
         />
 
@@ -155,6 +169,15 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* ================= UPLOAD NOVEL ================= */}
+<Route
+  path="/upload-novel"
+  element={
+    <PageWrapper>
+      <UploadNovel />
+    </PageWrapper>
+  }
+/>
         {/* ================= AI ================= */}
         <Route
           path="/ai-tutor"

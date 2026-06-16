@@ -1,35 +1,73 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 
-const GenreCard = ({ genre, onClick }) => {
+const GenreCard = ({ genre }) => {
   if (!genre) return null;
+
+  const [loading, setLoading] = useState(false);
+
+  /* ================= GENERATE NOVEL ================= */
+  const handleGenerate = async () => {
+    try {
+      setLoading(true);
+
+      const res = await fetch("http://localhost:5000/api/generate-novel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ genre: genre.title }),
+      });
+
+      const data = await res.json();
+
+      console.log("📚 Generated Novel:", data.story);
+
+      // later you can pass to modal or state
+      alert("Novel generated! Check console.");
+    } catch (err) {
+      console.error("Error generating novel:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <motion.div
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.97 }}
-      onClick={onClick}
+      whileHover={{ scale: 1.04 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={handleGenerate}
       className="
         group relative cursor-pointer
         rounded-2xl p-6
-        bg-gradient-to-br from-[#0d1322] to-[#0a0f1c]
-        border border-white/10
-        hover:border-blue-500/60
-        transition-all duration-300
         overflow-hidden
+        border border-white/10
+        bg-gradient-to-br from-[#0d1322] via-[#0b1220] to-[#070b14]
+        shadow-md
+        transition-all duration-300
+        transform-gpu
+        will-change-transform
+        hover:border-blue-500/50
       "
     >
-      {/* GLOW EFFECT */}
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-500">
-        <div className="absolute -top-10 -left-10 w-40 h-40 bg-blue-600/20 blur-3xl rounded-full" />
-        <div className="absolute bottom-0 right-0 w-40 h-40 bg-purple-600/20 blur-3xl rounded-full" />
+
+      {/* ================= GLOW ================= */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+        <div className="absolute -top-12 -left-12 w-48 h-48 bg-blue-500/20 blur-3xl rounded-full" />
+        <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-purple-500/20 blur-3xl rounded-full" />
       </div>
 
-      {/* CONTENT */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition duration-700" />
+
+      {/* ================= CONTENT ================= */}
       <div className="relative z-10">
 
         {/* TITLE */}
-        <h3 className="text-xl font-bold text-white group-hover:text-blue-300 transition">
+        <h3 className="
+          text-xl font-bold text-white
+          group-hover:text-blue-300
+          transition-colors duration-300
+        ">
           {genre.title}
         </h3>
 
@@ -38,7 +76,7 @@ const GenreCard = ({ genre, onClick }) => {
           {genre.description || "Explore amazing stories in this category."}
         </p>
 
-        {/* META INFO */}
+        {/* META */}
         {genre.count && (
           <p className="text-xs text-blue-400 mt-3 font-medium">
             {genre.count} novels available
@@ -47,15 +85,24 @@ const GenreCard = ({ genre, onClick }) => {
 
         {/* BUTTON */}
         <button
+          onClick={(e) => {
+            e.stopPropagation(); // important fix
+            handleGenerate();
+          }}
+          disabled={loading}
           className="
-            mt-5 px-4 py-2 rounded-xl
-            bg-blue-600/90 hover:bg-blue-500
+            mt-5 px-4 py-2
+            rounded-xl
+            bg-gradient-to-r from-blue-600 to-indigo-600
+            hover:from-blue-500 hover:to-indigo-500
             text-white text-sm font-medium
             transition-all duration-300
-            focus:outline-none focus:ring-2 focus:ring-blue-400
+            shadow-md hover:shadow-blue-500/20
+            active:scale-95
+            disabled:opacity-60
           "
         >
-          Explore →
+          {loading ? "Generating..." : "Explore →"}
         </button>
 
       </div>

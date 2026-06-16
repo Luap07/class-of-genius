@@ -1,207 +1,155 @@
 import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { NOVEL_GENRES } from "../data/genres";
-
-/* ================= BACKGROUND IMAGES ================= */
-import {
-  mystery,
-  adventures,
-  africa_literature,
-  fantasy,
-  history,
-  romance,
-  thriller,
-  sci_fic,
-  comedy,
-  christian,
-  educational,
-} from "../assets";
-
-/* ================= IMAGE MAP ================= */
-const genreImages = {
-  romance,
-  mystery,
-  thriller,
-  fantasy,
-  sci_fic,
-  adventure: adventures,
-  historical: history,
-  christian,
-  comedy,
-  educational,
-  african: africa_literature,
-};
+import { useNavigate } from "react-router-dom";
+import { STORIES } from "../data/stories";
+import { Menu } from "lucide-react";
 
 const Novels = () => {
-  const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+
+  const [selectedGenre, setSelectedGenre] = useState("all");
+  const [openSidebar, setOpenSidebar] = useState(false);
+
+  /* ================= GENRES ================= */
+  const genres = useMemo(() => {
+    return ["all", ...new Set(STORIES.map((s) => s.genre))];
+  }, []);
 
   /* ================= FILTER ================= */
-  const filteredGenres = useMemo(() => {
-    if (!search.trim()) return NOVEL_GENRES || [];
+  const filteredStories = useMemo(() => {
+    if (selectedGenre === "all") return STORIES;
+    return STORIES.filter((s) => s.genre === selectedGenre);
+  }, [selectedGenre]);
 
-    return (NOVEL_GENRES || []).filter((genre) =>
-      genre.title.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [search]);
+  /* ================= HOT ================= */
+  const hot = useMemo(() => {
+    return [...STORIES].sort(() => 0.5 - Math.random()).slice(0, 4);
+  }, []);
 
   return (
-    <div className="relative min-h-screen text-white overflow-hidden">
+    <div className="flex min-h-screen bg-[#05070f] text-white overflow-hidden">
 
-      {/* ================= CINEMATIC BACKGROUND ================= */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#05070f] via-[#070b14] to-black" />
-
-      <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-blue-600/20 blur-[120px] rounded-full animate-pulse" />
-      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-600/20 blur-[120px] rounded-full animate-pulse" />
-
-      {/* ================= CONTENT ================= */}
-      <div className="relative z-10 px-6 sm:px-10 py-10">
-
+      {/* ================= SIDEBAR (CHATGPT STYLE FIXED) ================= */}
+      <div
+        className={`
+          fixed md:static
+          top-0 left-0
+          z-50
+          h- w-64
+          bg-[#0b0f1a]/95 backdrop-blur-xl
+          border-r border-white/10
+          transform transition-transform duration-300
+          md:translate-x-0
+          ${openSidebar ? "translate-x-0" : "-translate-x-full"}
+        `}
+      >
         {/* HEADER */}
-        <div className="mb-10">
-          <h1 className="text-5xl font-extrabold">
-            📚 Novels Library
-          </h1>
+        <div className="p-4 border-b border-white/10 font-bold text-gray-300 flex justify-between">
+          GENRES
 
-          <p className="text-gray-400 mt-3 max-w-2xl">
-            Explore cinematic stories across Romance, Mystery, Fantasy,
-            Science Fiction, Christian, Educational and African Literature.
-          </p>
-
-          <input
-            type="text"
-            placeholder="Search genres..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="
-              mt-6
-              w-full
-              sm:w-[420px]
-              px-4
-              py-3
-              rounded-xl
-              bg-white/5
-              border border-white/10
-              backdrop-blur-xl
-              outline-none
-              focus:border-blue-500
-            "
-          />
+          {/* close ONLY mobile */}
+          <button
+            onClick={() => setOpenSidebar(false)}
+            className="md:hidden text-white"
+          >
+            ✕
+          </button>
         </div>
 
-        {/* ================= TRENDING ================= */}
-        <h2 className="text-2xl font-bold mb-5">
-          🔥 Trending Genres
-        </h2>
+        {/* LIST */}
+        <div className="p-3 space-y-2 overflow-y-auto h-full">
 
-        {/* 🔥 SMOOTH NETFLIX SCROLL ROW */}
-        <div
-          className="
-            flex
-            gap-5
-            overflow-x-auto
-            overflow-y-hidden
-            pb-6
-            scroll-smooth
-            snap-x
-            snap-mandatory
-            scrollbar-hide
-          "
-        >
-          {filteredGenres.map((genre) => {
-            const img = genreImages[genre.id];
+          {genres.map((g) => (
+            <div
+              key={g}
+              onClick={() => {
+                setSelectedGenre(g);
+                setOpenSidebar(false);
+              }}
+              className={`
+                px-3 py-2 rounded-lg cursor-pointer text-sm
+                hover:bg-white/10 transition
+                ${selectedGenre === g ? "bg-blue-600" : ""}
+              `}
+            >
+              {g.toUpperCase()}
+            </div>
+          ))}
+        </div>
+      </div>
 
-            return (
-              <motion.div
-                key={genre.id}
-                whileHover={{ scale: 1.06, y: -5 }}
-                transition={{ duration: 0.25 }}
-                className="
-                  snap-start
-                  shrink-0
-                  relative
-                  min-w-[260px]
-                  h-[340px]
-                  rounded-2xl
-                  overflow-hidden
-                  border border-white/10
-                  cursor-pointer
-                  group
-                  shadow-xl
-                "
-              >
-                {/* IMAGE */}
-                {img ? (
-                  <img
-                    src={img}
-                    alt={genre.title}
-                    className="
-                      absolute
-                      inset-0
-                      w-full
-                      h-full
-                      object-cover
-                      transition-transform
-                      duration-500
-                      group-hover:scale-110
-                    "
-                  />
-                ) : (
-                  <div className="absolute inset-0 bg-[#111827]" />
-                )}
+      {/* ================= MAIN AREA ================= */}
+      <div className="flex-1">
 
-                {/* OVERLAY */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+        {/* TOP BAR */}
+        <div className="flex items-center gap-3 p-4 border-b border-white/10">
 
-                {/* TEXT */}
-                <div className="absolute bottom-0 p-4">
-                  <h3 className="font-bold text-lg">
-                    {genre.title}
-                  </h3>
+          {/* hamburger ONLY mobile */}
+          <button
+            onClick={() => setOpenSidebar(true)}
+            className="md:hidden"
+          >
+            <Menu size={22} />
+          </button>
 
-                  <p className="text-xs text-gray-300">
-                    {genre.description}
+          <h1 className="text-xl font-bold">📚 Novels Library</h1>
+        </div>
+
+        {/* CONTENT */}
+        <div className="p-6 space-y-10">
+
+          {/* HERO */}
+          <div className="rounded-2xl p-10 border border-white/10 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/10 backdrop-blur-md">
+
+            <h2 className="text-4xl font-extrabold bg-gradient-to-r from-blue-400 via-purple-900 to-pink-600 bg-clip-text">
+              Discover Amazing Stories
+            </h2>
+
+            <p className="text-gray-300 mt-3 max-w-xl">
+              Dive into sci-fi, romance, thrillers and African literature.
+            </p>
+          </div>
+
+          {/* HOT */}
+          <div>
+            <h2 className="text-lg font-bold mb-3">🔥 Hot Picks</h2>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {hot.map((story) => (
+                <div
+                  key={story.id}
+                  onClick={() => navigate(`/story/${story.id}`)}
+                  className="bg-white/5 border border-white/10 p-4 rounded-xl cursor-pointer hover:scale-105 transition"
+                >
+                  <h3 className="font-bold text-sm">{story.title}</h3>
+                  <p className="text-xs text-gray-400">{story.genre}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* RECOMMENDATIONS */}
+          <div>
+            <h2 className="text-lg font-bold mb-3">📌 Recommendations</h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
+              {filteredStories.map((story) => (
+                <div
+                  key={story.id}
+                  onClick={() => navigate(`/story/${story.id}`)}
+                  className="bg-white/5 border border-white/10 p-4 rounded-xl cursor-pointer hover:scale-[1.03] transition"
+                >
+                  <h3 className="font-bold">{story.title}</h3>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {story.genre}
                   </p>
                 </div>
-              </motion.div>
-            );
-          })}
-        </div>
+              ))}
 
-        {/* ================= CLEAN GRID ================= */}
-        <h2 className="text-2xl font-bold mt-10 mb-5">
-          ⭐ Explore More Genres
-        </h2>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-
-          {NOVEL_GENRES.slice(0, 6).map((genre) => (
-            <motion.div
-              key={genre.id}
-              whileHover={{ scale: 1.03 }}
-              className="
-                p-6
-                rounded-2xl
-                bg-white/5
-                backdrop-blur-xl
-                border border-white/10
-              "
-            >
-              <h3 className="text-xl font-bold">
-                {genre.title}
-              </h3>
-
-              <p className="text-gray-400 mt-3">
-                {genre.description}
-              </p>
-
-              <button className="mt-5 px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-500 transition">
-                Explore →
-              </button>
-            </motion.div>
-          ))}
+            </div>
+          </div>
 
         </div>
-
       </div>
     </div>
   );

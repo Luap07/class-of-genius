@@ -35,6 +35,7 @@ import Services from "./pages/Services";
 
 /* ================= NOVELS ================= */
 import Novels from "./pages/Novels";
+import StoryReader from "./pages/StoryReader";
 
 /* ================= AI & CBT ================= */
 import AITutor from "./pages/AITutor";
@@ -45,13 +46,13 @@ import CBTSession from "./components/CBTSession";
 /* ================= LAYOUT ================= */
 import DashboardLayout from "./layout/DashboardLayout";
 
-/* ================= PROTECTED ================= */
+/* ================= PROTECTED ROUTE ================= */
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen text-white">
         Loading...
       </div>
     );
@@ -60,13 +61,13 @@ const ProtectedRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" replace />;
 };
 
-/* ================= WRAPPER ================= */
+/* ================= PAGE WRAPPER ================= */
 const PageWrapper = ({ children }) => (
   <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0 }}
-    transition={{ duration: 0.2 }}
+    transition={{ duration: 0.25 }}
     className="w-full"
   >
     {children}
@@ -81,7 +82,7 @@ const AnimatedRoutes = () => {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
 
-        {/* HOME */}
+        {/* ================= HOME ================= */}
         <Route
           path="/"
           element={
@@ -94,10 +95,10 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* LOGIN */}
+        {/* ================= LOGIN ================= */}
         <Route path="/login" element={<Login />} />
 
-        {/* STATIC PAGES */}
+        {/* ================= STATIC ================= */}
         <Route
           path="/contact"
           element={
@@ -134,7 +135,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= 📚 NOVELS (NO NAVBAR FIX) ================= */}
+        {/* ================= NOVELS ================= */}
         <Route
           path="/novels"
           element={
@@ -144,7 +145,17 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* AI */}
+        {/* ================= STORY READER ================= */}
+        <Route
+          path="/story/:id"
+          element={
+            <PageWrapper>
+              <StoryReader />
+            </PageWrapper>
+          }
+        />
+
+        {/* ================= AI ================= */}
         <Route
           path="/ai-tutor"
           element={
@@ -156,9 +167,10 @@ const AnimatedRoutes = () => {
             </>
           }
         />
+
         <Route path="/ai-tutor/session" element={<AITutorSession />} />
 
-        {/* CBT */}
+        {/* ================= CBT ================= */}
         <Route
           path="/cbt"
           element={
@@ -170,9 +182,10 @@ const AnimatedRoutes = () => {
             </>
           }
         />
+
         <Route path="/cbt/session/:examType" element={<CBTSession />} />
 
-        {/* CONTACT INBOX (PROTECTED) */}
+        {/* ================= PROTECTED ================= */}
         <Route
           path="/contact-inbox"
           element={
@@ -184,7 +197,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* DASHBOARD (PROTECTED) */}
+        {/* ================= DASHBOARD ================= */}
         <Route
           element={
             <ProtectedRoute>
@@ -201,7 +214,7 @@ const AnimatedRoutes = () => {
           <Route path="connections" element={<Connections />} />
         </Route>
 
-        {/* FALLBACK */}
+        {/* ================= FALLBACK ================= */}
         <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>

@@ -44,36 +44,36 @@ const Novels = () => {
     "AFRICAN",
   ];
 
-  /* ================= FILTER BY GENRE ================= */
+  /* ================= NORMALIZE ================= */
+  const normalize = (g) => (g ? g.toUpperCase().replace(" ", "_") : "");
+
+  /* ================= FILTER ================= */
   const filteredNovels = useMemo(() => {
     if (selectedGenre === "ALL") return novels;
-    return novels.filter((n) => n.genre === selectedGenre);
+
+    return novels.filter(
+      (n) => normalize(n.genre) === selectedGenre
+    );
   }, [novels, selectedGenre]);
 
-  /* ================= TRENDING (LATEST SCI-FI UPLOADED) ================= */
+  /* ================= TRENDING SCI-FI ================= */
   const trendingSciFi = useMemo(() => {
     return novels
-      .filter((n) => n.genre === "SCI_FIC")
-      .slice(0, 5); // latest 5 uploads automatically
-  }, [novels]);
-
-  /* ================= FEATURED (LATEST SCI-FI) ================= */
-  const featured = useMemo(() => {
-    return (
-      novels.find((n) => n.genre === "SCI_FIC") || novels[0]
-    );
+      .filter((n) => normalize(n.genre) === "SCI_FIC")
+      .slice(0, 5);
   }, [novels]);
 
   return (
     <div className="min-h-screen bg-[#05070f] text-white">
 
-      {/* ================= HERO (STATIC IMAGE BUT CLEAN) ================= */}
+      {/* HERO */}
       <section className="px-6 pt-8">
-        <div className="relative rounded-3xl overflow-hidden border border-white/10 h-[450px]">
+        <div className="relative rounded-3xl overflow-hidden border border-white/10 h-[420px]">
           
           <img
             src={novelImg}
             className="absolute w-full h-full object-cover"
+            alt="hero"
           />
 
           <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-transparent" />
@@ -84,13 +84,13 @@ const Novels = () => {
             </h1>
 
             <p className="text-gray-300 mt-4">
-              Sci-Fi, Romance, Comedy, Historical, African Literature
+              Sci-Fi • Romance • Fantasy • African Literature • More
             </p>
           </div>
         </div>
       </section>
 
-      {/* ================= GENRES ================= */}
+      {/* GENRES */}
       <section className="px-6 mt-8">
         <div className="flex gap-3 overflow-x-auto pb-2">
           {genres.map((g) => (
@@ -109,10 +109,10 @@ const Novels = () => {
         </div>
       </section>
 
-      {/* ================= TRENDING SCI-FI ================= */}
+      {/* TRENDING */}
       <section className="px-6 mt-10">
         <h2 className="text-2xl font-bold mb-4">
-          🔥 Trending Sci-Fi (Latest Uploads)
+          🔥 Trending Sci-Fi
         </h2>
 
         <div className="flex gap-5 overflow-x-auto pb-4">
@@ -123,8 +123,9 @@ const Novels = () => {
               className="min-w-[220px] cursor-pointer"
             >
               <img
-                src={n.cover_url}
+                src={n.cover_url || novelImg}
                 className="h-[320px] w-full object-cover rounded-2xl"
+                alt={n.title}
               />
 
               <h3 className="mt-3 font-bold">{n.title}</h3>
@@ -134,7 +135,7 @@ const Novels = () => {
         </div>
       </section>
 
-      {/* ================= SELECTED GENRE LIST ================= */}
+      {/* ALL / FILTERED */}
       <section className="px-6 mt-12 pb-16">
         <h2 className="text-2xl font-bold mb-6">
           {selectedGenre === "ALL"
@@ -145,9 +146,7 @@ const Novels = () => {
         {loading ? (
           <p className="text-gray-400">Loading...</p>
         ) : filteredNovels.length === 0 ? (
-          <p className="text-gray-500">
-            No novels found in this genre.
-          </p>
+          <p className="text-gray-500">No novels found.</p>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             {filteredNovels.map((n) => (
@@ -157,14 +156,16 @@ const Novels = () => {
                 className="bg-white/5 border border-white/10 rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition"
               >
                 <img
-                  src={n.cover_url}
+                  src={n.cover_url || novelImg}
                   className="h-[280px] w-full object-cover"
+                  alt={n.title}
                 />
 
                 <div className="p-3">
                   <h3 className="font-semibold line-clamp-1">
                     {n.title}
                   </h3>
+
                   <p className="text-xs text-gray-400">
                     {n.genre}
                   </p>

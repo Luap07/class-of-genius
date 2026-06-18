@@ -39,11 +39,16 @@ import Novels from "./pages/Novels";
 import StoryReader from "./pages/StoryReader";
 import UploadNovel from "./pages/UploadNovel";
 
-/* ================= AI & CBT ================= */
+/* ================= AI ================= */
 import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
-import ExamDashboard from "./pages/ExamDashboard";
-import CBTSession from "./components/CBTSession";
+
+/* ================= CBT ================= */
+import ExamDashboard from "./pages/CBT/ExamDashboard.jsx";
+import CBTSession from "./pages/CBT/CBTSession.jsx";
+
+/* ✅ ADDED FIX (IMPORTANT) */
+import ExamSelect from "./pages/CBT/ExamSelect.jsx";
 
 /* ================= LAYOUT ================= */
 import DashboardLayout from "./layout/DashboardLayout";
@@ -80,16 +85,18 @@ const PageWrapper = ({ children }) => (
 const AnimatedRoutes = () => {
   const location = useLocation();
 
+  const hideNavbar = location.pathname.startsWith("/cbt");
+
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
 
-        {/* ================= HOME ================= */}
+        {/* HOME */}
         <Route
           path="/"
           element={
             <>
-              <Navbar />
+              {!hideNavbar && <Navbar />}
               <PageWrapper>
                 <Home />
               </PageWrapper>
@@ -97,7 +104,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= 🔐 ADMIN PANEL (NEW) ================= */}
+        {/* ADMIN */}
         <Route
           path="/novels/admin"
           element={
@@ -109,15 +116,15 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= LOGIN ================= */}
+        {/* LOGIN */}
         <Route path="/login" element={<Login />} />
 
-        {/* ================= STATIC ================= */}
+        {/* STATIC */}
         <Route
           path="/contact"
           element={
             <>
-              <Navbar />
+              {!hideNavbar && <Navbar />}
               <PageWrapper>
                 <Contact />
               </PageWrapper>
@@ -129,7 +136,7 @@ const AnimatedRoutes = () => {
           path="/about"
           element={
             <>
-              <Navbar />
+              {!hideNavbar && <Navbar />}
               <PageWrapper>
                 <About />
               </PageWrapper>
@@ -141,7 +148,7 @@ const AnimatedRoutes = () => {
           path="/services"
           element={
             <>
-              <Navbar />
+              {!hideNavbar && <Navbar />}
               <PageWrapper>
                 <Services />
               </PageWrapper>
@@ -149,7 +156,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= NOVELS ================= */}
+        {/* NOVELS */}
         <Route
           path="/novels"
           element={
@@ -159,7 +166,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= STORY READER ================= */}
+        {/* STORY */}
         <Route
           path="/story/:id"
           element={
@@ -169,21 +176,22 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= UPLOAD NOVEL ================= */}
-<Route
-  path="/upload-novel"
-  element={
-    <PageWrapper>
-      <UploadNovel />
-    </PageWrapper>
-  }
-/>
-        {/* ================= AI ================= */}
+        {/* UPLOAD */}
+        <Route
+          path="/upload-novel"
+          element={
+            <PageWrapper>
+              <UploadNovel />
+            </PageWrapper>
+          }
+        />
+
+        {/* AI */}
         <Route
           path="/ai-tutor"
           element={
             <>
-              <Navbar />
+              {!hideNavbar && <Navbar />}
               <PageWrapper>
                 <AITutor />
               </PageWrapper>
@@ -193,22 +201,37 @@ const AnimatedRoutes = () => {
 
         <Route path="/ai-tutor/session" element={<AITutorSession />} />
 
-        {/* ================= CBT ================= */}
+        {/* CBT MAIN */}
         <Route
           path="/cbt"
           element={
-            <>
-              <Navbar />
-              <PageWrapper>
-                <ExamDashboard />
-              </PageWrapper>
-            </>
+            <PageWrapper>
+              <ExamDashboard />
+            </PageWrapper>
           }
         />
 
-        <Route path="/cbt/session/:examType" element={<CBTSession />} />
+        {/* ✅ FIXED ROUTE ADDED */}
+        <Route
+          path="/cbt/select"
+          element={
+            <PageWrapper>
+              <ExamSelect />
+            </PageWrapper>
+          }
+        />
 
-        {/* ================= PROTECTED ================= */}
+        {/* CBT SESSION */}
+        <Route
+          path="/cbt/session/:examType"
+          element={
+            <PageWrapper>
+              <CBTSession />
+            </PageWrapper>
+          }
+        />
+
+        {/* PROTECTED */}
         <Route
           path="/contact-inbox"
           element={
@@ -220,7 +243,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= DASHBOARD ================= */}
+        {/* DASHBOARD */}
         <Route
           element={
             <ProtectedRoute>
@@ -237,7 +260,7 @@ const AnimatedRoutes = () => {
           <Route path="connections" element={<Connections />} />
         </Route>
 
-        {/* ================= FALLBACK ================= */}
+        {/* FALLBACK */}
         <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>

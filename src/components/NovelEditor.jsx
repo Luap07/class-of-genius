@@ -12,6 +12,7 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
   const [title, setTitle] = useState("");
   const [genre, setGenre] = useState("");
   const [description, setDescription] = useState("");
+  const [introduction, setIntroduction] = useState("");
 
   const [cover, setCover] = useState(null);
   const [preview, setPreview] = useState("");
@@ -26,6 +27,7 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
     setTitle(novel.title || "");
     setGenre(novel.genre || "");
     setDescription(novel.description || "");
+    setIntroduction(novel.introduction || "");
     setPreview(novel.cover_url || "");
     setChapters(novel.chapters || [emptyChapter()]);
   }, [novel]);
@@ -52,16 +54,14 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
 
       let cover_url = novel?.cover_url || "";
 
-      /* ================= UPLOAD COVER ================= */
       if (cover) {
         const fileName = `${Date.now()}-${cover.name}`;
 
         const { error: uploadError } = await supabase.storage
-          .from("covers") // 🔴 MUST match your bucket name
+          .from("covers")
           .upload(fileName, cover);
 
         if (uploadError) {
-          console.log("UPLOAD ERROR:", uploadError.message);
           alert(uploadError.message);
           setSaving(false);
           return;
@@ -74,16 +74,15 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
         cover_url = data.publicUrl;
       }
 
-      /* ================= PAYLOAD ================= */
       const payload = {
         title,
         genre,
         description,
+        introduction,
         chapters,
         cover_url,
       };
 
-      /* ================= INSERT / UPDATE ================= */
       if (isEdit) {
         const { error } = await supabase
           .from("novels")
@@ -113,20 +112,16 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0b0f1a] via-[#05070f] to-black text-white p-6">
-
       <div className="max-w-3xl mx-auto space-y-6">
 
-        {/* BACK BUTTON */}
         <button onClick={onBack} className="text-blue-400">
           ← Back
         </button>
 
-        {/* TITLE */}
         <h2 className="text-3xl font-bold">
           {isEdit ? "Edit Novel" : "Create Novel"}
         </h2>
 
-        {/* ================= COVER UPLOAD ================= */}
         <div className="bg-white/5 p-4 rounded-xl border border-white/10">
           <p className="mb-2 text-sm text-gray-400">Cover Image</p>
 
@@ -161,7 +156,6 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
           </label>
         </div>
 
-        {/* ================= INPUTS ================= */}
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -172,24 +166,32 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
         <input
           value={genre}
           onChange={(e) => setGenre(e.target.value)}
-          placeholder="Genre"
+          placeholder="Genre (SCI_FIC, ROMANCE, FANTASY...)"
           className="w-full p-3 bg-white/5 rounded"
         />
 
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description"
+          placeholder="Short Description"
           className="w-full p-3 bg-white/5 rounded"
         />
 
-        {/* ================= CHAPTERS ================= */}
+        <textarea
+          value={introduction}
+          onChange={(e) => setIntroduction(e.target.value)}
+          placeholder="Introduction / Prologue"
+          className="w-full p-3 bg-white/5 rounded min-h-[250px]"
+        />
+
         <div>
           <h3 className="text-lg font-bold">📖 Chapters</h3>
 
           {chapters.map((c, i) => (
-            <div key={i} className="p-3 border border-white/10 rounded mt-3">
-
+            <div
+              key={i}
+              className="p-3 border border-white/10 rounded mt-3"
+            >
               <input
                 value={c.title}
                 onChange={(e) =>
@@ -205,7 +207,7 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
                   updateChapter(i, "content", e.target.value)
                 }
                 placeholder="Content"
-                className="w-full p-2 bg-white/5 rounded mt-2"
+                className="w-full p-2 bg-white/5 rounded mt-2 min-h-[200px]"
               />
 
               <button
@@ -214,7 +216,6 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
               >
                 Remove
               </button>
-
             </div>
           ))}
 
@@ -226,7 +227,6 @@ const NovelEditor = ({ novel, onBack, onSaved }) => {
           </button>
         </div>
 
-        {/* ================= SAVE ================= */}
         <button
           onClick={saveNovel}
           disabled={saving}

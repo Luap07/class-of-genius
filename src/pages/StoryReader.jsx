@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
-import { Moon, Sun, BookOpen } from "lucide-react";
+import { Moon, Sun, BookOpen, X } from "lucide-react";
+import Cog from "../assets/cog.png";
 
 const StoryReader = () => {
   const { id } = useParams();
@@ -10,13 +11,13 @@ const StoryReader = () => {
   const [novel, setNovel] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [chapterIndex, setChapterIndex] = useState(0);
-  const [fontSize, setFontSize] = useState(16);
-  const [darkMode, setDarkMode] = useState(true);
-
+  const [stepIndex, setStepIndex] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  /* ================= FETCH NOVEL ================= */
+  const [darkMode, setDarkMode] = useState(false); // ✅ LIGHT MODE DEFAULT
+  const [fontSize, setFontSize] = useState(16);
+
+  /* ================= FETCH ================= */
   useEffect(() => {
     const fetchNovel = async () => {
       setLoading(true);
@@ -30,72 +31,111 @@ const StoryReader = () => {
       setNovel(data || null);
       setLoading(false);
 
-      // restore last read chapter
-      const saved = localStorage.getItem(`novel-${id}-chapter`);
-      if (saved) setChapterIndex(Number(saved));
+      const saved = localStorage.getItem(`reader-${id}`);
+      if (saved) setStepIndex(Number(saved));
     };
 
     fetchNovel();
   }, [id]);
 
-  /* ================= SAVE PROGRESS ================= */
-  useEffect(() => {
-    localStorage.setItem(`novel-${id}-chapter`, chapterIndex);
-  }, [chapterIndex, id]);
+  const chapters = novel?.chapters || [];
 
-  if (loading) {
+  /* ================= FLOW ================= */
+  const flow = useMemo(() => {
+    if (!novel) return [];
+
+    return [
+      { type: "cover", title: novel.title, image: novel.cover_url },
+      { type: "intro", content: novel.description },
+      ...chapters.map((c, i) => ({
+        type: "chapter",
+        number: i + 1,
+        title: c.title,
+        content: c.content,
+      })),
+    ];
+  }, [novel, chapters]);
+
+  const current = flow[stepIndex] || {};
+
+  /* ================= SAVE POSITION ================= */
+  useEffect(() => {
+    localStorage.setItem(`reader-${id}`, stepIndex);
+  }, [stepIndex, id]);
+
+  /* ================= SWIPE ================= */
+  useEffect(() => {
+    let startY = 0;
+
+    const start = (e) => (startY = e.touches[0].clientY);
+
+    const end = (e) => {
+      const diff = startY - e.changedTouches[0].clientY;
+
+      if (diff > 60) setStepIndex((p) => Math.min(flow.length - 1, p + 1));
+      if (diff < -60) setStepIndex((p) => Math.max(0, p - 1));
+    };
+
+    window.addEventListener("touchstart", start);
+    window.addEventListener("touchend", end);
+
+    return () => {
+      window.removeEventListener("touchstart", start);
+      window.removeEventListener("touchend", end);
+    };
+  }, [flow.length]);
+
+  if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+      <div className="h-screen flex items-center justify-center">
         Loading...
       </div>
     );
-  }
 
-  if (!novel) {
+  if (!novel)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        Novel not found
+      <div className="h-screen flex items-center justify-center">
+        Not found
       </div>
     );
-  }
-
-  const chapters = novel.chapters || [];
-  const chapter = chapters[chapterIndex];
 
   return (
     <div
-      className={`min-h-screen flex transition-all duration-300 ${
-        darkMode ? "bg-[#05070f] text-white" : "bg-gray-100 text-black"
+      className={`h-screen flex overflow-hidden ${
+        darkMode ? "bg-[#05070f] text-white" : "bg-white text-black"
       }`}
     >
-
       {/* ================= SIDEBAR ================= */}
       <div
-        className={`fixed md:static z-50 w-72 h-full border-r transition-transform duration-300
-        ${darkMode ? "border-white/10 bg-black/40" : "bg-white"}
+        className={`fixed md:static w-72 h-full border-r z-50 bg-white/5 backdrop-blur
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
-        <div className="p-4 font-bold flex items-center justify-between border-b border-white/10">
-          Chapters
+        <div className="p-4 flex justify-between border-b">
+          <b>Contents</b>
 
-          <button
-            className="md:hidden"
-            onClick={() => setSidebarOpen(false)}
-          >
-            ✕
+          <button onClick={() => setSidebarOpen(false)} className="md:hidden">
+            <X />
           </button>
         </div>
 
-        <div className="p-2 space-y-1 overflow-y-auto h-full">
+        {/* SCROLL FIXED */}
+        <div className="p-3 space-y-2 overflow-y-auto h-[calc(100%-60px)]">
+          <div
+            onClick={() => setStepIndex(0)}
+            className="cursor-pointer font-semibold"
+          >
+            📘 Cover
+          </div>
+
+          <div onClick={() => setStepIndex(1)} className="cursor-pointer">
+            📖 Introduction
+          </div>
+
           {chapters.map((c, i) => (
             <div
               key={i}
-              onClick={() => {
-                setChapterIndex(i);
-                setSidebarOpen(false);
-              }}
-              className={`p-2 rounded cursor-pointer text-sm transition
-                ${chapterIndex === i ? "bg-blue-600 text-white" : "hover:bg-white/10"}`}
+              onClick={() => setStepIndex(i + 2)}
+              className="cursor-pointer"
             >
               {c.title || `Chapter ${i + 1}`}
             </div>
@@ -104,114 +144,101 @@ const StoryReader = () => {
       </div>
 
       {/* ================= MAIN ================= */}
-      <div className="flex-1">
-
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* TOP BAR */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="flex justify-between items-center p-3 border-b">
+          <div className="flex items-center gap-2">
+            <img src={Cog} className="w-7 h-7" />
+            <b>Scholiqen Reader</b>
+          </div>
 
-          <button
-            onClick={() => navigate(-1)}
-            className="text-sm opacity-80 hover:opacity-100"
-          >
-            ← Back
-          </button>
-
-          <div className="flex items-center gap-3">
-
-            {/* FONT CONTROL */}
-            <button
-              onClick={() => setFontSize((p) => Math.max(14, p - 1))}
-              className="px-2"
-            >
+          <div className="flex gap-2 items-center">
+            <button onClick={() => setFontSize((p) => Math.max(14, p - 1))}>
               A-
             </button>
 
-            <button
-              onClick={() => setFontSize((p) => Math.min(22, p + 1))}
-              className="px-2"
-            >
+            <button onClick={() => setFontSize((p) => Math.min(24, p + 1))}>
               A+
             </button>
 
-            {/* THEME */}
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="px-2"
-            >
+            <button onClick={() => setDarkMode((p) => !p)}>
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
-            {/* MOBILE CHAPTERS */}
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden px-2"
-            >
-              <BookOpen size={18} />
+            <button onClick={() => setSidebarOpen((p) => !p)} className="md:hidden">
+              <BookOpen />
             </button>
-
           </div>
         </div>
 
-        {/* PROGRESS BAR */}
-        <div className="h-1 bg-white/10">
+        {/* PROGRESS */}
+        <div className="h-1 bg-gray-300">
           <div
-            className="h-1 bg-blue-500 transition-all"
+            className="h-1 bg-blue-600 transition-all"
             style={{
-              width: `${((chapterIndex + 1) / chapters.length) * 100}%`,
+              width: `${((stepIndex + 1) / flow.length) * 100}%`,
             }}
           />
         </div>
 
         {/* CONTENT */}
-        <div className="max-w-3xl mx-auto px-4 py-10">
-
+        <div className="flex-1 overflow-y-auto px-6 py-8">
           {/* COVER */}
-          {novel.cover_url && (
-            <img
-              src={novel.cover_url}
-              className="w-full h-64 object-cover rounded-xl mb-6"
-            />
+          {current.type === "cover" && (
+            <div className="text-center">
+              <img
+                src={current.image}
+                className="w-full h-72 object-cover rounded-xl"
+              />
+              <h1 className="text-3xl font-bold mt-3">{current.title}</h1>
+            </div>
           )}
 
-          <h1 className="text-3xl font-bold mb-2">{novel.title}</h1>
-
-          <p className="text-sm opacity-70 mb-8">
-            {novel.description}
-          </p>
+          {/* INTRO */}
+          {current.type === "intro" && (
+            <p style={{ fontSize, lineHeight: 1.8 }}>{current.content}</p>
+          )}
 
           {/* CHAPTER */}
-          <div
-            style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
-            className="transition-all"
+          {current.type === "chapter" && (
+            <div>
+              <div className="text-center text-gray-400">
+                Chapter {current.number}
+              </div>
+
+              <h2 className="text-center font-bold text-blue-500 mb-4">
+                {current.title}
+              </h2>
+
+              <p
+                style={{
+                  fontSize,
+                  lineHeight: 1.8,
+                  whiteSpace: "pre-wrap",
+                  textAlign: "left",
+                }}
+              >
+                {current.content}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* NAV */}
+        <div className="flex justify-between p-4 border-t">
+          <button
+            onClick={() => setStepIndex((p) => Math.max(0, p - 1))}
           >
-            <h2 className="text-xl font-semibold mb-4 text-blue-400">
-              {chapter?.title}
-            </h2>
+            Prev
+          </button>
 
-            <p className="whitespace-pre-line opacity-90">
-              {chapter?.content}
-            </p>
-          </div>
-
-          {/* NAV */}
-          <div className="flex justify-between mt-10">
-            <button
-              disabled={chapterIndex === 0}
-              onClick={() => setChapterIndex((p) => p - 1)}
-              className="px-4 py-2 bg-white/10 rounded disabled:opacity-30"
-            >
-              Previous
-            </button>
-
-            <button
-              disabled={chapterIndex === chapters.length - 1}
-              onClick={() => setChapterIndex((p) => p + 1)}
-              className="px-4 py-2 bg-blue-600 rounded disabled:opacity-30"
-            >
-              Next
-            </button>
-          </div>
-
+          <button
+            onClick={() =>
+              setStepIndex((p) => Math.min(flow.length - 1, p + 1))
+            }
+          >
+            Next
+          </button>
         </div>
       </div>
     </div>

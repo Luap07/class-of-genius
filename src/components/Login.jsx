@@ -117,9 +117,9 @@ const Login = () => {
       <div className="relative w-full max-w-md rounded-3xl p-8 backdrop-blur-2xl border border-white/10 bg-white/5 shadow-2xl">
 
         {/* LOGO */}
-        <div className="flex flex-col items-center mb-6">
-          <img src={Cog} className="w-14 h-14 animate-pulse" />
-          <h2 className="text-xl font-bold mt-2 text-white">
+        <div className="flex flex-col items-center mb-3">
+          <img src={Cog} className="w-20 h-20 animate-pulse" />
+          <h2 className="text-xl font-bold text-gray-200">
             {isSignup ? "Create Account" : "Welcome Back"}
           </h2>
           <p className="text-sm text-gray-400">
@@ -176,7 +176,7 @@ const Login = () => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-3 text-gray-400"
+              className="absolute cursor-pointer right-4 top-3 text-gray-400"
             >
               {showPassword ? <FaEyeSlash /> : <FaEye />}
             </button>
@@ -198,7 +198,7 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600"
+            className="w-full py-3 cursor-pointer rounded-xl font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600"
           >
             {loading
               ? "Please wait..."
@@ -220,23 +220,23 @@ const Login = () => {
 
         {/* TOGGLE */}
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-400">
+          <p className="text-sm justify-center gap-1 flex text-gray-400">
             {isSignup
               ? "Already have an account?"
               : "Don't have an account?"}
-          </p>
+          
 
           <button
             onClick={() => setIsSignup(!isSignup)}
-            className="mt-2 text-blue-400 font-semibold"
+            className=" text-blue-400 cursor-pointer font-semibold"
           >
             {isSignup ? "Login here" : "Create one"}
-          </button>
+          </button> </p>
         </div>
 
         {/* FOOTER */}
         <div className="mt-6 border-t border-white/10 pt-4 text-center text-xs text-gray-500">
-          Secure authentication powered by Supabase
+          Secure authentication powered by Scholiqen
         </div>
       </div>
     </div>

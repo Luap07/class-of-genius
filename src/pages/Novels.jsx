@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import novelImg from "../assets/novel.jpg";
+import Cog from "../assets/cog.png";
 
 const Novels = () => {
   const navigate = useNavigate();
@@ -15,13 +16,12 @@ const Novels = () => {
     const fetchNovels = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("novels")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error) setNovels(data || []);
-
+      setNovels(data || []);
       setLoading(false);
     };
 
@@ -44,32 +44,69 @@ const Novels = () => {
     "AFRICAN",
   ];
 
-  /* ================= NORMALIZE ================= */
-  const normalize = (g) => (g ? g.toUpperCase().replace(" ", "_") : "");
+  const normalize = (g) =>
+    g ? g.toUpperCase().replace(/\s+/g, "_") : "";
 
-  /* ================= FILTER ================= */
-  const filteredNovels = useMemo(() => {
-    if (selectedGenre === "ALL") return novels;
+  /* ================= TRENDING ================= */
+  const trendingNovels = useMemo(() => {
+    const usedGenres = new Set();
+
+    return novels
+      .filter((novel) => {
+        const genre = normalize(novel.genre);
+
+        if (usedGenres.has(genre)) return false;
+
+        usedGenres.add(genre);
+        return true;
+      })
+      .slice(0, 6);
+  }, [novels]);
+
+  /* ================= HOT PICKS ================= */
+  const hotPicks = useMemo(() => {
+    const usedGenres = new Set();
+
+    return [...novels]
+      .filter((novel) => {
+        const genre = normalize(novel.genre);
+
+        if (usedGenres.has(genre)) return false;
+
+        usedGenres.add(genre);
+        return true;
+      })
+      .slice(0, 6);
+  }, [novels]);
+
+  /* ================= GENRE FILTER ================= */
+  const displayNovels = useMemo(() => {
+    if (selectedGenre === "ALL") {
+      return trendingNovels;
+    }
 
     return novels.filter(
-      (n) => normalize(n.genre) === selectedGenre
+      (novel) => normalize(novel.genre) === selectedGenre
     );
-  }, [novels, selectedGenre]);
-
-  /* ================= TRENDING SCI-FI ================= */
-  const trendingSciFi = useMemo(() => {
-    return novels
-      .filter((n) => normalize(n.genre) === "SCI_FIC")
-      .slice(0, 5);
-  }, [novels]);
+  }, [novels, selectedGenre, trendingNovels]);
 
   return (
     <div className="min-h-screen bg-[#05070f] text-white">
+      {/* ================= HEADER ================= */}
+      <header className="sticky top-0 z-50 bg-black/60 backdrop-blur-md border-b border-white/10 px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <img src={Cog} alt="logo" className="w-12 h-12 object-contain" />
 
-      {/* HERO */}
+          <div>
+            <h2 className="font-bold text-lg">Scholiqen</h2>
+            <p className="text-xs text-gray-300">Novel Section</p>
+          </div>
+        </div>
+      </header>
+
+      {/* ================= HERO ================= */}
       <section className="px-6 pt-8">
         <div className="relative rounded-3xl overflow-hidden border border-white/10 h-[420px]">
-          
           <img
             src={novelImg}
             className="absolute w-full h-full object-cover"
@@ -90,7 +127,7 @@ const Novels = () => {
         </div>
       </section>
 
-      {/* GENRES */}
+      {/* ================= GENRES ================= */}
       <section className="px-6 mt-8">
         <div className="flex gap-3 overflow-x-auto pb-2">
           {genres.map((g) => (
@@ -103,53 +140,54 @@ const Novels = () => {
                   : "bg-white/5 hover:bg-white/10"
               }`}
             >
-              {g.replace("_", " ")}
+              {g.replace(/_/g, " ")}
             </button>
           ))}
         </div>
       </section>
 
-      {/* TRENDING */}
-      <section className="px-6 mt-10">
-        <h2 className="text-2xl font-bold mb-4">
-          🔥 Trending Sci-Fi
-        </h2>
+      {/* ================= HOT PICKS ================= */}
+      {selectedGenre === "ALL" && (
+        <section className="px-6 mt-10">
+          <h2 className="text-2xl font-bold mb-4">🔥 Hot Picks</h2>
 
-        <div className="flex gap-5 overflow-x-auto pb-4">
-          {trendingSciFi.map((n) => (
-            <div
-              key={n.id}
-              onClick={() => navigate(`/story/${n.id}`)}
-              className="min-w-[220px] cursor-pointer"
-            >
-              <img
-                src={n.cover_url || novelImg}
-                className="h-[320px] w-full object-cover rounded-2xl"
-                alt={n.title}
-              />
+          <div className="flex gap-5 overflow-x-auto pb-4">
+            {hotPicks.map((n) => (
+              <div
+                key={n.id}
+                onClick={() => navigate(`/story/${n.id}`)}
+                className="w-[180px] cursor-pointer"
+              >
+                <img
+                  src={n.cover_url || novelImg}
+                  className="h-[280px] w-full object-cover rounded-2xl"
+                  alt={n.title}
+                />
 
-              <h3 className="mt-3 font-bold">{n.title}</h3>
-              <p className="text-gray-400 text-sm">{n.genre}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+                <h3 className="mt-3 font-bold">{n.title}</h3>
 
-      {/* ALL / FILTERED */}
+                <p className="text-gray-400 text-sm">{n.genre}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ================= TRENDING / GENRE ================= */}
       <section className="px-6 mt-12 pb-16">
         <h2 className="text-2xl font-bold mb-6">
           {selectedGenre === "ALL"
-            ? "📚 All Novels"
-            : selectedGenre.replace("_", " ")}
+            ? "📚 Trending"
+            : `📚 ${selectedGenre.replace(/_/g, " ")}`}
         </h2>
 
         {loading ? (
           <p className="text-gray-400">Loading...</p>
-        ) : filteredNovels.length === 0 ? (
+        ) : displayNovels.length === 0 ? (
           <p className="text-gray-500">No novels found.</p>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-            {filteredNovels.map((n) => (
+            {displayNovels.map((n) => (
               <div
                 key={n.id}
                 onClick={() => navigate(`/story/${n.id}`)}
@@ -165,7 +203,6 @@ const Novels = () => {
                   <h3 className="font-semibold line-clamp-1">
                     {n.title}
                   </h3>
-
                   <p className="text-xs text-gray-400">
                     {n.genre}
                   </p>

@@ -21,19 +21,27 @@ const ExamDashboard = () => {
   ];
 
   const handleSelectExam = (exam) => {
+    // save exam globally
     localStorage.setItem("cbt_exam", exam);
 
+    // small UX delay for animation feel
     setTimeout(() => {
-      // 🔥 UPDATED ROUTE → goes to ExamSelect.jsx
-      navigate("/cbt/select");
-    }, 150);
+      // ALWAYS go to subject selection first (important CBT flow fix)
+      navigate("/cbt/select", { replace: true });
+    }, 120);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white px-6 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white px-6 py-10 overflow-hidden relative">
+
+      {/* animated background glow */}
+      <div className="absolute inset-0 opacity-20 pointer-events-none">
+        <div className="absolute w-[500px] h-[500px] bg-purple-500 blur-[150px] rounded-full top-[-100px] left-[-100px] animate-pulse" />
+        <div className="absolute w-[400px] h-[400px] bg-blue-500 blur-[140px] rounded-full bottom-[-120px] right-[-120px] animate-pulse" />
+      </div>
 
       {/* HEADER */}
-      <div className="max-w-6xl mx-auto flex items-center justify-between mb-10 animate-fadeIn">
+      <div className="relative max-w-6xl mx-auto flex items-center justify-between mb-10 animate-fadeIn">
 
         {/* LEFT BRAND */}
         <div className="flex items-center gap-3">
@@ -65,16 +73,15 @@ const ExamDashboard = () => {
       </div>
 
       {/* TRUST MESSAGE */}
-      <div className="max-w-6xl mx-auto mb-8">
-        <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 leading-relaxed">
-          Scholiqen CBT is designed to help you prepare under real examination conditions.
-          It simulates exam timing, structure, and question flow so you can build confidence,
-          improve speed, and perform better in your actual exams.
+      <div className="relative max-w-6xl mx-auto mb-8">
+        <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 leading-relaxed backdrop-blur-md">
+          Scholiqen CBT is designed to simulate real exam conditions. 
+          It improves speed, accuracy, and exam confidence through structured testing.
         </div>
       </div>
 
       {/* EXAMS GRID */}
-      <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+      <div className="relative max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
 
         {exams.map((exam, index) => (
           <div
@@ -82,8 +89,8 @@ const ExamDashboard = () => {
             onClick={() => handleSelectExam(exam)}
             className="
               group relative cursor-pointer
-              opacity-0 translate-y-6
               animate-[fadeUp_0.5s_ease_forwards]
+              opacity-0 translate-y-6
             "
             style={{ animationDelay: `${index * 60}ms` }}
           >
@@ -94,17 +101,16 @@ const ExamDashboard = () => {
               transition-all duration-300
               group-hover:scale-105
               group-hover:bg-white/10
-              group-hover:border-white/20
-              group-hover:shadow-blue-500/10
+              group-hover:border-white/30
+              group-hover:shadow-blue-500/20
+              overflow-hidden
             ">
 
-              {/* glow effect */}
+              {/* selection glow */}
               <div className="
-                absolute inset-0 rounded-2xl
-                opacity-0 group-hover:opacity-100
-                transition duration-300
+                absolute inset-0 opacity-0 group-hover:opacity-100
                 bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-cyan-500/10
-                blur-xl
+                blur-2xl transition duration-300
               " />
 
               <div className="relative z-10 text-center">
@@ -117,9 +123,10 @@ const ExamDashboard = () => {
                 </h2>
 
                 <p className="text-xs text-gray-500 mt-2 group-hover:text-gray-300 transition">
-                  Click to begin exam →
+                  Click to continue →
                 </p>
               </div>
+
             </div>
           </div>
         ))}
@@ -127,7 +134,7 @@ const ExamDashboard = () => {
       </div>
 
       {/* FOOTER */}
-      <div className="max-w-6xl mx-auto mt-12 text-center text-gray-500 text-sm animate-fadeIn">
+      <div className="relative max-w-6xl mx-auto mt-12 text-center text-gray-500 text-sm animate-fadeIn">
         © {new Date().getFullYear()} Scholiqen CBT • Built for real exam simulation
       </div>
 
@@ -135,14 +142,8 @@ const ExamDashboard = () => {
       <style>
         {`
           @keyframes fadeUp {
-            from {
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
           }
 
           .animate-fadeIn {

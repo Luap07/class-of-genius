@@ -2,44 +2,53 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import NovelEditor from "../components/NovelEditor";
 import { Plus, Trash2, Edit } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const ADMIN_EMAIL = "scholiqen@gmail.com";
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
+
+  /* ================= NOVELS ================= */
   const [novels, setNovels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingNovel, setEditingNovel] = useState(null);
   const [creating, setCreating] = useState(false);
 
+  /* ================= CBT ================= */
+  const [subjects, setSubjects] = useState([]);
+  const [questions, setQuestions] = useState([]);
+
+  /* ================= UI ================= */
+  const [activeTab, setActiveTab] = useState("novels");
+
+  /* ================= AUTH ================= */
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  /* ================= CHECK ADMIN ================= */
   const checkAdmin = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (user?.email === ADMIN_EMAIL) {
       setIsAdmin(true);
-      await fetchNovels();
+      await fetchAll();
     }
 
     setCheckingAccess(false);
   };
 
-  /* ================= FETCH NOVELS ================= */
-  const fetchNovels = async () => {
+  const fetchAll = async () => {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("novels")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const [novelRes, subjectRes, questionRes] = await Promise.all([
+      supabase.from("novels").select("*").order("created_at", { ascending: false }),
+      supabase.from("cbt_subjects").select("*"),
+      supabase.from("cbt_questions").select("*"),
+    ]);
 
-    if (!error) {
-      setNovels(data || []);
-    }
+    setNovels(novelRes.data || []);
+    setSubjects(subjectRes.data || []);
+    setQuestions(questionRes.data || []);
 
     setLoading(false);
   };
@@ -48,52 +57,22 @@ const AdminDashboard = () => {
     checkAdmin();
   }, []);
 
-  /* ================= DELETE ================= */
   const deleteNovel = async (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this novel?"
-    );
-
+    const confirmDelete = window.confirm("Are you sure?");
     if (!confirmDelete) return;
 
-    const { error } = await supabase
-      .from("novels")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    fetchNovels();
+    await supabase.from("novels").delete().eq("id", id);
+    fetchAll();
   };
 
-  /* ================= ACCESS DENIED ================= */
-  if (checkingAccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-white bg-black">
-        Checking permissions...
-      </div>
-    );
-  }
+  const editNovel = (novel) => {
+    setEditingNovel(novel);
+    setCreating(true);
+  };
 
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-red-500 mb-3">
-            Access Denied
-          </h1>
-          <p className="text-gray-400">
-            You do not have permission to access this page.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (checkingAccess) return <div className="text-white p-6">Checking...</div>;
+  if (!isAdmin) return <div className="text-red-500 p-6">Access Denied</div>;
 
-  /* ================= EDITOR ================= */
   if (creating || editingNovel) {
     return (
       <NovelEditor
@@ -101,82 +80,111 @@ const AdminDashboard = () => {
         onBack={() => {
           setCreating(false);
           setEditingNovel(null);
-          fetchNovels();
+          fetchAll();
         }}
       />
     );
   }
 
   return (
-    <div className="min-h-screen text-white p-6 bg-gradient-to-br from-[#05070f] via-[#0b1020] to-black">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">📚 Admin Dashboard</h1>
+    <div className="min-h-screen bg-black text-white p-6">
 
-        <button
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-        >
-          <Plus size={18} />
-          Add Novel
-        </button>
+      {/* ================= TABS ================= */}
+      <div className="flex gap-3 mb-6">
+        {["novels", "cbt"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 rounded ${
+              activeTab === tab ? "bg-blue-600" : "bg-white/10"
+            }`}
+          >
+            {tab.toUpperCase()}
+          </button>
+        ))}
       </div>
 
-      {/* LIST */}
-      {loading ? (
-        <p className="text-gray-400">Loading novels...</p>
-      ) : novels.length === 0 ? (
-        <div className="text-center text-gray-500 mt-10">
-          No novels found.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {novels.map((n) => (
-            <div
-              key={n.id}
-              className="bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:scale-[1.02] transition"
+      {/* ================= NOVELS ================= */}
+      {activeTab === "novels" && (
+        <>
+          <div className="flex justify-between mb-4">
+            <h1 className="text-xl font-bold">Novels</h1>
+
+            <button
+              onClick={() => setCreating(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded"
             >
-              {n.cover_url && (
-                <img
-                  src={n.cover_url}
-                  alt={n.title}
-                  className="h-40 w-full object-cover"
-                />
-              )}
+              <Plus size={18} />
+              Add Novel
+            </button>
+          </div>
 
-              <div className="p-4">
-                <h2 className="font-bold text-lg">{n.title}</h2>
+          <div className="grid grid-cols-3 gap-4">
+            {novels.map((n) => (
+              <div key={n.id} className="bg-white/10 p-3 rounded-xl">
 
-                <p className="text-xs text-gray-400 mt-1">
-                  {n.genre}
-                </p>
+                {n.cover_url && (
+                  <img
+                    src={n.cover_url}
+                    alt={n.title}
+                    className="h-32 w-full object-cover rounded"
+                  />
+                )}
 
-                <p className="text-xs text-gray-500 mt-2 line-clamp-2">
-                  {n.description}
-                </p>
+                <h2 className="font-bold mt-2">{n.title}</h2>
+                <p className="text-xs text-gray-400">{n.genre}</p>
 
-                <div className="flex justify-between mt-4">
-                  <button
-                    onClick={() => setEditingNovel(n)}
-                    className="flex items-center gap-1 text-blue-400 hover:text-blue-300"
-                  >
-                    <Edit size={16} />
-                    Edit
+                <div className="flex justify-between mt-2">
+                  <button onClick={() => editNovel(n)} className="text-blue-400 flex gap-1">
+                    <Edit size={16} /> Edit
                   </button>
 
-                  <button
-                    onClick={() => deleteNovel(n.id)}
-                    className="flex items-center gap-1 text-red-400 hover:text-red-300"
-                  >
-                    <Trash2 size={16} />
-                    Delete
+                  <button onClick={() => deleteNovel(n.id)} className="text-red-400 flex gap-1">
+                    <Trash2 size={16} /> Delete
                   </button>
                 </div>
+
               </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ================= CBT ================= */}
+      {activeTab === "cbt" && (
+        <div className="space-y-6">
+
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold">CBT SYSTEM</h2>
+
+            <div className="flex gap-3">
+
+              {/* FIXED NAVIGATION */}
+              <button
+                onClick={() => navigate("/cbt/admin/subjects")}
+                className="px-4 py-2 bg-green-600 rounded"
+              >
+                + Add Subject
+              </button>
+
+              <button
+                onClick={() => navigate("/cbt/admin/questions")}
+                className="px-4 py-2 bg-purple-600 rounded"
+              >
+                + Add Question
+              </button>
+
             </div>
-          ))}
+          </div>
+
+          <div className="bg-white/10 p-4 rounded">
+            <p>Subjects: {subjects.length}</p>
+            <p>Questions: {questions.length}</p>
+          </div>
+
         </div>
       )}
+
     </div>
   );
 };

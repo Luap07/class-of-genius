@@ -57,9 +57,9 @@ const AdminDashboard = () => {
     checkAdmin();
   }, []);
 
+  /* ================= NOVELS DELETE ================= */
   const deleteNovel = async (id) => {
-    const confirmDelete = window.confirm("Are you sure?");
-    if (!confirmDelete) return;
+    if (!window.confirm("Are you sure?")) return;
 
     await supabase.from("novels").delete().eq("id", id);
     fetchAll();
@@ -70,6 +70,20 @@ const AdminDashboard = () => {
     setCreating(true);
   };
 
+  /* ================= CBT DELETE ================= */
+  const deleteQuestion = async (id) => {
+    if (!window.confirm("Delete this question?")) return;
+
+    await supabase.from("cbt_questions").delete().eq("id", id);
+    fetchAll();
+  };
+
+  const editQuestion = (q) => {
+    // send to edit page OR later replace with modal
+    navigate("/cbt/admin/questions/edit", { state: q });
+  };
+
+  /* ================= GUARDS ================= */
   if (checkingAccess) return <div className="text-white p-6">Checking...</div>;
   if (!isAdmin) return <div className="text-red-500 p-6">Access Denied</div>;
 
@@ -126,7 +140,6 @@ const AdminDashboard = () => {
                 {n.cover_url && (
                   <img
                     src={n.cover_url}
-                    alt={n.title}
                     className="h-32 w-full object-cover rounded"
                   />
                 )}
@@ -154,12 +167,11 @@ const AdminDashboard = () => {
       {activeTab === "cbt" && (
         <div className="space-y-6">
 
+          {/* HEADER */}
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold">CBT SYSTEM</h2>
 
             <div className="flex gap-3">
-
-              {/* FIXED NAVIGATION */}
               <button
                 onClick={() => navigate("/cbt/admin/subjects")}
                 className="px-4 py-2 bg-green-600 rounded"
@@ -173,13 +185,42 @@ const AdminDashboard = () => {
               >
                 + Add Question
               </button>
-
             </div>
           </div>
 
+          {/* STATS */}
           <div className="bg-white/10 p-4 rounded">
             <p>Subjects: {subjects.length}</p>
             <p>Questions: {questions.length}</p>
+          </div>
+
+          {/* ================= CBT QUESTIONS MANAGER ================= */}
+          <div className="bg-white/10 p-4 rounded">
+            <h3 className="font-bold mb-3">Recent Questions</h3>
+
+            {questions.slice(0, 10).map((q) => (
+              <div key={q.id} className="border-b border-white/10 py-3">
+
+                <p className="text-sm">{q.question}</p>
+
+                <div className="flex gap-4 mt-2 text-xs">
+                  <button
+                    onClick={() => editQuestion(q)}
+                    className="text-blue-400 flex gap-1"
+                  >
+                    <Edit size={14} /> Edit
+                  </button>
+
+                  <button
+                    onClick={() => deleteQuestion(q.id)}
+                    className="text-red-400 flex gap-1"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
+
+              </div>
+            ))}
           </div>
 
         </div>

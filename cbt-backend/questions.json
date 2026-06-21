@@ -1,0 +1,62 @@
+[
+  {
+    "question": "What is 2 + 2?",
+    "options": ["1", "2", "3", "4"],
+    "answer": "4",
+    "subject": "Mathematics"
+  },
+  {
+    "question": "Who is the capital of Nigeria?",
+    "options": ["Lagos", "Abuja", "Kano", "Ibadan"],
+    "answer": "Abuja",
+    "subject": "Civic Education"
+  },
+  {
+    "question": "Which gas is most abundant in the atmosphere?",
+    "options": ["Oxygen", "Carbon Dioxide", "Nitrogen", "Hydrogen"],
+    "answer": "Nitrogen",
+    "subject": "Chemistry"
+  },
+  {
+    "question": "The process by which plants make food is called?",
+    "options": ["Respiration", "Photosynthesis", "Digestion", "Transpiration"],
+    "answer": "Photosynthesis",
+    "subject": "Biology"
+  },
+  {
+    "question": "What is the unit of force?",
+    "options": ["Joule", "Newton", "Watt", "Pascal"],
+    "answer": "Newton",
+    "subject": "Physics"
+  },
+  {
+    "question": "Which organ pumps blood in the body?",
+    "options": ["Liver", "Brain", "Heart", "Kidney"],
+    "answer": "Heart",
+    "subject": "Biology"
+  },
+  {
+    "question": "What is 10 x 5?",
+    "options": ["50", "10", "15", "100"],
+    "answer": "50",
+    "subject": "Mathematics"
+  },
+  {
+    "question": "Nigeria gained independence in which year?",
+    "options": ["1960", "1950", "1970", "1980"],
+    "answer": "1960",
+    "subject": "History"
+  },
+  {
+    "question": "Water boils at what temperature (°C)?",
+    "options": ["50°C", "100°C", "150°C", "200°C"],
+    "answer": "100°C",
+    "subject": "Physics"
+  },
+  {
+    "question": "Which of these is a computer input device?",
+    "options": ["Monitor", "Keyboard", "Printer", "Speaker"],
+    "answer": "Keyboard",
+    "subject": "Computer Studies"
+  }
+]

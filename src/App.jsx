@@ -44,16 +44,17 @@ import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
 
 /* ================= CBT ================= */
-import ExamDashboard from "./pages/CBT/ExamDashboard.jsx";
-import CBTSession from "./pages/CBT/CBTSession.jsx";
-import ExamSelect from "./pages/CBT/ExamSelect.jsx";
+import CBT from "./pages/cbt/CBT";
+import SubjectSelect from "./pages/cbt/SubjectSelect";
+import CBTExam from "./pages/cbt/CBTExam";
 
-/* 🔥 FIXED CBT ADMIN IMPORTS */
-import SubjectUploader from "./pages/CBT/SubjectUploder.jsx";
-import AdminQuestionUploader from "./pages/CBT/AdminQuestionUploader.jsx";
+/* ================= LiveClass ================= */
+import AITutorDisplay from "./components/AITutorDisplay";
+
 
 /* ================= LAYOUT ================= */
 import DashboardLayout from "./layout/DashboardLayout";
+import LiveClassSection from "./pages/LiveClassSection";
 
 /* ================= PROTECTED ROUTE ================= */
 const ProtectedRoute = ({ children }) => {
@@ -86,7 +87,6 @@ const PageWrapper = ({ children }) => (
 /* ================= ROUTES ================= */
 const AnimatedRoutes = () => {
   const location = useLocation();
-  const hideNavbar = location.pathname.startsWith("/cbt");
 
   return (
     <AnimatePresence mode="wait">
@@ -97,29 +97,41 @@ const AnimatedRoutes = () => {
           path="/"
           element={
             <>
-              {!hideNavbar && <Navbar />}
+              <Navbar />
               <PageWrapper><Home /></PageWrapper>
             </>
           }
         />
 
-        {/* ADMIN NOVELS */}
+        {/* AUTH */}
+        <Route path="/login" element={<Login />} />
+
+        {/* STATIC */}
+        <Route path="/contact" element={<PageWrapper><Contact /></PageWrapper>} />
+        <Route path="/about" element={<PageWrapper><About /></PageWrapper>} />
+        <Route path="/services" element={<PageWrapper><Services /></PageWrapper>} />
+
+        {/* LIVE CLASS ✅ FIXED */}
         <Route
-          path="/novels/admin"
+          path="/live"
           element={
             <ProtectedRoute>
-              <PageWrapper><AdminDashboard /></PageWrapper>
+              <PageWrapper>
+                <LiveClassSection />
+              </PageWrapper>
             </ProtectedRoute>
           }
         />
 
-        {/* LOGIN */}
-        <Route path="/login" element={<Login />} />
-
-        {/* STATIC PAGES */}
-        <Route path="/contact" element={<PageWrapper><Contact /></PageWrapper>} />
-        <Route path="/about" element={<PageWrapper><About /></PageWrapper>} />
-        <Route path="/services" element={<PageWrapper><Services /></PageWrapper>} />
+        {/* {LiveClass} */}
+        <Route
+       path="/ai-tutor-session"
+           element={
+          <ProtectedRoute>
+            <AITutorDisplay />
+              </ProtectedRoute>
+             }
+          />
 
         {/* NOVELS */}
         <Route path="/novels" element={<PageWrapper><Novels /></PageWrapper>} />
@@ -130,41 +142,46 @@ const AnimatedRoutes = () => {
         <Route path="/ai-tutor" element={<PageWrapper><AITutor /></PageWrapper>} />
         <Route path="/ai-tutor/session" element={<AITutorSession />} />
 
-        {/* CBT MAIN */}
-        <Route path="/cbt" element={<PageWrapper><ExamDashboard /></PageWrapper>} />
-        <Route path="/cbt/select" element={<PageWrapper><ExamSelect /></PageWrapper>} />
-        <Route path="/cbt/session/:examType" element={<PageWrapper><CBTSession /></PageWrapper>} />
-
-        {/* ✅ CBT ADMIN ROUTES (FIXED) */}
+        {/* CBT */}
         <Route
-          path="/cbt/admin/subjects"
+          path="/cbt"
           element={
             <ProtectedRoute>
-              <PageWrapper><SubjectUploader /></PageWrapper>
+              <PageWrapper><CBT /></PageWrapper>
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="/cbt/admin/questions"
+          path="/cbt/exam/:exam"
           element={
             <ProtectedRoute>
-              <PageWrapper><AdminQuestionUploader /></PageWrapper>
+              <PageWrapper><SubjectSelect /></PageWrapper>
             </ProtectedRoute>
           }
         />
+        {/* CONTACT INBOX */}
+    <Route
+    path="/contact-inbox"
+    element={
+      <ProtectedRoute>
+      <PageWrapper>
+        <ContactInbox />
+      </PageWrapper>
+    </ProtectedRoute>
+     }
+        />
 
-        {/* PROTECTED */}
         <Route
-          path="/contact-inbox"
+          path="/cbt/exam/:exam/:subject"
           element={
             <ProtectedRoute>
-              <PageWrapper><ContactInbox /></PageWrapper>
+              <PageWrapper><CBTExam /></PageWrapper>
             </ProtectedRoute>
           }
         />
 
-        {/* DASHBOARD LAYOUT */}
+        {/* DASHBOARD */}
         <Route
           element={
             <ProtectedRoute>
@@ -180,6 +197,16 @@ const AnimatedRoutes = () => {
           <Route path="requests" element={<Requests />} />
           <Route path="connections" element={<Connections />} />
         </Route>
+
+        {/* ADMIN */}
+        <Route
+          path="/novels/admin"
+          element={
+            <ProtectedRoute>
+              <PageWrapper><AdminDashboard /></PageWrapper>
+            </ProtectedRoute>
+          }
+        />
 
         {/* FALLBACK */}
         <Route path="*" element={<Navigate to="/" replace />} />

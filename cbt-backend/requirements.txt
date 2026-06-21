@@ -1,0 +1,6 @@
+supabase
+pandas
+openpyxl
+requests
+beautifulsoup4
+pdfplumber

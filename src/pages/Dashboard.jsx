@@ -122,11 +122,11 @@ const Dashboard = () => {
 
         <Card title="LMS Portal" bgImage={lms} onClick={() => navigate("/libraries")} />
         <Card title="My Calendar" bgImage={My_School_Calendar} onClick={() => navigate("/calendar")} />
+
+        {/* ✅ FIXED LIVE CLASS ROUTE */}
         <Card title="Live Class" bgImage={live} onClick={() => navigate("/live")} />
 
-        {/* ✅ FIXED HERE */}
         <Card title="Novel Library" bgImage={novel} onClick={() => navigate("/novels")} />
-
         <Card title="CBT Test" bgImage={cbt} onClick={() => navigate("/cbt")} />
 
         <AITutorCard onClick={() => navigate("/ai-tutor")} />
@@ -154,40 +154,8 @@ const Dashboard = () => {
 
         <MyCalendar events={events} setEvents={setEvents} />
       </div>
-       {/* ================= FAQ ================= */}
-      <div className="border-t border-white/10 pt-10 grid md:grid-cols-3 gap-6">
 
-        <div>
-          <h2 className="font-bold mb-3">FAQs</h2>
-
-          <p className="font-medium">Why study daily?</p>
-          <p className="text-gray-400 text-sm mb-3">
-            Consistency builds mastery over time.
-          </p>
-
-          <p className="font-medium">How to improve fast?</p>
-          <p className="text-gray-400 text-sm">
-            Practice and revision daily.
-          </p>
-        </div>
-
-        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-          <h3 className="font-semibold mb-2">Do I need long hours?</h3>
-          <p className="text-gray-400 text-sm">
-            No — smart consistency beats long hours.
-          </p>
-        </div>
-
-        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-          <h3 className="font-semibold mb-2">Can I use daily?</h3>
-          <p className="text-gray-400 text-sm">
-            Yes — designed for daily learning.
-          </p>
-        </div>
-
-      </div>
-
-      {/* ================= FOOTER ================= */}
+      {/* FOOTER */}
       <footer className="mt-20 border-t border-white/10 pt-10 text-center text-gray-400">
 
         <div className="flex justify-center gap-8 mb-6">
@@ -205,7 +173,6 @@ const Dashboard = () => {
         </p>
 
       </footer>
-
 
     </section>
   );

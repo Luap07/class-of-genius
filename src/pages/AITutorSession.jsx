@@ -1,89 +1,160 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import AITutorDisplay from "../components/AITutorDisplay";
+import AITutorHeader from "../components/AITutorHeader";
+import AITutorSidebar from "../components/AITutorSidebar";
+import { Send } from "lucide-react";
 
 const AITutorSession = () => {
   const [params] = useSearchParams();
   const classType = params.get("class");
 
-  const [messages, setMessages] = useState([
-    {
-      role: "ai",
-      text: `Welcome 👋 I'm your AI tutor. Let's start ${classType || "your lesson"}.`,
-    },
-  ]);
-
+  const [sessionMode, setSessionMode] = useState("idle"); 
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
+  const recognitionRef = useRef(null);
+  const isActiveRef = useRef(false);
 
-    const userMsg = { role: "user", text: input };
+  // =========================
+  // INIT SPEECH RECOGNITION
+  // =========================
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    // fake AI reply (you will later replace with real AI API)
-    const aiReply = {
-      role: "ai",
-      text: `I understand. Let's break this topic down step by step...`,
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event) => {
+      const text = event.results[event.results.length - 1][0].transcript;
+      handleUserSpeak(text);
     };
 
-    setMessages((prev) => [...prev, userMsg, aiReply]);
+    recognition.onend = () => {
+      if (isActiveRef.current) {
+        setTimeout(() => recognition.start(), 300);
+      }
+    };
+
+    recognitionRef.current = recognition;
+  }, []);
+
+  const startSpeak = () => {
+    setSessionMode("speak");
+    isActiveRef.current = true;
+    setTimeout(() => { recognitionRef.current?.start(); }, 300);
+  };
+
+  const stopSpeak = () => {
+    isActiveRef.current = false;
+    recognitionRef.current?.stop();
+    window.speechSynthesis.cancel();
+  };
+
+  const startWrite = () => {
+    setSessionMode("write");
+    stopSpeak();
+  };
+
+  const handleUserSpeak = (text) => {
+    if (!text.trim()) return;
+    const userMsg = { role: "user", text };
+    const aiText = generateAI(text);
+    const aiMsg = { role: "ai", text: aiText };
+    setMessages((prev) => [...prev, userMsg, aiMsg]);
+    speakAI(aiText);
+  };
+
+  const handleWriteMessage = () => {
+    if (!input.trim()) return;
+    const userMsg = { role: "user", text: input };
+    const aiText = generateAI(input);
+    const aiMsg = { role: "ai", text: aiText };
+    setMessages((prev) => [...prev, userMsg, aiMsg]);
     setInput("");
   };
 
+  const generateAI = (text) => {
+    return `Let me explain clearly: ${text}. Step by step like your tutor.`;
+  };
+
+  const speakAI = (text) => {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => {
+      if (isActiveRef.current) { recognitionRef.current?.start(); }
+    };
+    window.speechSynthesis.speak(utterance);
+  };
+
   return (
-    <div className="min-h-screen bg-[#05060a] text-white flex flex-col md:flex-row gap-6 p-6">
+    // FIX: Changed h-[100px] to h-screen
+    <div className="h-screen flex flex-col bg-gradient-to-br from-[#020617] via-[#0b1120] to-[#020614] text-white overflow-hidden">
 
-      {/* LEFT: AI ROBOT PANEL */}
-      <div className="md:w-1/3">
-        <AITutorDisplay />
-      </div>
+      <AITutorHeader />
 
-      {/* RIGHT: CHAT AREA */}
-      <div className="flex-1 bg-slate-900 rounded-xl p-4 flex flex-col border border-slate-800">
+      <div className="flex flex-1 overflow-hidden">
+        <AITutorSidebar />
 
-        {/* HEADER */}
-        <div className="mb-4 border-b border-slate-700 pb-3">
-          <h2 className="text-xl font-bold">
-            {classType ? `${classType} AI Tutor` : "AI Tutor"}
-          </h2>
-          <p className="text-sm text-gray-400">
-            Your personal learning assistant is active
-          </p>
-        </div>
+        <div className="flex flex-1 gap-6 p-6 overflow-hidden">
+          {/* LEFT */}
+          <div className="md:w-1/3">
+            <AITutorDisplay
+              onStartSpeak={startSpeak}
+              onStartWrite={startWrite}
+              onStop={stopSpeak}
+              sessionMode={sessionMode}
+            />
+          </div>
 
-        {/* MESSAGES */}
-        <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg max-w-[80%] ${
-                msg.role === "ai"
-                  ? "bg-blue-900/40 border border-blue-700"
-                  : "bg-slate-700 ml-auto"
-              }`}
-            >
-              {msg.text}
+          {/* RIGHT */}
+          <div className="flex-1 bg-slate-900/80 rounded-2xl p-4 flex flex-col overflow-hidden">
+            <div className="mb-4 border-b border-slate-700 pb-3">
+              <h2 className="text-2xl font-bold text-blue-300">AI Tutor</h2>
+              <p className="text-sm text-slate-400">
+                {sessionMode === "speak" && "🎤 Live Voice Tutor"}
+                {sessionMode === "write" && "✍️ Writing Mode"}
+                {sessionMode === "idle" && "Choose Speak or Write"}
+              </p>
             </div>
-          ))}
+
+            <div className="flex-1 overflow-y-auto space-y-3">
+              {messages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`p-3 rounded-xl max-w-[80%] ${
+                    msg.role === "ai" ? "bg-blue-900/30" : "bg-slate-700 ml-auto"
+                  }`}
+                >
+                  {msg.text}
+                </div>
+              ))}
+            </div>
+
+            {sessionMode === "write" && (
+              <div className="mt-4 flex gap-2">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your question..."
+                  className="flex-1 p-3 rounded-xl bg-slate-800 text-white placeholder-slate-500"
+                  onKeyDown={(e) => e.key === "Enter" && handleWriteMessage()}
+                />
+                <button
+                  onClick={handleWriteMessage}
+                  className="p-3 bg-blue-600 rounded-xl hover:bg-blue-500"
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-
-        {/* INPUT */}
-        <div className="mt-4 flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask your tutor..."
-            className="flex-1 p-3 rounded-lg bg-slate-800 border border-slate-700 outline-none"
-          />
-
-          <button
-            onClick={sendMessage}
-            className="px-6 py-3 bg-blue-600 rounded-lg hover:bg-blue-500 transition"
-          >
-            Send
-          </button>
-        </div>
-
       </div>
     </div>
   );

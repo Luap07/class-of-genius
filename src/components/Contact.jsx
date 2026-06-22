@@ -69,7 +69,7 @@ const Contact = () => {
   };
 
   return (
-    <div className="min-h-screen mt-16 flex items-center justify-center bg-[#070b14] text-white p-6">
+    <div className="min-h-screen flex items-center justify-center bg-[#070b14] text-white p-6">
 
       <div className="w-full max-w-2xl bg-slate-900 p-8 rounded-2xl border border-slate-700">
 

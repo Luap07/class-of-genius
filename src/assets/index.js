@@ -34,7 +34,8 @@ import comedy from './comedy.jpg';
 import thriller from './thriller.jpg';
 import christian from './christian.jpg';
 import educational from './educational.jpg'
-
+import tutor from './tutor.jpg'
+import robot from './robot.png'
 
 export {
     Cog,
@@ -72,6 +73,8 @@ export {
     comedy,
     thriller,
     christian,
-    educational
+    educational,
+    tutor,
+    robot
 
 }

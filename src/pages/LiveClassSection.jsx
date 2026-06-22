@@ -3,10 +3,8 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Cog from "../assets/cog.png";
 
-
 const liveClasses = [
   {
-    
     title: "WAEC Live Class",
     desc: "Structured WAEC preparation with expert guidance",
     color: "from-blue-500 to-cyan-400",
@@ -85,31 +83,31 @@ const LiveClassSection = () => {
         ))}
       </div>
 
-      {/* START CLASS BUTTON (IMPORTANT FIX) */}
+      {/* START CLASS BUTTON (FIXED PATH) */}
       <div className="relative z-10 flex justify-center mt-12">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.96 }}
-          onClick={() => navigate("/ai-tutor-session")}
+          onClick={() => navigate("/ai-tutor/session")}
           className="px-10 py-4 rounded-2xl font-semibold text-lg bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 border border-white/10 shadow-lg"
         >
           Start Class 🚀
         </motion.button>
       </div>
 
-      {/* DIVIDER (FULL SCREEN ANIMATION FIXED) */}
+      {/* DIVIDER */}
       <div className="relative mt-20 max-w-5xl mx-auto">
         <div className="h-[2px] bg-white/10 overflow-hidden rounded-full relative">
 
           <motion.div
             className="absolute h-full w-28 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"
-            animate={{ x: ["-200%", "200%"] }}
+            animate={{ x: ["-1200%", "1200%"] }}
             transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
           />
 
           <motion.div
             className="absolute h-full w-20 bg-gradient-to-r from-transparent via-blue-300 to-transparent"
-            animate={{ x: ["-250%", "250%"] }}
+            animate={{ x: ["-1500%", "1500%"] }}
             transition={{
               duration: 14,
               repeat: Infinity,
@@ -124,7 +122,7 @@ const LiveClassSection = () => {
       <div className="relative z-10 mt-20 max-w-5xl mx-auto text-center">
 
         <p className="text-gray-300 text-sm md:text-base">
-          Powered by <span className="text-blue-300 font-semibold">Scholiqen</span> — AI-driven academic learning platform for WAEC, JAMB, NECO & IELTS preparation.
+          Powered by <span className="text-blue-300 font-semibold">Scholiqen</span> — AI-driven academic learning platform for WAEC, JAMB, NECO, IELTS many more preparation.
         </p>
 
         <p className="text-xs text-gray-500 mt-3">

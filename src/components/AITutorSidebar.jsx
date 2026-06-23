@@ -6,6 +6,7 @@ import {
   BarChart3,
   Settings,
 } from "lucide-react";
+import CBT from "../pages/cbt/CBT";
 
 const AITutorSidebar = ({ setActivePanel }) => {
   return (
@@ -13,15 +14,13 @@ const AITutorSidebar = ({ setActivePanel }) => {
 
       {/* LOGO = HOME RESET */}
       <div
-        onClick={() => {
-          setActivePanel("home");
-        }}
+        onClick={() => setActivePanel("home")}
         className="text-blue-500 font-bold text-xl mb-4 cursor-pointer"
       >
         S
       </div>
 
-      {/* HOME */}
+      {/* HOME (RESET VIEW) */}
       <button
         onClick={() => setActivePanel("home")}
         className="flex flex-col items-center gap-1 p-3 rounded-xl w-full text-slate-400 hover:text-cyan-400 hover:bg-slate-800"
@@ -39,15 +38,7 @@ const AITutorSidebar = ({ setActivePanel }) => {
         <span className="text-[10px]">Subjects</span>
       </button>
 
-      {/* EXAM PREP (merged idea) */}
-      <button
-        onClick={() => setActivePanel("subjects")} 
-        className="flex flex-col items-center gap-1 p-3 rounded-xl w-full text-slate-400 hover:text-cyan-400 hover:bg-slate-800"
-      >
-        <GraduationCap size={22} />
-        <span className="text-[10px]">Exam</span>
-      </button>
-
+      
       {/* PROGRESS */}
       <button
         onClick={() => setActivePanel("progress")}

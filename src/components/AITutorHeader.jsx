@@ -10,11 +10,11 @@ const AITutorHeader = () => {
   const [openProfile, setOpenProfile] = useState(false);
 
   return (
-    <div className="w-full flex items-center justify-between px-4 py-3 bg-slate-950/70 backdrop-blur-md border-b border-slate-800">
+    <div className="w-full flex items-center justify-between px-6 py-3 bg-slate-950/70 backdrop-blur-md border-b border-slate-800">
 
       {/* LEFT */}
       <div className="flex items-center gap-2">
-        <img src={Cog} alt="logo" className="w-8 h-8" />
+        <img src={Cog} alt="logo" className="w-15 h-15" />
         <span className="font-bold text-lg text-white">Scholiqen</span>
       </div>
 

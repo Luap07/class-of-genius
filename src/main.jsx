@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
+import "katex/dist/katex.min.css";
+
 import { AuthProvider } from "./context/AuthContext";
 import { ConnectProvider } from "./context/ConnectContext";
 

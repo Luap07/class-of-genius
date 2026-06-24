@@ -48,13 +48,11 @@ import CBT from "./pages/cbt/CBT";
 import SubjectSelect from "./pages/cbt/SubjectSelect";
 import CBTExam from "./pages/cbt/CBTExam";
 
-/* ================= LiveClass ================= */
-import AITutorDisplay from "./components/AITutorDisplay";
-
-
 /* ================= LAYOUT ================= */
 import DashboardLayout from "./layout/DashboardLayout";
-import LiveClassSection from "./pages/LiveClassSection";
+
+/* ================= 🧪 VIRTUAL LAB ADDED ================= */
+import VirtualLab from "./pages/VirtualLab";
 
 /* ================= PROTECTED ROUTE ================= */
 const ProtectedRoute = ({ children }) => {
@@ -111,36 +109,14 @@ const AnimatedRoutes = () => {
         <Route path="/about" element={<PageWrapper><About /></PageWrapper>} />
         <Route path="/services" element={<PageWrapper><Services /></PageWrapper>} />
 
-        {/* LIVE CLASS ✅ FIXED */}
-        <Route
-          path="/live"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-                <LiveClassSection />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* {LiveClass} */}
-        <Route
-       path="/ai-tutor-session"
-           element={
-          <ProtectedRoute>
-            <AITutorDisplay />
-              </ProtectedRoute>
-             }
-          />
+        {/* AI */}
+        <Route path="/ai-tutor" element={<PageWrapper><AITutor /></PageWrapper>} />
+        <Route path="/ai-tutor/session" element={<PageWrapper><AITutorSession /></PageWrapper>} />
 
         {/* NOVELS */}
         <Route path="/novels" element={<PageWrapper><Novels /></PageWrapper>} />
         <Route path="/story/:id" element={<PageWrapper><StoryReader /></PageWrapper>} />
         <Route path="/upload-novel" element={<PageWrapper><UploadNovel /></PageWrapper>} />
-
-        {/* AI */}
-        <Route path="/ai-tutor" element={<PageWrapper><AITutor /></PageWrapper>} />
-        <Route path="/ai-tutor/session" element={<AITutorSession />} />
 
         {/* CBT */}
         <Route
@@ -160,17 +136,6 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-        {/* CONTACT INBOX */}
-    <Route
-    path="/contact-inbox"
-    element={
-      <ProtectedRoute>
-      <PageWrapper>
-        <ContactInbox />
-      </PageWrapper>
-    </ProtectedRoute>
-     }
-        />
 
         <Route
           path="/cbt/exam/:exam/:subject"
@@ -181,7 +146,31 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* DASHBOARD */}
+        {/* CONTACT INBOX */}
+        <Route
+          path="/contact-inbox"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <ContactInbox />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🧪 VIRTUAL LAB ROUTE (FIXED & CONNECTED) */}
+        <Route
+          path="/lab/:subject/:experiment"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <VirtualLab />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* DASHBOARD LAYOUT ROUTES */}
         <Route
           element={
             <ProtectedRoute>

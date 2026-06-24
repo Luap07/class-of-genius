@@ -37,7 +37,7 @@ app.post("/api/tutor", async (req, res) => {
     }
 
     const prompt = `
-You are EduAI, an intelligent AI tutor similar to ChatGPT.
+You are ScholiqenAI, an intelligent AI tutor similar to ChatGPT.
 
 STUDENT INFO:
 - Subject: ${subject}

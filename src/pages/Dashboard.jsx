@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import Novels from "../pages/Novels";
 
-// Components
 import MyCalendar from "../components/MyCalendar";
 import {
   cbt,
-  adventure,
   lms,
   novel,
   My_School_Calendar,
-  live,
+  virtual,
+  curriculum
 } from "../assets";
 
 import { Newspaper, Calendar, Brain } from "lucide-react";
@@ -112,21 +110,25 @@ const Dashboard = () => {
           />
         </div>
 
-        <p className="text-sm text-blue-300 mt-2">
-          {progress}% completed
-        </p>
+        <p className="text-sm text-blue-300 mt-2">{progress}% completed</p>
       </div>
 
       {/* GRID */}
       <div className="grid md:grid-cols-3 gap-6 mb-10">
 
         <Card title="LMS Portal" bgImage={lms} onClick={() => navigate("/libraries")} />
-        <Card title="My Calendar" bgImage={My_School_Calendar} onClick={() => navigate("/calendar")} />
 
-        {/* ✅ FIXED LIVE CLASS ROUTE */}
-        <Card title="Live Class" bgImage={live} onClick={() => navigate("/live")} />
+        <Card title="My Calendar" bgImage={curriculum} onClick={() => navigate("/calendar")} />
+
+        {/* ✅ FIXED VIRTUAL LAB LINK */}
+        <Card
+          title="Virtual Lab"
+          bgImage={virtual}
+          onClick={() => navigate("/lab/index")}
+        />
 
         <Card title="Novel Library" bgImage={novel} onClick={() => navigate("/novels")} />
+
         <Card title="CBT Test" bgImage={cbt} onClick={() => navigate("/cbt")} />
 
         <AITutorCard onClick={() => navigate("/ai-tutor")} />

@@ -36,6 +36,7 @@ import christian from './christian.jpg';
 import educational from './educational.jpg'
 import tutor from './tutor.jpg'
 import robot from './robot.png'
+import virtual from './virtual.jpg'
 
 export {
     Cog,
@@ -75,6 +76,7 @@ export {
     christian,
     educational,
     tutor,
-    robot
+    robot,
+    virtual
 
 }

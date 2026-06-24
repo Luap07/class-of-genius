@@ -10,12 +10,10 @@ const Login = () => {
   const { darkMode } = useContext(ConnectContext);
 
   const [isSignup, setIsSignup] = useState(false);
-
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -29,33 +27,38 @@ const Login = () => {
     setError("");
   }, [isSignup]);
 
+  /* ================= CLEANUP ON LOGIN ================= */
+  // Ensures any data from previous users is wiped before a new login
+  const clearLocalProgress = () => {
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      if (key.startsWith("studentProgress_") || key.startsWith("studentWeeklyProgress_")) {
+        localStorage.removeItem(key);
+      }
+    });
+  };
+
   /* ================= SIGN UP ================= */
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
-
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
     }
-
     setLoading(true);
 
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: {
-        data: { username },
-      },
+      options: { data: { username } },
     });
 
-    if (error) {
-      setError(error.message);
-    } else {
+    if (error) setError(error.message);
+    else {
       alert("Account created successfully 🎉 Check your email!");
       setIsSignup(false);
     }
-
     setLoading(false);
   };
 
@@ -65,7 +68,10 @@ const Login = () => {
     setError("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    // Clear old data so new user gets a fresh start
+    clearLocalProgress();
+
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
@@ -73,9 +79,10 @@ const Login = () => {
     if (error) {
       setError(error.message);
     } else {
+      // Force reload to clear React state and force fresh data fetch
       navigate("/dashboard");
+      window.location.reload(); 
     }
-
     setLoading(false);
   };
 
@@ -85,62 +92,33 @@ const Login = () => {
       setError("Enter your email first");
       return;
     }
-
     setLoading(true);
-
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: "http://localhost:5173/reset-password",
-      }
-    );
-
-    if (error) {
-      setError(error.message);
-    } else {
-      alert("Reset link sent to your email 📩");
-    }
-
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: "http://localhost:5173/reset-password",
+    });
+    if (error) setError(error.message);
+    else alert("Reset link sent to your email 📩");
     setLoading(false);
   };
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 px-4">
-
-      {/* BACKGROUND */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#070b14] via-[#0b1220] to-[#05070f]" />
-
       <div className="absolute w-[500px] h-[500px] bg-blue-500/20 blur-[150px] top-0 left-0" />
       <div className="absolute w-[500px] h-[500px] bg-indigo-500/20 blur-[150px] bottom-0 right-0" />
 
-      {/* CARD */}
       <div className="relative w-full max-w-md rounded-3xl p-8 backdrop-blur-2xl border border-white/10 bg-white/5 shadow-2xl">
-
-        {/* LOGO */}
         <div className="flex flex-col items-center mb-3">
           <img src={Cog} className="w-20 h-20 animate-pulse" />
           <h2 className="text-xl font-bold text-gray-200">
             {isSignup ? "Create Account" : "Welcome Back"}
           </h2>
-          <p className="text-sm text-gray-400">
-            Scholiqen Learning Platform
-          </p>
+          <p className="text-sm text-gray-400">Scholiqen Learning Platform</p>
         </div>
 
-        {/* ERROR */}
-        {error && (
-          <div className="text-red-400 text-sm text-center mb-4">
-            {error}
-          </div>
-        )}
+        {error && <div className="text-red-400 text-sm text-center mb-4">{error}</div>}
 
-        {/* FORM */}
-        <form
-          onSubmit={isSignup ? handleSignup : handleLogin}
-          className="space-y-4"
-        >
-
-          {/* USERNAME */}
+        <form onSubmit={isSignup ? handleSignup : handleLogin} className="space-y-4">
           {isSignup && (
             <input
               type="text"
@@ -152,7 +130,6 @@ const Login = () => {
             />
           )}
 
-          {/* EMAIL */}
           <input
             type="email"
             placeholder="Email"
@@ -162,7 +139,6 @@ const Login = () => {
             required
           />
 
-          {/* PASSWORD */}
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
@@ -172,7 +148,6 @@ const Login = () => {
               className="w-full px-4 py-3 rounded-xl bg-white/10 text-white border border-white/10"
               required
             />
-
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
@@ -182,7 +157,6 @@ const Login = () => {
             </button>
           </div>
 
-          {/* CONFIRM PASSWORD */}
           {isSignup && (
             <input
               type={showPassword ? "text" : "password"}
@@ -194,21 +168,15 @@ const Login = () => {
             />
           )}
 
-          {/* BUTTON */}
           <button
             type="submit"
             disabled={loading}
             className="w-full py-3 cursor-pointer rounded-xl font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600"
           >
-            {loading
-              ? "Please wait..."
-              : isSignup
-              ? "Create Account"
-              : "Login"}
+            {loading ? "Please wait..." : isSignup ? "Create Account" : "Login"}
           </button>
         </form>
 
-        {/* FORGOT PASSWORD */}
         {!isSignup && (
           <p
             onClick={handleForgotPassword}
@@ -218,23 +186,18 @@ const Login = () => {
           </p>
         )}
 
-        {/* TOGGLE */}
         <div className="mt-6 text-center">
           <p className="text-sm justify-center gap-1 flex text-gray-400">
-            {isSignup
-              ? "Already have an account?"
-              : "Don't have an account?"}
-          
-
-          <button
-            onClick={() => setIsSignup(!isSignup)}
-            className=" text-blue-400 cursor-pointer font-semibold"
-          >
-            {isSignup ? "Login here" : "Create one"}
-          </button> </p>
+            {isSignup ? "Already have an account?" : "Don't have an account?"}
+            <button
+              onClick={() => setIsSignup(!isSignup)}
+              className="text-blue-400 cursor-pointer font-semibold"
+            >
+              {isSignup ? "Login here" : "Create one"}
+            </button>
+          </p>
         </div>
 
-        {/* FOOTER */}
         <div className="mt-6 border-t border-white/10 pt-4 text-center text-xs text-gray-500">
           Secure authentication powered by Scholiqen
         </div>

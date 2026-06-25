@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import Index from "../pages/virtualLab/index";
 
 import MyCalendar from "../components/MyCalendar";
 import {
@@ -124,7 +125,7 @@ const Dashboard = () => {
         <Card
           title="Virtual Lab"
           bgImage={virtual}
-          onClick={() => navigate("/lab/index")}
+          onClick={() => navigate("/lab")}
         />
 
         <Card title="Novel Library" bgImage={novel} onClick={() => navigate("/novels")} />

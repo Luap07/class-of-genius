@@ -31,7 +31,7 @@ import Connects from "./pages/Connects";
 import Requests from "./pages/Requests";
 import Connections from "./pages/Connections";
 import History from "./pages/History";
-import About from "./pages/About";
+import About from "./pages/VirtualLab/About";
 import Services from "./pages/Services";
 
 /* ================= NOVELS ================= */
@@ -52,7 +52,12 @@ import CBTExam from "./pages/cbt/CBTExam";
 import DashboardLayout from "./layout/DashboardLayout";
 
 /* ================= 🧪 VIRTUAL LAB ADDED ================= */
-import VirtualLab from "./pages/VirtualLab";
+import VirtualLabLanding from "./pages/VirtualLab";
+import PhysicsLab from "./pages/PhysicsLab";
+import ChemistryLab from "./pages/ChemistryLab";
+import BiologyLab from "./pages/BiologyLab";
+import MathematicsLab from "./pages/MathematicsLab";
+
 
 /* ================= PROTECTED ROUTE ================= */
 const ProtectedRoute = ({ children }) => {
@@ -100,6 +105,52 @@ const AnimatedRoutes = () => {
             </>
           }
         />
+
+          {/* LAB */}
+          {/* 🧪 VIRTUAL LAB */}
+<Route
+  path="/lab/physics"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <PhysicsLab />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/lab/chemistry"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <ChemistryLab />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+    <Route
+     path="/lab/biology"
+      element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <BiologyLab />
+      </PageWrapper>
+       </ProtectedRoute>
+       }
+    />
+
+    <Route
+    path="/lab/mathematics"
+    element={
+     <ProtectedRoute>
+      <PageWrapper>
+        <MathematicsLab />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+      />
 
         {/* AUTH */}
         <Route path="/login" element={<Login />} />
@@ -158,18 +209,16 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* 🧪 VIRTUAL LAB ROUTE (FIXED & CONNECTED) */}
         <Route
-          path="/lab/:subject/:experiment"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-                <VirtualLab />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-
+  path="/lab"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <VirtualLabLanding />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
         {/* DASHBOARD LAYOUT ROUTES */}
         <Route
           element={

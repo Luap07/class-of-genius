@@ -1,60 +1,35 @@
-import React from "react";
-import { useParams } from "react-router-dom";
+import React, { useState } from "react";
+import ForceSimulation from "../ForceSimulation";
+import MotionLab from "../MotionLab";
 
-/* PHYSICS */
-import ForceSimulator from "./physics/ForceSimulator";
-import MotionLab from "./physics/MotionLab";
+const LabRouter = () => {
+  const [lab, setLab] = useState("force");
 
-/* CHEMISTRY */
-import ReactionLab from "./chemistry/ReactionLab";
-
-/* BIOLOGY */
-import CellLab from "./biology/CellLab";
-
-/* MATH */
-import GraphLab from "./mathematics/GraphLab";
-
-export default function LabRouter() {
-  const { subject, experiment } = useParams();
-
-  // DEBUG (keep this for now)
-  console.log("LAB:", subject, experiment);
-
-  /* ================= PHYSICS ================= */
-  if (subject === "physics" && experiment === "force") {
-    return <ForceSimulator />;
-  }
-
-  if (subject === "physics" && experiment === "motion") {
-    return <MotionLab />;
-  }
-
-  /* ================= CHEMISTRY ================= */
-  if (subject === "chemistry" && experiment === "reaction") {
-    return <ReactionLab />;
-  }
-
-  /* ================= BIOLOGY ================= */
-  if (subject === "biology" && experiment === "cell") {
-    return <CellLab />;
-  }
-
-  /* ================= MATHEMATICS ================= */
-  if (subject === "mathematics" && experiment === "graph") {
-    return <GraphLab />;
-  }
-
-  /* ================= DEFAULT ================= */
   return (
-    <div className="text-white p-4">
-      <h2>🧪 Virtual Lab</h2>
+    <div>
+      <div className="flex gap-4 mb-6">
+        <button
+          onClick={() => setLab("force")}
+          className="px-4 py-2 rounded-lg bg-blue-600"
+        >
+          Force Lab
+        </button>
 
-      <p>Unknown experiment:</p>
+        <button
+          onClick={() => setLab("motion")}
+          className="px-4 py-2 rounded-lg bg-indigo-600"
+        >
+          Motion Lab
+        </button>
+      </div>
 
-      <ul>
-        <li>Subject: {subject}</li>
-        <li>Experiment: {experiment}</li>
-      </ul>
+      {lab === "force" ? (
+        <ForceSimulation />
+      ) : (
+        <MotionLab />
+      )}
     </div>
   );
-}
+};
+
+export default LabRouter;

@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@100..900&family=Roboto:wght@100..900&display=swap");
 @import "tailwindcss";
 
 /* ================= GLOBAL FONT ================= */
@@ -6,25 +7,24 @@
 }
 
 /* ================= BASE APP BACKGROUND ================= */
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   min-height: 100%;
   transition: all 0.3s ease;
-
-  /* default light background */
   background: #f8fafc;
   color: #0f172a;
 }
 
-/* ================= DARK MODE (CLASS BASED - IMPORTANT) ================= */
-.dark html,
-.dark body {
+/* ================= DARK MODE ================= */
+html.dark,
+html.dark body {
   background: #070b14;
   color: #ffffff;
 }
 
-/* ================= GLOBAL SCROLLBAR (CLEAN + MODERN) ================= */
+/* ================= GLOBAL SCROLLBAR ================= */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -44,7 +44,7 @@ html, body {
   background: #60a5fa;
 }
 
-/* ================= HIDE SCROLLBAR UTILITY ================= */
+/* ================= HIDE SCROLLBAR ================= */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }

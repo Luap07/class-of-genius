@@ -37,6 +37,7 @@ import educational from './educational.jpg'
 import tutor from './tutor.jpg'
 import robot from './robot.png'
 import virtual from './virtual.jpg'
+import physics_banner from './physics-banner.png'
 
 export {
     Cog,
@@ -77,6 +78,7 @@ export {
     educational,
     tutor,
     robot,
-    virtual
+    virtual,
+    physics_banner
 
 }

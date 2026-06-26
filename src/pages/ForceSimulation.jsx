@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Play, Pause, RotateCcw } from "lucide-react";
 import usePhysicsEngine from "../hooks/usePhysicsEngine";
-import RealTimeGraphs from "../pages/VirtualLab/physics/RealTimeGraphs";
+import ForceGraphs from "../pages/VirtualLab/physics/ForceGraphs";
 
 const Panel = ({ title, children, className = "" }) => (
   <div className={`rounded-2xl border border-slate-800 bg-slate-900/40 backdrop-blur-xl shadow-xl ${className}`}>
@@ -195,11 +195,11 @@ const ForceSimulation = () => {
       {/* GRAPH SECTION */}
       <Panel title="Real-Time Physics Analytics" className="border-purple-900/40">
 
-        <RealTimeGraphs
-          forceData={forceData}
-          accelData={accelData}
-          velocityData={velocityData}
-        />
+       <ForceGraphs
+     forceData={forceData}
+     velocityData={velocityData}
+     accelData={accelData}
+    />
 
       </Panel>
 

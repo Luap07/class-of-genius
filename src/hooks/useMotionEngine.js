@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 
-export default function useMotionEngine(force, mass, friction, playing, resetKey) {
+export default function useMotionEngine(
+  force,
+  mass,
+  friction,
+  playing,
+  resetKey
+) {
   const [velocityData, setVelocityData] = useState([]);
   const [positionData, setPositionData] = useState([]);
   const [accelData, setAccelData] = useState([]);
+
+  const animationRef = useRef(null);
 
   const state = useRef({
     t: 0,
@@ -11,15 +19,32 @@ export default function useMotionEngine(force, mass, friction, playing, resetKey
     x: 0,
   });
 
+  // RESET
   useEffect(() => {
-    state.current = { t: 0, v: 0, x: 0 };
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+
+    state.current = {
+      t: 0,
+      v: 0,
+      x: 0,
+    };
+
     setVelocityData([]);
     setPositionData([]);
     setAccelData([]);
   }, [resetKey]);
 
+  // SIMULATION LOOP
   useEffect(() => {
-    if (!playing) return;
+    if (!playing) {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      return;
+    }
 
     let last = performance.now();
 
@@ -29,29 +54,68 @@ export default function useMotionEngine(force, mass, friction, playing, resetKey
 
       const s = state.current;
 
-      // FORCE MODEL
-      const netForce = force - friction * s.v;
+      // Physics
+      const frictionForce = friction * s.v;
+      const netForce = force - frictionForce;
       const acceleration = netForce / mass;
 
-      // INTEGRATION (motion engine)
+      // Update velocity
       s.v += acceleration * dt;
+
+      // Prevent moving backward
+      if (s.v < 0) {
+        s.v = 0;
+      }
+
+      // Update position
       s.x += s.v * dt;
+
+      // Prevent negative position
+      if (s.x < 0) {
+        s.x = 0;
+      }
+
       s.t += dt;
 
       const point = (value) => ({
-        time: s.t,
-        value,
+        time: Number(s.t.toFixed(2)),
+        value: Number(value.toFixed(4)),
       });
 
-      setVelocityData((p) => [...p.slice(-80), point(s.v)]);
-      setPositionData((p) => [...p.slice(-80), point(s.x)]);
-      setAccelData((p) => [...p.slice(-80), point(acceleration)]);
+      setVelocityData((prev) => [
+        ...prev.slice(-100),
+        point(s.v),
+      ]);
 
-      requestAnimationFrame(loop);
+      setPositionData((prev) => [
+        ...prev.slice(-100),
+        point(s.x),
+      ]);
+
+      setAccelData((prev) => [
+        ...prev.slice(-100),
+        point(acceleration),
+      ]);
+
+      animationRef.current =
+        requestAnimationFrame(loop);
     };
 
-    requestAnimationFrame(loop);
-  }, [playing, force, mass, friction]);
+    animationRef.current =
+      requestAnimationFrame(loop);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+    };
+  }, [
+    playing,
+    force,
+    mass,
+    friction,
+  ]);
 
   return {
     velocityData,

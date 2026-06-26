@@ -38,6 +38,9 @@ import tutor from './tutor.jpg'
 import robot from './robot.png'
 import virtual from './virtual.jpg'
 import physics_banner from './physics-banner.png'
+import car from './car.png'
+import earth from './earth.png'
+import moon from './moon.png'
 
 export {
     Cog,
@@ -79,6 +82,9 @@ export {
     tutor,
     robot,
     virtual,
-    physics_banner
+    physics_banner,
+    car,
+    moon,
+    earth
 
 }

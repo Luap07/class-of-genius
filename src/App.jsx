@@ -57,7 +57,7 @@ import PhysicsLab from "./pages/PhysicsLab";
 import ChemistryLab from "./pages/ChemistryLab";
 import BiologyLab from "./pages/BiologyLab";
 import MathematicsLab from "./pages/MathematicsLab";
-
+import WorkEnergySimulation from "./pages/WorkEnergySimulation";
 
 /* ================= PROTECTED ROUTE ================= */
 const ProtectedRoute = ({ children }) => {
@@ -152,6 +152,7 @@ const AnimatedRoutes = () => {
   }
       />
 
+     
         {/* AUTH */}
         <Route path="/login" element={<Login />} />
 

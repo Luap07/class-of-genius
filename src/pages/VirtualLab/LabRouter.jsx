@@ -5,7 +5,11 @@ import MotionSimulation from "../MotionSimulation";
 import GravitySimulation from "../GravitySimulation";
 import ProjectileSimulation from "../ProjectileSimulation";
 import WorkEnergySimulation from "../WorkEnergySimulation";
-
+import CircuitSimulation from "../CircuitSimulation";
+import OhmsLawLab from "../OhmsLawLab";
+import SoundLab from "../SoundLab"
+import LightLab from "../LightLab";
+import AtomicLab from "../AtomicLab";
 
 const ComingSoon = ({ title }) => (
   <div className="bg-slate-900 rounded-2xl p-8 border border-slate-800">
@@ -14,31 +18,71 @@ const ComingSoon = ({ title }) => (
   </div>
 );
 
-/* ================= LAB REGISTRY ================= */
-const LABS = {
-  "Force Lab": ForceSimulation,
-  "Motion Lab": MotionSimulation,
-  "Gravity Lab": GravitySimulation,
-  "Projectile Lab": ProjectileSimulation,
-  "Work & Energy Lab": WorkEnergySimulation,
+const NoLabFound = ({ experiment }) => (
+  <div className="bg-slate-900 rounded-2xl p-8 border border-red-500">
+    <h2 className="text-2xl font-bold text-red-400">
+      No lab found
+    </h2>
 
-  // keep this ready for next phase
-  
-  "Energy Lab": () => <ComingSoon title="Energy Lab" />,
+    <p className="text-slate-400 mt-2">
+      Experiment value:
+    </p>
+
+    <div className="mt-2 bg-slate-800 rounded-lg p-3 text-yellow-400 font-mono">
+      {String(experiment)}
+    </div>
+
+    <div className="mt-4 text-slate-500">
+      Available labs:
+      <ul className="list-disc pl-6 mt-2">
+        <li>force</li>
+        <li>motion</li>
+        <li>gravity</li>
+        <li>projectile</li>
+        <li>energy</li>
+        <li>circuit</li>
+        <li>ohms</li>
+        <li>sound</li>
+        <li>light</li>
+        <li>atom</li>
+      </ul>
+    </div>
+  </div>
+);
+
+const LABS = {
+  force: ForceSimulation,
+  motion: MotionSimulation,
+  gravity: GravitySimulation,
+  projectile: ProjectileSimulation,
+  energy: WorkEnergySimulation,
+
+  circuit: CircuitSimulation,
+
+  // OHM'S LAW LAB
+  ohms: OhmsLawLab,
+  sound:SoundLab,
+  light:LightLab,
+  atom:AtomicLab,
 };
 
-/* ================= ROUTER ================= */
-const LabRouter = ({ experiment }) => {
-  const SelectedLab = LABS[experiment];
+export default function LabRouter({ experiment }) {
+  console.log("Current Experiment:", experiment);
 
-  // fallback should NOT force ForceLab anymore
+  const labKey =
+    typeof experiment === "string"
+      ? experiment.trim().toLowerCase()
+      : "";
+
+  const SelectedLab = LABS[labKey];
+
   if (!SelectedLab) {
-    return (
-      <ComingSoon title="Select a Lab from the Navigation" />
-    );
+    return <NoLabFound experiment={experiment} />;
   }
 
-  return <SelectedLab />;
-};
-
-export default LabRouter;
+  return (
+    <div className="w-full">
+      <SelectedLab />
+    </div>
+  );
+}

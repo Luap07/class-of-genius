@@ -19,81 +19,31 @@ const sections = [
   {
     title: "Mechanics",
     items: [
-      {
-        id: "force",
-        label: "Force Lab",
-        icon: Wrench,
-        color: "text-cyan-400",
-      },
-      {
-        id: "motion",
-        label: "Motion Lab",
-        icon: Move,
-        color: "text-cyan-400",
-      },
-      {
-        id: "gravity",
-        label: "Gravity Lab",
-        icon: Target,
-        color: "text-cyan-400",
-      },
-      {
-        id: "projectile",
-        label: "Projectile Lab",
-        icon: Gauge,
-        color: "text-cyan-400",
-      },
-      {
-        id: "energy",
-        label: "Work & Energy",
-        icon: Database,
-        color: "text-cyan-400",
-      },
+      { id: "force", label: "Force Lab", icon: Wrench, color: "text-cyan-400" },
+      { id: "motion", label: "Motion Lab", icon: Move, color: "text-cyan-400" },
+      { id: "gravity", label: "Gravity Lab", icon: Target, color: "text-cyan-400" },
+      { id: "projectile", label: "Projectile Lab", icon: Gauge, color: "text-cyan-400" },
+      { id: "energy", label: "Work & Energy", icon: Database, color: "text-cyan-400" },
     ],
   },
   {
     title: "Electricity",
     items: [
-      {
-        id: "circuit",
-        label: "Circuit Lab",
-        icon: CircuitBoard,
-        color: "text-yellow-400",
-      },
-      {
-        id: "ohms",
-        label: "Ohm's Law Lab",
-        icon: Zap,
-        color: "text-yellow-400",
-      },
+      { id: "circuit", label: "Circuit Lab", icon: CircuitBoard, color: "text-yellow-400" },
+      { id: "ohms", label: "Ohm's Law Lab", icon: Zap, color: "text-yellow-400" },
     ],
   },
   {
     title: "Waves",
     items: [
-      {
-        id: "sound",
-        label: "Sound Lab",
-        icon: Waves,
-        color: "text-blue-400",
-      },
-      {
-        id: "light",
-        label: "Light Lab",
-        icon: Lightbulb,
-        color: "text-amber-400",
-      },
+      { id: "sound", label: "Sound Lab", icon: Waves, color: "text-blue-400" },
+      { id: "light", label: "Light Lab", icon: Lightbulb, color: "text-amber-400" },
     ],
   },
   {
     title: "Modern Physics",
     items: [
-      {
-        id: "atom",
-        label: "Atom Lab",
-        icon: Atom,
-        color: "text-purple-400",
-      },
+      { id: "atom", label: "Atom Lab", icon: Atom, color: "text-purple-400" },
     ],
   },
 ];
@@ -105,14 +55,12 @@ export default function LabSidebar({
   const navigate = useNavigate();
 
   return (
-    <aside className="w-62 bg-[#0a0f1e] text-slate-300 p-6 flex flex-col h-screen overflow-y-auto">
-      {/* Header */}
+    <aside className="w-64 bg-[#0a0f1e] text-slate-300 p-6 flex flex-col h-screen overflow-y-auto">
       <div className="flex items-center gap-3 mb-8 text-white">
         <FlaskConical className="w-8 h-8 text-purple-500" />
         <h1 className="text-xl font-bold">Study AI</h1>
       </div>
 
-      {/* Back Button */}
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 mb-8 text-sm hover:text-white transition"
@@ -121,7 +69,6 @@ export default function LabSidebar({
         Back to Physics Lab
       </button>
 
-      {/* Navigation */}
       <div className="flex-1 space-y-6">
         {sections.map((section) => (
           <div key={section.title}>
@@ -140,15 +87,13 @@ export default function LabSidebar({
                     onClick={() => setExperiment(item.id)}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm ${
                       isActive
-                        ? "bg-[#1e2a4a] text-cyan-400 border border-cyan-900/50"
-                        : "hover:bg-[#1a1f35] hover:text-white/80 text-slate-400"
+                        ? "bg-[#1e40af] text-white border border-blue-500"
+                        : "hover:bg-[#1a1f35] hover:text-white text-slate-400"
                     }`}
                   >
                     <Icon
                       className={`w-5 h-5 ${
-                        isActive
-                          ? "text-cyan-400"
-                          : item.color
+                        isActive ? "text-white" : item.color
                       }`}
                     />
 
@@ -161,23 +106,6 @@ export default function LabSidebar({
         ))}
       </div>
 
-      {/* Progress Footer */}
-      <div className="mt-8 bg-[#151b2e] p-4 rounded-xl border border-slate-800">
-        <div className="flex justify-between text-sm mb-2">
-          <span>Your Progress</span>
-          <span className="text-cyan-400 font-bold">
-            35%
-          </span>
-        </div>
-
-        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-          <div className="bg-cyan-500 h-full w-[35%] rounded-full" />
-        </div>
-
-        <p className="text-xs text-slate-500 mt-2">
-          7 / 20 Experiments
-        </p>
-      </div>
     </aside>
   );
 }

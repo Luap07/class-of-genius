@@ -1,84 +1,128 @@
 import React, { useState } from "react";
+import { Bot, FileText, FlaskConical } from "lucide-react";
 
-const LABS = [
-  { name: "Force Lab", icon: "🧪" },
-  { name: "Motion Lab", icon: "🧭" },
-  { name: "Gravity Lab", icon: "⚛️" },
-  { name: "Projectile Lab", icon: "🎯" },
+export default function LabHeader({ voltage, resistance }) {
+  const [showReport, setShowReport] = useState(false);
 
-  // hidden under dropdown
-  { name: "Work & Energy Lab", icon: "⚡" },
-  { name: "Circuit Lab", icon: "🔌" },
-  { name: "Sound Lab", icon: "🔊" },
-  { name: "Light Lab", icon: "💡" },
-  { name: "Atomic Lab", icon: "🧬" },
-];
-
-export default function LabNavigation({ activeTab, setActiveTab }) {
-  const [open, setOpen] = useState(false);
-
-  const mainTabs = LABS.slice(0, 4);   // Force → Projectile
-  const moreTabs = LABS.slice(4);      // dropdown items
+  const current = voltage / resistance;
+  const power = voltage * current;
 
   return (
-    <div className="px-6 py-4 flex">
-      <div className="flex items-center bg-[#05102e] p-1 rounded-xl border border-gray-800 shadow-lg relative">
+    <>
+      <header className="relative w-full h-20 bg-[#050816] border-b border-slate-800 px-8 flex items-center justify-between overflow-hidden">
 
-        {/* MAIN TABS (fixed up to Projectile) */}
-        {mainTabs.map((tab, index) => (
-          <React.Fragment key={tab.name}>
-            <button
-              onClick={() => setActiveTab(tab.name)}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 ${
-                activeTab === tab.name
-                  ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-              }`}
-            >
-              <span>{tab.icon}</span>
-              {tab.name}
-            </button>
+        {/* ================= PHYSICS BACKGROUND (RESTORED) ================= */}
+        <div className="absolute inset-0 overflow-hidden">
 
-            {index < mainTabs.length - 1 && (
-              <div className="w-px h-6 mx-1 bg-gradient-to-b from-transparent via-blue-500/50 to-transparent" />
-            )}
-          </React.Fragment>
-        ))}
+          <div className="absolute right-1/3 top-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/20 blur-[120px] rounded-full" />
+          <div className="absolute right-10 top-0 w-80 h-80 bg-purple-500/20 blur-[120px] rounded-full" />
 
-        {/* MORE BUTTON */}
-        <div className="relative">
-          <button
-            onClick={() => setOpen(!open)}
-            className="px-6 py-2.5 text-gray-300 text-sm font-medium hover:text-white transition-colors"
-          >
-            More ▾
-          </button>
+          <div className="absolute right-52 top-6 w-80 h-24 border border-cyan-500/30 rounded-full rotate-12" />
+          <div className="absolute right-44 top-8 w-72 h-24 border border-blue-500/30 rounded-full -rotate-12" />
+          <div className="absolute right-56 top-2 w-96 h-28 border border-purple-500/20 rounded-full rotate-6" />
 
-          {/* DROPDOWN */}
-          {open && (
-            <div className="absolute top-12 right-0 bg-[#05102e] border border-gray-800 rounded-xl shadow-xl w-56 z-50">
-              {moreTabs.map((tab) => (
-                <button
-                  key={tab.name}
-                  onClick={() => {
-                    setActiveTab(tab.name);
-                    setOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-2 px-4 py-3 text-sm text-left hover:bg-gray-800/50 ${
-                    activeTab === tab.name
-                      ? "text-white bg-blue-600/20"
-                      : "text-gray-400"
-                  }`}
-                >
-                  <span>{tab.icon}</span>
-                  {tab.name}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="absolute right-80 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_50px_rgba(59,130,246,0.9)]" />
+
+          <div className="absolute right-[520px] top-[20px] w-4 h-4 rounded-full bg-purple-400 shadow-[0_0_20px_rgba(168,85,247,1)] animate-pulse" />
+          <div className="absolute right-[320px] top-[18px] w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_20px_rgba(250,204,21,1)] animate-ping" />
+          <div className="absolute right-[600px] top-[45px] w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,1)] animate-pulse" />
+          <div className="absolute right-[450px] top-[85px] w-2 h-2 rounded-full bg-pink-400 shadow-[0_0_15px_rgba(236,72,153,1)] animate-bounce" />
+
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/95 to-transparent" />
         </div>
 
-      </div>
-    </div>
+        {/* ================= LEFT ================= */}
+        <div className="relative z-10 flex items-center gap-3">
+
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+            <FlaskConical className="text-white" size={20} />
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              Physics Laboratory
+            </h1>
+            <p className="text-slate-400 text-[12px]">
+              Explore physics through interactive simulations
+            </p>
+          </div>
+
+        </div>
+
+        {/* ================= RIGHT ================= */}
+        <div className="relative z-10 flex items-center gap-4">
+
+          <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-purple-500/20 bg-slate-900/70 text-slate-200 hover:bg-slate-800 transition">
+            <Bot size={18} className="text-purple-400" />
+            AI Tutor
+          </button>
+
+          <button
+            onClick={() => setShowReport(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-slate-200 hover:bg-slate-800 transition"
+          >
+            <FileText size={18} className="text-cyan-400" />
+            Lab Report
+          </button>
+
+        </div>
+      </header>
+
+      {/* ================= DYNAMIC LAB REPORT MODAL ================= */}
+      {showReport && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+
+          <div className="bg-slate-900 w-[90%] max-w-2xl p-6 rounded-2xl border border-slate-700">
+
+            <h2 className="text-2xl font-bold mb-4 text-white">
+              🧪 Physics Lab Report
+            </h2>
+
+            <p className="text-slate-300 mb-4">
+              Experimental analysis of electrical relationships in simulation.
+            </p>
+
+            {/* 🔥 DYNAMIC DATA (FIXED) */}
+            <ul className="space-y-2 text-slate-400 list-disc list-inside">
+
+              <li>
+                Voltage input: <span className="text-white">{voltage} V</span>
+              </li>
+
+              <li>
+                Resistance load: <span className="text-white">{resistance} Ω</span>
+              </li>
+
+              <li>
+                Current (I = V/R):{" "}
+                <span className="text-cyan-400">
+                  {(voltage / resistance).toFixed(2)} A
+                </span>
+              </li>
+
+              <li>
+                Power (P = V × I):{" "}
+                <span className="text-yellow-400">
+                  {power.toFixed(2)} W
+                </span>
+              </li>
+
+            </ul>
+
+            <p className="mt-4 text-slate-300">
+              🧠 AI Conclusion: Ohm’s Law is verified — current decreases when resistance increases and increases when voltage rises.
+            </p>
+
+            <button
+              onClick={() => setShowReport(false)}
+              className="mt-6 bg-red-600 px-4 py-2 rounded-lg hover:bg-red-700"
+            >
+              Close Report
+            </button>
+
+          </div>
+        </div>
+      )}
+    </>
   );
 }

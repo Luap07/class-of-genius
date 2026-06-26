@@ -5,7 +5,7 @@ import LabHeader from "../components/physics/LabHeader";
 import LabNavigation from "../components/physics/LabNavigation";
 
 export default function PhysicsLab() {
-  const [experiment, setExperiment] = useState("Force Lab");
+  const [experiment, setExperiment] = useState("force");
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex h-screen overflow-hidden">

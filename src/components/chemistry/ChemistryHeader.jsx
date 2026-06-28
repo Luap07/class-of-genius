@@ -52,7 +52,7 @@ export default function ChemistryHeader() {
             onClick={() => navigate("/ai-tutor/session")}
             className="flex items-center gap-2 px-5 py-2 rounded-xl bg-slate-900 border border-green-500/30 hover:bg-slate-800"
           >
-            <Bot size={18} className="text-green-400" />
+            <Bot size={18} className="text-green-100" />
             AI Chemist
           </button>
 

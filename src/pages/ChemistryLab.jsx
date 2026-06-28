@@ -11,6 +11,7 @@ import ElementInfoPanel from "../components/chemistry/ElementInfoPanel";
 
 import AtomBuilder from "./VirtualLab/chemistry/AtomBuilder";
 import MolecularBuilder from "./VirtualLab/chemistry/MolecularBuilder";
+import ChemicalReaction from "./VirtualLab/chemistry/ChemicalReactions";
 
 const ChemistryLab = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -38,7 +39,7 @@ const ChemistryLab = () => {
   return (
     <div className="flex h-screen w-full bg-slate-950 text-white overflow-hidden relative">
 
-      {/* SIDEBAR */}
+      {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 border-r border-slate-800 transition-transform duration-300 xl:relative xl:translate-x-0 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -51,7 +52,7 @@ const ChemistryLab = () => {
         />
       </div>
 
-      {/* MOBILE MENU */}
+      {/* Mobile Menu */}
       {!isSidebarOpen && (
         <button
           onClick={() => setIsSidebarOpen(true)}
@@ -61,22 +62,24 @@ const ChemistryLab = () => {
         </button>
       )}
 
-      {/* MAIN */}
+      {/* Main */}
       <main className="flex-1 h-screen overflow-y-auto p-6">
+
         <ChemistryHeader />
 
-        {/* DEBUG (optional) */}
-        <div className="text-cyan-400 mb-3">
-          Current: {experiment}
+        <div className="text-cyan-400 mb-4">
+          Current Experiment: {experiment}
         </div>
 
-        {/* ================= PERIODIC TABLE ================= */}
+        {/* Periodic Table */}
         {experiment === "Periodic Table" && (
           <div className="animate-in fade-in duration-500 pb-10">
+
             <div className="mb-8">
               <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 Interactive Periodic Table
               </h1>
+
               <p className="text-slate-400 mt-2">
                 Complete set of 118 Elements
               </p>
@@ -90,18 +93,19 @@ const ChemistryLab = () => {
             <PeriodicLegend />
 
             <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 mt-6">
+
               <div
-                className={`overflow-x-auto ${
+                className={
                   selectedElement
-                    ? "xl:col-span-3"
-                    : "xl:col-span-4"
-                }`}
+                    ? "xl:col-span-3 overflow-x-auto"
+                    : "xl:col-span-4 overflow-x-auto"
+                }
               >
                 <div
                   className="grid gap-2"
                   style={{
                     gridTemplateColumns:
-                      "repeat(18, minmax(60px,1fr))",
+                      "repeat(18,minmax(60px,1fr))",
                     width: "max-content",
                   }}
                 >
@@ -113,7 +117,7 @@ const ChemistryLab = () => {
                       return (
                         <div
                           key={`${r}-${c}`}
-                          className="min-h-[72px] w-[60px]"
+                          className="w-[60px] min-h-[72px]"
                         >
                           {element ? (
                             <ElementCard
@@ -147,33 +151,46 @@ const ChemistryLab = () => {
                   />
                 </div>
               )}
+
             </div>
           </div>
         )}
 
-        {/* ================= ATOM BUILDER ================= */}
-        {experiment === "Atom Builder" && <AtomBuilder />}
+        {/* Atom Builder */}
+        {experiment === "Atom Builder" && (
+          <AtomBuilder />
+        )}
 
-        {/* ================= MOLECULE BUILDER ================= */}
+        {/* Molecule Builder */}
         {experiment === "Molecule Builder" && (
           <MolecularBuilder />
         )}
 
-        {/* ================= FALLBACK ================= */}
+        {/* Chemical Reactions */}
+        {experiment === "Chemical Reactions" && (
+          <ChemicalReaction />
+        )}
+
+        {/* Fallback */}
         {![
           "Periodic Table",
           "Atom Builder",
           "Molecule Builder",
+          "Chemical Reactions",
         ].includes(experiment) && (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
-            <h2 className="text-2xl font-bold text-white">
+
+            <h2 className="text-3xl font-bold text-white">
               {experiment}
             </h2>
-            <p className="mt-2">
+
+            <p className="mt-3">
               This laboratory experiment is currently in development.
             </p>
+
           </div>
         )}
+
       </main>
     </div>
   );

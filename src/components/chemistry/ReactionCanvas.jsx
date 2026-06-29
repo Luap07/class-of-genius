@@ -1,27 +1,32 @@
 import React, { useState } from "react";
 
 export default function ReactionCanvas() {
-  const [reactants, setReactants] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [selectedReaction, setSelectedReaction] = useState(null);
-  const [temperature, setTemperature] = useState(25);
-  const [isRunning, setIsRunning] = useState(false);
+  const [items, setItems] = useState([]); // Store dropped items
 
-  const handleReset = () => {
-    setReactants([]);
-    setProducts([]);
-    setSelectedReaction(null);
-    setTemperature(25);
-    setIsRunning(false);
+  // 1. Allow dropping
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  // 2. Handle the drop event
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const itemType = e.dataTransfer.getData("itemType");
+    if (itemType) {
+      setItems([...items, { id: Date.now(), type: itemType }]);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-950 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Main Lab Area - Added a wrapper to ensure layout works */}
         <div className="w-full">
-          <div className="relative h-[500px] w-full bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
-            {/* Lab Background Grid */}
+          {/* Added onDragOver and onDrop handlers here */}
+          <div 
+            className="relative h-[500px] w-full bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl"
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
             <div 
               className="absolute inset-0 opacity-10" 
               style={{ 
@@ -30,18 +35,24 @@ export default function ReactionCanvas() {
               }}
             />
             
-            {/* Laboratory Bench */}
-            <div className="absolute bottom-0 w-full h-20 bg-slate-800 border-t border-slate-700" />
+            {/* Render dropped items */}
+            {items.length === 0 ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 pointer-events-none">
+                <div className="text-6xl mb-4">🧪</div>
+                <p className="text-lg font-medium">Laboratory Ready</p>
+                <p className="text-sm">Drop reagents here to start...</p>
+              </div>
+            ) : (
+              items.map((item) => (
+                <div key={item.id} className="absolute p-4 bg-blue-500/20 border border-blue-400 rounded-lg text-white">
+                  {item.type}
+                </div>
+              ))
+            )}
             
-            {/* Empty State / Placeholder */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
-              <div className="text-6xl mb-4">🧪</div>
-              <p className="text-lg font-medium">Laboratory Ready</p>
-              <p className="text-sm">Drop reagents here to start...</p>
-            </div>
+            <div className="absolute bottom-0 w-full h-20 bg-slate-800 border-t border-slate-700" />
           </div>
         </div>
-
       </div>
     </div>
   );

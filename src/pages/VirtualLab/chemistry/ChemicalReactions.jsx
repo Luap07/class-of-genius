@@ -80,18 +80,6 @@ export default function ChemicalReaction() {
           </div>
         </div>
 
-        {/* <ReactionControls
-    playing={playing}
-    setPlaying={setPlaying}
-    temperature={temperature}
-    setTemperature={setTemperature}
-    speed={speed}
-    setSpeed={setSpeed}
-    onRun={runReaction}
-    onStop={stopReaction}
-    onReset={resetReaction}
-/> */}
-
       </div>
     </div>
   );

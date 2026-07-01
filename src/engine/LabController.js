@@ -1,47 +1,53 @@
 import React, { useState } from "react";
-import ReactantShelf from "./ReactantShelf";
-import ReactionCanvas from "./ReactionCanvas";
-import ObservationPanel from "./ObservationPanel";
-import ProductShelf from "./ProductShelf";
-import engine from "./engine/chemicalReaction/ReactionEngine";
+import ReactantShelf from "../components/chemistry/ReactantShelf";
+import ReactionCanvas from "../components/chemistry/ReactionCanvas";
+import ObservationPanel from "../components/chemistry/ObservationPanel";
+import ProductShelf from "../components/chemistry/ProductShelf";
+import engine from "./ReactionEngine";
 
 export default function LabController() {
   const [reactants, setReactants] = useState([]);
   const [simulation, setSimulation] = useState({
     products: [],
-    observation: "",
-    result: null
+    observation: "Select reactants to begin.",
+    status: "Ready",
   });
 
   const handleRunReaction = () => {
-    // 1. Use the engine to process the current reactants
-    const result = engine.runReaction(reactants);
+    console.log("Running simulation with:", reactants);
     
-    // 2. Update the state to reflect in UI components
+    // 1. Run the engine
+    const result = engine.simulate({ reactants, temperature: 25 });
+    
+    // 2. Update state to trigger UI re-render
     setSimulation({
       products: result.success ? result.products.map((p, i) => ({ id: i, name: p })) : [],
-      observation: result.observation,
-      result: result
+      observation: result.observation || "No reaction occurred.",
+      status: result.success ? "Success" : "No Reaction",
     });
+
+    console.log("Simulation Result:", result);
   };
 
   return (
-    <div className="grid grid-cols-4 gap-4 p-6 bg-slate-950 min-h-screen">
-      <div className="col-span-1">
+    <div className="flex h-screen bg-slate-950 p-6 gap-6">
+      <div className="w-80">
         <ReactantShelf reactants={reactants} setReactants={setReactants} />
       </div>
-      
-      <div className="col-span-2 flex flex-col gap-4">
-        <ReactionCanvas reactants={reactants} />
+
+      <div className="flex-1 flex flex-col gap-6">
+        {/* Pass products to the canvas so it can display them */}
+        <ReactionCanvas reactants={reactants} products={simulation.products} />
+        
         <button 
           onClick={handleRunReaction}
-          className="bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-500"
+          className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold transition-all"
         >
-          Run Reaction
+          Run Experiment
         </button>
       </div>
 
-      <div className="col-span-1 flex flex-col gap-4">
+      <div className="w-80 flex flex-col gap-6">
         <ObservationPanel observation={simulation.observation} />
         <ProductShelf products={simulation.products} />
       </div>

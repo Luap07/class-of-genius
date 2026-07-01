@@ -12,6 +12,7 @@ import ElementInfoPanel from "../components/chemistry/ElementInfoPanel";
 import AtomBuilder from "./VirtualLab/chemistry/AtomBuilder";
 import MolecularBuilder from "./VirtualLab/chemistry/MolecularBuilder";
 import ChemicalReaction from "./VirtualLab/chemistry/ChemicalReactions";
+import AcidBaseLab from "./VirtualLab/chemistry/AcidBaseLab";
 
 const ChemistryLab = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -161,6 +162,12 @@ const ChemistryLab = () => {
           <AtomBuilder />
         )}
 
+          {/* Acid vs Base */}
+    {experiment === "Acid vs Base" && (
+    <AcidBaseLab />
+    )}
+
+
         {/* Molecule Builder */}
         {experiment === "Molecule Builder" && (
           <MolecularBuilder />
@@ -177,6 +184,7 @@ const ChemistryLab = () => {
           "Atom Builder",
           "Molecule Builder",
           "Chemical Reactions",
+          "Acid vs Base",
         ].includes(experiment) && (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
 

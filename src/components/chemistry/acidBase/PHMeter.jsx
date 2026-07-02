@@ -23,6 +23,7 @@ export default function PHMeter({ ph = 7 }) {
     return "#7c3aed";
   };
 
+console.log("PHMeter received:", ph);
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
 

@@ -2,13 +2,18 @@ import React from "react";
 import { FlaskConical } from "lucide-react";
 
 export default function Flask({
-  solution = null,
-  level = 60,
-  bubbling = false,
-  heating = false,
+  acid = null,
+  reaction = null,
+  playing = false,
   size = "md",
 }) {
-  const color = solution?.color || "#38bdf8";
+  const color = reaction?.color || acid?.color || "#38bdf8";
+
+  const level = acid ? 60 : 0;
+
+  const bubbling = playing && reaction?.bubbles;
+
+  const heating = playing && reaction?.heat;
 
   const sizes = {
     sm: {
@@ -35,11 +40,11 @@ export default function Flask({
       <div className="mb-4 text-center">
 
         <h3 className="font-bold text-white">
-          {solution?.formula || "Flask"}
+          {acid?.formula || "Flask"}
         </h3>
 
         <p className="text-xs text-slate-400">
-          {solution?.name || "Empty Flask"}
+          {acid?.name || "Empty Flask"}
         </p>
 
       </div>
@@ -62,7 +67,7 @@ export default function Flask({
 
           {/* Liquid */}
 
-          {solution && (
+          {acid && (
             <div
               className="absolute bottom-0 left-0 w-full transition-all duration-700"
               style={{
@@ -112,7 +117,7 @@ export default function Flask({
 
       {/* Footer */}
 
-      {solution && (
+      {acid && (
         <div className="mt-4 text-center">
 
           <span
@@ -122,7 +127,7 @@ export default function Flask({
               color,
             }}
           >
-            {solution.type}
+            {acid.type}
           </span>
 
         </div>

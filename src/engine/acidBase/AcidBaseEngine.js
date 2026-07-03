@@ -62,8 +62,8 @@ class AcidBaseEngine {
       };
     }
 
-    const reaction =
-      this.findReaction(acid, base);
+    const reaction = this.findReaction(acid, base);
+    console.log("Reaction Found:", reaction);
 
     if (!reaction) {
       return {
@@ -100,7 +100,7 @@ class AcidBaseEngine {
       observation:
         reaction.observation,
 
-      ph: reaction.ph,
+      ph: this.calculatePH(acid, base),
 
       energy:
         reaction.energy,
@@ -211,28 +211,34 @@ class AcidBaseEngine {
   ===================================================== */
 
   calculatePH(acid, base) {
-    if (!acid || !base) return 7;
+  console.log("Acid strength:", acid.strength);
+  console.log("Base strength:", base.strength);
 
-    if (
-      acid.strength === "strong" &&
-      base.strength === "strong"
-    )
-      return 7;
+  if (!acid || !base) return 7;
 
-    if (
-      acid.strength === "strong" &&
-      base.strength === "weak"
-    )
-      return 5;
+  }
 
-    if (
-      acid.strength === "weak" &&
-      base.strength === "strong"
-    )
-      return 9;
+  calculatePH(acid, base) {
+  if (!acid || !base) return 7;
 
+  // Strong acid + strong base
+  if (acid.strength === "strong" && base.strength === "strong") {
     return 7;
   }
+
+  // Strong acid + weak base
+  if (acid.strength === "strong" && base.strength === "weak") {
+    return 3;
+  }
+
+  // Weak acid + strong base
+  if (acid.strength === "weak" && base.strength === "strong") {
+    return 9;
+  }
+
+  // Weak acid + weak base
+  return 7.5;
+}
 
   /* =====================================================
       Simulation

@@ -6,6 +6,10 @@ import {
 } from "lucide-react";
 
 const CHEMICALS = [
+  /* ==========================
+            ACIDS
+  ========================== */
+
   {
     id: 1,
     formula: "HCl",
@@ -44,6 +48,74 @@ const CHEMICALS = [
   },
   {
     id: 5,
+    formula: "H₃PO₄",
+    name: "Phosphoric Acid",
+    type: "Acid",
+    color: "#f472b6",
+    ph: 2,
+    strength: "weak",
+  },
+  {
+    id: 6,
+    formula: "HCOOH",
+    name: "Formic Acid",
+    type: "Acid",
+    color: "#ec4899",
+    ph: 2,
+    strength: "weak",
+  },
+  {
+    id: 7,
+    formula: "HClO₄",
+    name: "Perchloric Acid",
+    type: "Acid",
+    color: "#b91c1c",
+    ph: 1,
+    strength: "strong",
+  },
+  {
+    id: 8,
+    formula: "HF",
+    name: "Hydrofluoric Acid",
+    type: "Acid",
+    color: "#f43f5e",
+    ph: 2,
+    strength: "weak",
+  },
+  {
+    id: 9,
+    formula: "HBr",
+    name: "Hydrobromic Acid",
+    type: "Acid",
+    color: "#dc2626",
+    ph: 1,
+    strength: "strong",
+  },
+  {
+    id: 10,
+    formula: "HI",
+    name: "Hydroiodic Acid",
+    type: "Acid",
+    color: "#991b1b",
+    ph: 1,
+    strength: "strong",
+  },
+  {
+    id: 11,
+    formula: "H₂C₂O₄",
+    name: "Oxalic Acid",
+    type: "Acid",
+    color: "#db2777",
+    ph: 2,
+    strength: "weak",
+  },
+
+  /* ==========================
+            BASES
+  ========================== */
+
+  {
+    id: 12,
     formula: "NaOH",
     name: "Sodium Hydroxide",
     type: "Base",
@@ -52,7 +124,7 @@ const CHEMICALS = [
     strength: "strong",
   },
   {
-    id: 6,
+    id: 13,
     formula: "KOH",
     name: "Potassium Hydroxide",
     type: "Base",
@@ -61,7 +133,7 @@ const CHEMICALS = [
     strength: "strong",
   },
   {
-    id: 7,
+    id: 14,
     formula: "Ca(OH)₂",
     name: "Calcium Hydroxide",
     type: "Base",
@@ -70,13 +142,76 @@ const CHEMICALS = [
     strength: "strong",
   },
   {
-    id: 8,
+    id: 15,
     formula: "NH₄OH",
     name: "Ammonium Hydroxide",
     type: "Base",
     color: "#38bdf8",
     ph: 11,
     strength: "weak",
+  },
+  {
+    id: 16,
+    formula: "LiOH",
+    name: "Lithium Hydroxide",
+    type: "Base",
+    color: "#3b82f6",
+    ph: 13,
+    strength: "strong",
+  },
+  {
+    id: 17,
+    formula: "Ba(OH)₂",
+    name: "Barium Hydroxide",
+    type: "Base",
+    color: "#2563eb",
+    ph: 13,
+    strength: "strong",
+  },
+  {
+    id: 18,
+    formula: "Mg(OH)₂",
+    name: "Magnesium Hydroxide",
+    type: "Base",
+    color: "#60a5fa",
+    ph: 10,
+    strength: "weak",
+  },
+  {
+    id: 19,
+    formula: "Sr(OH)₂",
+    name: "Strontium Hydroxide",
+    type: "Base",
+    color: "#1d4ed8",
+    ph: 13,
+    strength: "strong",
+  },
+  {
+    id: 20,
+    formula: "Al(OH)₃",
+    name: "Aluminium Hydroxide",
+    type: "Base",
+    color: "#7dd3fc",
+    ph: 9,
+    strength: "weak",
+  },
+  {
+    id: 21,
+    formula: "RbOH",
+    name: "Rubidium Hydroxide",
+    type: "Base",
+    color: "#1e40af",
+    ph: 14,
+    strength: "strong",
+  },
+  {
+    id: 22,
+    formula: "CsOH",
+    name: "Cesium Hydroxide",
+    type: "Base",
+    color: "#0f172a",
+    ph: 14,
+    strength: "strong",
   },
 ];
 

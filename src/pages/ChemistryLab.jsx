@@ -13,6 +13,7 @@ import AtomBuilder from "./VirtualLab/chemistry/AtomBuilder";
 import MolecularBuilder from "./VirtualLab/chemistry/MolecularBuilder";
 import ChemicalReaction from "./VirtualLab/chemistry/ChemicalReactions";
 import AcidBaseLab from "./VirtualLab/chemistry/AcidBaseLab";
+import TitrationLab from "./VirtualLab/chemistry/TitrationLab";
 
 const ChemistryLab = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -165,6 +166,11 @@ const ChemistryLab = () => {
           {/* Acid vs Base */}
     {experiment === "Acid vs Base" && (
     <AcidBaseLab />
+    )}
+
+      {/* Titration Lab */}
+    {experiment === "Titration Lab" && (
+    <TitrationLab />
     )}
 
 

@@ -36,9 +36,7 @@ export default function AcidBaseLab() {
 
  const handleStartExperiment = () => {
   if (!selectedAcid || !selectedBase) {
-    setObservation(
-      "Please select one acid and one base."
-    );
+    setObservation("Please select one acid and one base.");
     return;
   }
 
@@ -52,9 +50,7 @@ export default function AcidBaseLab() {
     temperature,
   });
 
-  console.log("Simulation Result:", result);
-
-  console.log("Current pH state:", ph);
+console.log(JSON.stringify(result, null, 2));  console.log("Result pH:", result.ph);
 
   setReactionResult(result);
   setProducts(result.products);
@@ -73,9 +69,36 @@ export default function AcidBaseLab() {
     setObservation("Select an acid and a base to begin.");
   };
 
+  const handleClearExperiment = () => {
+  setSelectedAcid(null);
+  setSelectedBase(null);
+
+  setProducts([]);
+  setReactionResult(null);
+
+  setPh(7);
+
+  setIndicator("Litmus");
+
+  setTemperature(25);
+
+  setPlaying(false);
+
+  setSpeed(1);
+
+  setSolutionColor("#64748b");
+
+  setObservation("Select an acid and a base to begin.");
+};
+
+    
+
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col gap-4">
-      <Toolbar />
+      <Toolbar
+        onReset={handleResetExperiment}
+         onClear={handleClearExperiment}
+    />
 
       <div className="grid grid-cols-12  gap-4 flex-1">
         {/* LEFT PANEL */}
@@ -149,11 +172,18 @@ export default function AcidBaseLab() {
           <PHMeter ph={ph} />
           
             <div className="bg-slate-900 p-4 rounded-lg border border-slate-700">
-            <IndicatorPanel indicator={indicator} setIndicator={setIndicator} />
-          </div>    
+        <IndicatorPanel
+            indicator={indicator}
+            setIndicator={setIndicator}
+            ph={ph}
+        />   
+        
+          </div>
+
            <div className="bg-slate-900 p-4 rounded-lg border border-slate-700">
             <ObservationPanel observation={observation} reaction={reactionResult} temperature={temperature} />
             </div>
+
           <ResultCard
             acid={selectedAcid}
             base={selectedBase}

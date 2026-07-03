@@ -18,12 +18,15 @@ import Beaker from "../../../components/equipment/Beaker";
 import Pipette from "../../../components/equipment/Pipette";
 import IndicatorBottle from "../../../components/equipment/IndicatorBottle";
 
+import runTitration from "../../../components/simulation/TitrationEngine";
+
 // Controls
 import ChemicalSelector from "../../../components/controls/ChemicalSelector";
 import IndicatorSelector from "../../../components/controls/IndicatorSelector";
 import VolumeSlider from "../../../components/controls/VolumeSlider";
 import ConcentrationInput from "../../../components/controls/ConcentrationInput";
 import ExperimentControls from "../../../components/controls/ExperimentControls";
+import DropAnimation from "../../../components/simulation/DropAnimation";
 
 // Simulation UI Components ONLY
 import PHDisplay from "../../../components/simulation/PHDisplay";
@@ -69,6 +72,18 @@ const TitrationLab = () => {
     setNotes("");
   };
 
+  const simulation = runTitration({
+  acid,
+  base,
+  indicator,
+
+  acidConcentration,
+  baseConcentration,
+
+  acidVolume: 25,
+  titrantAdded: volumeAdded,
+});
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
 
@@ -79,6 +94,7 @@ const TitrationLab = () => {
         setActiveTab={setActiveTab}
       />
 
+        
       {/* Toolbar */}
 
       <div className="px-6 mt-4">
@@ -108,13 +124,25 @@ const TitrationLab = () => {
 
             <div className="relative h-1075 rounded-2xl bg-slate-950 border border-slate-800">
 
+                     <DropAnimation
+  isDropping={running}
+  color="#38bdf8"
+  x="185px"
+  startY={180}
+  endY={420}
+/>
+  
+
               <div className="absolute left-10 top-20">
                 <Stand />
               </div>
 
               <div className="absolute left-28 top-20">
-                <Burette volume={volumeAdded} />
-              </div>
+            <Burette
+            volume={simulation.buretteVolume}
+            isRunning={running}
+            />          
+        </div>
 
               <div className="absolute left-40 top-324">
                 <Stopcock />
@@ -122,11 +150,9 @@ const TitrationLab = () => {
 
               <div className="absolute left-[30px] bottom-70">
                 <Flask
-                  color={
-                    endpointReached
-                      ? "#ec4899"
-                      : "#38bdf8"
-                  }
+                color={simulation.flaskColor}
+                volume={simulation.flaskVolume}
+                endpointReached={simulation.endpointReached}
                 />
               </div>
 
@@ -181,9 +207,9 @@ const TitrationLab = () => {
           </div>
     </div>
           <PHDisplay
-            pH={ph}
-            endpointReached={endpointReached}
-          />
+  pH={simulation.ph}
+  endpointReached={simulation.endpointReached}
+/>
 
                <TitrationCurve
             endpointVolume={25}
@@ -200,13 +226,12 @@ const TitrationLab = () => {
       <div className="grid grid-cols-3 gap-6 px-6 pb-16">
         <div className="col-span-1 h-[-200px] bg-slate-900 rounded-2xl border border-slate-800 p-6">
         <StatusPanel
-          isRunning={running}
-          ph={ph}
-          volumeAdded={volumeAdded}
-          endpointVolume={25}
-          endpointReached={endpointReached}
-        />
-
+  isRunning={running}
+  ph={simulation.ph}
+  volumeAdded={volumeAdded}
+  endpointVolume={25}
+  endpointReached={simulation.endpointReached}
+/>
             <ExperimentControls
             isRunning={running}
             onStart={handleStart}
@@ -232,11 +257,9 @@ const TitrationLab = () => {
           acid={acid}
           base={base}
           indicator={indicator}
-          ph={ph}
-          volumeAdded={volumeAdded}
-          endpointVolume={25}
-          endpointReached={endpointReached}
-        />
+           ph={simulation.ph}
+            volumeAdded={simulation.titrantAdded}
+            endpointReached={simulation.endpointReached}        />
         
       </div>
 

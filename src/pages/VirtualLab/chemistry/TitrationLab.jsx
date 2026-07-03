@@ -1,7 +1,6 @@
 // src/pages/TitrationLab.jsx
 
-import React, { useState } from "react";
-
+import React, { useEffect, useState } from "react";
 // UI
 import LabNavigation from "../../../components/ui/LabNavigation";
 import Toolbar from "../../../components/ui/Toolbar";
@@ -50,18 +49,26 @@ const TitrationLab = () => {
 
   const [running, setRunning] = useState(false);
 
+  const [autoMode, setAutoMode] = useState(false);
+
   const [endpointReached, setEndpointReached] = useState(false);
 
   const [ph, setPH] = useState(7);
 
   const [notes, setNotes] = useState("");
 
+    const [drops, setDrops] = useState(0);
+const [seconds, setSeconds] = useState(0);
+const [elapsedTime, setElapsedTime] = useState("00:00");
   // ==========================
   // Toolbar
   // ==========================
 
   const handleStart = () => setRunning(true);
 
+  const [stopcockOpen, setStopcockOpen] = useState(false);
+const [flowRate, setFlowRate] = useState(50);
+    
   const handlePause = () => setRunning(false);
 
   const handleReset = () => {
@@ -72,17 +79,50 @@ const TitrationLab = () => {
     setNotes("");
   };
 
+
   const simulation = runTitration({
   acid,
   base,
   indicator,
-
   acidConcentration,
   baseConcentration,
-
   acidVolume: 25,
   titrantAdded: volumeAdded,
 });
+
+// Simulation loop
+useEffect(() => {
+  if (!running || !autoMode || !stopcockOpen) return;
+
+  const timer = setInterval(() => {
+    setVolumeAdded((prev) => {
+      if (prev >= 50) {
+        setRunning(false);
+        return prev;
+      }
+
+      const increment = flowRate / 1000;
+
+      return Number((prev + increment).toFixed(2));
+    });
+
+    setDrops((prev) => prev + Math.max(1, Math.round(flowRate / 10)));
+
+    setSeconds((prev) => prev + 0.1);
+  }, 100);
+
+  return () => clearInterval(timer);
+}, [running, autoMode, stopcockOpen, flowRate]);
+
+// 👇 ADD THIS HERE
+useEffect(() => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+
+  setElapsedTime(
+    `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+  );
+}, [seconds]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -99,12 +139,16 @@ const TitrationLab = () => {
 
       <div className="px-6 mt-4">
 
-        <Toolbar
-          isRunning={running}
-          onStart={handleStart}
-          onPause={handlePause}
-          onReset={handleReset}
-        />
+      <Toolbar
+        isRunning={running}
+        autoMode={autoMode}
+        onStart={handleStart}
+        onPause={handlePause}
+        onReset={handleReset}
+        onToggleAuto={() =>
+        setAutoMode((prev) => !prev)
+  }
+/>
 
       </div>
 
@@ -145,7 +189,12 @@ const TitrationLab = () => {
         </div>
 
               <div className="absolute left-40 top-324">
-                <Stopcock />
+                <Stopcock
+  isOpen={stopcockOpen}
+  flowRate={flowRate}
+  onToggle={setStopcockOpen}
+  onFlowRateChange={setFlowRate}
+/>
               </div>
 
               <div className="absolute left-[30px] bottom-70">
@@ -157,7 +206,15 @@ const TitrationLab = () => {
               </div>
 
               <div className="absolute right-6 bottom-70">
-                <Beaker />
+<Beaker
+  liquidLevel={Math.max(
+    0,
+    Math.min(100, (simulation.flaskVolume / 75) * 100)
+  )}
+  liquidColor={simulation.flaskColor}
+  label="Waste Beaker"
+/>
+
               </div>
               <div className="absolute right-12 top-20">
                 <Pipette />
@@ -207,13 +264,13 @@ const TitrationLab = () => {
           </div>
     </div>
           <PHDisplay
-  pH={simulation.ph}
-  endpointReached={simulation.endpointReached}
-/>
+            pH={simulation.ph}
+            endpointReached={simulation.endpointReached}
+            />
 
                <TitrationCurve
-            endpointVolume={25}
-            currentVolume={volumeAdded}
+            endpointVolume={simulation.endpointVolume}
+            currentVolume={simulation.titrantAdded}
           />
 
 
@@ -228,8 +285,8 @@ const TitrationLab = () => {
         <StatusPanel
   isRunning={running}
   ph={simulation.ph}
-  volumeAdded={volumeAdded}
-  endpointVolume={25}
+  volumeAdded={simulation.titrantAdded}
+  endpointVolume={simulation.endpointVolume}
   endpointReached={simulation.endpointReached}
 />
             <ExperimentControls
@@ -248,8 +305,8 @@ const TitrationLab = () => {
           acidConcentration={acidConcentration}
           baseConcentration={baseConcentration}
           acidVolume={25}
-          endpointVolume={25}
-          ph={ph}
+          endpointVolume={simulation.endpointVolume}
+ph={simulation.ph}
           observations={notes}
         />
         </div>

@@ -17,21 +17,13 @@ const Stopcock = ({
   onToggle,
   onFlowRateChange,
 }) => {
-  const [rotation, setRotation] = useState(
-    isOpen ? 90 : 0
-  );
+  const rotation = isOpen ? 90 : 0;
 
   const handleToggle = () => {
-    if (disabled) return;
+  if (disabled) return;
 
-    const next = rotation === 0 ? 90 : 0;
-
-    setRotation(next);
-
-    if (onToggle) {
-      onToggle(next === 90);
-    }
-  };
+  onToggle?.(!isOpen);
+};
 
   const handleSlider = (e) => {
     const value = Number(e.target.value);
@@ -159,11 +151,8 @@ const Stopcock = ({
 
         <button
           onClick={() => {
-            setRotation(0);
-
-            if (onToggle) {
-              onToggle(false);
-            }
+           onToggle?.(false);
+            onFlowRateChange?.(0);
 
             if (onFlowRateChange) {
               onFlowRateChange(0);

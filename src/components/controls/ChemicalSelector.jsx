@@ -1,53 +1,121 @@
-// src/components/controls/ChemicalSelector.jsx
-
 import React from "react";
-import { FlaskConical, Beaker, ArrowRightLeft } from "lucide-react";
+import { Beaker, FlaskConical, ArrowRightLeft } from "lucide-react";
 
 const acids = [
   {
     name: "HCl",
-    label: "Hydrochloric Acid (HCl)",
-    color: "bg-red-500",
-  },
-  {
-    name: "H₂SO₄",
-    label: "Sulfuric Acid (H₂SO₄)",
-    color: "bg-orange-500",
+    full: "Hydrochloric Acid",
+    strength: "Strong Acid",
   },
   {
     name: "HNO₃",
-    label: "Nitric Acid (HNO₃)",
-    color: "bg-yellow-500",
+    full: "Nitric Acid",
+    strength: "Strong Acid",
+  },
+  {
+    name: "H₂SO₄",
+    full: "Sulfuric Acid",
+    strength: "Strong Acid",
   },
   {
     name: "CH₃COOH",
-    label: "Acetic Acid (CH₃COOH)",
-    color: "bg-pink-500",
+    full: "Acetic Acid",
+    strength: "Weak Acid",
   },
 ];
 
 const bases = [
   {
     name: "NaOH",
-    label: "Sodium Hydroxide (NaOH)",
-    color: "bg-blue-500",
+    full: "Sodium Hydroxide",
+    strength: "Strong Base",
   },
   {
     name: "KOH",
-    label: "Potassium Hydroxide (KOH)",
-    color: "bg-cyan-500",
+    full: "Potassium Hydroxide",
+    strength: "Strong Base",
   },
   {
     name: "NH₄OH",
-    label: "Ammonium Hydroxide (NH₄OH)",
-    color: "bg-green-500",
+    full: "Ammonium Hydroxide",
+    strength: "Weak Base",
   },
   {
-    name: "Ca(OH)₂",
-    label: "Calcium Hydroxide",
-    color: "bg-emerald-500",
+    name: "Ba(OH)₂",
+    full: "Barium Hydroxide",
+    strength: "Strong Base",
   },
 ];
+
+const SelectCard = ({
+  title,
+  icon,
+  value,
+  options,
+  onChange,
+  accent,
+}) => (
+  <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+
+    <div className="flex items-center gap-2 mb-3">
+      {icon}
+      <h3 className="font-semibold text-white">{title}</h3>
+    </div>
+
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`
+        w-full
+        rounded-lg
+        border
+        border-slate-600
+        bg-slate-900
+        px-3
+        py-3
+        text-white
+        outline-none
+        transition
+        focus:ring-2
+        ${accent}
+      `}
+    >
+      {options.map((item) => (
+        <option key={item.name} value={item.name}>
+          {item.name} — {item.full}
+        </option>
+      ))}
+    </select>
+
+    <div className="mt-3 rounded-lg bg-slate-900 p-3">
+      <p className="text-sm text-slate-300">
+        {
+          options.find((o) => o.name === value)?.full
+        }
+      </p>
+
+      <span
+        className={`
+          inline-block
+          mt-2
+          rounded-full
+          px-2
+          py-1
+          text-xs
+          font-semibold
+          ${
+            options.find((o) => o.name === value)?.strength.includes("Weak")
+              ? "bg-yellow-500/20 text-yellow-300"
+              : "bg-emerald-500/20 text-emerald-300"
+          }
+        `}
+      >
+        {options.find((o) => o.name === value)?.strength}
+      </span>
+    </div>
+
+  </div>
+);
 
 const ChemicalSelector = ({
   acid,
@@ -56,121 +124,70 @@ const ChemicalSelector = ({
   setBase,
 }) => {
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5">
 
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-5">
-        <ArrowRightLeft className="text-cyan-400" size={20} />
-
-        <h2 className="text-lg font-bold">
+      <div className="flex items-center gap-3 mb-5">
+        <ArrowRightLeft className="w-6 h-6 text-cyan-400" />
+        <h2 className="text-xl font-bold text-white">
           Chemical Selection
         </h2>
       </div>
 
-      {/* Acid */}
-      <div className="mb-6">
+      <div className="space-y-5">
 
-        <div className="flex items-center gap-2 mb-2">
-          <FlaskConical
-            size={18}
-            className="text-red-400"
-          />
-
-          <span className="font-semibold text-red-300">
-            Acid
-          </span>
-        </div>
-
-        <select
+        <SelectCard
+          title="Acid"
           value={acid}
-          onChange={(e) => setAcid(e.target.value)}
-          className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-cyan-500"
-        >
-          {acids.map((item) => (
-            <option
-              key={item.name}
-              value={item.name}
-            >
-              {item.label}
-            </option>
-          ))}
-        </select>
+          options={acids}
+          onChange={setAcid}
+          accent="focus:ring-red-500"
+          icon={
+            <FlaskConical className="w-5 h-5 text-red-400" />
+          }
+        />
 
-        <div className="mt-3 flex items-center gap-2">
-          <div
-            className={`w-4 h-4 rounded-full ${
-              acids.find((a) => a.name === acid)?.color
-            }`}
-          />
+        <SelectCard
+          title="Base"
+          value={base}
+          options={bases}
+          onChange={setBase}
+          accent="focus:ring-blue-500"
+          icon={
+            <Beaker className="w-5 h-5 text-blue-400" />
+          }
+        />
 
-          <span className="text-sm text-slate-400">
+      </div>
+
+      <div className="mt-5 rounded-xl bg-slate-800 p-4 border border-slate-700">
+
+        <h4 className="font-semibold text-white mb-2">
+          Current Reaction
+        </h4>
+
+        <div className="text-center">
+
+          <span className="text-red-400 font-bold text-lg">
             {acid}
           </span>
-        </div>
 
-      </div>
-
-      {/* Base */}
-      <div>
-
-        <div className="flex items-center gap-2 mb-2">
-          <Beaker
-            size={18}
-            className="text-blue-400"
-          />
-
-          <span className="font-semibold text-blue-300">
-            Base
+          <span className="mx-3 text-slate-400">
+            +
           </span>
-        </div>
 
-        <select
-          value={base}
-          onChange={(e) => setBase(e.target.value)}
-          className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-cyan-500"
-        >
-          {bases.map((item) => (
-            <option
-              key={item.name}
-              value={item.name}
-            >
-              {item.label}
-            </option>
-          ))}
-        </select>
-
-        <div className="mt-3 flex items-center gap-2">
-          <div
-            className={`w-4 h-4 rounded-full ${
-              bases.find((b) => b.name === base)?.color
-            }`}
-          />
-
-          <span className="text-sm text-slate-400">
+          <span className="text-blue-400 font-bold text-lg">
             {base}
           </span>
+
+          <div className="text-green-400 text-xl mt-2">
+            ↓
+          </div>
+
+          <p className="text-sm text-slate-300 mt-2">
+            Neutralization Reaction
+          </p>
+
         </div>
-
-      </div>
-
-      {/* Preview */}
-      <div className="mt-6 rounded-xl bg-slate-800 border border-slate-700 p-4">
-
-        <h3 className="font-semibold text-cyan-400 mb-2">
-          Selected Reaction
-        </h3>
-
-        <div className="text-center text-lg font-bold text-white">
-          {acid}{" "}
-          <span className="text-slate-500">
-            +
-          </span>{" "}
-          {base}
-        </div>
-
-        <p className="mt-2 text-center text-sm text-slate-400">
-          Ready for titration.
-        </p>
 
       </div>
 

@@ -1,3 +1,4 @@
+// src/pages/ChemistryLab.jsx
 import React, { useMemo, useState } from "react";
 import { Menu } from "lucide-react";
 import elements from "../data/elements";
@@ -14,6 +15,7 @@ import MolecularBuilder from "./VirtualLab/chemistry/MolecularBuilder";
 import ChemicalReaction from "./VirtualLab/chemistry/ChemicalReactions";
 import AcidBaseLab from "./VirtualLab/chemistry/AcidBaseLab";
 import TitrationLab from "./VirtualLab/chemistry/TitrationLab";
+import SolutionLab from "./VirtualLab/chemistry/SolutionLab";
 
 const ChemistryLab = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,7 +42,6 @@ const ChemistryLab = () => {
 
   return (
     <div className="flex h-screen w-full bg-slate-950 text-white overflow-hidden relative">
-
       {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 border-r border-slate-800 transition-transform duration-300 xl:relative xl:translate-x-0 ${
@@ -66,7 +67,6 @@ const ChemistryLab = () => {
 
       {/* Main */}
       <main className="flex-1 h-screen overflow-y-auto p-6">
-
         <ChemistryHeader />
 
         <div className="text-cyan-400 mb-4">
@@ -76,26 +76,17 @@ const ChemistryLab = () => {
         {/* Periodic Table */}
         {experiment === "Periodic Table" && (
           <div className="animate-in fade-in duration-500 pb-10">
-
             <div className="mb-8">
               <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 Interactive Periodic Table
               </h1>
-
-              <p className="text-slate-400 mt-2">
-                Complete set of 118 Elements
-              </p>
+              <p className="text-slate-400 mt-2">Complete set of 118 Elements</p>
             </div>
 
-            <SearchBar
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-            />
-
+            <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
             <PeriodicLegend />
 
             <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 mt-6">
-
               <div
                 className={
                   selectedElement
@@ -106,33 +97,22 @@ const ChemistryLab = () => {
                 <div
                   className="grid gap-2"
                   style={{
-                    gridTemplateColumns:
-                      "repeat(18,minmax(60px,1fr))",
+                    gridTemplateColumns: "repeat(18,minmax(60px,1fr))",
                     width: "max-content",
                   }}
                 >
                   {Array.from({ length: 10 }).map((_, r) =>
                     Array.from({ length: 18 }).map((_, c) => {
-                      const element =
-                        elementMap[`${r + 1}-${c + 1}`];
-
+                      const element = elementMap[`${r + 1}-${c + 1}`];
                       return (
-                        <div
-                          key={`${r}-${c}`}
-                          className="w-[60px] min-h-[72px]"
-                        >
+                        <div key={`${r}-${c}`} className="w-[60px] min-h-[72px]">
                           {element ? (
                             <ElementCard
                               element={element}
-                              active={
-                                selectedElement?.number ===
-                                element.number
-                              }
+                              active={selectedElement?.number === element.number}
                               onClick={() =>
                                 setSelectedElement((prev) =>
-                                  prev?.number === element.number
-                                    ? null
-                                    : element
+                                  prev?.number === element.number ? null : element
                                 )
                               }
                             />
@@ -148,41 +128,20 @@ const ChemistryLab = () => {
 
               {selectedElement && (
                 <div className="xl:col-span-1">
-                  <ElementInfoPanel
-                    element={selectedElement}
-                  />
+                  <ElementInfoPanel element={selectedElement} />
                 </div>
               )}
-
             </div>
           </div>
         )}
 
-        {/* Atom Builder */}
-        {experiment === "Atom Builder" && (
-          <AtomBuilder />
-        )}
-
-          {/* Acid vs Base */}
-    {experiment === "Acid vs Base" && (
-    <AcidBaseLab />
-    )}
-
-      {/* Titration Lab */}
-    {experiment === "Titration Lab" && (
-    <TitrationLab />
-    )}
-
-
-        {/* Molecule Builder */}
-        {experiment === "Molecule Builder" && (
-          <MolecularBuilder />
-        )}
-
-        {/* Chemical Reactions */}
-        {experiment === "Chemical Reactions" && (
-          <ChemicalReaction />
-        )}
+        {/* Experiments */}
+        {experiment === "Atom Builder" && <AtomBuilder />}
+        {experiment === "Molecule Builder" && <MolecularBuilder />}
+        {experiment === "Chemical Reactions" && <ChemicalReaction />}
+        {experiment === "Acid vs Base" && <AcidBaseLab />}
+        {experiment === "Titration Lab" && <TitrationLab />}
+        {experiment === "Solution Lab" && <SolutionLab />}
 
         {/* Fallback */}
         {![
@@ -191,20 +150,13 @@ const ChemistryLab = () => {
           "Molecule Builder",
           "Chemical Reactions",
           "Acid vs Base",
+          "Titration Lab",
+          "Solution Lab",
         ].includes(experiment) && (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
-
-            <h2 className="text-3xl font-bold text-white">
-              {experiment}
-            </h2>
-
-            <p className="mt-3">
-              This laboratory experiment is currently in development.
-            </p>
-
+            <h2 className="text-3xl font-bold text-white">{experiment}</h2>
           </div>
         )}
-
       </main>
     </div>
   );

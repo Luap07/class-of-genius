@@ -3,264 +3,219 @@
 import React from "react";
 import {
   Activity,
+  CheckCircle2,
+  AlertCircle,
+  TestTube2,
   Droplets,
   FlaskConical,
-  CircleCheckBig,
-  CircleX,
-  Timer,
-  Gauge,
-  Thermometer,
+  Beaker,
 } from "lucide-react";
 
-const StatusCard = ({
-  icon: Icon,
-  title,
-  value,
-  color = "text-cyan-400",
-}) => (
-  <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-    <div className="flex items-center gap-2 mb-2">
-      <Icon size={18} className={color} />
-      <span className="text-slate-400 text-sm">
-        {title}
-      </span>
-    </div>
-
-    <p className={`text-2xl font-bold ${color}`}>
+const StatusRow = ({ label, value, color = "text-white" }) => (
+  <div className="flex items-center justify-between py-2 border-b border-slate-800 last:border-b-0">
+    <span className="text-slate-400">{label}</span>
+    <span className={`font-semibold ${color}`}>
       {value}
-    </p>
+    </span>
   </div>
 );
 
 const StatusPanel = ({
-  isRunning = false,
-  endpointReached = false,
-
-  ph = 7,
-
-  volumeAdded = 0,
-
-  endpointVolume = 25,
-
-  drops = 0,
-
-  elapsedTime = "00:00",
-
-  temperature = 25,
+  isRunning,
+  acid,
+  base,
+  indicator,
+  acidConcentration,
+  baseConcentration,
+  ph,
+  flaskVolume,
+  buretteVolume,
+  volumeAdded,
+  endpointVolume,
+  endpointReached,
+  flaskColor,
 }) => {
-  const progress = Math.min(
-    (volumeAdded / endpointVolume) * 100,
-    100
-  );
-
   return (
-    <div className="space-y-5">
+    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 h-full">
 
-      {/* ================= Status ================= */}
+      {/* Header */}
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-
-        <div className="flex items-center gap-2 mb-4">
-
-          <Activity
-            size={20}
-            className="text-cyan-400"
-          />
-
-          <h2 className="font-bold text-lg">
+      <div className="flex items-center gap-3 mb-6">
+        <Activity className="w-7 h-7 text-cyan-400" />
+        <div>
+          <h2 className="text-xl font-bold text-white">
             Experiment Status
           </h2>
+          <p className="text-sm text-slate-400">
+            Live monitoring of the titration
+          </p>
+        </div>
+      </div>
+
+      {/* Overall Status */}
+
+      <div
+        className={`rounded-xl p-4 mb-6 border ${
+          endpointReached
+            ? "bg-pink-500/10 border-pink-500"
+            : isRunning
+            ? "bg-green-500/10 border-green-500"
+            : "bg-yellow-500/10 border-yellow-500"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+
+          {endpointReached ? (
+            <CheckCircle2 className="text-pink-400 w-6 h-6" />
+          ) : isRunning ? (
+            <Activity className="text-green-400 w-6 h-6 animate-pulse" />
+          ) : (
+            <AlertCircle className="text-yellow-400 w-6 h-6" />
+          )}
+
+          <div>
+            <h3 className="font-bold text-lg">
+              {endpointReached
+                ? "Endpoint Reached"
+                : isRunning
+                ? "Experiment Running"
+                : "Experiment Stopped"}
+            </h3>
+
+            <p className="text-slate-300 text-sm">
+              {endpointReached
+                ? "Neutralization complete."
+                : isRunning
+                ? "Titration is currently in progress."
+                : "Ready to begin experiment."}
+            </p>
+          </div>
 
         </div>
+      </div>
+
+      {/* Chemical Information */}
+
+      <div className="mb-6">
+
+        <h3 className="font-semibold text-cyan-400 mb-3 flex items-center gap-2">
+          <TestTube2 size={18} />
+          Chemicals
+        </h3>
+
+        <StatusRow
+          label="Acid"
+          value={acid}
+          color="text-red-400"
+        />
+
+        <StatusRow
+          label="Base"
+          value={base}
+          color="text-blue-400"
+        />
+
+        <StatusRow
+          label="Indicator"
+          value={indicator}
+          color="text-purple-400"
+        />
+
+      </div>
+
+      {/* Concentrations */}
+
+      <div className="mb-6">
+
+        <h3 className="font-semibold text-cyan-400 mb-3 flex items-center gap-2">
+          <Droplets size={18} />
+          Concentrations
+        </h3>
+
+        <StatusRow
+          label="Acid"
+          value={`${acidConcentration.toFixed(2)} M`}
+          color="text-red-400"
+        />
+
+        <StatusRow
+          label="Base"
+          value={`${baseConcentration.toFixed(2)} M`}
+          color="text-blue-400"
+        />
+
+      </div>
+
+      {/* Measurements */}
+
+      <div className="mb-6">
+
+        <h3 className="font-semibold text-cyan-400 mb-3 flex items-center gap-2">
+          <Beaker size={18} />
+          Measurements
+        </h3>
+
+        <StatusRow
+          label="Current pH"
+          value={ph.toFixed(2)}
+          color="text-green-400"
+        />
+
+        <StatusRow
+          label="Volume Added"
+          value={`${volumeAdded.toFixed(2)} mL`}
+          color="text-cyan-400"
+        />
+
+        <StatusRow
+          label="Flask Volume"
+          value={`${flaskVolume.toFixed(2)} mL`}
+          color="text-orange-400"
+        />
+
+        <StatusRow
+          label="Burette Remaining"
+          value={`${buretteVolume.toFixed(2)} mL`}
+          color="text-indigo-400"
+        />
+
+        <StatusRow
+          label="Endpoint Volume"
+          value={`${endpointVolume.toFixed(2)} mL`}
+          color="text-pink-400"
+        />
+
+      </div>
+
+      {/* Flask */}
+
+      <div className="rounded-xl bg-slate-800 border border-slate-700 p-4">
+
+        <h3 className="font-semibold text-cyan-400 mb-3 flex items-center gap-2">
+          <FlaskConical size={18} />
+          Flask State
+        </h3>
 
         <div className="flex items-center justify-between">
 
           <span className="text-slate-400">
-            Current State
+            Solution Colour
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
 
-            {isRunning ? (
-              <>
-                <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+            <div
+              className="w-5 h-5 rounded-full border border-white"
+              style={{
+                background: flaskColor,
+              }}
+            />
 
-                <span className="text-green-400 font-semibold">
-                  Running
-                </span>
-              </>
-            ) : (
-              <>
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-
-                <span className="text-red-400 font-semibold">
-                  Stopped
-                </span>
-              </>
-            )}
+            <span className="font-semibold text-white">
+              {flaskColor}
+            </span>
 
           </div>
-
-        </div>
-
-      </div>
-
-      {/* ================= Statistics ================= */}
-
-      <div className="grid grid-cols-2 gap-4">
-
-        <StatusCard
-          icon={Gauge}
-          title="pH"
-          value={Number(ph).toFixed(2)}
-        />
-
-        <StatusCard
-          icon={Droplets}
-          title="Drops"
-          value={drops}
-          color="text-blue-400"
-        />
-
-        <StatusCard
-          icon={FlaskConical}
-          title="Added"
-          value={`${volumeAdded.toFixed(2)} mL`}
-          color="text-purple-400"
-        />
-
-        <StatusCard
-          icon={Timer}
-          title="Time"
-          value={elapsedTime}
-          color="text-orange-400"
-        />
-
-      </div>
-
-      {/* ================= Progress ================= */}
-
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-
-        <div className="flex justify-between mb-3">
-
-          <span className="text-slate-400">
-            Endpoint Progress
-          </span>
-
-          <span className="font-semibold text-cyan-400">
-            {progress.toFixed(1)}%
-          </span>
-
-        </div>
-
-        <div className="h-4 rounded-full bg-slate-800 overflow-hidden">
-
-          <div
-            className={`h-full transition-all duration-300 ${
-              endpointReached
-                ? "bg-green-500"
-                : "bg-cyan-500"
-            }`}
-            style={{
-              width: `${progress}%`,
-            }}
-          />
-
-        </div>
-
-      </div>
-
-      {/* ================= Endpoint ================= */}
-
-      <div
-        className={`rounded-2xl border p-5 ${
-          endpointReached
-            ? "bg-green-500/10 border-green-500/20"
-            : "bg-yellow-500/10 border-yellow-500/20"
-        }`}
-      >
-
-        <div className="flex items-center gap-3">
-
-          {endpointReached ? (
-            <CircleCheckBig
-              className="text-green-400"
-              size={22}
-            />
-          ) : (
-            <CircleX
-              className="text-yellow-400"
-              size={22}
-            />
-          )}
-
-          <div>
-
-            <h3
-              className={`font-bold ${
-                endpointReached
-                  ? "text-green-300"
-                  : "text-yellow-300"
-              }`}
-            >
-              {endpointReached
-                ? "Endpoint Reached"
-                : "Endpoint Not Reached"}
-            </h3>
-
-            <p className="text-sm text-slate-400 mt-1">
-
-              {endpointReached
-                ? "The titration has reached the equivalence point."
-                : "Continue adding titrant slowly."}
-
-            </p>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* ================= Environment ================= */}
-
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-
-        <div className="flex items-center gap-2 mb-4">
-
-          <Thermometer
-            size={20}
-            className="text-red-400"
-          />
-
-          <h2 className="font-bold">
-            Laboratory Conditions
-          </h2>
-
-        </div>
-
-        <div className="flex justify-between">
-
-          <span className="text-slate-400">
-            Temperature
-          </span>
-
-          <span className="font-semibold">
-            {temperature} °C
-          </span>
-
-        </div>
-
-        <div className="flex justify-between mt-3">
-
-          <span className="text-slate-400">
-            Endpoint Volume
-          </span>
-
-          <span className="font-semibold">
-            {endpointVolume.toFixed(2)} mL
-          </span>
 
         </div>
 

@@ -1,248 +1,152 @@
-// src/components/controls/VolumeSlider.jsx
-
 import React from "react";
-import { motion } from "framer-motion";
-import {
-  Droplets,
-  Gauge,
-  Minus,
-  Plus,
-  RotateCcw,
-} from "lucide-react";
+import { Gauge, Droplets, RotateCcw } from "lucide-react";
 
-const VolumeSlider = ({
-  volume = 50,
-  setVolume,
-  min = 0,
-  max = 50,
-  step = 0.1,
-}) => {
-  const percentage = ((volume - min) / (max - min)) * 100;
-
-  const decrease = () => {
-    setVolume((prev) =>
-      Math.max(min, Number((prev - step).toFixed(2)))
-    );
+const VolumeSlider = ({ volume, setVolume }) => {
+  const handleChange = (e) => {
+    setVolume(Number(e.target.value));
   };
 
-  const increase = () => {
-    setVolume((prev) =>
-      Math.min(max, Number((prev + step).toFixed(2)))
-    );
-  };
-
-  const reset = () => {
-    setVolume(max);
-  };
+  const presets = [0, 5, 10, 15, 20, 25, 30, 40, 50];
 
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center gap-3 mb-5">
+        <Gauge className="w-6 h-6 text-cyan-400" />
+        <h2 className="text-xl font-bold text-white">
+          Titrant Volume
+        </h2>
+      </div>
 
-        <div className="flex items-center gap-2">
-          <Gauge
-            className="text-cyan-400"
-            size={20}
-          />
+      {/* Digital Display */}
+      <div className="rounded-xl bg-slate-950 border border-cyan-700 p-6 text-center mb-5">
 
-          <h2 className="text-lg font-bold">
-            Burette Volume
-          </h2>
-        </div>
+        <p className="text-sm text-slate-400 uppercase tracking-widest">
+          Volume Added
+        </p>
 
-        <button
-          onClick={reset}
-          className="rounded-lg bg-slate-800 p-2 hover:bg-slate-700 transition"
-        >
-          <RotateCcw size={16} />
-        </button>
+        <h1 className="text-5xl font-bold text-cyan-400 mt-2">
+          {volume.toFixed(2)}
+        </h1>
+
+        <p className="text-slate-400 mt-2">
+          mL
+        </p>
 
       </div>
 
-      {/* Volume Display */}
-      <motion.div
-        key={volume}
-        initial={{
-          scale: 0.9,
-          opacity: 0,
-        }}
-        animate={{
-          scale: 1,
-          opacity: 1,
-        }}
-        className="mb-6 text-center"
-      >
-        <div className="text-5xl font-bold text-cyan-400">
-          {volume.toFixed(2)}
-        </div>
-
-        <div className="text-slate-400">
-          mL
-        </div>
-      </motion.div>
-
       {/* Slider */}
-      <div className="mb-5">
+      <div className="space-y-2">
 
         <input
           type="range"
-          min={min}
-          max={max}
-          step={step}
+          min={0}
+          max={50}
+          step={0.1}
           value={volume}
-          onChange={(e) =>
-            setVolume(Number(e.target.value))
-          }
+          onChange={handleChange}
           className="w-full accent-cyan-500 cursor-pointer"
         />
+
+        <div className="flex justify-between text-xs text-slate-500">
+          <span>0 mL</span>
+          <span>25 mL</span>
+          <span>50 mL</span>
+        </div>
+
+      </div>
+
+      {/* Quick Presets */}
+      <div className="mt-6">
+
+        <p className="text-sm text-slate-300 mb-3">
+          Quick Set
+        </p>
+
+        <div className="grid grid-cols-3 gap-2">
+
+          {presets.map((item) => (
+            <button
+              key={item}
+              onClick={() => setVolume(item)}
+              className={`
+                rounded-lg
+                py-2
+                text-sm
+                transition
+                border
+                ${
+                  volume === item
+                    ? "bg-cyan-600 border-cyan-500 text-white"
+                    : "bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300"
+                }
+              `}
+            >
+              {item} mL
+            </button>
+          ))}
+
+        </div>
 
       </div>
 
       {/* Progress */}
-      <div className="mb-6">
+      <div className="mt-6">
 
-        <div className="flex justify-between text-sm mb-2">
-
+        <div className="flex justify-between mb-2 text-sm">
           <span className="text-slate-400">
-            Fill Level
+            Burette Usage
           </span>
 
-          <span className="text-cyan-400">
-            {percentage.toFixed(0)}%
+          <span className="text-cyan-400 font-semibold">
+            {(volume / 50 * 100).toFixed(0)}%
           </span>
-
         </div>
 
-        <div className="h-3 rounded-full overflow-hidden bg-slate-800">
+        <div className="h-3 rounded-full bg-slate-800 overflow-hidden">
 
-          <motion.div
-            animate={{
-              width: `${percentage}%`,
+          <div
+            className="h-full bg-cyan-500 transition-all duration-300"
+            style={{
+              width: `${(volume / 50) * 100}%`,
             }}
-            transition={{
-              duration: 0.3,
-            }}
-            className="h-full bg-gradient-to-r from-cyan-500 to-blue-500"
           />
 
         </div>
 
       </div>
 
-      {/* Controls */}
-      <div className="grid grid-cols-2 gap-3 mb-5">
-
-        <button
-          onClick={decrease}
-          className="flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-500 py-3 transition"
-        >
-          <Minus size={18} />
-
-          Remove
-        </button>
-
-        <button
-          onClick={increase}
-          className="flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-500 py-3 transition"
-        >
-          <Plus size={18} />
-
-          Add
-        </button>
-
-      </div>
-
-      {/* Presets */}
-      <div className="grid grid-cols-4 gap-2 mb-6">
-
-        {[10, 20, 30, 50].map((v) => (
-          <button
-            key={v}
-            onClick={() => setVolume(v)}
-            className={`
-              rounded-lg
-              py-2
-              transition
-              ${
-                volume === v
-                  ? "bg-cyan-500 text-black font-bold"
-                  : "bg-slate-800 hover:bg-slate-700"
-              }
-            `}
-          >
-            {v}
-          </button>
-        ))}
-
-      </div>
-
       {/* Information */}
-      <div className="rounded-xl bg-slate-800 p-4 space-y-3">
+      <div className="mt-6 rounded-xl bg-slate-800 border border-slate-700 p-4 space-y-3">
 
-        <div className="flex justify-between">
-
+        <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-
-            <Droplets
-              size={16}
-              className="text-cyan-400"
-            />
-
-            <span className="text-slate-400">
+            <Droplets className="w-4 h-4 text-cyan-400" />
+            <span className="text-slate-300">
               Current Volume
             </span>
-
           </div>
 
           <span className="font-semibold text-white">
             {volume.toFixed(2)} mL
           </span>
-
         </div>
 
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center">
 
-          <span className="text-slate-400">
-            Maximum
+          <div className="flex items-center gap-2">
+            <RotateCcw className="w-4 h-4 text-orange-400" />
+            <span className="text-slate-300">
+              Remaining
+            </span>
+          </div>
+
+          <span className="font-semibold text-white">
+            {(50 - volume).toFixed(2)} mL
           </span>
 
-          <span>{max} mL</span>
-
         </div>
-
-        <div className="flex justify-between">
-
-          <span className="text-slate-400">
-            Minimum
-          </span>
-
-          <span>{min} mL</span>
-
-        </div>
-
-        <div className="flex justify-between">
-
-          <span className="text-slate-400">
-            Step Size
-          </span>
-
-          <span>{step} mL</span>
-
-        </div>
-
-      </div>
-
-      {/* Tip */}
-      <div className="mt-5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
-
-        <p className="text-sm text-slate-300 leading-6">
-          During a real titration, the volume in the burette
-          gradually decreases as the stopcock is opened.
-          Later, this slider will automatically move when
-          the titration is running.
-        </p>
 
       </div>
 

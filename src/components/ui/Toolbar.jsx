@@ -6,9 +6,6 @@ import {
   Pause,
   RotateCcw,
   Droplets,
-  Save,
-  Download,
-  Settings,
   Maximize2,
 } from "lucide-react";
 
@@ -20,10 +17,7 @@ const Toolbar = ({
   onPause = () => {},
   onReset = () => {},
   onToggleAuto = () => {},
-  onSave = () => {},
-  onExport = () => {},
-  onSettings = () => {},
-  onFullscreen = () => {},
+ 
 }) => {
   const Button = ({
     icon: Icon,
@@ -91,35 +85,6 @@ const Toolbar = ({
             label="Auto Drops"
             onClick={onToggleAuto}
             active={autoMode}
-          />
-
-        </div>
-
-        {/* Right */}
-        <div className="flex flex-wrap gap-2">
-
-          <Button
-            icon={Save}
-            label="Save"
-            onClick={onSave}
-          />
-
-          <Button
-            icon={Download}
-            label="Export"
-            onClick={onExport}
-          />
-
-          <Button
-            icon={Settings}
-            label="Settings"
-            onClick={onSettings}
-          />
-
-          <Button
-            icon={Maximize2}
-            label="Fullscreen"
-            onClick={onFullscreen}
           />
 
         </div>

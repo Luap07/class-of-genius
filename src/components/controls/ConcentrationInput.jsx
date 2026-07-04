@@ -1,48 +1,48 @@
-// src/components/controls/ConcentrationInput.jsx
-
 import React from "react";
-import { motion } from "framer-motion";
-import {
-  FlaskConical,
-  Beaker,
-  Calculator,
-  Info,
-} from "lucide-react";
+import { FlaskConical, Beaker, Percent, RotateCcw } from "lucide-react";
 
 const ConcentrationInput = ({
-  acidConcentration = 0.1,
-  baseConcentration = 0.1,
+  acidConcentration,
+  baseConcentration,
   setAcidConcentration,
   setBaseConcentration,
 }) => {
-  const presets = [0.05, 0.1, 0.2, 0.5, 1.0];
+  const handleAcidChange = (e) => {
+    const value = Number(e.target.value);
 
-  const format = (value) => `${Number(value).toFixed(2)} M`;
+    if (!isNaN(value)) {
+      setAcidConcentration(value);
+    }
+  };
+
+  const handleBaseChange = (e) => {
+    const value = Number(e.target.value);
+
+    if (!isNaN(value)) {
+      setBaseConcentration(value);
+    }
+  };
+
+  const presets = [0.05, 0.10, 0.25, 0.50, 1.00];
 
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5">
 
       {/* Header */}
-      <div className="flex items-center gap-2 mb-6">
-        <Calculator className="text-cyan-400" size={20} />
-
-        <h2 className="text-lg font-bold">
-          Concentration
+      <div className="flex items-center gap-3 mb-5">
+        <Percent className="w-6 h-6 text-emerald-400" />
+        <h2 className="text-xl font-bold text-white">
+          Solution Concentration
         </h2>
       </div>
 
-      {/* ================= Acid ================= */}
-
-      <div className="mb-8">
+      {/* Acid */}
+      <div className="rounded-xl bg-slate-800 border border-slate-700 p-4 mb-5">
 
         <div className="flex items-center gap-2 mb-3">
-          <FlaskConical
-            size={18}
-            className="text-red-400"
-          />
-
-          <span className="font-semibold text-red-300">
-            Acid Concentration
+          <FlaskConical className="w-5 h-5 text-red-400" />
+          <span className="font-semibold text-white">
+            Acid
           </span>
         </div>
 
@@ -51,78 +51,28 @@ const ConcentrationInput = ({
           <input
             type="number"
             min="0"
-            max="10"
+            max="5"
             step="0.01"
             value={acidConcentration}
-            onChange={(e) =>
-              setAcidConcentration(
-                Number(e.target.value)
-              )
-            }
-            className="
-              flex-1
-              rounded-xl
-              border
-              border-slate-700
-              bg-slate-800
-              px-4
-              py-3
-              text-white
-              outline-none
-              focus:border-cyan-500
-            "
+            onChange={handleAcidChange}
+            className="flex-1 rounded-lg bg-slate-900 border border-slate-600 px-3 py-3 text-white outline-none focus:ring-2 focus:ring-red-500"
           />
 
-          <div className="flex items-center justify-center w-20 rounded-xl bg-slate-800 border border-slate-700 font-semibold">
-            M
+          <div className="flex items-center px-4 rounded-lg bg-slate-900 border border-slate-600 text-slate-300">
+            mol/L
           </div>
-
-        </div>
-
-        {/* Presets */}
-
-        <div className="grid grid-cols-5 gap-2 mt-4">
-
-          {presets.map((value) => (
-
-            <button
-              key={value}
-              onClick={() =>
-                setAcidConcentration(value)
-              }
-              className={`
-                rounded-lg
-                py-2
-                text-sm
-                transition
-                ${
-                  acidConcentration === value
-                    ? "bg-red-500 text-white"
-                    : "bg-slate-800 hover:bg-slate-700"
-                }
-              `}
-            >
-              {format(value)}
-            </button>
-
-          ))}
 
         </div>
 
       </div>
 
-      {/* ================= Base ================= */}
-
-      <div>
+      {/* Base */}
+      <div className="rounded-xl bg-slate-800 border border-slate-700 p-4">
 
         <div className="flex items-center gap-2 mb-3">
-          <Beaker
-            size={18}
-            className="text-blue-400"
-          />
-
-          <span className="font-semibold text-blue-300">
-            Base Concentration
+          <Beaker className="w-5 h-5 text-blue-400" />
+          <span className="font-semibold text-white">
+            Base
           </span>
         </div>
 
@@ -131,60 +81,41 @@ const ConcentrationInput = ({
           <input
             type="number"
             min="0"
-            max="10"
+            max="5"
             step="0.01"
             value={baseConcentration}
-            onChange={(e) =>
-              setBaseConcentration(
-                Number(e.target.value)
-              )
-            }
-            className="
-              flex-1
-              rounded-xl
-              border
-              border-slate-700
-              bg-slate-800
-              px-4
-              py-3
-              text-white
-              outline-none
-              focus:border-cyan-500
-            "
+            onChange={handleBaseChange}
+            className="flex-1 rounded-lg bg-slate-900 border border-slate-600 px-3 py-3 text-white outline-none focus:ring-2 focus:ring-blue-500"
           />
 
-          <div className="flex items-center justify-center w-20 rounded-xl bg-slate-800 border border-slate-700 font-semibold">
-            M
+          <div className="flex items-center px-4 rounded-lg bg-slate-900 border border-slate-600 text-slate-300">
+            mol/L
           </div>
 
         </div>
 
-        {/* Presets */}
+      </div>
 
-        <div className="grid grid-cols-5 gap-2 mt-4">
+      {/* Presets */}
+      <div className="mt-6">
+
+        <h3 className="text-sm text-slate-300 mb-3">
+          Quick Presets
+        </h3>
+
+        <div className="grid grid-cols-5 gap-2">
 
           {presets.map((value) => (
-
             <button
               key={value}
-              onClick={() =>
-                setBaseConcentration(value)
-              }
-              className={`
-                rounded-lg
-                py-2
-                text-sm
-                transition
-                ${
-                  baseConcentration === value
-                    ? "bg-blue-500 text-white"
-                    : "bg-slate-800 hover:bg-slate-700"
-                }
-              `}
+              onClick={() => {
+                setAcidConcentration(value);
+                setBaseConcentration(value);
+              }}
+              className="rounded-lg bg-slate-800 border border-slate-700 py-2 text-sm text-white transition hover:bg-slate-700"
             >
-              {format(value)}
+              {value}
             </button>
-
           ))}
 
         </div>
@@ -192,77 +123,54 @@ const ConcentrationInput = ({
       </div>
 
       {/* Summary */}
+      <div className="mt-6 rounded-xl bg-slate-800 border border-slate-700 p-4 space-y-3">
 
-      <motion.div
-        layout
-        className="mt-8 rounded-xl border border-slate-700 bg-slate-800 p-4"
-      >
+        <div className="flex justify-between">
+          <span className="text-slate-400">
+            Acid Concentration
+          </span>
 
-        <h3 className="font-semibold text-cyan-400 mb-4">
-          Current Solution
-        </h3>
-
-        <div className="space-y-3">
-
-          <div className="flex justify-between">
-
-            <span className="text-slate-400">
-              Acid
-            </span>
-
-            <span className="font-semibold text-red-300">
-              {format(acidConcentration)}
-            </span>
-
-          </div>
-
-          <div className="flex justify-between">
-
-            <span className="text-slate-400">
-              Base
-            </span>
-
-            <span className="font-semibold text-blue-300">
-              {format(baseConcentration)}
-            </span>
-
-          </div>
-
+          <span className="font-semibold text-red-400">
+            {acidConcentration.toFixed(2)} M
+          </span>
         </div>
 
-      </motion.div>
+        <div className="flex justify-between">
+          <span className="text-slate-400">
+            Base Concentration
+          </span>
 
-      {/* Information */}
+          <span className="font-semibold text-blue-400">
+            {baseConcentration.toFixed(2)} M
+          </span>
+        </div>
 
-      <div className="mt-5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+        <div className="border-t border-slate-700 pt-3 flex justify-between">
+          <span className="text-slate-400">
+            Difference
+          </span>
 
-        <div className="flex gap-3">
-
-          <Info
-            className="text-cyan-400 mt-1"
-            size={18}
-          />
-
-          <div>
-
-            <h4 className="font-semibold text-cyan-300">
-              Laboratory Note
-            </h4>
-
-            <p className="mt-1 text-sm text-slate-300 leading-6">
-              Concentration is measured in mol/dm³
-              (Molarity, M). The chemistry engine
-              will later use these values together
-              with the burette volume to calculate
-              the number of moles and determine
-              the titration endpoint.
-            </p>
-
-          </div>
-
+          <span className="font-semibold text-emerald-400">
+            {Math.abs(
+              acidConcentration - baseConcentration
+            ).toFixed(2)}{" "}
+            M
+          </span>
         </div>
 
       </div>
+
+      {/* Reset */}
+      <button
+        onClick={() => {
+          setAcidConcentration(0.1);
+          setBaseConcentration(0.1);
+        }}
+        className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 transition py-3 font-semibold"
+      >
+        <RotateCcw className="w-4 h-4" />
+        Reset to 0.10 M
+      </button>
 
     </div>
   );

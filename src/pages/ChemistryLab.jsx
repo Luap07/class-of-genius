@@ -16,6 +16,7 @@ import ChemicalReaction from "./VirtualLab/chemistry/ChemicalReactions";
 import AcidBaseLab from "./VirtualLab/chemistry/AcidBaseLab";
 import TitrationLab from "./VirtualLab/chemistry/TitrationLab";
 import SolutionLab from "./VirtualLab/chemistry/SolutionLab";
+import ElectrochemistryLab from "./VirtualLab/chemistry/ElectrochemistryLab";
 
 const ChemistryLab = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -51,7 +52,6 @@ const ChemistryLab = () => {
         <ChemistrySidebar
           experiment={experiment}
           setExperiment={setExperiment}
-          onClose={() => setIsSidebarOpen(false)}
         />
       </div>
 
@@ -60,8 +60,9 @@ const ChemistryLab = () => {
         <button
           onClick={() => setIsSidebarOpen(true)}
           className="absolute top-5 left-4 z-40 p-2 rounded-lg bg-slate-900 border border-slate-700 xl:hidden"
+          aria-label="Open menu"
         >
-          <Menu size={24} />
+          <Menu className="w-5 h-5" />
         </button>
       )}
 
@@ -142,7 +143,8 @@ const ChemistryLab = () => {
         {experiment === "Acid vs Base" && <AcidBaseLab />}
         {experiment === "Titration Lab" && <TitrationLab />}
         {experiment === "Solution Lab" && <SolutionLab />}
-
+        {experiment === "Electrochemistry" && <ElectrochemistryLab />}
+        
         {/* Fallback */}
         {![
           "Periodic Table",
@@ -152,6 +154,7 @@ const ChemistryLab = () => {
           "Acid vs Base",
           "Titration Lab",
           "Solution Lab",
+          "Electrochemistry",
         ].includes(experiment) && (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
             <h2 className="text-3xl font-bold text-white">{experiment}</h2>

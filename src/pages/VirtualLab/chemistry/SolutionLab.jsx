@@ -15,10 +15,9 @@ import Stirrer from "../../../components/solution/Stirrer";
 import HotPlate from "../../../components/solution/HotPlate";
 
 // Tabs
-import SetupTab from "../../../components/tabs/SetupTab";
-import EquipmentTab from "../../../components/tabs/EquipmentTab";
-import MonitorTab from "../../../components/tabs/MonitorTab";
-import ResultsTab from "../../../components/tabs/ResultsTab";
+import SetupTab from "../../../components/tabs/solution/SetupTab";
+import EquipmentTab from "../../../components/tabs/solution/EquipmentTab";
+import ResultsTab from "../../../components/tabs/solution/ResultsTab";
 
 // Controls
 import ChemicalSelector from "../../../components/solution/ChemicalSelector";
@@ -28,9 +27,12 @@ import SolutionControls from "../../../components/solution/SolutionControls";
 
 // Simulation
 import SolutionEngine from "../../../components/solution/SolutionEngine";
-import SolutionMonitor from "../../../components/solution/SolutionMonitor";
+import SolutionMonitor from "../../../components/solution/SolutionMonitor"; // Known working monitor
 import SolutionGraph from "../../../components/solution/SolutionGraph";
 import DissolveAnimation from "../../../components/solution/DissolveAnimation";
+
+
+  
 
 const SolutionLab = () => {
   const [activeTab, setActiveTab] = useState("experiment");
@@ -72,17 +74,16 @@ const SolutionLab = () => {
       {activeTab === "experiment" && (
         <div className="p-6 space-y-6">
           <div className="grid grid-cols-12 gap-6">
-            {/* Left Column: Simulation & Status */}
             <div className="col-span-8 space-y-6">
               <div className="bg-slate-900 rounded-2xl border border-slate-800 p-8">
                 <h1 className="text-3xl font-bold mb-3">🧪 Solution Preparation Laboratory</h1>
-                <div className="relative h-[400px] rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden">
+                <div className="relative h-[232vh] rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden">
                   <DissolveAnimation running={running} dissolvedPercent={simulation.dissolvedPercent} />
                   <div className="absolute left-16 top-20"><Beaker liquidLevel={simulation.dissolvedPercent} liquidColor={simulation.color} /></div>
-                  <div className="absolute right-20 top-16"><SoluteBottle solute={solute} running={running} color={simulation.color} dissolvedPercent={simulation.dissolvedPercent} /></div>
-                  <div className="absolute right-20 top-[240px]"><SolventBottle /></div>
-                  <div className="absolute left-64 bottom-12"><Stirrer running={running} /></div>
-                  <div className="absolute left-8 bottom-8"><HotPlate power={running} heating={running && temperature > 25} temperature={temperature} /></div>
+                  <div className="absolute right-6 top-30"><SoluteBottle solute={solute} running={running} color={simulation.color} dissolvedPercent={simulation.dissolvedPercent} /></div>
+                  <div className="absolute right-60 top-[640px]"><SolventBottle /></div>
+                  <div className="absolute right-4 bottom-8"><Stirrer running={running} /></div>
+                  <div className="absolute left-5 bottom-15"><HotPlate power={running} heating={running && temperature > 25} temperature={temperature} /></div>
                 </div>
               </div>
 
@@ -92,49 +93,57 @@ const SolutionLab = () => {
               </div>
             </div>
 
-            {/* Right Column: Controls & Monitor */}
             <div className="col-span-4 space-y-5">
               <ChemicalSelector solute={solute} solvent={solvent} setSolute={setSolute} setSolvent={setSolvent} />
               <ConcentrationInput soluteMass={soluteMass} setSoluteMass={setSoluteMass} />
               <VolumeSlider volume={solventVolume} setVolume={setSolventVolume} />
-              <SolutionControls 
-                running={running} heating={heating} soluteMass={soluteMass} solutionVolume={solventVolume}
-                onMassChange={setSoluteMass} onVolumeChange={setSolventVolume}
-                onStart={() => setRunning(true)} onPause={() => setRunning(false)} onReset={handleReset}
-                onToggleHeating={() => { setHeating(!heating); setTemperature(heating ? 25 : 45); }}
-              />
-              <SolutionMonitor {...simulation} temperature={temperature} />
+             <SolutionControls
+              running={running}
+              heating={heating}
+              temperature={temperature}
+              setTemperature={setTemperature}
+              soluteMass={soluteMass}
+              solutionVolume={solventVolume}
+              onMassChange={setSoluteMass}
+              onVolumeChange={setSolventVolume}
+              onStart={() => setRunning(true)}
+              onPause={() => setRunning(false)}  onReset={handleReset}
+              onToggleHeating={() =>
+    setHeating((prev) => !prev)
+  }
+/>
+ <SolutionMonitor {...simulation} temperature={temperature} />
               <TutorPanel experiment="solution" {...simulation} temperature={temperature} />
             </div>
           </div>
         </div>
       )}
 
-      {/* Tabs with Full Prop Injection */}
-      {activeTab === "setup" && (
-        <div className="p-6">
-            <SetupTab solute={solute} solvent={solvent} setSolute={setSolute} setSolvent={setSolvent} />
-        </div>
-      )}
+      {/* Tabs updated to use functional components directly */}
+      {activeTab === "setup" && <div className="p-6"><SetupTab solute={solute} solvent={solvent} setSolute={setSolute} setSolvent={setSolvent} /></div>}
+      
       {activeTab === "equipment" && (
-        <div className="p-6">
-            <EquipmentTab simulation={simulation} running={running} />
+        <div className="p-6 bg-slate-900 m-6 rounded-2xl border border-slate-800">
+           <h2 className="text-2xl font-bold mb-6">⚙️ Equipment Status</h2>
+           <EquipmentTab simulation={simulation} running={running} />
         </div>
       )}
+
       {activeTab === "monitor" && (
         <div className="p-6">
-            <MonitorTab {...simulation} temperature={temperature} />
+            <div className="max-w-2xl mx-auto bg-slate-900 p-8 rounded-2xl border border-slate-800">
+                <h2 className="text-2xl font-bold mb-6">📊 Live Data Monitor</h2>
+                <SolutionMonitor {...simulation} temperature={temperature} />
+            </div>
         </div>
       )}
+
       {activeTab === "curve" && (
-        <div className="p-6">
-            <SolutionGraph molarity={simulation.molarity} concentration={simulation.concentration} dissolvedPercent={simulation.dissolvedPercent} />
-        </div>
+        <div className="p-6"><SolutionGraph molarity={simulation.molarity} concentration={simulation.concentration} dissolvedPercent={simulation.dissolvedPercent} /></div>
       )}
+      
       {activeTab === "results" && (
-        <div className="p-6">
-            <ResultsTab running={running} simulation={simulation} solute={solute} solvent={solvent} soluteMass={soluteMass} solventVolume={solventVolume} />
-        </div>
+        <div className="p-6"><ResultsTab running={running} simulation={simulation} solute={solute} solvent={solvent} soluteMass={soluteMass} solventVolume={solventVolume} /></div>
       )}
     </div>
   );

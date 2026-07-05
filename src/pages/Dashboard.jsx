@@ -119,7 +119,7 @@ const Dashboard = () => {
 
         <Card title="LMS Portal" bgImage={lms} onClick={() => navigate("/libraries")} />
 
-        <Card title="My Calendar" bgImage={curriculum} onClick={() => navigate("/calendar")} />
+        <Card title="Curriculum" bgImage={curriculum} onClick={() => navigate("/curriculum")} />
 
         {/* ✅ FIXED VIRTUAL LAB LINK */}
         <Card
@@ -152,7 +152,7 @@ const Dashboard = () => {
       <div className="p-6 rounded-2xl border border-white/10 bg-black/40 mb-12">
         <div className="flex items-center gap-2 mb-4">
           <Calendar size={18} />
-          <h2 className="font-bold">My School Calendar</h2>
+          <h2 className="font-bold">My Calendar</h2>
         </div>
 
         <MyCalendar events={events} setEvents={setEvents} />

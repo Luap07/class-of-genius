@@ -19,7 +19,7 @@ import thomas from './Thomas.jpg';
 import cbt from './cbt.jpeg';
 import live from './live.jpg';
 import novel from './novel.jpg';
-import curriculum from './curriculum.jpg';
+import curriculum from './curriculum.jpeg';
 import lms from './lms.jpg';
 import adventure from './adventure.jpg';
 import My_School_Calendar from './My_School_Calendar.jpg';

@@ -39,6 +39,10 @@ import Novels from "./pages/Novels";
 import StoryReader from "./pages/StoryReader";
 import UploadNovel from "./pages/UploadNovel";
 
+/* ================= CURRICULUM ================= */
+import Curriculum from "./pages/Curriculum";
+
+
 /* ================= AI ================= */
 import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
@@ -179,6 +183,17 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* CU */}
+        <Route
+          path="/curriculum"
+          element={
+            <ProtectedRoute>
+              <PageWrapper><Curriculum /></PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
 
         <Route
           path="/cbt/exam/:exam"

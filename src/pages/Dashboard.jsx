@@ -12,7 +12,6 @@ import {
   virtual,
   curriculum
 } from "../assets";
-
 import { Newspaper, Calendar, Brain } from "lucide-react";
 
 /* ================= CARD ================= */
@@ -117,7 +116,7 @@ const Dashboard = () => {
       {/* GRID */}
       <div className="grid md:grid-cols-3 gap-6 mb-10">
 
-        <Card title="LMS Portal" bgImage={lms} onClick={() => navigate("/libraries")} />
+        <Card title="LMS Portal" bgImage={lms} onClick={() => navigate("/lms")} />
 
         <Card title="Curriculum" bgImage={curriculum} onClick={() => navigate("/curriculum")} />
 

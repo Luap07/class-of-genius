@@ -39,14 +39,12 @@ import Novels from "./pages/Novels";
 import StoryReader from "./pages/StoryReader";
 import UploadNovel from "./pages/UploadNovel";
 
-/* ================= CURRICULUM ================= */
-import Curriculum from "./pages/Curriculum";
-import ExploreCurriculum from "./pages/curriculum/ExploreCurriculum";
-import CountryPage from "./pages/curriculum/CountryPage";
-import LevelPage from "./pages/curriculum/LevelPage";
-import GradePage from "./pages/curriculum/GradePage";
-import SubjectPage from "./pages/curriculum/SubjectPage";
-import TopicPage from "./pages/curriculum/TopicPage";
+/* ================= LMS ================= */
+import LMSPortal from "./pages/lms/LMSPortal";
+import Courses from "./pages/lms/Courses";
+import Course from "./pages/lms/Course";
+import Lesson from "./pages/lms/Lesson";
+
 
 /* ================= AI ================= */
 import AITutor from "./pages/AITutor";
@@ -138,72 +136,7 @@ const AnimatedRoutes = () => {
     </ProtectedRoute>
   }
 />
-    {/* CURRICULUM */}
-<Route
-  path="/curriculum/explore"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <ExploreCurriculum />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
 
-<Route
-  path="/curriculum/:country"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <CountryPage />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/curriculum/:country/:level"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <LevelPage />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/curriculum/:country/:level/:grade"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <GradePage />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/curriculum/:country/:level/:grade/:subject"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <SubjectPage />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/curriculum/:country/:level/:grade/:subject/:topic"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <TopicPage />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
 
     <Route
      path="/lab/biology"
@@ -255,17 +188,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* CU */}
-        <Route
-          path="/curriculum"
-          element={
-            <ProtectedRoute>
-              <PageWrapper><Curriculum /></PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-
-
         <Route
           path="/cbt/exam/:exam"
           element={
@@ -306,23 +228,67 @@ const AnimatedRoutes = () => {
     </ProtectedRoute>
   }
 />
-        {/* DASHBOARD LAYOUT ROUTES */}
-        <Route
-          element={
-            <ProtectedRoute>
-              <DashboardLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="libraries" element={<Libraries />} />
-          <Route path="downloads" element={<Downloads />} />
-          <Route path="history" element={<History />} />
-          <Route path="connects" element={<Connects />} />
-          <Route path="requests" element={<Requests />} />
-          <Route path="connections" element={<Connections />} />
-        </Route>
+{/* ================= DASHBOARD LAYOUT ROUTES ================= */}
+<Route
+  element={
+    <ProtectedRoute>
+      <DashboardLayout />
+    </ProtectedRoute>
+  }
+>
+  <Route path="dashboard" element={<Dashboard />} />
+  <Route path="libraries" element={<Libraries />} />
+  <Route path="downloads" element={<Downloads />} />
+  <Route path="history" element={<History />} />
+  <Route path="connects" element={<Connects />} />
+  <Route path="requests" element={<Requests />} />
+  <Route path="connections" element={<Connections />} />
+</Route>
 
+{/* ================= LMS (INDEPENDENT) ================= */}
+<Route
+  path="/lms"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <LMSPortal />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/lms/courses"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <Courses />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/lms/course/:id"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <Course />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/lms/course/:id/lesson/:lessonId"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <Lesson />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
         {/* ADMIN */}
         <Route
           path="/novels/admin"

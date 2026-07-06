@@ -1,6 +1,7 @@
 // src/components/curriculum/CurriculumSidebar.jsx
 
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Globe2,
@@ -23,7 +24,7 @@ const menu = [
     title: "Overview",
     items: [
       { icon: LayoutDashboard, label: "Dashboard" },
-      { icon: Search, label: "Explore Curriculum" },
+      { icon: Search, label: "Explore Curriculum", path: "/curriculum/explorecurriculum" },
     ],
   },
   {
@@ -52,29 +53,23 @@ const menu = [
   },
 ];
 
-const CurriculumSidebar = ({
-  active = "Dashboard",
-  setActive = () => {},
-}) => {
+const CurriculumSidebar = ({ active = "Dashboard", setActive = () => {}, onClose }) => {
+  const navigate = useNavigate();
+
   return (
     <aside className="w-72 h-screen bg-slate-950 border-r border-slate-800 flex flex-col">
 
-      {/* Logo */}
-
+      {/* LOGO */}
       <div className="px-6 py-6 border-b border-slate-800">
-
         <h1 className="text-2xl font-extrabold bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
           Curriculum
         </h1>
-
         <p className="text-slate-400 text-sm mt-1">
           Global Learning Framework
         </p>
-
       </div>
 
-      {/* Navigation */}
-
+      {/* NAVIGATION */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-8">
 
         {menu.map((section) => (
@@ -87,15 +82,20 @@ const CurriculumSidebar = ({
             <div className="space-y-1">
 
               {section.items.map((item) => {
-
                 const Icon = item.icon;
-
                 const selected = active === item.label;
 
                 return (
                   <button
                     key={item.label}
-                    onClick={() => setActive(item.label)}
+                    onClick={() => {
+                      setActive(item.label);
+
+                      if (item.path) {
+                        navigate(item.path);
+                        if (onClose) onClose();
+                      }
+                    }}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 ${
                       selected
                         ? "bg-cyan-500/15 border border-cyan-500 text-cyan-400 shadow-lg shadow-cyan-500/10"
@@ -104,22 +104,15 @@ const CurriculumSidebar = ({
                   >
                     <div className="flex items-center gap-3">
                       <Icon size={20} />
-                      <span className="font-medium">
-                        {item.label}
-                      </span>
+                      <span className="font-medium">{item.label}</span>
                     </div>
 
                     <ChevronRight
                       size={16}
-                      className={
-                        selected
-                          ? "text-cyan-400"
-                          : "text-slate-600"
-                      }
+                      className={selected ? "text-cyan-400" : "text-slate-600"}
                     />
                   </button>
                 );
-
               })}
 
             </div>
@@ -128,9 +121,6 @@ const CurriculumSidebar = ({
         ))}
 
       </div>
-
-        
-
     </aside>
   );
 };

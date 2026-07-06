@@ -41,7 +41,12 @@ import UploadNovel from "./pages/UploadNovel";
 
 /* ================= CURRICULUM ================= */
 import Curriculum from "./pages/Curriculum";
-
+import ExploreCurriculum from "./pages/curriculum/ExploreCurriculum";
+import CountryPage from "./pages/curriculum/CountryPage";
+import LevelPage from "./pages/curriculum/LevelPage";
+import GradePage from "./pages/curriculum/GradePage";
+import SubjectPage from "./pages/curriculum/SubjectPage";
+import TopicPage from "./pages/curriculum/TopicPage";
 
 /* ================= AI ================= */
 import AITutor from "./pages/AITutor";
@@ -129,6 +134,72 @@ const AnimatedRoutes = () => {
     <ProtectedRoute>
       <PageWrapper>
         <ChemistryLab />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+    {/* CURRICULUM */}
+<Route
+  path="/curriculum/explore"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <ExploreCurriculum />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/curriculum/:country"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <CountryPage />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/curriculum/:country/:level"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <LevelPage />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/curriculum/:country/:level/:grade"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <GradePage />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/curriculum/:country/:level/:grade/:subject"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <SubjectPage />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/curriculum/:country/:level/:grade/:subject/:topic"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <TopicPage />
       </PageWrapper>
     </ProtectedRoute>
   }

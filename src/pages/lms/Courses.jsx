@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 
 import { useCourses } from "../../context/LMSContext/CourseContext";
 
@@ -10,6 +9,34 @@ import FeaturedCourses from "../../components/courses/FeaturedCourses";
 import CourseGrid from "../../components/courses/CourseGrid";
 import EmptyCourses from "../../components/courses/EmptyCourses";
 
+// New Sections
+import LearningStats from "../../components/courses/LearningStats";
+import WhyWonder from "../../components/courses/WhyWonder";
+import LearningPaths from "../../components/courses/LearningPaths";
+import Testimonials from "../../components/courses/Testimonials";
+import BecomeInstructor from "../../components/courses/BecomeInstructor";
+import FAQ from "../../components/courses/FAQ";
+import Newsletter from "../../components/courses/Newsletter";
+
+const defaultCategories = [
+  "Science",
+  "Technology",
+  "Engineering",
+  "Medicine",
+  "Business",
+  "Arts",
+  "Law",
+  "Programming",
+  "Languages",
+  "Artificial Intelligence",
+  "Cybersecurity",
+  "Cloud Computing",
+  "Data Science",
+  "Finance",
+  "Marketing",
+  "Architecture",
+];
+
 const Courses = () => {
   const {
     courses = [],
@@ -19,12 +46,21 @@ const Courses = () => {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
 
+  const availableCategories =
+    categories.length
+      ? categories
+      : defaultCategories;
+
   const filteredCourses = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
     return courses.filter((course) => {
       const matchesSearch =
-        course.title
-          ?.toLowerCase()
-          .includes(search.toLowerCase());
+        !keyword ||
+        course.title?.toLowerCase().includes(keyword) ||
+        course.description?.toLowerCase().includes(keyword) ||
+        course.instructor?.toLowerCase().includes(keyword) ||
+        course.category?.toLowerCase().includes(keyword);
 
       const matchesCategory =
         category === "All" ||
@@ -33,41 +69,44 @@ const Courses = () => {
       return matchesSearch && matchesCategory;
     });
   }, [courses, search, category]);
-    const featuredCourses = filteredCourses.filter(
+
+  const featuredCourses = filteredCourses.filter(
     (course) => course.featured
   );
 
-  return (
-    <div className="space-y-8">
+  const resetFilters = () => {
+    setSearch("");
+    setCategory("All");
 
-      {/* =========================
-          HERO
-      ========================== */}
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <div className="space-y-14 pb-20">
+
+      {/* Hero */}
 
       <CourseHero />
 
-      {/* =========================
-          SEARCH
-      ========================== */}
+      {/* Search */}
 
       <CourseSearch
         value={search}
         onChange={setSearch}
       />
 
-      {/* =========================
-          FILTERS
-      ========================== */}
+      {/* Categories */}
 
       <CourseFilters
-        categories={["All", ...categories]}
+        categories={["All", ...availableCategories]}
         selected={category}
         onSelect={setCategory}
       />
 
-      {/* =========================
-          FEATURED COURSES
-      ========================== */}
+      {/* Featured Courses */}
 
       {featuredCourses.length > 0 && (
         <FeaturedCourses
@@ -75,22 +114,37 @@ const Courses = () => {
         />
       )}
 
-      {/* =========================
-          ALL COURSES
-      ========================== */}
+      {/* All Courses */}
 
       {filteredCourses.length === 0 ? (
-
-        <EmptyCourses />
-
+        <EmptyCourses
+          onReset={resetFilters}
+        />
       ) : (
-
         <CourseGrid
           courses={filteredCourses}
         />
-
       )}
-          </div>
+
+      {/* ===============================
+          PREMIUM SECTIONS
+      =============================== */}
+
+      <LearningStats />
+
+      <WhyWonder />
+
+      <LearningPaths />
+
+      <Testimonials />
+
+      <BecomeInstructor />
+
+      <FAQ />
+
+      <Newsletter />
+
+    </div>
   );
 };
 

@@ -2,887 +2,1689 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+
 import {
   BookOpen,
+  CheckCircle2,
   Clock3,
   Trophy,
-  CheckCircle2,
   Flame,
   TrendingUp,
   CalendarDays,
-  ArrowRight,
   PlayCircle,
 } from "lucide-react";
 
-import { useLMS } from "../../context/LMSContext";
 
-/* =====================================================
+// CONTEXTS
+
+import { useCourses } from "../../context/LMSContext/CourseContext";
+import { useProgress } from "../../context/LMSContext/ProgressContext";
+import { useAssignments } from "../../context/LMSContext/AssignmentContext";
+import { useCertificates } from "../../context/LMSContext/CertificateContext";
+import { useAchievements } from "../../context/LMSContext/AchievementContext";
+
+
+
+/* ============================
    GLASS CARD
-===================================================== */
+============================ */
 
-const GlassCard = ({ children, className = "" }) => (
-  <div
-    className={`bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-3xl p-6 ${className}`}
-  >
-    {children}
-  </div>
-);
+const GlassCard = ({children,className=""}) => {
 
-/* =====================================================
-   STATS CARD
-===================================================== */
+return (
 
-const StatCard = ({ title, value, icon: Icon, color }) => (
-  <motion.div
-    whileHover={{ y: -6 }}
-    transition={{ duration: 0.25 }}
-    className="rounded-3xl bg-slate-900/50 border border-slate-800 p-6"
-  >
-    <div
-      className={`w-14 h-14 rounded-2xl bg-gradient-to-r ${color} flex items-center justify-center`}
-    >
-      <Icon size={26} className="text-white" />
-    </div>
+<div
+className={`
+bg-slate-900/50
+border
+border-slate-800
+rounded-3xl
+p-6
+backdrop-blur-md
+${className}
+`}
+>
 
-    <p className="text-slate-400 mt-5">
-      {title}
-    </p>
+{children}
 
-    <h2 className="text-3xl font-bold mt-2">
-      {value}
-    </h2>
-  </motion.div>
-);
+</div>
 
-/* =====================================================
+)
+
+}
+
+
+
+/* ============================
+   STAT CARD
+============================ */
+
+
+const StatCard = ({
+title,
+value,
+icon:Icon
+}) => {
+
+
+return (
+
+<motion.div
+
+whileHover={{
+y:-5
+}}
+
+className="
+bg-slate-900/60
+border
+border-slate-800
+rounded-3xl
+p-6
+"
+
+>
+
+
+<div
+className="
+w-14
+h-14
+rounded-2xl
+bg-blue-600
+flex
+items-center
+justify-center
+"
+>
+
+<Icon
+size={28}
+/>
+
+</div>
+
+
+
+<p className="
+text-slate-400
+mt-5
+">
+
+{title}
+
+</p>
+
+
+
+<h2 className="
+text-3xl
+font-bold
+mt-2
+">
+
+{value}
+
+</h2>
+
+
+
+</motion.div>
+
+)
+
+}
+
+
+
+/* ============================
    DASHBOARD
-===================================================== */
+============================ */
+
 
 const Dashboard = () => {
 
-  const {
-    courses,
-    continueLearning,
-    totalCourses,
-    completedLessons,
-    studyHours,
-    certificates,
-    achievements,
-    upcomingAssignments,
-    weeklyProgress,
-    completeLesson,
-  } = useLMS();
-
-  const stats = [
-    {
-      title: "Courses",
-      value: totalCourses,
-      icon: BookOpen,
-      color: "from-blue-600 to-cyan-500",
-    },
-
-    {
-      title: "Completed Lessons",
-      value: completedLessons,
-      icon: CheckCircle2,
-      color: "from-emerald-500 to-green-600",
-    },
-
-    {
-      title: "Study Hours",
-      value: `${studyHours}h`,
-      icon: Clock3,
-      color: "from-purple-600 to-pink-600",
-    },
-
-    {
-      title: "Certificates",
-      value: certificates,
-      icon: Trophy,
-      color: "from-amber-500 to-orange-500",
-    },
-  ];
-
-  return (
-    <div className="space-y-8">
-
-      {/* ==========================================
-          HERO
-      =========================================== */}
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl
-        bg-gradient-to-r
-        from-indigo-900
-        via-slate-900
-        to-slate-950
-        border
-        border-slate-800
-        p-10"
-      >
-
-        <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-blue-500/10 blur-[120px]" />
-
-        <div className="relative flex flex-col lg:flex-row justify-between gap-10">
-
-          <div>
-
-            <h1 className="text-5xl font-bold">
-              Welcome Back 👋
-            </h1>
-
-            <p className="mt-5 text-slate-400 max-w-2xl text-lg">
-              Continue where you stopped. Every completed lesson,
-              assignment and quiz updates your dashboard automatically.
-            </p>
-
-            <button
-              className="
-              mt-8
-              px-7
-              py-4
-              rounded-2xl
-              bg-white
-              text-slate-900
-              font-bold
-              hover:bg-slate-200
-              transition"
-            >
-              Continue Learning
-            </button>
-
-          </div>
-
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-white/5
-            backdrop-blur-md
-            p-6
-            flex
-            items-center
-            gap-5"
-          >
 
-            <Flame
-              size={40}
-              className="text-orange-400"
-            />
+/*
+  CONTEXT DATA
+  Every value has fallback
+*/
 
-            <div>
 
-              <h2 className="text-3xl font-bold">
-                28 Day Streak
-              </h2>
+const {
+totalCourses = 0
 
-              <p className="text-slate-400">
-                Keep learning every day.
-              </p>
+} = useCourses() || {};
 
-            </div>
 
-          </div>
 
-        </div>
+const {
 
-      </motion.div>
+currentLearning = [],
+weeklyProgress = [],
+totalCompletedLessons = 0,
+studyHours = 0,
+completeLesson = ()=>{}
 
-      {/* ==========================================
-          STATS GRID
-      =========================================== */}
+} = useProgress() || {};
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
 
-        {stats.map((item) => (
-          <StatCard
-            key={item.title}
-            {...item}
-          />
-        ))}
 
-      </div>
-            {/* ==========================================
-          MAIN GRID
-      =========================================== */}
+const {
 
-      <div className="grid xl:grid-cols-3 gap-6">
+assignments = []
 
-        {/* ======================================
-            CONTINUE LEARNING
-        ======================================= */}
+} = useAssignments() || {};
 
-        <GlassCard className="xl:col-span-2">
 
-          <div className="flex items-center justify-between mb-6">
 
-            <div>
+const {
 
-              <h2 className="text-2xl font-bold">
-                Continue Learning
-              </h2>
+totalCertificates = 0
 
-              <p className="text-slate-400 mt-1">
-                Pick up where you left off.
-              </p>
+} = useCertificates() || {};
 
-            </div>
 
-            <button className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition">
 
-              View All
+const {
 
-              <ArrowRight size={18} />
+badges = []
 
-            </button>
+} = useAchievements() || {};
 
-          </div>
 
-          <div className="space-y-5">
 
-            {continueLearning.length === 0 ? (
+/*
+ SAFE ARRAYS
+*/
 
-              <div className="rounded-2xl border border-dashed border-slate-700 p-10 text-center">
 
-                <BookOpen
-                  size={42}
-                  className="mx-auto text-slate-500"
-                />
+const courses =
+Array.isArray(currentLearning)
+?
+currentLearning
+:
+[];
 
-                <h3 className="mt-4 text-xl font-semibold">
-                  No Active Courses
-                </h3>
 
-                <p className="text-slate-500 mt-2">
-                  Start a course and it will appear here automatically.
-                </p>
 
-              </div>
+const progress =
+Array.isArray(weeklyProgress)
+?
+weeklyProgress
+:
+[];
 
-            ) : (
 
-              continueLearning.map((course) => (
 
-                <motion.div
-                  key={course.id}
-                  whileHover={{ y: -3 }}
-                  className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5"
-                >
+const tasks =
+Array.isArray(assignments)
+?
+assignments
+:
+[];
 
-                  <div className="flex items-center justify-between">
 
-                    <div>
 
-                      <h3 className="text-xl font-bold">
+const achievements =
+Array.isArray(badges)
+?
+badges
+:
+[];
 
-                        {course.title}
 
-                      </h3>
 
-                      <p className="text-slate-400 mt-1">
+const stats=[
 
-                        {course.currentLesson}
+{
+title:"Courses",
+value:totalCourses,
+icon:BookOpen
+},
 
-                      </p>
 
-                    </div>
+{
+title:"Completed Lessons",
+value:totalCompletedLessons,
+icon:CheckCircle2
+},
 
-                    <span className="text-blue-400 font-bold">
 
-                      {course.progress}%
+{
+title:"Study Hours",
+value:`${studyHours}h`,
+icon:Clock3
+},
 
-                    </span>
 
-                  </div>
+{
+title:"Certificates",
+value:totalCertificates,
+icon:Trophy
+}
 
-                  <div className="mt-5 h-3 rounded-full bg-slate-800 overflow-hidden">
 
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{
-                        width: `${course.progress}%`,
-                      }}
-                      transition={{ duration: 0.6 }}
-                      className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400"
-                    />
+];
 
-                  </div>
 
-                  <div className="mt-6 flex items-center justify-between">
 
-                    <div className="flex items-center gap-4 text-sm text-slate-400">
+return (
 
-                      <div className="flex items-center gap-2">
+<div
+className="
+space-y-8
+"
+>
 
-                        <Clock3 size={16} />
 
-                        {course.duration}
 
-                      </div>
+{/* HERO */}
 
-                      <div className="flex items-center gap-2">
+<motion.div
 
-                        <BookOpen size={16} />
+initial={{
+opacity:0,
+y:20
+}}
 
-                        {course.lessonsCompleted}/
-                        {course.totalLessons} Lessons
+animate={{
+opacity:1,
+y:0
+}}
 
-                      </div>
+className="
+rounded-3xl
+p-10
+bg-gradient-to-r
+from-indigo-900
+via-slate-900
+to-black
+border
+border-slate-800
+"
 
-                    </div>
+>
 
-                    <button
-                      onClick={() => completeLesson(course.id)}
-                      className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold hover:bg-blue-700 transition"
-                    >
 
-                      <PlayCircle size={18} />
+<div
+className="
+flex
+justify-between
+items-center
+gap-6
+flex-wrap
+"
+>
 
-                      Continue
 
-                    </button>
+<div>
 
-                  </div>
 
-                </motion.div>
+<h1
+className="
+text-5xl
+font-bold
+"
+>
 
-              ))
+Welcome Back 👋
 
-            )}
+</h1>
 
-          </div>
 
-        </GlassCard>
-                {/* ======================================
-            WEEKLY PROGRESS
-        ======================================= */}
+<p
+className="
+text-slate-400
+mt-4
+text-lg
+"
+>
 
-        <GlassCard>
+Continue your learning journey.
 
-          <div className="flex items-center justify-between mb-6">
+</p>
 
-            <div>
 
-              <h2 className="text-2xl font-bold">
-                Weekly Progress
-              </h2>
+</div>
 
-              <p className="text-slate-400 text-sm mt-1">
-                Your learning activity this week
-              </p>
 
-            </div>
 
-            <TrendingUp
-              className="text-blue-400"
-              size={26}
-            />
+<div
+className="
+flex
+items-center
+gap-4
+bg-white/5
+border
+border-white/10
+rounded-3xl
+p-6
+"
+>
 
-          </div>
+<Flame
+className="text-orange-400"
+size={40}
+/>
 
-          <div className="flex items-end justify-between gap-3 h-64">
 
-            {weeklyProgress.map((day) => (
+<div>
 
-              <div
-                key={day.day}
-                className="flex flex-col items-center flex-1"
-              >
+<h2
+className="
+text-3xl
+font-bold
+"
+>
 
-                <div className="relative group flex items-end h-48 w-full">
+28 Days
 
-                  {/* Tooltip */}
+</h2>
 
-                  <div
-                    className="
-                    absolute
-                    -top-10
-                    left-1/2
-                    -translate-x-1/2
-                    px-3
-                    py-1
-                    rounded-lg
-                    bg-slate-800
-                    text-xs
-                    opacity-0
-                    group-hover:opacity-100
-                    transition"
-                  >
-                    {day.value}%
-                  </div>
 
-                  {/* Animated Bar */}
+<p
+className="
+text-slate-400
+"
+>
 
-                  <motion.div
-                    initial={{
-                      height: 0,
-                    }}
-                    animate={{
-                      height: `${day.value}%`,
-                    }}
-                    transition={{
-                      duration: 0.8,
-                    }}
-                    className="
-                    w-full
-                    rounded-t-xl
-                    bg-gradient-to-t
-                    from-blue-600
-                    to-cyan-400"
-                  />
+Learning streak
 
-                </div>
+</p>
 
-                <p className="mt-3 text-sm text-slate-400">
 
-                  {day.day}
+</div>
 
-                </p>
 
-              </div>
+</div>
 
-            ))}
 
-          </div>
+</div>
 
-          <div className="mt-8 border-t border-slate-800 pt-5">
 
-            <div className="flex items-center justify-between">
+</motion.div>
 
-              <span className="text-slate-400">
 
-                Weekly Completion
 
-              </span>
 
-              <span className="font-bold text-blue-400">
 
-                {Math.round(
-                  weeklyProgress.reduce(
-                    (sum, day) => sum + day.value,
-                    0
-                  ) / weeklyProgress.length
-                )}
-                %
+{/* STATS */}
 
-              </span>
+<div
+className="
+grid
+md:grid-cols-2
+xl:grid-cols-4
+gap-6
+"
+>
 
-            </div>
+{
+stats.map((item)=>(
 
-          </div>
+<StatCard
+key={item.title}
+{...item}
+/>
 
-        </GlassCard>
+))
+}
 
-      </div>
-            {/* ==========================================
-          ACHIEVEMENTS
-      ========================================== */}
 
-      <GlassCard>
+</div>
+{/* ============================
+    MAIN CONTENT
+============================ */}
 
-        <div className="flex items-center justify-between mb-6">
 
-          <div>
+<div
+className="
+grid
+xl:grid-cols-3
+gap-6
+"
+>
 
-            <h2 className="text-2xl font-bold">
-              Achievements
-            </h2>
 
-            <p className="text-slate-400 mt-1">
-              Badges you've unlocked through learning.
-            </p>
 
-          </div>
+{/* ============================
+    CONTINUE LEARNING
+============================ */}
 
-          <Trophy
-            size={26}
-            className="text-amber-400"
-          />
 
-        </div>
+<GlassCard
+className="xl:col-span-2"
+>
 
-        {achievements.length === 0 ? (
 
-          <div className="rounded-2xl border border-dashed border-slate-700 p-10 text-center">
+<div
+className="
+flex
+justify-between
+items-center
+mb-6
+"
+>
 
-            <Trophy
-              size={48}
-              className="mx-auto text-slate-600"
-            />
 
-            <h3 className="mt-5 text-xl font-semibold">
+<div>
 
-              No Achievements Yet
+<h2
+className="
+text-2xl
+font-bold
+"
+>
 
-            </h3>
+Continue Learning
 
-            <p className="mt-2 text-slate-500">
+</h2>
 
-              Complete lessons, quizzes and assignments to earn badges.
 
-            </p>
+<p
+className="
+text-slate-400
+"
+>
 
-          </div>
+Pick up where you stopped.
 
-        ) : (
+</p>
 
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
 
-            {achievements.map((achievement) => (
+</div>
 
-              <motion.div
-                key={achievement.id}
-                whileHover={{
-                  y: -6,
-                  scale: 1.02,
-                }}
-                className="
-                rounded-3xl
-                border
-                border-slate-800
-                bg-slate-950
-                p-6"
-              >
 
-                <div
-                  className={`
-                  w-16
-                  h-16
-                  rounded-2xl
-                  bg-gradient-to-r
-                  ${achievement.color}
-                  flex
-                  items-center
-                  justify-center
-                  text-white
-                  text-3xl
-                  shadow-lg`}
-                >
+</div>
 
-                  {achievement.icon}
 
-                </div>
 
-                <h3 className="text-xl font-bold mt-5">
 
-                  {achievement.title}
+{
+courses.length === 0 ? (
 
-                </h3>
 
-                <p className="text-slate-400 mt-2">
+<div
+className="
+border
+border-dashed
+border-slate-700
+rounded-2xl
+p-10
+text-center
+"
+>
 
-                  {achievement.description}
 
-                </p>
+<BookOpen
+size={45}
+className="
+mx-auto
+text-slate-500
+"
+/>
 
-                <div className="mt-5 flex items-center justify-between">
 
-                  <span
-                    className="
-                    px-3
-                    py-1
-                    rounded-full
-                    bg-emerald-600/20
-                    text-emerald-400
-                    text-sm"
-                  >
+<h3
+className="
+text-xl
+font-bold
+mt-4
+"
+>
 
-                    Unlocked
+No Active Course
 
-                  </span>
+</h3>
 
-                  <CheckCircle2
-                    className="text-emerald-400"
-                    size={22}
-                  />
 
-                </div>
+<p
+className="
+text-slate-500
+mt-2
+"
+>
 
-              </motion.div>
+Start a course to see it here.
 
-            ))}
+</p>
 
-          </div>
 
-        )}
+</div>
 
-      </GlassCard>
-            {/* ==========================================
-          UPCOMING ASSIGNMENTS
-      ========================================== */}
 
-      <GlassCard>
+)
 
-        <div className="flex items-center justify-between mb-6">
+:
 
-          <div>
+(
 
-            <h2 className="text-2xl font-bold">
-              Upcoming Assignments
-            </h2>
 
-            <p className="text-slate-400 mt-1">
-              Stay ahead of your deadlines.
-            </p>
+<div
+className="
+space-y-5
+"
+>
 
-          </div>
 
-          <CalendarDays
-            size={26}
-            className="text-cyan-400"
-          />
+{
 
-        </div>
+courses.map((course)=>(
 
-        {upcomingAssignments.length === 0 ? (
 
-          <div className="rounded-2xl border border-dashed border-slate-700 p-10 text-center">
+<motion.div
 
-            <CalendarDays
-              size={50}
-              className="mx-auto text-slate-600"
-            />
+key={course.id}
 
-            <h3 className="mt-5 text-xl font-semibold">
+whileHover={{
+y:-4
+}}
 
-              No Upcoming Assignments
+className="
+bg-slate-950
+border
+border-slate-800
+rounded-2xl
+p-5
+"
 
-            </h3>
+>
 
-            <p className="mt-2 text-slate-500">
 
-              You're all caught up. Great job!
+<div
+className="
+flex
+justify-between
+items-center
+"
+>
 
-            </p>
 
-          </div>
+<div>
 
-        ) : (
 
-          <div className="space-y-4">
+<h3
+className="
+text-xl
+font-bold
+"
+>
 
-            {upcomingAssignments.map((assignment) => (
+{course.title}
 
-              <motion.div
-                key={assignment.id}
-                whileHover={{
-                  y: -4,
-                }}
-                className="
-                rounded-2xl
-                border
-                border-slate-800
-                bg-slate-950
-                p-5"
-              >
+</h3>
 
-                <div className="flex justify-between items-start">
 
-                  <div>
 
-                    <h3 className="text-lg font-bold">
+<p
+className="
+text-slate-400
+mt-1
+"
+>
 
-                      {assignment.title}
+{course.currentLesson || "Continue lesson"}
 
-                    </h3>
+</p>
 
-                    <p className="text-slate-400 mt-1">
 
-                      {assignment.course}
+</div>
 
-                    </p>
 
-                  </div>
 
-                  <span
-                    className={`
-                    px-3
-                    py-1
-                    rounded-full
-                    text-sm
-                    ${
-                      assignment.priority === "High"
-                        ? "bg-red-500/20 text-red-400"
-                        : assignment.priority === "Medium"
-                        ? "bg-yellow-500/20 text-yellow-400"
-                        : "bg-green-500/20 text-green-400"
-                    }
-                    `}
-                  >
+<span
+className="
+text-blue-400
+font-bold
+"
+>
 
-                    {assignment.priority}
+{course.progress || 0}%
 
-                  </span>
+</span>
 
-                </div>
 
-                <div className="mt-5 flex justify-between items-center">
+</div>
 
-                  <div className="flex items-center gap-2 text-slate-400">
 
-                    <CalendarDays size={16} />
 
-                    Due:
 
-                    <span className="text-white">
 
-                      {assignment.dueDate}
+<div
+className="
+mt-5
+h-3
+bg-slate-800
+rounded-full
+overflow-hidden
+"
+>
 
-                    </span>
 
-                  </div>
+<div
 
-                  <button
-                    className="
-                    px-5
-                    py-2
-                    rounded-xl
-                    bg-blue-600
-                    hover:bg-blue-700
-                    transition"
-                  >
+style={{
+width:`${course.progress || 0}%`
+}}
 
-                    Open
+className="
+h-full
+bg-blue-500
+rounded-full
+"
 
-                  </button>
+/>
 
-                </div>
 
-              </motion.div>
+</div>
 
-            ))}
 
-          </div>
 
-        )}
 
-      </GlassCard>
-            {/* ==========================================
-          QUICK ACTIONS
-      ========================================== */}
 
-      <GlassCard>
+<div
+className="
+flex
+justify-between
+items-center
+mt-6
+"
+>
 
-        <div className="flex items-center justify-between mb-6">
 
-          <div>
+<p
+className="
+text-slate-400
+text-sm
+"
+>
 
-            <h2 className="text-2xl font-bold">
-              Quick Actions
-            </h2>
+{
+course.lessonsCompleted || 0
+}
 
-            <p className="text-slate-400 mt-1">
-              Jump to your most used learning tools.
-            </p>
+/
 
-          </div>
+{
+course.totalLessons || 0
+}
 
-        </div>
+Lessons
 
-        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
+</p>
 
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => window.alert("Open Courses")}
-            className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 p-6 text-left"
-          >
 
-            <BookOpen size={34} />
 
-            <h3 className="text-xl font-bold mt-5">
 
-              Courses
+<button
 
-            </h3>
+onClick={()=>
+completeLesson(course.id)
+}
 
-            <p className="mt-2 text-white/80">
+className="
+flex
+items-center
+gap-2
+bg-blue-600
+px-5
+py-3
+rounded-xl
+font-semibold
+hover:bg-blue-700
+"
 
-              Continue learning.
+>
 
-            </p>
 
-          </motion.button>
+<PlayCircle size={18}/>
 
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => window.alert("Open Assignments")}
-            className="rounded-2xl bg-gradient-to-r from-purple-600 to-pink-500 p-6 text-left"
-          >
+Continue
 
-            <CheckCircle2 size={34} />
 
-            <h3 className="text-xl font-bold mt-5">
+</button>
 
-              Assignments
 
-            </h3>
+</div>
 
-            <p className="mt-2 text-white/80">
 
-              View pending work.
 
-            </p>
+</motion.div>
 
-          </motion.button>
 
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => window.alert("Open Progress")}
-            className="rounded-2xl bg-gradient-to-r from-green-600 to-emerald-500 p-6 text-left"
-          >
+))
 
-            <TrendingUp size={34} />
 
-            <h3 className="text-xl font-bold mt-5">
+}
 
-              Progress
 
-            </h3>
+</div>
 
-            <p className="mt-2 text-white/80">
 
-              Track performance.
+)
 
-            </p>
+}
 
-          </motion.button>
 
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => window.alert("Open Calendar")}
-            className="rounded-2xl bg-gradient-to-r from-orange-500 to-red-500 p-6 text-left"
-          >
+</GlassCard>
 
-            <CalendarDays size={34} />
 
-            <h3 className="text-xl font-bold mt-5">
 
-              Calendar
 
-            </h3>
 
-            <p className="mt-2 text-white/80">
 
-              Check upcoming events.
+{/* ============================
+    WEEKLY PROGRESS
+============================ */}
 
-            </p>
 
-          </motion.button>
+<GlassCard>
 
-        </div>
 
-      </GlassCard>
+<div
+className="
+flex
+justify-between
+items-center
+mb-6
+"
+>
 
-    </div>
 
-  );
+<div>
+
+
+<h2
+className="
+text-2xl
+font-bold
+"
+>
+
+Weekly Progress
+
+</h2>
+
+
+<p
+className="
+text-slate-400
+"
+>
+
+Your learning activity
+
+</p>
+
+
+</div>
+
+
+
+<TrendingUp
+className="
+text-blue-400
+"
+size={28}
+/>
+
+
+</div>
+
+
+
+
+
+<div
+className="
+flex
+items-end
+gap-3
+h-56
+"
+>
+
+
+{
+
+progress.length === 0 ? (
+
+
+<p
+className="
+text-slate-500
+"
+>
+
+No progress data yet.
+
+</p>
+
+
+)
+
+:
+
+(
+
+progress.map((day)=>(
+
+
+<div
+
+key={day.day}
+
+className="
+flex-1
+flex
+flex-col
+items-center
+"
+>
+
+
+<div
+className="
+h-44
+w-full
+flex
+items-end
+"
+>
+
+
+<motion.div
+
+initial={{
+height:0
+}}
+
+animate={{
+height:`${day.value || 0}%`
+}}
+
+className="
+w-full
+rounded-t-xl
+bg-cyan-500
+"
+
+/>
+
+
+</div>
+
+
+
+<p
+className="
+text-sm
+text-slate-400
+mt-3
+"
+>
+
+{day.day}
+
+</p>
+
+
+
+</div>
+
+
+))
+
+
+)
+
+
+}
+
+
+</div>
+
+
+
+</GlassCard>
+
+
+
+</div>
+{/* ============================
+    ACHIEVEMENTS
+============================ */}
+
+
+<GlassCard>
+
+
+<div
+className="
+flex
+justify-between
+items-center
+mb-6
+"
+>
+
+
+<div>
+
+<h2
+className="
+text-2xl
+font-bold
+"
+>
+
+Achievements
+
+</h2>
+
+
+<p
+className="
+text-slate-400
+"
+>
+
+Badges earned from learning.
+
+</p>
+
+
+</div>
+
+
+
+<Trophy
+size={28}
+className="
+text-yellow-400
+"
+/>
+
+
+</div>
+
+
+
+
+
+{
+
+achievements.length === 0 ? (
+
+
+<div
+className="
+border
+border-dashed
+border-slate-700
+rounded-2xl
+p-10
+text-center
+"
+>
+
+
+<Trophy
+size={45}
+className="
+mx-auto
+text-slate-600
+"
+/>
+
+
+
+<h3
+className="
+text-xl
+font-bold
+mt-4
+"
+>
+
+No Achievements Yet
+
+</h3>
+
+
+
+<p
+className="
+text-slate-500
+mt-2
+"
+>
+
+Complete lessons and quizzes to unlock badges.
+
+</p>
+
+
+
+</div>
+
+
+)
+
+:
+
+(
+
+
+<div
+className="
+grid
+md:grid-cols-2
+xl:grid-cols-3
+gap-5
+"
+>
+
+
+{
+
+achievements.map((badge)=>(
+
+
+<motion.div
+
+key={badge.id}
+
+whileHover={{
+y:-5
+}}
+
+className="
+bg-slate-950
+border
+border-slate-800
+rounded-3xl
+p-6
+"
+
+>
+
+
+<div
+className="
+w-14
+h-14
+rounded-2xl
+bg-yellow-500
+flex
+items-center
+justify-center
+"
+>
+
+
+<Trophy
+size={28}
+/>
+
+
+</div>
+
+
+
+
+<h3
+className="
+text-xl
+font-bold
+mt-5
+"
+>
+
+{badge.title || "Achievement"}
+
+</h3>
+
+
+
+<p
+className="
+text-slate-400
+mt-2
+"
+>
+
+{badge.description || "Unlocked badge"}
+
+</p>
+
+
+
+
+<CheckCircle2
+
+className="
+text-green-400
+mt-5
+"
+
+/>
+
+
+
+</motion.div>
+
+
+))
+
+
+}
+
+
+</div>
+
+
+)
+
+}
+
+
+</GlassCard>
+
+
+
+
+
+
+{/* ============================
+    ASSIGNMENTS
+============================ */}
+
+
+
+<GlassCard>
+
+
+
+<div
+className="
+flex
+justify-between
+items-center
+mb-6
+"
+>
+
+
+<div>
+
+
+<h2
+className="
+text-2xl
+font-bold
+"
+>
+
+Upcoming Assignments
+
+</h2>
+
+
+
+<p
+className="
+text-slate-400
+"
+>
+
+Stay ahead of deadlines.
+
+</p>
+
+
+</div>
+
+
+
+
+<CalendarDays
+size={28}
+className="
+text-cyan-400
+"
+/>
+
+
+
+</div>
+
+
+
+
+
+
+{
+
+tasks.length === 0 ? (
+
+
+<div
+className="
+text-center
+text-slate-500
+py-8
+"
+>
+
+No assignments available.
+
+</div>
+
+
+)
+
+:
+
+(
+
+
+<div
+className="
+space-y-4
+"
+>
+
+
+{
+
+tasks.map((task)=>(
+
+
+<motion.div
+
+key={task.id}
+
+whileHover={{
+y:-3
+}}
+
+className="
+bg-slate-950
+border
+border-slate-800
+rounded-2xl
+p-5
+"
+
+>
+
+
+
+<div
+className="
+flex
+justify-between
+items-center
+"
+>
+
+
+<div>
+
+
+<h3
+className="
+text-lg
+font-bold
+"
+>
+
+{task.title || "Assignment"}
+
+</h3>
+
+
+
+<p
+className="
+text-slate-400
+mt-1
+"
+>
+
+{task.course || "Course"}
+
+</p>
+
+
+</div>
+
+
+
+<span
+className="
+text-blue-400
+text-sm
+"
+>
+
+{task.dueDate || "No date"}
+
+</span>
+
+
+
+</div>
+
+
+
+
+</motion.div>
+
+
+))
+
+
+}
+
+
+</div>
+
+
+)
+
+
+}
+
+
+
+</GlassCard>
+{/* ============================
+    QUICK ACTIONS
+============================ */}
+
+
+<GlassCard>
+
+
+<div
+className="
+mb-6
+"
+>
+
+
+<h2
+className="
+text-2xl
+font-bold
+"
+>
+
+Quick Actions
+
+</h2>
+
+
+<p
+className="
+text-slate-400
+"
+>
+
+Access your learning tools quickly.
+
+</p>
+
+
+</div>
+
+
+
+
+
+<div
+className="
+grid
+md:grid-cols-2
+xl:grid-cols-4
+gap-5
+"
+>
+
+
+
+<motion.button
+
+whileHover={{
+scale:1.03
+}}
+
+className="
+rounded-2xl
+p-6
+text-left
+bg-blue-600
+"
+
+>
+
+
+<BookOpen
+size={32}
+/>
+
+
+<h3
+className="
+text-xl
+font-bold
+mt-4
+"
+>
+
+Courses
+
+</h3>
+
+
+<p
+className="
+text-white/80
+mt-2
+"
+>
+
+Continue learning.
+
+</p>
+
+
+</motion.button>
+
+
+
+
+
+
+
+<motion.button
+
+whileHover={{
+scale:1.03
+}}
+
+className="
+rounded-2xl
+p-6
+text-left
+bg-purple-600
+"
+
+>
+
+
+<CheckCircle2
+size={32}
+/>
+
+
+<h3
+className="
+text-xl
+font-bold
+mt-4
+"
+>
+
+Assignments
+
+</h3>
+
+
+<p
+className="
+text-white/80
+mt-2
+"
+>
+
+Complete your tasks.
+
+</p>
+
+
+</motion.button>
+
+
+
+
+
+
+
+<motion.button
+
+whileHover={{
+scale:1.03
+}}
+
+className="
+rounded-2xl
+p-6
+text-left
+bg-emerald-600
+"
+
+>
+
+
+<TrendingUp
+size={32}
+/>
+
+
+<h3
+className="
+text-xl
+font-bold
+mt-4
+"
+>
+
+Progress
+
+</h3>
+
+
+<p
+className="
+text-white/80
+mt-2
+"
+>
+
+Track your growth.
+
+</p>
+
+
+</motion.button>
+
+
+
+
+
+
+
+<motion.button
+
+whileHover={{
+scale:1.03
+}}
+
+className="
+rounded-2xl
+p-6
+text-left
+bg-orange-600
+"
+
+>
+
+
+<CalendarDays
+size={32}
+/>
+
+
+<h3
+className="
+text-xl
+font-bold
+mt-4
+"
+>
+
+Calendar
+
+</h3>
+
+
+<p
+className="
+text-white/80
+mt-2
+"
+>
+
+View upcoming events.
+
+</p>
+
+
+</motion.button>
+
+
+
+
+</div>
+
+
+</GlassCard>
+
+
+
+
+
+
+</div>
+
+);
+
 };
+
+
 
 export default Dashboard;

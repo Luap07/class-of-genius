@@ -89,7 +89,7 @@ const Footer = () => {
         <div className="border-t border-slate-800 mt-8 pt-6 flex flex-col md:flex-row items-center justify-between">
 
           <p className="text-sm text-slate-500">
-            © {year} . All rights reserved.
+            © {year} ClassOfGenius. All rights reserved.
           </p>
 
           <div className="flex items-center gap-2 text-sm text-slate-500 mt-3 md:mt-0">

@@ -26,11 +26,12 @@ const pageAnimation = {
   },
 };
 
-const MainContent = ({ activePage, setActivePage }) => {  const renderPage = () => {
+const MainContent = ({ activePage }) => {
+  const renderPage = () => {
     switch (activePage) {
       case "dashboard":
-      return <Dashboard setActivePage={setActivePage} />;
-      
+        return <Dashboard />;
+
       case "courses":
         return <Courses />;
 

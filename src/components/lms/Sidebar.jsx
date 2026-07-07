@@ -7,7 +7,6 @@ import {
   TrendingUp,
   Award,
   User,
-  Settings,
   ChevronLeft,
   ChevronRight,
   GraduationCap,
@@ -49,11 +48,6 @@ const menuItems = [
     id: "profile",
     label: "Profile",
     icon: User,
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: Settings,
   },
 ];
 

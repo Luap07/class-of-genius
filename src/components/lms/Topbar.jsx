@@ -1,71 +1,170 @@
+// src/components/lms/Topbar.jsx
+
 import React from "react";
-import cog from "../../assets/cog.png"; // Ensure this path matches your folder structure
 import {
-  Search,
+  Menu,
   Bell,
-  Settings,
-  CalendarDays,
-  Moon,
-  UserCircle2,
+  Search,
+  UserCircle,
 } from "lucide-react";
 
-const Topbar = () => {
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
 
-  const ActionButton = ({ icon: Icon }) => (
-    <button className="p-2.5 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl transition-all">
-      <Icon size={20} />
-    </button>
-  );
+const Topbar = ({
+  onMenuClick,
+}) => {
 
   return (
-    <header className="h-full w-full flex items-center justify-between px-6">
-      
-      {/* Branding with Logo */}
-      <div className="flex items-center gap-3">
-        <img src={cog} alt="Scholiqen Logo" className="w-8 h-8 object-contain" />
-        <h1 className="text-lg font-bold tracking-tight">Scholiqen</h1>
+    <header
+      className="
+        h-20
+        bg-slate-950
+        border-b
+        border-slate-800
+        flex
+        items-center
+        justify-between
+        px-6
+        sticky
+        top-0
+        z-30
+      "
+    >
+
+      {/* Mobile Menu */}
+
+      <button
+        onClick={onMenuClick}
+        className="
+          lg:hidden
+          p-3
+          rounded-xl
+          bg-slate-900
+          border
+          border-slate-800
+        "
+      >
+
+        <Menu size={22}/>
+
+      </button>
+
+
+
+      {/* Search */}
+
+      <div
+        className="
+          hidden
+          md:flex
+          items-center
+          gap-3
+          bg-slate-900
+          border
+          border-slate-800
+          rounded-2xl
+          px-5
+          py-3
+          w-96
+        "
+      >
+
+        <Search
+          size={20}
+          className="text-slate-400"
+        />
+
+        <input
+          placeholder="Search anything..."
+          className="
+            bg-transparent
+            outline-none
+            w-full
+            text-sm
+          "
+        />
+
       </div>
 
-      {/* Center: Search */}
-      <div className="hidden lg:flex items-center flex-1 max-w-sm px-4">
-        <div className="flex items-center gap-3 w-full rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 focus-within:border-slate-600 transition-colors">
-          <Search size={16} className="text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="bg-transparent outline-none w-full text-sm placeholder:text-slate-600"
+
+
+
+      {/* Right Section */}
+
+      <div
+        className="
+          flex
+          items-center
+          gap-5
+        "
+      >
+
+
+        <button
+          className="
+            relative
+            p-3
+            rounded-xl
+            bg-slate-900
+            border
+            border-slate-800
+          "
+        >
+
+          <Bell size={22}/>
+
+
+          <span
+            className="
+              absolute
+              top-2
+              right-2
+              w-2
+              h-2
+              bg-blue-500
+              rounded-full
+            "
           />
-        </div>
-      </div>
 
-      {/* Right: Actions */}
-      <div className="flex items-center gap-1">
-        <div className="hidden xl:flex items-center gap-2 text-slate-500 text-xs font-medium mr-3">
-          <CalendarDays size={14} />
-          {today}
-        </div>
+        </button>
 
-        <ActionButton icon={Bell} />
-        <ActionButton icon={Moon} />
-        <ActionButton icon={Settings} />
 
-        {/* User Profile */}
-        <div className="flex items-center gap-3 ml-2 pl-3 border-l border-slate-800">
-          <div className="text-right hidden md:block">
-            <p className="text-sm font-medium leading-none">Student</p>
-            <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">Online</p>
+
+        <div
+          className="
+            flex
+            items-center
+            gap-3
+          "
+        >
+
+          <UserCircle
+            size={40}
+            className="text-blue-400"
+          />
+
+
+          <div className="hidden md:block">
+
+            <p className="font-semibold">
+              Student
+            </p>
+
+            <p className="text-sm text-slate-400">
+              Welcome back
+            </p>
+
           </div>
-          <UserCircle2 size={36} className="text-slate-600" />
+
+
         </div>
+
+
       </div>
+
 
     </header>
   );
 };
+
 
 export default Topbar;

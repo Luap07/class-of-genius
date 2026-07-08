@@ -13,7 +13,7 @@ import {
 
 const benefits = [
   "Create unlimited courses",
-  "Upload videos, PDFs, quizzes and assignments",
+  "Upload videos, PDFs, quizzes and weeklytasks",
   "Reach learners worldwide",
   "Earn from premium courses",
   "AI-powered teaching tools",

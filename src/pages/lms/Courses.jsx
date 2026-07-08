@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 
 import { useCourses } from "../../context/LMSContext/CourseContext";
+import { useNavigate } from "react-router-dom";
 
 import CourseHero from "../../components/courses/CourseHero";
 import CourseSearch from "../../components/courses/CourseSearch";
@@ -17,7 +18,7 @@ import Testimonials from "../../components/courses/Testimonials";
 import BecomeInstructor from "../../components/courses/BecomeInstructor";
 import FAQ from "../../components/courses/FAQ";
 import Newsletter from "../../components/courses/Newsletter";
-
+import ExploreLearningDisciplines from "../../components/courses/ExploreLearningDisciplines";
 const defaultCategories = [
   "Science",
   "Technology",
@@ -45,6 +46,31 @@ const Courses = () => {
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
+  const coursesRef = useRef(null);
+const disciplinesRef = useRef(null);
+
+const scrollToCourses = () => {
+  coursesRef.current?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+};
+
+const scrollToDisciplines = () => {
+  disciplinesRef.current?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+};
+
+const handleDisciplineSelect = (discipline) => {
+  setCategory(discipline);
+
+  coursesRef.current?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+};
 
   const availableCategories =
     categories.length
@@ -89,8 +115,10 @@ const Courses = () => {
 
       {/* Hero */}
 
-      <CourseHero />
-
+        <CourseHero
+        onBrowseCourses={scrollToCourses}
+        onExploreCategories={scrollToDisciplines}
+    />
       {/* Search */}
 
       <CourseSearch
@@ -116,15 +144,22 @@ const Courses = () => {
 
       {/* All Courses */}
 
-      {filteredCourses.length === 0 ? (
-        <EmptyCourses
-          onReset={resetFilters}
-        />
-      ) : (
-        <CourseGrid
-          courses={filteredCourses}
-        />
-      )}
+     <div ref={coursesRef}>
+
+                 {filteredCourses.length === 0 ? (
+                  <EmptyCourses
+                onReset={resetFilters}
+                 />
+                ) : (
+             <CourseGrid
+  courses={filteredCourses}
+  onCourseOpen={(course) =>
+    navigate(`/courses/${course.id}`)
+  }
+/>
+         )}
+
+    </div>
 
       {/* ===============================
           PREMIUM SECTIONS
@@ -136,9 +171,16 @@ const Courses = () => {
 
       <LearningPaths />
 
+      <div ref={disciplinesRef}>
+         <ExploreLearningDisciplines
+         onSelectDiscipline={handleDisciplineSelect}
+        />    
+    </div>
+
       <Testimonials />
 
       <BecomeInstructor />
+
 
       <FAQ />
 

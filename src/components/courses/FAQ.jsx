@@ -14,7 +14,7 @@ const faqs = [
   {
     question: "Will I receive a certificate after completing a course?",
     answer:
-      "Yes. Eligible courses award digital certificates after you complete all required lessons, quizzes, assignments, and final assessments.",
+      "Yes. Eligible courses award digital certificates after you complete all required lessons, quizzes, weeklytasks, and final assessments.",
   },
   {
     question: "Can I study on my phone, tablet, or computer?",

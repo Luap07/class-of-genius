@@ -1,5 +1,5 @@
-import React from "react";
-import { motion } from "framer-motion";
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Bot,
   BookOpen,
@@ -7,7 +7,8 @@ import {
   Award,
   BarChart3,
   Globe2,
-  ArrowRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 const features = [
@@ -16,6 +17,8 @@ const features = [
     title: "24/7 AI Tutor",
     description:
       "Get instant explanations, personalized learning paths, quizzes, and study assistance anytime.",
+    details:
+      "Scholiqen AI acts like a personal teacher. Ask questions, generate quizzes, receive step-by-step explanations, solve assignments, and get personalized study recommendations based on your strengths and weaknesses.",
     color: "text-cyan-400",
     bg: "from-cyan-500/20 to-blue-500/10",
   },
@@ -23,7 +26,9 @@ const features = [
     icon: FlaskConical,
     title: "Interactive Virtual Labs",
     description:
-      "Perform realistic science experiments directly in your browser with live simulations.",
+      "Perform realistic science experiments directly in your browser.",
+    details:
+      "Carry out Physics, Chemistry, Biology, and Mathematics experiments with real-time simulations, animations, graphs, and instant feedback—without needing a physical laboratory.",
     color: "text-emerald-400",
     bg: "from-emerald-500/20 to-green-500/10",
   },
@@ -31,7 +36,9 @@ const features = [
     icon: BookOpen,
     title: "Global Course Library",
     description:
-      "Access thousands of learning resources, university materials, PDFs, and structured lessons.",
+      "Access thousands of structured learning materials.",
+    details:
+      "Explore secondary school subjects, university courses, professional certifications, coding tutorials, business training, downloadable PDFs, videos, and interactive lessons.",
     color: "text-blue-400",
     bg: "from-blue-500/20 to-indigo-500/10",
   },
@@ -39,7 +46,9 @@ const features = [
     icon: Award,
     title: "Professional Certificates",
     description:
-      "Earn certificates after completing courses and showcase your achievements.",
+      "Earn certificates after completing your learning.",
+    details:
+      "Complete courses, quizzes, and assignments to unlock certificates that showcase your achievements and learning progress.",
     color: "text-yellow-400",
     bg: "from-yellow-500/20 to-orange-500/10",
   },
@@ -47,7 +56,9 @@ const features = [
     icon: BarChart3,
     title: "Progress Tracking",
     description:
-      "Monitor your learning journey with analytics, achievements, and personalized recommendations.",
+      "Monitor your learning journey in real time.",
+    details:
+      "Track completed lessons, study streaks, quiz scores, assignments, certificates, and recommendations with a personalized learning dashboard.",
     color: "text-violet-400",
     bg: "from-violet-500/20 to-purple-500/10",
   },
@@ -55,13 +66,17 @@ const features = [
     icon: Globe2,
     title: "Learn Anywhere",
     description:
-      "Study from any device, anywhere in the world, at your own pace.",
+      "Access scholiqen from any device, anywhere.",
+    details:
+      "Whether you're using a phone, tablet, or computer, scholiqen keeps your learning synchronized so you can continue exactly where you stopped.",
     color: "text-pink-400",
     bg: "from-pink-500/20 to-rose-500/10",
   },
 ];
 
-const WhyWonder = () => {
+const  WhyWonder = () => {
+  const [openCard, setOpenCard] = useState(null);
+
   return (
     <section className="space-y-12">
 
@@ -69,21 +84,8 @@ const WhyWonder = () => {
 
       <div className="text-center max-w-3xl mx-auto">
 
-        <span
-          className="
-            inline-flex
-            px-4
-            py-2
-            rounded-full
-            border
-            border-blue-500/30
-            bg-blue-500/10
-            text-blue-400
-            font-semibold
-            text-sm
-          "
-        >
-          Why Choose Wonder?
+        <span className="inline-flex rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-400">
+          Why Choose Scholiqen?
         </span>
 
         <h2 className="mt-5 text-4xl font-extrabold">
@@ -91,19 +93,21 @@ const WhyWonder = () => {
         </h2>
 
         <p className="mt-4 text-lg text-slate-400">
-          More than just courses. Wonder combines AI,
+          More than just courses. Scholiqen combines AI,
           virtual laboratories, assessments, certifications,
           and intelligent learning tools into one platform.
         </p>
 
       </div>
 
-      {/* Cards */}
+      {/* Feature Cards */}
 
       <div className="grid gap-7 md:grid-cols-2 xl:grid-cols-3">
 
         {features.map((feature, index) => {
+
           const Icon = feature.icon;
+          const expanded = openCard === index;
 
           return (
             <motion.div
@@ -116,30 +120,13 @@ const WhyWonder = () => {
                 duration: 0.4,
               }}
               whileHover={{
-                y: -8,
-                scale: 1.02,
+                y: -6,
               }}
-              className={`
-                rounded-3xl
-                border
-                border-slate-800
-                bg-gradient-to-br
-                ${feature.bg}
-                p-8
-              `}
+              className={`rounded-3xl border border-slate-800 bg-gradient-to-br ${feature.bg} p-8`}
             >
 
               <div
-                className={`
-                  w-16
-                  h-16
-                  rounded-2xl
-                  bg-slate-900
-                  flex
-                  items-center
-                  justify-center
-                  ${feature.color}
-                `}
+                className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 ${feature.color}`}
               >
                 <Icon size={30} />
               </div>
@@ -148,29 +135,65 @@ const WhyWonder = () => {
                 {feature.title}
               </h3>
 
-              <p className="mt-4 text-slate-400 leading-relaxed">
+              <p className="mt-4 leading-7 text-slate-400">
                 {feature.description}
               </p>
 
-              <button
-                className="
-                  mt-8
-                  flex
-                  items-center
-                  gap-2
-                  font-semibold
-                  text-blue-400
-                  hover:text-blue-300
-                  transition
-                "
-              >
-                Learn More
+              <AnimatePresence>
 
-                <ArrowRight size={18} />
+                {expanded && (
+
+                  <motion.div
+                    initial={{
+                      opacity: 0,
+                      height: 0,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      height: "auto",
+                    }}
+                    exit={{
+                      opacity: 0,
+                      height: 0,
+                    }}
+                    transition={{
+                      duration: 0.3,
+                    }}
+                    className="overflow-hidden"
+                  >
+
+                    <p className="mt-5 leading-7 text-slate-300">
+                      {feature.details}
+                    </p>
+
+                  </motion.div>
+
+                )}
+
+              </AnimatePresence>
+
+              <button
+                onClick={() =>
+                  setOpenCard(
+                    expanded ? null : index
+                  )
+                }
+                className="mt-6 flex items-center gap-2 font-semibold text-blue-400 transition hover:text-blue-300"
+              >
+
+                {expanded ? "Show Less" : "Read More"}
+
+                {expanded ? (
+                  <ChevronUp size={18} />
+                ) : (
+                  <ChevronDown size={18} />
+                )}
+
               </button>
 
             </motion.div>
           );
+
         })}
 
       </div>
@@ -181,19 +204,10 @@ const WhyWonder = () => {
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
-        className="
-          rounded-[32px]
-          overflow-hidden
-          bg-gradient-to-r
-          from-blue-600
-          via-cyan-500
-          to-indigo-600
-          p-10
-          lg:p-14
-        "
+        className="overflow-hidden rounded-[32px] bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 p-10 lg:p-14"
       >
 
-        <div className="grid lg:grid-cols-2 gap-10 items-center">
+        <div className="grid items-center gap-10 lg:grid-cols-2">
 
           <div>
 
@@ -203,26 +217,14 @@ const WhyWonder = () => {
               Unlimited Learning.
             </h2>
 
-            <p className="mt-5 text-blue-100 text-lg leading-relaxed">
+            <p className="mt-5 text-lg leading-relaxed text-blue-100">
               Learn from school subjects, university courses,
               professional certifications, AI-powered tutoring,
               virtual laboratories, and career-focused learning
               paths—all in one place.
             </p>
 
-            <button
-              className="
-                mt-8
-                bg-white
-                text-slate-900
-                rounded-2xl
-                px-8
-                py-4
-                font-bold
-                hover:scale-105
-                transition
-              "
-            >
+            <button className="mt-8 rounded-2xl bg-white px-8 py-4 font-bold text-slate-900 transition hover:scale-105">
               Start Learning Today
             </button>
 
@@ -230,37 +232,29 @@ const WhyWonder = () => {
 
           <div className="grid grid-cols-2 gap-5">
 
-            <div className="rounded-3xl bg-white/10 backdrop-blur p-6">
-              <h3 className="text-3xl font-bold">
-                100+
-              </h3>
+            <div className="rounded-3xl bg-white/10 p-6 backdrop-blur">
+              <h3 className="text-3xl font-bold">100+</h3>
               <p className="mt-2 text-blue-100">
                 Learning Categories
               </p>
             </div>
 
-            <div className="rounded-3xl bg-white/10 backdrop-blur p-6">
-              <h3 className="text-3xl font-bold">
-                AI
-              </h3>
+            <div className="rounded-3xl bg-white/10 p-6 backdrop-blur">
+              <h3 className="text-3xl font-bold">AI</h3>
               <p className="mt-2 text-blue-100">
                 Personalized Learning
               </p>
             </div>
 
-            <div className="rounded-3xl bg-white/10 backdrop-blur p-6">
-              <h3 className="text-3xl font-bold">
-                Live
-              </h3>
+            <div className="rounded-3xl bg-white/10 p-6 backdrop-blur">
+              <h3 className="text-3xl font-bold">Live</h3>
               <p className="mt-2 text-blue-100">
                 Interactive Simulations
               </p>
             </div>
 
-            <div className="rounded-3xl bg-white/10 backdrop-blur p-6">
-              <h3 className="text-3xl font-bold">
-                Global
-              </h3>
+            <div className="rounded-3xl bg-white/10 p-6 backdrop-blur">
+              <h3 className="text-3xl font-bold">Global</h3>
               <p className="mt-2 text-blue-100">
                 Accessible Anywhere
               </p>

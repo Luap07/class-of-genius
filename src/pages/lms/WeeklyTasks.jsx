@@ -1,24 +1,21 @@
-// src/pages/lms/Assignments.jsx
+// src/pages/lms/WeeklyTasks.jsx
 
 import React, { useMemo, useState } from "react";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, Plus } from "lucide-react";
 
-import AssignmentCard from "../../components/lms/AssignmentCard";
+import WeeklyTaskCard from "../../components/lms/WeeklyTaskCard";
 
-import { useAssignments } from "../../context/LMSContext/AssignmentContext";
-
+import { useWeeklyTasks } from "../../context/LMSContext/WeeklyTaskContext";
 
 
 const filters = [
   "All",
   "Pending",
-  "Submitted",
-  "Graded"
+  "Completed",
 ];
 
 
-
-const Assignments = () => {
+const WeeklyTasks = () => {
 
 
   const [search, setSearch] = useState("");
@@ -26,42 +23,37 @@ const Assignments = () => {
   const [filter, setFilter] = useState("All");
 
 
-
-  // Get assignments from context
-
   const {
-    assignments
-  } = useAssignments();
+    tasks = [],
+  } = useWeeklyTasks();
 
 
 
 
+  const filteredTasks = useMemo(() => {
 
-  const filteredAssignments = useMemo(() => {
-
-
-    return assignments.filter((assignment) => {
+    return tasks.filter((task) => {
 
 
       const matchesFilter =
 
         filter === "All" ||
 
-        assignment.status === filter;
+        task.status === filter;
 
 
 
 
       const matchesSearch =
 
-        assignment.title
-        .toLowerCase()
+        task.title
+        ?.toLowerCase()
         .includes(search.toLowerCase())
 
         ||
 
-        assignment.course
-        .toLowerCase()
+        task.course
+        ?.toLowerCase()
         .includes(search.toLowerCase());
 
 
@@ -80,13 +72,9 @@ const Assignments = () => {
 
 
   }, [
-
-    assignments,
-
+    tasks,
     search,
-
     filter
-
   ]);
 
 
@@ -101,20 +89,40 @@ const Assignments = () => {
 
       {/* Header */}
 
-      <div>
-
-        <h1 className="text-4xl font-bold">
-
-          Assignments
-
-        </h1>
+      <div className="flex justify-between items-start">
 
 
-        <p className="text-slate-400 mt-2">
+        <div>
 
-          Complete your assignments before their due dates.
+          <h1 className="text-4xl font-bold">
 
-        </p>
+            Weekly Tasks
+
+          </h1>
+
+
+          <p className="text-slate-400 mt-2">
+
+            Manage your learning tasks for this week.
+
+          </p>
+
+
+        </div>
+
+
+
+        <button
+
+          className="flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 font-semibold hover:bg-blue-700"
+
+        >
+
+          <Plus size={18}/>
+
+          Add Task
+
+        </button>
 
 
       </div>
@@ -124,8 +132,7 @@ const Assignments = () => {
 
 
 
-
-      {/* Search */}
+      {/* Search + Filter */}
 
       <div className="flex flex-col lg:flex-row justify-between gap-5">
 
@@ -141,7 +148,7 @@ const Assignments = () => {
 
           <input
 
-            placeholder="Search assignment..."
+            placeholder="Search task..."
 
             value={search}
 
@@ -159,16 +166,18 @@ const Assignments = () => {
 
 
 
+        <button
 
-        <button className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-6 py-3 rounded-2xl">
+          className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-6 py-3 rounded-2xl"
 
+        >
 
           <Filter size={18}/>
 
           Filters
 
-
         </button>
+
 
 
       </div>
@@ -191,9 +200,10 @@ const Assignments = () => {
 
             key={item}
 
-            onClick={()=>
+            onClick={() =>
               setFilter(item)
             }
+
 
             className={`px-5 py-3 rounded-xl transition ${
               
@@ -209,11 +219,9 @@ const Assignments = () => {
 
             }`}
 
-
           >
 
             {item}
-
 
           </button>
 
@@ -229,33 +237,33 @@ const Assignments = () => {
 
 
 
-      {/* Assignment Cards */}
+
+
+      {/* Task Cards */}
 
       <div className="space-y-6">
 
 
-        {filteredAssignments.map((assignment)=>(
+        {filteredTasks.map((task)=>(
 
 
-          <AssignmentCard
+          <WeeklyTaskCard
 
-            key={assignment.id}
+            key={task.id}
 
-            {...assignment}
+            {...task}
 
-            subject={assignment.course}
-
-            onOpen={()=>
+            onOpen={() =>
               console.log(
-                assignment.title
+                task.title
               )
             }
-
 
           />
 
 
         ))}
+
 
 
       </div>
@@ -266,9 +274,11 @@ const Assignments = () => {
 
 
 
+
+
       {/* Empty State */}
 
-      {filteredAssignments.length === 0 && (
+      {filteredTasks.length === 0 && (
 
 
         <div className="rounded-3xl border border-slate-800 bg-slate-900 p-12 text-center">
@@ -276,14 +286,15 @@ const Assignments = () => {
 
           <h2 className="text-2xl font-bold">
 
-            No assignments found
+            No tasks found
 
           </h2>
 
 
+
           <p className="text-slate-400 mt-3">
 
-            Try changing your search or selected filter.
+            Create a new task or change your search.
 
           </p>
 
@@ -302,5 +313,4 @@ const Assignments = () => {
 };
 
 
-
-export default Assignments;
+export default WeeklyTasks;

@@ -11,8 +11,8 @@ import {
 } from "./LMSContext/ProgressContext";
 
 import {
-  AssignmentProvider
-} from "./LMSContext/AssignmentContext";
+  WeeklyTaskProvider
+} from "./LMSContext/WeeklyTaskContext";
 
 import {
   CertificateProvider
@@ -32,7 +32,7 @@ const LMSProvider = ({ children }) => {
 
       <ProgressProvider>
 
-        <AssignmentProvider>
+        <WeeklyTaskProvider>
 
           <CertificateProvider>
 
@@ -44,7 +44,7 @@ const LMSProvider = ({ children }) => {
 
           </CertificateProvider>
 
-        </AssignmentProvider>
+        </WeeklyTaskProvider>
 
       </ProgressProvider>
 

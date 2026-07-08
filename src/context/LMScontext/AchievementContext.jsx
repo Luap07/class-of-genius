@@ -47,9 +47,9 @@ const badgesList = [
 
 
   {
-    id: "assignment_pro",
-    title: "Assignment Pro",
-    description: "Submitted 10 assignments"
+    id: "weeklytasks_pro",
+    title: "WeeklyTasks Pro",
+    description: "Submitted 10 weeklytasks"
   },
 
 

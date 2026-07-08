@@ -54,7 +54,7 @@ const Footer = () => {
                 Courses
               </div>
 
-              <div>Assignments</div>
+              <div>weeklytask</div>
 
               <div>Resources</div>
 

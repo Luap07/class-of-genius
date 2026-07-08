@@ -299,19 +299,9 @@ export const UserProvider = ({ children }) => {
       {children}
 
     </UserContext.Provider>
-
   );
 
-
 };
-
-
-
-
-
-
-
-
 
 // Custom Hook
 export const useUser = ()=>{
@@ -337,8 +327,6 @@ export const useUser = ()=>{
 
 
   return context;
-
-
 };
 
 

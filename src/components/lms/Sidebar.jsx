@@ -1,16 +1,6 @@
 import React from "react";
-import {
-  LayoutDashboard,
-  BookOpen,
-  ClipboardList,
-  FolderOpen,
-  TrendingUp,
-  Award,
-  User,
-  ChevronLeft,
-  ChevronRight,
-  GraduationCap,
-} from "lucide-react";
+import {  LayoutDashboard,
+  BookOpen, ClipboardList, FolderOpen, TrendingUp, Award, User, ChevronLeft,ChevronRight, GraduationCap} from "lucide-react";
 import { motion } from "framer-motion";
 
 const menuItems = [
@@ -25,8 +15,8 @@ const menuItems = [
     icon: BookOpen,
   },
   {
-    id: "assignments",
-    label: "Assignments",
+    id: "weeklytasks",
+    label: "WeeklyTasks",
     icon: ClipboardList,
   },
   {
@@ -125,21 +115,7 @@ const Sidebar = ({
         })}
       </div>
 
-      {/* FOOTER */}
-      <div className="border-t border-slate-800 p-5">
-
-        {sidebarOpen ? (
-          <>
-            <p className="text-sm font-semibold">ClassOfGenius</p>
-            <p className="text-xs text-slate-500 mt-1">Premium LMS</p>
-          </>
-        ) : (
-          <div className="flex justify-center">
-            <GraduationCap size={24} />
-          </div>
-        )}
-
-      </div>
+      
     </motion.aside>
   );
 };

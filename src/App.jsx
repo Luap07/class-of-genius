@@ -1,12 +1,6 @@
 import { useContext } from "react";
 import AdminDashboard from "./pages/AdminDashboard";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-  useLocation,
-} from "react-router-dom";
+import {BrowserRouter as Router,Routes, Route,Navigate, useLocation,} from "react-router-dom";
 
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -42,7 +36,7 @@ import UploadNovel from "./pages/UploadNovel";
 /* ================= LMS ================= */
 import LMSPortal from "./pages/lms/LMSPortal";
 import Courses from "./pages/lms/Courses";
-import Course from "./pages/lms/Course";
+import CourseDetails from "./pages/lms/CourseDetails";
 import Lesson from "./pages/lms/Lesson";
 
 
@@ -273,7 +267,7 @@ const AnimatedRoutes = () => {
   element={
     <ProtectedRoute>
       <PageWrapper>
-        <Course />
+        <CourseDetails />
       </PageWrapper>
     </ProtectedRoute>
   }

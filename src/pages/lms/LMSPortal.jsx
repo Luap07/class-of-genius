@@ -3,7 +3,6 @@ import React, { useState } from "react";
 import Sidebar from "../../components/lms/Sidebar";
 import Topbar from "../../components/lms/Topbar";
 import MainContent from "../../components/lms/MainContent";
-import Footer from "../../components/lms/Footer";
 
 import { LMSProvider } from "../../context/LMSContext";
 
@@ -51,9 +50,7 @@ const LMSPortalContent = () => {
           </div>
 
           {/* Footer */}
-          <div className="mt-auto pt-8 border-t border-slate-800/50 p-8">
-            <Footer />
-          </div>
+          
         </main>
       </div>
     </div>

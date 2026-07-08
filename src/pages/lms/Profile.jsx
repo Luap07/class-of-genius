@@ -21,7 +21,7 @@ const recentActivity = [
   },
   {
     id: 2,
-    title: "Submitted Assignment",
+    title: "Submitted weeklytasks",
     description: "Organic Chemistry Quiz",
     time: "2 hours ago",
   },
@@ -36,7 +36,7 @@ const recentActivity = [
 const goals = [
   "Complete Physics this week",
   "Study at least 2 hours daily",
-  "Finish 5 assignments",
+  "Finish 5 weeklytasks",
   "Earn next certificate",
 ];
 

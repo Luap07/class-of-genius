@@ -5,7 +5,7 @@ import Dashboard from "../../pages/lms/Dashboard";
 import Courses from "../../pages/lms/Courses";
 import Course from "../../pages/lms/Course";
 import Lesson from "../../pages/lms/Lesson";
-import Assignments from "../../pages/lms/Assignments";
+import WeeklyTasks from "../../pages/lms/WeeklyTasks";
 import Resources from "../../pages/lms/Resources";
 import Progress from "../../pages/lms/Progress";
 import Certificates from "../../pages/lms/Certificates";
@@ -36,13 +36,13 @@ const MainContent = ({ activePage }) => {
         return <Courses />;
 
       case "course":
-        return <Course />;
+        return <CourseDetails />;
 
       case "lesson":
         return <Lesson />;
 
-      case "assignments":
-        return <Assignments />;
+      case "weeklytasks":
+        return <WeeklyTasks />;
 
       case "resources":
         return <Resources />;

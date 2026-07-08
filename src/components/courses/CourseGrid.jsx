@@ -1,3 +1,5 @@
+// src/components/courses/CourseGrid.jsx
+
 import React from "react";
 import { motion } from "framer-motion";
 
@@ -12,11 +14,13 @@ const CourseGrid = ({
   if (loading) {
     return (
       <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+
         {[1,2,3,4,5,6,7,8].map((item) => (
           <div
             key={item}
             className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 animate-pulse"
           >
+
             <div className="h-52 bg-slate-800" />
 
             <div className="p-6 space-y-4">
@@ -28,11 +32,8 @@ const CourseGrid = ({
               <div className="grid grid-cols-2 gap-4">
 
                 <div className="h-4 rounded bg-slate-700" />
-
                 <div className="h-4 rounded bg-slate-700" />
-
                 <div className="h-4 rounded bg-slate-700" />
-
                 <div className="h-4 rounded bg-slate-700" />
 
               </div>
@@ -43,9 +44,11 @@ const CourseGrid = ({
 
           </div>
         ))}
+
       </div>
     );
   }
+
 
   if (!courses.length) {
     return (
@@ -63,20 +66,30 @@ const CourseGrid = ({
     );
   }
 
+
   return (
     <motion.div
       layout
       className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
     >
+
       {courses.map((course) => (
+
         <CourseCard
+
           key={course.id}
+
           course={course}
-          onOpen={onCourseOpen}
+
+          onOpen={() => onCourseOpen(course)}
+
         />
+
       ))}
+
     </motion.div>
   );
 };
+
 
 export default CourseGrid;

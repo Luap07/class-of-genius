@@ -1,248 +1,149 @@
 import React, { useState } from "react";
 import {
   HardDrive,
-  Save,
-  Cloud,
-  File,
-  Image,
-  Video,
+  Save
 } from "lucide-react";
 
+import AdminButton from "../../../components/admin/ui/AdminButton";
 
 const StorageSettings = () => {
-
   const [storage, setStorage] = useState({
-    provider: "Supabase Storage",
-    maxUpload: "100",
-    cdn: true,
-    images: true,
-    videos: true,
-    pdfs: true,
+    provider: "Firebase Storage",
+    maxUploadSize: "100",
+    autoBackup: true
   });
 
+  const handleChange = (e) => {
+    const { name, type, checked, value } = e.target;
 
-  const updateStorage = (key, value) => {
-    setStorage(prev => ({
-      ...prev,
-      [key]: value,
-    }));
+    setStorage({
+      ...storage,
+      [name]: type === "checkbox" ? checked : value
+    });
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
 
-  const saveSettings = () => {
     console.log("Storage Settings:", storage);
-  };
 
+    // connect storage configuration API here
+  };
 
   return (
-    <div className="p-6 text-white">
+    <div className="space-y-6">
 
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <HardDrive />
+      <div>
+        <h1 className="text-3xl font-bold">
           Storage Settings
         </h1>
 
-        <p className="text-gray-400 mt-2">
-          Manage files, uploads and storage configuration
+        <p className="text-slate-400 mt-1">
+          Configure file storage and upload limits.
         </p>
       </div>
 
 
+      <form
+        onSubmit={handleSubmit}
+        className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5"
+      >
 
-      <div className="max-w-4xl space-y-5">
+        <div className="flex items-center gap-3">
 
+          <HardDrive className="text-blue-400"/>
 
-        <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-
-          <h2 className="text-xl font-bold flex items-center gap-2 mb-5">
-            <Cloud size={20}/>
-            Storage Provider
+          <h2 className="text-xl font-semibold">
+            Storage Configuration
           </h2>
 
+        </div>
+
+
+        <div>
+
+          <label className="block text-sm text-slate-400 mb-2">
+            Storage Provider
+          </label>
 
           <select
+            name="provider"
             value={storage.provider}
-            onChange={(e)=>updateStorage(
-              "provider",
-              e.target.value
-            )}
+            onChange={handleChange}
             className="w-full bg-slate-800 rounded-xl px-4 py-3 outline-none"
           >
-
-            <option>
-              Supabase Storage
-            </option>
 
             <option>
               Firebase Storage
             </option>
 
             <option>
-              AWS S3
+              Amazon S3
+            </option>
+
+            <option>
+              Cloudinary
             </option>
 
           </select>
 
-
-        </section>
-
+        </div>
 
 
+        <div>
 
-
-        <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-
-
-          <h2 className="text-xl font-bold mb-5">
-            Upload Limits
-          </h2>
-
-
-          <label className="text-gray-400 text-sm">
-            Maximum file size (MB)
+          <label className="block text-sm text-slate-400 mb-2">
+            Maximum Upload Size (MB)
           </label>
 
-
           <input
-            value={storage.maxUpload}
-            onChange={(e)=>updateStorage(
-              "maxUpload",
-              e.target.value
-            )}
-            className="
-            mt-2
-            w-full
-            bg-slate-800
-            rounded-xl
-            px-4
-            py-3
-            outline-none
-            "
+            name="maxUploadSize"
+            value={storage.maxUploadSize}
+            onChange={handleChange}
+            className="w-full bg-slate-800 rounded-xl px-4 py-3 outline-none"
           />
 
-
-        </section>
-
+        </div>
 
 
+        <div className="flex items-center justify-between">
 
+          <div>
+            <h3 className="font-medium">
+              Automatic Backup
+            </h3>
 
-        <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-
-
-          <h2 className="text-xl font-bold mb-5">
-            Allowed Media Types
-          </h2>
-
-
-          <div className="space-y-4">
-
-
-            {[
-              ["images","Images",Image],
-              ["videos","Videos",Video],
-              ["pdfs","PDF Documents",File],
-            ].map(([key,label,Icon])=>(
-
-              <label
-              key={key}
-              className="flex justify-between items-center"
-              >
-
-                <span className="flex items-center gap-3">
-                  <Icon size={18}/>
-                  {label}
-                </span>
-
-
-                <input
-                  type="checkbox"
-                  checked={storage[key]}
-                  onChange={(e)=>
-                    updateStorage(
-                      key,
-                      e.target.checked
-                    )
-                  }
-                  className="w-5 h-5"
-                />
-
-              </label>
-
-            ))}
-
-
+            <p className="text-sm text-slate-400">
+              Backup uploaded files automatically.
+            </p>
           </div>
 
 
-        </section>
+          <input
+            type="checkbox"
+            name="autoBackup"
+            checked={storage.autoBackup}
+            onChange={handleChange}
+            className="w-5 h-5"
+          />
+
+        </div>
 
 
+        <AdminButton type="submit">
+
+          <span className="flex items-center gap-2">
+            <Save size={18}/>
+            Save Storage Settings
+          </span>
+
+        </AdminButton>
 
 
-
-        <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-
-
-          <h2 className="text-xl font-bold mb-5">
-            CDN & Performance
-          </h2>
-
-
-          <label className="flex justify-between items-center">
-
-            <span>
-              Enable CDN
-            </span>
-
-
-            <input
-              type="checkbox"
-              checked={storage.cdn}
-              onChange={(e)=>
-                updateStorage(
-                  "cdn",
-                  e.target.checked
-                )
-              }
-              className="w-5 h-5"
-            />
-
-          </label>
-
-
-        </section>
-
-
-
-
-        <button
-          onClick={saveSettings}
-          className="
-          bg-blue-600
-          hover:bg-blue-700
-          px-6
-          py-3
-          rounded-xl
-          flex
-          items-center
-          gap-2
-          "
-        >
-
-          <Save size={18}/>
-          Save Storage Settings
-
-        </button>
-
-
-      </div>
-
+      </form>
 
     </div>
   );
 };
-
 
 export default StorageSettings;

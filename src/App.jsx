@@ -1,6 +1,6 @@
 import { useContext } from "react";
-import AdminDashboard from "./pages/AdminDashboard";
 import {BrowserRouter as Router,Routes, Route,Navigate, useLocation,} from "react-router-dom";
+import AdminRoutes from "./admin/AdminRoutes";
 
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -222,6 +222,16 @@ const AnimatedRoutes = () => {
     </ProtectedRoute>
   }
 />
+
+      {/* ADMIN */}
+      <Route
+  path="/admin/*"
+  element={
+    <ProtectedRoute>
+      <AdminRoutes />
+    </ProtectedRoute>
+  }
+/>
 {/* ================= DASHBOARD LAYOUT ROUTES ================= */}
 <Route
   element={
@@ -283,15 +293,7 @@ const AnimatedRoutes = () => {
     </ProtectedRoute>
   }
 />
-        {/* ADMIN */}
-        <Route
-          path="/novels/admin"
-          element={
-            <ProtectedRoute>
-              <PageWrapper><AdminDashboard /></PageWrapper>
-            </ProtectedRoute>
-          }
-        />
+  
 
         {/* FALLBACK */}
         <Route path="*" element={<Navigate to="/" replace />} />

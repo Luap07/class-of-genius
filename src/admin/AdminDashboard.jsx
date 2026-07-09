@@ -1,146 +1,287 @@
+// src/admin/AdminDashboard.jsx
+
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import {
+  Users,
+  GraduationCap,
+  FlaskConical,
+  BookOpen,
+  FileQuestion,
+  DollarSign,
+  TrendingUp,
+  Clock,
+  PlusCircle,
+  ArrowUpRight,
+} from "lucide-react";
 
-import AdminLayout from "./AdminLayout";
+import { Link } from "react-router-dom";
 
-/* Dashboard */
-import DashboardHome from "../pages/dashboard/DashboardHome";
+const stats = [
+  {
+    title: "Total Users",
+    value: "24,856",
+    change: "+12%",
+    icon: Users,
+    color: "from-blue-500 to-cyan-500",
+  },
+  {
+    title: "Courses",
+    value: "148",
+    change: "+6",
+    icon: GraduationCap,
+    color: "from-indigo-500 to-violet-500",
+  },
+  {
+    title: "Virtual Labs",
+    value: "64",
+    change: "+4",
+    icon: FlaskConical,
+    color: "from-emerald-500 to-green-500",
+  },
+  {
+    title: "CBT Questions",
+    value: "18,540",
+    change: "+540",
+    icon: FileQuestion,
+    color: "from-orange-500 to-red-500",
+  },
+  {
+    title: "Novels",
+    value: "620",
+    change: "+15",
+    icon: BookOpen,
+    color: "from-pink-500 to-rose-500",
+  },
+  {
+    title: "Revenue",
+    value: "$18,420",
+    change: "+21%",
+    icon: DollarSign,
+    color: "from-yellow-500 to-amber-500",
+  },
+];
 
-/* LMS */
-import CoursesAdmin from "../pages/lms/CoursesAdmin";
-import CreateCourse from "../pages/lms/CreateCourse";
-import EditCourse from "../pages/lms/EditCourse";
-import CategoriesAdmin from "../pages/lms/CategoriesAdmin";
-import ModulesAdmin from "../pages/lms/ModulesAdmin";
-import LessonsAdmin from "../pages/lms/LessonsAdmin";
-import LearningPathsAdmin from "../pages/lms/LearningPathsAdmin";
-import CertificatesAdmin from "../pages/lms/CertificatesAdmin";
-import StudentsAdmin from "../pages/lms/StudentsAdmin";
-import InstructorsAdmin from "../pages/lms/InstructorsAdmin";
+const quickActions = [
+  {
+    title: "Create Course",
+    link: "/admin/lms/create",
+  },
+  {
+    title: "Upload Novel",
+    link: "/admin/novels",
+  },
+  {
+    title: "Add Experiment",
+    link: "/admin/labs/add",
+  },
+  {
+    title: "Add CBT Questions",
+    link: "/admin/cbt/questions",
+  },
+];
 
-/* Virtual Labs */
-import VirtualLabsDashboard from "../pages/virtualLabs/VirtualLabsDashboard";
-import PhysicsExperiments from "../pages/virtualLabs/PhysicsExperiments";
-import ChemistryExperiments from "../pages/virtualLabs/ChemistryExperiments";
-import BiologyExperiments from "../pages/virtualLabs/BiologyExperiments";
-import MathematicsExperiments from "../pages/virtualLabs/MathematicsExperiments";
-import AddExperiment from "../pages/virtualLabs/AddExperiment";
-import EditExperiment from "../pages/virtualLabs/EditExperiment";
-
-/* CBT */
-import CBTDashboard from "../pages/cbt/CBTDashboard";
-import SubjectsAdmin from "../pages/cbt/SubjectsAdmin";
-import QuestionsAdmin from "../pages/cbt/QuestionsAdmin";
-import ExamsAdmin from "../pages/cbt/ExamsAdmin";
-import ResultsAdmin from "../pages/cbt/ResultsAdmin";
-
-/* Novels */
-import NovelsDashboard from "../pages/novels/NovelsDashboard";
-import GenresAdmin from "../pages/novels/GenresAdmin";
-import ChaptersAdmin from "../pages/novels/ChaptersAdmin";
-import ReviewsAdmin from "../pages/novels/ReviewsAdmin";
-
-/* Users */
-import UsersDashboard from "../pages/users/UsersDashboard";
-import Students from "../pages/users/Students";
-import Teachers from "../pages/users/Teachers";
-import Schools from "../pages/users/Schools";
-import Admins from "../pages/users/Admins";
-
-/* Analytics */
-import DashboardAnalytics from "../pages/analytics/DashboardAnalytics";
-import CourseAnalytics from "../pages/analytics/CourseAnalytics";
-import CBTAnalytics from "../pages/analytics/CBTAnalytics";
-import VirtualLabAnalytics from "../pages/analytics/VirtualLabAnalytics";
-import NovelAnalytics from "../pages/analytics/NovelAnalytics";
-
-/* Media */
-import MediaLibrary from "../pages/media/MediaLibrary";
-import Images from "../pages/media/Images";
-import Videos from "../pages/media/Videos";
-import PDFs from "../pages/media/PDFs";
-
-/* Settings */
-import GeneralSettings from "../pages/settings/GeneralSettings";
-import Branding from "../pages/settings/Branding";
-import Security from "../pages/settings/Security";
-import EmailSettings from "../pages/settings/EmailSettings";
+const activities = [
+  {
+    title: "New student registered",
+    time: "2 minutes ago",
+  },
+  {
+    title: "Physics experiment updated",
+    time: "15 minutes ago",
+  },
+  {
+    title: "New novel published",
+    time: "40 minutes ago",
+  },
+  {
+    title: "CBT Biology questions imported",
+    time: "1 hour ago",
+  },
+  {
+    title: "Course certificate generated",
+    time: "Today",
+  },
+];
 
 const AdminDashboard = () => {
   return (
-    <Routes>
+    <div className="space-y-8">
 
-      <Route element={<AdminLayout />}>
+      {/* Header */}
 
-        {/* Dashboard */}
-        <Route index element={<DashboardHome />} />
+      <div className="flex items-center justify-between">
 
-        {/* LMS */}
-        <Route path="lms" element={<CoursesAdmin />} />
-        <Route path="lms/create" element={<CreateCourse />} />
-        <Route path="lms/edit/:id" element={<EditCourse />} />
-        <Route path="lms/categories" element={<CategoriesAdmin />} />
-        <Route path="lms/modules" element={<ModulesAdmin />} />
-        <Route path="lms/lessons" element={<LessonsAdmin />} />
-        <Route path="lms/paths" element={<LearningPathsAdmin />} />
-        <Route path="lms/certificates" element={<CertificatesAdmin />} />
-        <Route path="lms/students" element={<StudentsAdmin />} />
-        <Route path="lms/instructors" element={<InstructorsAdmin />} />
+        <div>
 
-        {/* Virtual Labs */}
-        <Route path="labs" element={<VirtualLabsDashboard />} />
-        <Route path="labs/physics" element={<PhysicsExperiments />} />
-        <Route path="labs/chemistry" element={<ChemistryExperiments />} />
-        <Route path="labs/biology" element={<BiologyExperiments />} />
-        <Route path="labs/mathematics" element={<MathematicsExperiments />} />
-        <Route path="labs/add" element={<AddExperiment />} />
-        <Route path="labs/edit/:id" element={<EditExperiment />} />
+          <h1 className="text-4xl font-bold">
+            Welcome Back 👋
+          </h1>
 
-        {/* CBT */}
-        <Route path="cbt" element={<CBTDashboard />} />
-        <Route path="cbt/subjects" element={<SubjectsAdmin />} />
-        <Route path="cbt/questions" element={<QuestionsAdmin />} />
-        <Route path="cbt/exams" element={<ExamsAdmin />} />
-        <Route path="cbt/results" element={<ResultsAdmin />} />
+          <p className="mt-2 text-slate-400">
+            Here's what's happening across Scholiqen today.
+          </p>
 
-        {/* Novels */}
-        <Route path="novels" element={<NovelsDashboard />} />
-        <Route path="novels/genres" element={<GenresAdmin />} />
-        <Route path="novels/chapters" element={<ChaptersAdmin />} />
-        <Route path="novels/reviews" element={<ReviewsAdmin />} />
+        </div>
 
-        {/* Users */}
-        <Route path="users" element={<UsersDashboard />} />
-        <Route path="users/students" element={<Students />} />
-        <Route path="users/teachers" element={<Teachers />} />
-        <Route path="users/schools" element={<Schools />} />
-        <Route path="users/admins" element={<Admins />} />
+        <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-4">
 
-        {/* Analytics */}
-        <Route path="analytics" element={<DashboardAnalytics />} />
-        <Route path="analytics/courses" element={<CourseAnalytics />} />
-        <Route path="analytics/cbt" element={<CBTAnalytics />} />
-        <Route path="analytics/labs" element={<VirtualLabAnalytics />} />
-        <Route path="analytics/novels" element={<NovelAnalytics />} />
+          <div className="flex items-center gap-3">
 
-        {/* Media */}
-        <Route path="media" element={<MediaLibrary />} />
-        <Route path="media/images" element={<Images />} />
-        <Route path="media/videos" element={<Videos />} />
-        <Route path="media/pdfs" element={<PDFs />} />
+            <TrendingUp />
 
-        {/* Settings */}
-        <Route path="settings" element={<GeneralSettings />} />
-        <Route path="settings/branding" element={<Branding />} />
-        <Route path="settings/security" element={<Security />} />
-        <Route path="settings/email" element={<EmailSettings />} />
+            <div>
 
-        {/* 404 */}
-        <Route path="*" element={<Navigate to="/admin" replace />} />
+              <p className="text-sm text-blue-100">
+                Platform Growth
+              </p>
 
-      </Route>
+              <h2 className="text-2xl font-bold">
+                +18.7%
+              </h2>
 
-    </Routes>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* Stats */}
+
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+
+        {stats.map((item) => {
+
+          const Icon = item.icon;
+
+          return (
+
+            <div
+              key={item.title}
+              className="rounded-3xl border border-slate-800 bg-slate-900 p-6"
+            >
+
+              <div className="flex justify-between">
+
+                <div>
+
+                  <p className="text-slate-400">
+                    {item.title}
+                  </p>
+
+                  <h2 className="mt-3 text-4xl font-bold">
+                    {item.value}
+                  </h2>
+
+                  <p className="mt-3 text-emerald-400">
+                    {item.change}
+                  </p>
+
+                </div>
+
+                <div
+                  className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-r ${item.color}`}
+                >
+                  <Icon size={30} />
+                </div>
+
+              </div>
+
+            </div>
+
+          );
+
+        })}
+
+      </div>
+
+      {/* Middle */}
+
+      <div className="grid gap-8 lg:grid-cols-3">
+
+        {/* Quick Actions */}
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
+
+          <h2 className="text-2xl font-bold">
+            Quick Actions
+          </h2>
+
+          <div className="mt-6 space-y-4">
+
+            {quickActions.map((action) => (
+
+              <Link
+                key={action.title}
+                to={action.link}
+                className="flex items-center justify-between rounded-2xl bg-slate-800 px-5 py-4 transition hover:bg-slate-700"
+              >
+
+                <div className="flex items-center gap-3">
+
+                  <PlusCircle />
+
+                  {action.title}
+
+                </div>
+
+                <ArrowUpRight />
+
+              </Link>
+
+            ))}
+
+          </div>
+
+        </div>
+
+        {/* Activity */}
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 lg:col-span-2">
+
+          <h2 className="text-2xl font-bold">
+            Recent Activity
+          </h2>
+
+          <div className="mt-6 space-y-5">
+
+            {activities.map((activity, index) => (
+
+              <div
+                key={index}
+                className="flex items-center justify-between rounded-2xl bg-slate-800 px-5 py-4"
+              >
+
+                <div className="flex items-center gap-3">
+
+                  <Clock className="text-blue-400" />
+
+                  <div>
+
+                    <p className="font-medium">
+                      {activity.title}
+                    </p>
+
+                    <p className="text-sm text-slate-400">
+                      {activity.time}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
   );
 };
 

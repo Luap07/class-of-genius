@@ -1,169 +1,417 @@
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 import {
-  ChevronLeft,
-  ChevronRight,
-  CheckCircle2,
+  Upload,
+  Save,
+  ArrowLeft,
+  Plus,
+  Trash2,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-/* ================= STEPS ================= */
+const categories = [
+  "Programming",
+  "Business",
+  "Science",
+  "Engineering",
+  "Medicine",
+  "Arts",
+  "Law",
+  "Mathematics",
+];
 
-import BasicInformation from "../../components/admin/courseWizard/BasicInformation";
-import ThumbnailMedia from "../../components/admin/courseWizard/ThumbnailMedia";
-import CurriculumBuilder from "../../components/admin/courseWizard/CurriculumBuilder";
-import LessonsBuilder from "../../components/admin/courseWizard/LessonsBuilder";
-import ResourcesBuilder from "../../components/admin/courseWizard/ResourcesBuilder";
-import PricingCertificates from "../../components/admin/courseWizard/PricingCertificates";
-import SEOSettings from "../../components/admin/courseWizard/SEOSettings";
-import ReviewPublish from "../../components/admin/courseWizard/ReviewPublish";
-
-const steps = [
-  "Basic",
-  "Thumbnail",
-  "Curriculum",
-  "Lessons",
-  "Resources",
-  "Pricing",
-  "SEO",
-  "Publish",
+const levels = [
+  "Beginner",
+  "Intermediate",
+  "Advanced",
 ];
 
 const CreateCourse = () => {
-  const [step, setStep] = useState(0);
+  const navigate = useNavigate();
 
-  const next = () => {
-    if (step < steps.length - 1) {
-      setStep(step + 1);
-    }
+  const [course, setCourse] = useState({
+    title: "",
+    subtitle: "",
+    description: "",
+    category: "",
+    level: "",
+    instructor: "",
+    duration: "",
+    language: "English",
+    price: "",
+    certificate: true,
+    thumbnail: "",
+  });
+
+  const [modules, setModules] = useState([
+    {
+      title: "",
+      lessons: [],
+    },
+  ]);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+
+    setCourse((prev) => ({
+      ...prev,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : value,
+    }));
   };
 
-  const previous = () => {
-    if (step > 0) {
-      setStep(step - 1);
-    }
+  const addModule = () => {
+    setModules([
+      ...modules,
+      {
+        title: "",
+        lessons: [],
+      },
+    ]);
   };
 
-  const renderStep = () => {
-    switch (step) {
-      case 0:
-        return <BasicInformation />;
+  const updateModule = (index, value) => {
+    const copy = [...modules];
+    copy[index].title = value;
+    setModules(copy);
+  };
 
-      case 1:
-        return <ThumbnailMedia />;
-
-      case 2:
-        return <CurriculumBuilder />;
-
-      case 3:
-        return <LessonsBuilder />;
-
-      case 4:
-        return <ResourcesBuilder />;
-
-      case 5:
-        return <PricingCertificates />;
-
-      case 6:
-        return <SEOSettings />;
-
-      case 7:
-        return <ReviewPublish />;
-
-      default:
-        return null;
-    }
+  const deleteModule = (index) => {
+    setModules(
+      modules.filter((_, i) => i !== index)
+    );
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-8 space-y-10">
+    <div className="space-y-8">
 
       {/* Header */}
 
-      <div>
+      <div className="flex items-center justify-between">
 
-        <h1 className="text-4xl font-bold">
-          Create New Course
-        </h1>
+        <div>
 
-        <p className="text-slate-400 mt-2">
-          Complete every step before publishing.
-        </p>
+          <button
+            onClick={() => navigate(-1)}
+            className="mb-4 flex items-center gap-2 text-slate-400 hover:text-white"
+          >
+            <ArrowLeft size={18} />
+
+            Back
+          </button>
+
+          <h1 className="text-4xl font-extrabold">
+            Create Course
+          </h1>
+
+          <p className="mt-2 text-slate-400">
+            Build a new professional course.
+          </p>
+
+        </div>
+
+        <button
+          className="flex items-center gap-2 rounded-2xl bg-blue-600 px-6 py-4 font-semibold hover:bg-blue-700"
+        >
+          <Save size={18} />
+
+          Save Course
+        </button>
 
       </div>
 
-      {/* Progress */}
+      {/* Basic Information */}
 
-      <div className="grid grid-cols-8 gap-3">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="rounded-3xl border border-slate-800 bg-slate-900 p-8"
+      >
 
-        {steps.map((item, index) => (
+        <h2 className="mb-6 text-2xl font-bold">
+          Basic Information
+        </h2>
 
-          <div
-            key={item}
-            className={`rounded-2xl p-4 text-center border transition
-            ${
-              index === step
-                ? "bg-blue-600 border-blue-600"
-                : index < step
-                ? "bg-emerald-600 border-emerald-600"
-                : "bg-slate-900 border-slate-800"
-            }`}
-          >
+        <div className="grid gap-6 lg:grid-cols-2">
 
-            <div className="flex justify-center mb-2">
+          <div>
 
-              {index < step ? (
-                <CheckCircle2 size={18} />
-              ) : (
-                <span className="font-bold">
-                  {index + 1}
-                </span>
-              )}
+            <label className="mb-2 block text-sm">
+              Course Title
+            </label>
 
-            </div>
-
-            <p className="text-sm">
-              {item}
-            </p>
+            <input
+              name="title"
+              value={course.title}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
+            />
 
           </div>
 
-        ))}
+          <div>
 
-      </div>
+            <label className="mb-2 block text-sm">
+              Instructor
+            </label>
 
-      {/* Body */}
+            <input
+              name="instructor"
+              value={course.instructor}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
+            />
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-sm">
+              Subtitle
+            </label>
+
+            <input
+              name="subtitle"
+              value={course.subtitle}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
+            />
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-sm">
+              Duration
+            </label>
+
+            <input
+              name="duration"
+              value={course.duration}
+              onChange={handleChange}
+              placeholder="8 Weeks"
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
+            />
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-sm">
+              Category
+            </label>
+
+            <select
+              name="category"
+              value={course.category}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
+            >
+              <option value="">
+                Select Category
+              </option>
+
+              {categories.map((cat) => (
+                <option
+                  key={cat}
+                  value={cat}
+                >
+                  {cat}
+                </option>
+              ))}
+
+            </select>
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-sm">
+              Level
+            </label>
+
+            <select
+              name="level"
+              value={course.level}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
+            >
+              <option value="">
+                Select Level
+              </option>
+
+              {levels.map((lvl) => (
+                <option
+                  key={lvl}
+                  value={lvl}
+                >
+                  {lvl}
+                </option>
+              ))}
+
+            </select>
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-sm">
+              Price
+            </label>
+
+            <input
+              name="price"
+              value={course.price}
+              onChange={handleChange}
+              placeholder="$99"
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
+            />
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-sm">
+              Language
+            </label>
+
+            <input
+              name="language"
+              value={course.language}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
+            />
+
+          </div>
+
+        </div>
+
+        <div className="mt-6">
+
+          <label className="mb-2 block text-sm">
+            Description
+          </label>
+
+          <textarea
+            rows={6}
+            name="description"
+            value={course.description}
+            onChange={handleChange}
+            className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
+          />
+
+        </div>
+
+      </motion.div>
+
+      {/* Thumbnail */}
 
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
 
-        {renderStep()}
+        <h2 className="mb-6 text-2xl font-bold">
+          Course Thumbnail
+        </h2>
+
+        <label className="flex h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 hover:border-blue-500">
+
+          <Upload size={40} />
+
+          <p className="mt-3">
+            Upload Thumbnail
+          </p>
+
+          <input
+            type="file"
+            hidden
+          />
+
+        </label>
 
       </div>
 
-      {/* Footer */}
+      {/* Modules */}
 
-      <div className="flex justify-between">
+      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
 
-        <button
-          onClick={previous}
-          disabled={step === 0}
-          className="flex items-center gap-2 rounded-xl bg-slate-800 px-6 py-3 disabled:opacity-40"
-        >
-          <ChevronLeft size={18} />
+        <div className="mb-6 flex items-center justify-between">
 
-          Previous
+          <h2 className="text-2xl font-bold">
+            Course Modules
+          </h2>
 
-        </button>
+          <button
+            onClick={addModule}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2"
+          >
+            <Plus size={18} />
 
-        <button
-          onClick={next}
-          disabled={step === steps.length - 1}
-          className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 disabled:opacity-40"
-        >
+            Add Module
+          </button>
 
-          Next
+        </div>
 
-          <ChevronRight size={18} />
+        <div className="space-y-5">
 
-        </button>
+          {modules.map((module, index) => (
+
+            <div
+              key={index}
+              className="rounded-2xl bg-slate-950 p-5"
+            >
+
+              <div className="flex gap-3">
+
+                <input
+                  value={module.title}
+                  onChange={(e) =>
+                    updateModule(
+                      index,
+                      e.target.value
+                    )
+                  }
+                  placeholder={`Module ${index + 1}`}
+                  className="flex-1 rounded-xl border border-slate-700 bg-slate-800 p-4"
+                />
+
+                <button
+                  onClick={() =>
+                    deleteModule(index)
+                  }
+                  className="rounded-xl bg-red-600 px-4"
+                >
+                  <Trash2 size={18} />
+                </button>
+
+              </div>
+
+            </div>
+
+          ))}
+
+        </div>
+
+      </div>
+
+      {/* Certificate */}
+
+      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
+
+        <label className="flex items-center gap-3">
+
+          <input
+            type="checkbox"
+            checked={course.certificate}
+            name="certificate"
+            onChange={handleChange}
+          />
+
+          <span>
+            Award Certificate After Completion
+          </span>
+
+        </label>
 
       </div>
 

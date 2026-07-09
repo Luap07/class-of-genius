@@ -5,6 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { Moon, Sun, BookOpen, X, Volume2, VolumeX } from "lucide-react";
 import Cog from "../assets/cog.png";
+import ReaderReviews from "../components/ReaderReviews";
 
 const StoryReader = () => {
   const { id } = useParams();
@@ -100,7 +101,7 @@ const StoryReader = () => {
         <div className="h-1 bg-gray-300"><div className="h-1 bg-blue-600 transition-all" style={{ width: `${((stepIndex + 1) / flow.length) * 100}%` }} /></div>
         <div className="flex-1 overflow-y-auto px-6 py-8">
           {current.type === "cover" && (
-            <div className="w-full text-left">
+            <div className="w-full text-center">
               <img src={current.image} className="w-full h-96 object-cover rounded-xl shadow-lg" />
               <h1 className="text-4xl font-bold mt-6">{current.title}</h1>
               {current.description && <p className="mt-4 text-xl text-gray-500 leading-relaxed italic">{current.description}</p>}

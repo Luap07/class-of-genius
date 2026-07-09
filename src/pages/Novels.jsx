@@ -11,14 +11,28 @@ const Novels = () => {
   const [selectedGenre, setSelectedGenre] = useState("ALL");
 
   useEffect(() => {
-    const fetchNovels = async () => {
-      setLoading(true);
-      const { data } = await supabase.from("novels").select("*");
+  const fetchNovels = async () => {
+    setLoading(true);
+
+    const { data, error, count } = await supabase
+      .from("novels")
+      .select("*", { count: "exact" });
+
+    console.log("Supabase Count:", count);
+    console.log("Returned Rows:", data?.length);
+    console.log(data);
+
+    if (error) {
+      console.log(error);
+    } else {
       setNovels(data || []);
-      setLoading(false);
-    };
-    fetchNovels();
-  }, []);
+    }
+
+    setLoading(false);
+  };
+
+  fetchNovels();
+}, []);
 
   const genres = ["ALL", "SCI_FIC", "ROMANCE", "FANTASY", "THRILLER", "MYSTERY", "ADVENTURE", "HISTORICAL", "CHRISTIAN", "COMEDY", "EDUCATIONAL", "AFRICAN"];
   const normalize = (g) => (g ? g.toUpperCase().replace(/\s+/g, "_") : "");

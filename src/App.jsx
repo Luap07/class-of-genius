@@ -39,7 +39,7 @@ import Courses from "./pages/lms/Courses";
 import CourseDetails from "./pages/lms/CourseDetails";
 import Lesson from "./pages/lms/Lesson";
 
-
+import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 /* ================= AI ================= */
 import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
@@ -223,15 +223,17 @@ const AnimatedRoutes = () => {
   }
 />
 
-      {/* ADMIN */}
-      <Route
+      {/* ================= ADMIN ================= */}
+<Route
   path="/admin/*"
   element={
-    <ProtectedRoute>
+    <ProtectedAdminRoute>
       <AdminRoutes />
-    </ProtectedRoute>
+    </ProtectedAdminRoute>
   }
 />
+
+
 {/* ================= DASHBOARD LAYOUT ROUTES ================= */}
 <Route
   element={

@@ -1,82 +1,47 @@
-// src/pages/admin/lms/CoursesAdmin.jsx
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-import React, { useMemo, useState } from "react";
 import {
   Plus,
-  Search,
-  Filter,
-  Download,
-  Trash2,
   Edit,
   Eye,
-  MoreVertical,
   BookOpen,
   Users,
-  Star,
-  DollarSign,
+  Loader2,
   ChevronLeft,
   ChevronRight,
+  FolderOpen,
+  Layers,
+  ClipboardList,
+  ClipboardCheck,
+  Grid2X2,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  supabase,
+} from "../../../lib/supabaseClient";
 
 import StatCard from "../../../components/admin/cards/StatCard";
 import CourseTable from "../../../components/admin/tables/CourseTable";
-import AdminButton from "../../../components/admin/ui/AdminButton";
 import AdminSearch from "../../../components/admin/ui/AdminSearch";
 import AdminFilter from "../../../components/admin/ui/AdminFilter";
 
-const demoCourses = [
-  {
-    id: 1,
-    thumbnail: "https://picsum.photos/120/80?1",
-    title: "Complete React Development",
-    instructor: "John Doe",
-    category: "Web Development",
-    level: "Intermediate",
-    students: 2450,
-    lessons: 48,
-    rating: 4.9,
-    price: 49,
-    status: "Published",
-    featured: true,
-    createdAt: "2026-07-01",
-  },
-  {
-    id: 2,
-    thumbnail: "https://picsum.photos/120/80?2",
-    title: "Python for Beginners",
-    instructor: "Sarah Wilson",
-    category: "Programming",
-    level: "Beginner",
-    students: 1932,
-    lessons: 60,
-    rating: 4.8,
-    price: 39,
-    status: "Draft",
-    featured: false,
-    createdAt: "2026-06-20",
-  },
-  {
-    id: 3,
-    thumbnail: "https://picsum.photos/120/80?3",
-    title: "Artificial Intelligence",
-    instructor: "Michael Lee",
-    category: "AI",
-    level: "Advanced",
-    students: 811,
-    lessons: 72,
-    rating: 5.0,
-    price: 120,
-    status: "Published",
-    featured: true,
-    createdAt: "2026-05-18",
-  },
-];
-
 const CoursesAdmin = () => {
+
   const navigate = useNavigate();
 
-  const [courses, setCourses] = useState(demoCourses);
+  /* ================= STATE ================= */
+
+  const [courses, setCourses] = useState([]);
+
+  const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
 
@@ -90,262 +55,597 @@ const CoursesAdmin = () => {
 
   const coursesPerPage = 10;
 
-  /* ===========================
-      Dashboard Statistics
-  =========================== */
 
-  const stats = useMemo(() => {
-    return {
-      totalCourses: courses.length,
 
-      published: courses.filter(
-        (c) => c.status === "Published"
-      ).length,
+  /* ================= FETCH COURSES ================= */
 
-      drafts: courses.filter(
-        (c) => c.status === "Draft"
-      ).length,
+  const fetchCourses = async () => {
 
-      students: courses.reduce(
-        (sum, c) => sum + c.students,
-        0
-      ),
-    };
-  }, [courses]);
+    setLoading(true);
 
-  /* ===========================
-      Categories
-  =========================== */
+    const { data, error } = await supabase
 
-  const categories = [
-    "All",
-    "Programming",
-    "Web Development",
-    "AI",
-    "Business",
-    "Medicine",
-    "Design",
-  ];
+      .from("courses")
 
-  /* ===========================
-      Filter
-  =========================== */
+      .select("*")
+
+      .order("created_at", {
+
+        ascending: false,
+
+      });
+
+    if (error) {
+
+      console.error(error);
+
+    } else {
+
+      setCourses(data || []);
+
+    }
+
+    setLoading(false);
+
+  };
+
+
+
+  useEffect(() => {
+
+    fetchCourses();
+
+  }, []);
+
+
+
+
+  /* ================= STATISTICS ================= */
+
+  const stats = useMemo(() => ({
+
+    totalCourses: courses.length,
+
+    published: courses.filter(
+
+      (course) => course.status === "Published"
+
+    ).length,
+
+    drafts: courses.filter(
+
+      (course) => course.status === "Draft"
+
+    ).length,
+
+    students: 0,
+
+  }), [courses]);
+
+
+
+
+  /* ================= FILTER ================= */
 
   const filteredCourses = useMemo(() => {
+
     return courses.filter((course) => {
+
+      const keyword = search.toLowerCase();
+
       const matchesSearch =
-        course.title
-          .toLowerCase()
-          .includes(search.toLowerCase()) ||
-        course.instructor
-          .toLowerCase()
-          .includes(search.toLowerCase());
+
+        course.title?.toLowerCase().includes(keyword) ||
+
+        course.instructor?.toLowerCase().includes(keyword);
 
       const matchesCategory =
+
         category === "All" ||
+
         course.category === category;
 
       const matchesStatus =
+
         status === "All" ||
+
         course.status === status;
 
       return (
+
         matchesSearch &&
+
         matchesCategory &&
+
         matchesStatus
+
       );
+
     });
+
   }, [
+
     courses,
+
     search,
+
     category,
+
     status,
+
   ]);
 
-  /* ===========================
-      Pagination
-  =========================== */
+
+
+
+  /* ================= PAGINATION ================= */
 
   const totalPages = Math.ceil(
-    filteredCourses.length / coursesPerPage
+
+    filteredCourses.length /
+
+    coursesPerPage
+
   );
 
-  const paginatedCourses =
-    filteredCourses.slice(
-      (currentPage - 1) * coursesPerPage,
-      currentPage * coursesPerPage
-    );
 
-  /* ===========================
-      Actions
-  =========================== */
 
-  const handleCreateCourse = () => {
-    navigate("/admin/lms/create");
-  };
+  const paginatedCourses = filteredCourses.slice(
 
-  const handleEdit = (course) => {
-    navigate(`/admin/lms/edit/${course.id}`);
-  };
+    (currentPage - 1) *
+
+      coursesPerPage,
+
+    currentPage *
+
+      coursesPerPage
+
+  );
+
+
+
+
+  /* ================= ACTIONS ================= */
 
   const handleView = (course) => {
-    console.log(course);
+
+    navigate(
+
+      `/admin/lms/view/${course.id}`
+
+    );
+
   };
 
-  const handleDelete = (course) => {
-    if (
-      window.confirm(
-        `Delete "${course.title}"?`
-      )
-    ) {
-      setCourses((prev) =>
-        prev.filter(
-          (c) => c.id !== course.id
-        )
-      );
-    }
+
+
+  const handleEdit = (course) => {
+
+    navigate(
+
+      `/admin/lms/edit/${course.id}`
+
+    );
+
   };
+
+
+
+  const handleDelete = async (course) => {
+
+    const confirmDelete = window.confirm(
+
+      `Delete "${course.title}"?`
+
+    );
+
+    if (!confirmDelete) return;
+
+    const { error } = await supabase
+
+      .from("courses")
+
+      .delete()
+
+      .eq("id", course.id);
+
+    if (!error) {
+
+      fetchCourses();
+
+    }
+
+  };
+
+
 
   const toggleSelect = (id) => {
-    if (selectedCourses.includes(id)) {
-      setSelectedCourses(
-        selectedCourses.filter(
-          (item) => item !== id
-        )
-      );
-    } else {
-      setSelectedCourses([
-        ...selectedCourses,
-        id,
-      ]);
-    }
+
+    setSelectedCourses((prev) =>
+
+      prev.includes(id)
+
+        ? prev.filter(
+
+            (item) => item !== id
+
+          )
+
+        : [...prev, id]
+
+    );
+
   };
+
+
 
   const toggleSelectAll = () => {
+
     if (
+
       selectedCourses.length ===
+
       paginatedCourses.length
+
     ) {
+
       setSelectedCourses([]);
+
     } else {
+
       setSelectedCourses(
+
         paginatedCourses.map(
-          (c) => c.id
-        )
-      );
-    }
-  };
 
-  const bulkDelete = () => {
-    if (
-      selectedCourses.length === 0
-    )
-      return;
+          (course) => course.id
 
-    if (
-      window.confirm(
-        `Delete ${selectedCourses.length} selected course(s)?`
-      )
-    ) {
-      setCourses(
-        courses.filter(
-          (c) =>
-            !selectedCourses.includes(c.id)
         )
+
       );
 
-      setSelectedCourses([]);
     }
+
   };
+
+
+
+  if (loading) {
+
     return (
-    <div className="space-y-8">
 
-      {/* ==========================================
-          Header
-      ========================================== */}
+      <div className="flex min-h-[400px] items-center justify-center text-white">
 
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <Loader2
 
-        <div>
+          size={40}
 
-          <h1 className="text-3xl font-bold text-white">
-            Courses Management
-          </h1>
+          className="animate-spin text-blue-500"
 
-          <p className="mt-2 text-slate-400">
-            Create, edit, organize and manage every course on Scholiqen.
-          </p>
-
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-
-          <AdminButton
-            variant="secondary"
-            icon={<Download size={18} />}
-            onClick={() => console.log("Export")}
-          >
-            Export
-          </AdminButton>
-
-          <AdminButton
-            variant="danger"
-            disabled={selectedCourses.length === 0}
-            icon={<Trash2 size={18} />}
-            onClick={bulkDelete}
-          >
-            Delete ({selectedCourses.length})
-          </AdminButton>
-
-          <AdminButton
-            icon={<Plus size={18} />}
-            onClick={handleCreateCourse}
-          >
-            Create Course
-          </AdminButton>
-
-        </div>
+        />
 
       </div>
 
-      {/* ==========================================
-          Statistics
-      ========================================== */}
+    );
+
+  }
+
+
+
+  return (
+
+    <div className="space-y-6 p-6 text-white">
+            {/* ================= STATISTICS ================= */}
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
 
-       <StatCard
+        <StatCard
           title="Total Courses"
           value={stats.totalCourses}
           icon={BookOpen}
           color="blue"
-      />
+        />
 
         <StatCard
           title="Published"
           value={stats.published}
           icon={Eye}
           color="green"
-          />
+        />
 
         <StatCard
           title="Draft Courses"
           value={stats.drafts}
           icon={Edit}
           color="amber"
-          />
+        />
 
         <StatCard
-        title="Students"
-        value={stats.students.toLocaleString()}
-        icon={Users}
-        color="purple"
+          title="Students"
+          value={stats.students}
+          icon={Users}
+          color="purple"
         />
+
       </div>
 
-      {/* ==========================================
-          Search & Filters
-      ========================================== */}
+
+
+      {/* ================= QUICK ACTIONS ================= */}
+
+      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
+
+        <div className="mb-6 flex items-center justify-between">
+
+          <div className="flex items-center gap-3">
+
+            <Grid2X2
+              size={24}
+              className="text-blue-400"
+            />
+
+            <h2 className="text-2xl font-bold">
+
+              LMS Quick Actions
+
+            </h2>
+
+          </div>
+
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
+          {/* Create Course */}
+
+          <button
+
+            onClick={() => navigate("/admin/lms/create")}
+
+            className="
+              rounded-2xl
+              border
+              border-slate-700
+              bg-slate-950
+              p-5
+              text-left
+              transition
+              hover:border-blue-500
+              hover:bg-slate-800
+            "
+
+          >
+
+            <Plus
+              size={32}
+              className="mb-4 text-blue-400"
+            />
+
+            <h3 className="font-semibold">
+
+              Create Course
+
+            </h3>
+
+            <p className="mt-2 text-sm text-slate-400">
+
+              Add a new course.
+
+            </p>
+
+          </button>
+
+
+
+          {/* Create Topic */}
+
+          <button
+
+            onClick={() => navigate("/admin/lms/topics/create")}
+
+            className="
+              rounded-2xl
+              border
+              border-slate-700
+              bg-slate-950
+              p-5
+              text-left
+              transition
+              hover:border-green-500
+              hover:bg-slate-800
+            "
+
+          >
+
+            <Layers
+              size={32}
+              className="mb-4 text-green-400"
+            />
+
+            <h3 className="font-semibold">
+
+              Create Topic
+
+            </h3>
+
+            <p className="mt-2 text-sm text-slate-400">
+
+              Add topics to your courses.
+
+            </p>
+
+          </button>
+
+
+
+          {/* Resources */}
+
+          <button
+
+            onClick={() => navigate("/admin/lms/resources")}
+
+            className="
+              rounded-2xl
+              border
+              border-slate-700
+              bg-slate-950
+              p-5
+              text-left
+              transition
+              hover:border-yellow-500
+              hover:bg-slate-800
+            "
+
+          >
+
+            <FolderOpen
+              size={32}
+              className="mb-4 text-yellow-400"
+            />
+
+            <h3 className="font-semibold">
+
+              Resources
+
+            </h3>
+
+            <p className="mt-2 text-sm text-slate-400">
+
+              PDFs, Videos & Documents.
+
+            </p>
+
+          </button>
+
+
+
+          {/* Weekly Tasks */}
+
+          <button
+
+            onClick={() => navigate("/admin/lms/tasks")}
+
+            className="
+              rounded-2xl
+              border
+              border-slate-700
+              bg-slate-950
+              p-5
+              text-left
+              transition
+              hover:border-purple-500
+              hover:bg-slate-800
+            "
+
+          >
+
+            <ClipboardList
+              size={32}
+              className="mb-4 text-purple-400"
+            />
+
+            <h3 className="font-semibold">
+
+              Weekly Tasks
+
+            </h3>
+
+            <p className="mt-2 text-sm text-slate-400">
+
+              Manage assignments.
+
+            </p>
+
+          </button>
+
+
+
+          {/* Monthly Quiz */}
+
+          <button
+
+            onClick={() => navigate("/admin/lms/monthly-quizzes")}
+
+            className="
+              rounded-2xl
+              border
+              border-slate-700
+              bg-slate-950
+              p-5
+              text-left
+              transition
+              hover:border-pink-500
+              hover:bg-slate-800
+            "
+
+          >
+
+            <ClipboardCheck
+              size={32}
+              className="mb-4 text-pink-400"
+            />
+
+            <h3 className="font-semibold">
+
+              Monthly Quiz
+
+            </h3>
+
+            <p className="mt-2 text-sm text-slate-400">
+
+              Create monthly assessments.
+
+            </p>
+
+          </button>
+
+
+
+          {/* Categories */}
+
+          <button
+
+            onClick={() => navigate("/admin/lms/categories")}
+
+            className="
+              rounded-2xl
+              border
+              border-slate-700
+              bg-slate-950
+              p-5
+              text-left
+              transition
+              hover:border-cyan-500
+              hover:bg-slate-800
+            "
+
+          >
+
+            <BookOpen
+              size={32}
+              className="mb-4 text-cyan-400"
+            />
+
+            <h3 className="font-semibold">
+
+              Categories
+
+            </h3>
+
+            <p className="mt-2 text-sm text-slate-400">
+
+              Organize course categories.
+
+            </p>
+
+          </button>
+
+        </div>
+
+      </div>
+
+
+
+      {/* ================= FILTERS ================= */}
 
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
 
@@ -354,63 +654,54 @@ const CoursesAdmin = () => {
           <div className="lg:col-span-2">
 
             <AdminSearch
+
               value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
-              placeholder="Search courses or instructors..."
+
+              onChange={(e) => setSearch(e.target.value)}
+
+              placeholder="Search courses..."
+
             />
 
           </div>
 
           <AdminFilter
+
             value={category}
-            onChange={(e) =>
-              setCategory(e.target.value)
-            }
-            options={categories}
+
+            onChange={(e) => setCategory(e.target.value)}
+
+            options={[
+              "All",
+              "Programming",
+              "Science",
+              "Mathematics",
+              "AI",
+              "Business",
+              "Design",
+              "Medicine",
+            ]}
+
           />
 
           <AdminFilter
+
             value={status}
-            onChange={(e) =>
-              setStatus(e.target.value)
-            }
+
+            onChange={(e) => setStatus(e.target.value)}
+
             options={[
               "All",
               "Published",
               "Draft",
             ]}
+
           />
-        </div>
-      </div>
-      {/* ==========================================Results Header========================================== */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">
-            Courses
-          </h2>
-
-          <p className="text-sm text-slate-400">
-
-            Showing{" "}
-            <span className="font-semibold text-white">
-              {paginatedCourses.length}
-            </span>{" "}
-            of{" "}
-            <span className="font-semibold text-white">
-              {filteredCourses.length}
-            </span>{" "}
-            courses
-
-          </p>
 
         </div>
 
       </div>
-            {/* ==========================================
-          Course Table
-      ========================================== */}
+            {/* ================= COURSE TABLE ================= */}
 
       <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">
 
@@ -426,112 +717,84 @@ const CoursesAdmin = () => {
 
       </div>
 
-      {/* ==========================================
-          Empty State
-      ========================================== */}
 
-      {filteredCourses.length === 0 && (
 
-        <div className="rounded-3xl border border-dashed border-slate-700 bg-slate-900 py-20 text-center">
-
-          <BookOpen
-            size={70}
-            className="mx-auto text-slate-600"
-          />
-
-          <h2 className="mt-6 text-2xl font-bold">
-
-            No Courses Found
-
-          </h2>
-
-          <p className="mt-3 text-slate-400">
-
-            Try changing your search keywords or filters.
-
-          </p>
-
-          <div className="mt-8">
-
-            <AdminButton
-              icon={<Plus size={18} />}
-              onClick={handleCreateCourse}
-            >
-              Create First Course
-            </AdminButton>
-
-          </div>
-
-        </div>
-
-      )}
-
-      {/* ==========================================
-          Pagination
-      ========================================== */}
+      {/* ================= PAGINATION ================= */}
 
       {filteredCourses.length > 0 && (
 
-        <div className="flex flex-col gap-5 border-t border-slate-800 pt-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center justify-between border-t border-slate-800 pt-6">
 
           <p className="text-sm text-slate-400">
 
-            Page{" "}
-            <span className="font-semibold text-white">
+            Showing page
+
+            <span className="mx-2 font-bold text-white">
+
               {currentPage}
-            </span>{" "}
-            of{" "}
-            <span className="font-semibold text-white">
+
+            </span>
+
+            of
+
+            <span className="mx-2 font-bold text-white">
+
               {totalPages}
+
             </span>
 
           </p>
 
-          <div className="flex items-center gap-3">
+
+
+          <div className="flex gap-3">
 
             <button
+
               disabled={currentPage === 1}
+
               onClick={() =>
-                setCurrentPage((prev) => prev - 1)
+                setCurrentPage((page) => page - 1)
               }
-              className="rounded-xl border border-slate-700 p-3 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+
+              className="
+                rounded-xl
+                border
+                border-slate-700
+                p-3
+                transition
+                hover:bg-slate-800
+                disabled:cursor-not-allowed
+                disabled:opacity-40
+              "
+
             >
 
               <ChevronLeft size={18} />
 
             </button>
 
-            {Array.from(
-              {
-                length: totalPages,
-              },
-              (_, index) => (
 
-                <button
-                  key={index}
-                  onClick={() =>
-                    setCurrentPage(index + 1)
-                  }
-                  className={`h-11 w-11 rounded-xl font-semibold transition ${
-                    currentPage === index + 1
-                      ? "bg-blue-600 text-white"
-                      : "border border-slate-700 hover:bg-slate-800"
-                  }`}
-                >
-
-                  {index + 1}
-
-                </button>
-
-              )
-            )}
 
             <button
+
               disabled={currentPage === totalPages}
+
               onClick={() =>
-                setCurrentPage((prev) => prev + 1)
+                setCurrentPage((page) => page + 1)
               }
-              className="rounded-xl border border-slate-700 p-3 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+
+              className="
+                rounded-xl
+                border
+                border-slate-700
+                p-3
+                transition
+                hover:bg-slate-800
+                disabled:cursor-not-allowed
+                disabled:opacity-40
+              "
+
             >
 
               <ChevronRight size={18} />
@@ -545,7 +808,9 @@ const CoursesAdmin = () => {
       )}
 
     </div>
+
   );
+
 };
 
 export default CoursesAdmin;

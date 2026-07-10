@@ -17,6 +17,7 @@ const CreateCourse = () => {
   const [loading, setLoading] = useState(false);
   const [thumbnail, setThumbnail] = useState(null);
   const [preview, setPreview] = useState("");
+  
   const [course, setCourse] = useState({
     title: "",
     description: "",
@@ -47,10 +48,12 @@ const CreateCourse = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+
     try {
-      setLoading(true);
       let thumbnailUrl = "";
 
+      // Handle Image Upload
       if (thumbnail) {
         const fileName = `${Date.now()}-${thumbnail.name}`;
         const { error: uploadError } = await supabase.storage
@@ -65,6 +68,7 @@ const CreateCourse = () => {
         thumbnailUrl = data.publicUrl;
       }
 
+      // Insert into Database
       const { error } = await supabase.from("courses").insert([
         {
           ...course,
@@ -76,11 +80,12 @@ const CreateCourse = () => {
       ]);
 
       if (error) throw error;
+
       alert("Course created successfully!");
       navigate("/admin/lms/courses");
     } catch (err) {
-      console.error(err);
-      alert(err.message);
+      console.error("Submission Error:", err);
+      alert(err.message || "Failed to create course.");
     } finally {
       setLoading(false);
     }
@@ -88,6 +93,7 @@ const CreateCourse = () => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8 p-6 text-white">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <button
@@ -98,7 +104,6 @@ const CreateCourse = () => {
             <ArrowLeft size={18} /> Back
           </button>
           <h1 className="text-3xl font-bold">Create Course</h1>
-          <p className="text-slate-400 mt-2">Build a professional course for Scholiqen LMS.</p>
         </div>
         <AdminButton type="submit" disabled={loading}>
           {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
@@ -107,17 +112,21 @@ const CreateCourse = () => {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
+        {/* Left Column: Form Details */}
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-3xl bg-slate-900 border border-slate-800 p-8 space-y-6">
             <h2 className="text-xl font-bold">Course Information</h2>
+            
             <div>
               <label className="block mb-2 text-sm text-slate-400">Course Title</label>
               <input name="title" required value={course.title} onChange={handleChange} placeholder="React for Beginners" className="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 outline-none" />
             </div>
+
             <div>
               <label className="block mb-2 text-sm text-slate-400">Description</label>
-              <textarea rows={6} name="description" required value={course.description} onChange={handleChange} placeholder="Write something about this course..." className="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 outline-none resize-none" />
+              <textarea rows={6} name="description" required value={course.description} onChange={handleChange} placeholder="Write details..." className="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 outline-none resize-none" />
             </div>
+
             <div className="grid md:grid-cols-2 gap-5">
               <div>
                 <label className="block mb-2 text-sm text-slate-400">Category</label>
@@ -128,26 +137,13 @@ const CreateCourse = () => {
                 <input name="instructor" value={course.instructor} onChange={handleChange} className="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3" />
               </div>
             </div>
-            <div className="grid md:grid-cols-2 gap-5">
-              <div>
-                <label className="block mb-2 text-sm text-slate-400">Level</label>
-                <select name="level" value={course.level} onChange={handleChange} className="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3">
-                  <option>Beginner</option>
-                  <option>Intermediate</option>
-                  <option>Advanced</option>
-                </select>
-              </div>
-              <div>
-                <label className="block mb-2 text-sm text-slate-400">Price</label>
-                <input type="number" name="price" value={course.price} onChange={handleChange} className="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3" />
-              </div>
-            </div>
           </div>
         </div>
 
+        {/* Right Column: Meta Data */}
         <div className="space-y-6">
           <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
-            <h2 className="text-lg font-bold mb-5">Course Thumbnail</h2>
+            <h2 className="text-lg font-bold mb-5">Thumbnail</h2>
             <label className="cursor-pointer block">
               <input type="file" accept="image/*" hidden onChange={handleImage} />
               {preview ? (
@@ -155,24 +151,20 @@ const CreateCourse = () => {
               ) : (
                 <div className="h-56 rounded-2xl border-2 border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-400">
                   <ImageIcon size={45} />
-                  <p className="mt-3">Click to upload cover</p>
+                  <p className="mt-3">Click to upload</p>
                 </div>
               )}
             </label>
           </div>
-          <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
-            <h2 className="font-bold mb-4">Course Video URL</h2>
-            <input type="text" name="video_url" value={course.video_url} onChange={handleChange} placeholder="https://youtube.com/..." className="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3" />
-          </div>
-          <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 space-y-5">
-            <div>
-              <label className="block mb-2 text-sm text-slate-400">Status</label>
-              <select name="status" value={course.status} onChange={handleChange} className="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3">
-                <option>Draft</option>
-                <option>Published</option>
-              </select>
-            </div>
-            <label className="flex items-center justify-between">
+
+          <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 space-y-4">
+            <h2 className="font-bold">Settings</h2>
+            <select name="status" value={course.status} onChange={handleChange} className="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3">
+              <option value="Draft">Draft</option>
+              <option value="Published">Published</option>
+            </select>
+            
+            <label className="flex items-center justify-between cursor-pointer">
               <span>Featured Course</span>
               <input type="checkbox" name="featured" checked={course.featured} onChange={handleChange} className="w-5 h-5" />
             </label>

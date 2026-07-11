@@ -1,3 +1,5 @@
+// src/components/courses/LearningStats.jsx
+
 import React from "react";
 import { motion } from "framer-motion";
 import {
@@ -9,147 +11,316 @@ import {
   Building2,
 } from "lucide-react";
 
-const stats = [
-  {
-    icon: BookOpen,
-    value: "120,000+",
-    title: "Courses",
-    description:
-      "High-quality courses across every discipline.",
-    color: "text-blue-400",
-    bg: "from-blue-500/20 to-cyan-500/10",
-  },
-  {
-    icon: Users,
-    value: "5M+",
-    title: "Students",
-    description:
-      "Learners from around the world trust Wonder.",
-    color: "text-emerald-400",
-    bg: "from-emerald-500/20 to-green-500/10",
-  },
-  {
-    icon: Award,
-    value: "250,000+",
-    title: "Certificates",
-    description:
-      "Professional certificates earned by learners.",
-    color: "text-yellow-400",
-    bg: "from-yellow-500/20 to-orange-500/10",
-  },
-  {
-    icon: Globe2,
-    value: "190+",
-    title: "Countries",
-    description:
-      "A truly global learning community.",
-    color: "text-cyan-400",
-    bg: "from-cyan-500/20 to-sky-500/10",
-  },
-  {
-    icon: Building2,
-    value: "500+",
-    title: "Institutions",
-    description:
-      "Universities and organizations contributing content.",
-    color: "text-violet-400",
-    bg: "from-violet-500/20 to-purple-500/10",
-  },
-  {
-    icon: GraduationCap,
-    value: "98%",
-    title: "Completion Rate",
-    description:
-      "Students consistently achieve their goals.",
-    color: "text-pink-400",
-    bg: "from-pink-500/20 to-rose-500/10",
-  },
-];
+import { useCourses } from "../../context/LMSContext/CourseContext";
 
 const LearningStats = () => {
+
+  const {
+
+    stats = {},
+
+    loading,
+
+  } = useCourses();
+
+  /* =====================================
+      DISPLAY MINIMUM VALUES
+  ===================================== */
+
+  const displayValue = (
+    actual = 0,
+    minimum = 0,
+    suffix = "+"
+  ) => {
+
+    const value = Number(actual) || 0;
+
+    return value >= minimum
+      ? `${value.toLocaleString()}${suffix}`
+      : `${minimum.toLocaleString()}${suffix}`;
+
+  };
+
+  const completionRate = () => {
+
+    const completed =
+      Number(stats.completedCourses) || 0;
+
+    const enrolled =
+      Number(stats.enrolledCourses) || 0;
+
+    if (!enrolled) return "95%";
+
+    return `${Math.round(
+      (completed / enrolled) * 100
+    )}%`;
+
+  };
+
+  const cards = [
+
+    {
+      icon: BookOpen,
+      value: displayValue(
+        stats.courses,
+        100
+      ),
+      title: "Courses",
+      description:
+        "Expert-led courses across multiple disciplines.",
+      color: "text-blue-400",
+      bg: "from-blue-500/20 to-cyan-500/10",
+    },
+
+    {
+      icon: Users,
+      value: displayValue(
+        stats.learners,
+        1000
+      ),
+      title: "Learners",
+      description:
+        "Students actively learning on Scholiqen.",
+      color: "text-emerald-400",
+      bg: "from-emerald-500/20 to-green-500/10",
+    },
+
+    {
+      icon: Award,
+      value: displayValue(
+        stats.certificates,
+        100
+      ),
+      title: "Certificates",
+      description:
+        "Certificates earned by successful learners.",
+      color: "text-yellow-400",
+      bg: "from-yellow-500/20 to-orange-500/10",
+    },
+
+    {
+      icon: Globe2,
+      value: displayValue(
+        stats.countries,
+        10
+      ),
+      title: "Countries",
+      description:
+        "Growing global learning community.",
+      color: "text-cyan-400",
+      bg: "from-cyan-500/20 to-sky-500/10",
+    },
+
+    {
+      icon: Building2,
+      value: displayValue(
+        stats.partners,
+        20
+      ),
+      title: "Partners",
+      description:
+        "Schools and organizations collaborating with Scholiqen.",
+      color: "text-violet-400",
+      bg: "from-violet-500/20 to-purple-500/10",
+    },
+
+    {
+      icon: GraduationCap,
+      value: completionRate(),
+      title: "Completion Rate",
+      description:
+        "Learners successfully completing their learning journey.",
+      color: "text-pink-400",
+      bg: "from-pink-500/20 to-rose-500/10",
+    },
+
+  ];
+
   return (
-    <section className="space-y-10">
 
-      <div className="text-center max-w-3xl mx-auto">
+    <section className="space-y-12">
 
-        <span className="inline-flex items-center rounded-full bg-blue-500/10 border border-blue-500/20 px-4 py-2 text-blue-400 text-sm font-semibold">
-          Platform Statistics
+      {/* Header */}
+
+      <div className="mx-auto max-w-3xl text-center">
+
+        <span
+          className="
+            inline-flex
+            items-center
+            rounded-full
+            border
+            border-cyan-500/30
+            bg-cyan-500/10
+            px-5
+            py-2
+            text-sm
+            font-semibold
+            text-cyan-400
+          "
+        >
+          Live Platform Statistics
         </span>
 
-        <h2 className="mt-5 text-4xl font-extrabold">
-          Learning Without Limits
+        <h2
+          className="
+            mt-6
+            text-4xl
+            font-black
+            text-white
+            md:text-5xl
+          "
+        >
+          Empowering Learning
+          <span className="text-cyan-400">
+            {" "}
+            Every Day
+          </span>
         </h2>
 
-        <p className="mt-4 text-slate-400 text-lg">
-          Join millions of learners building skills, earning
-          certificates, and advancing their careers through
-          Wonder Learning.
+        <p
+          className="
+            mx-auto
+            mt-5
+            max-w-2xl
+            text-lg
+            leading-8
+            text-slate-400
+          "
+        >
+          Every statistic below is powered by
+          Scholiqen's live learning platform,
+          growing automatically as students,
+          instructors and courses increase.
         </p>
 
       </div>
+            {/* Statistics Grid */}
 
       <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
 
-        {stats.map((item, index) => {
+        {cards.map((item, index) => {
+
           const Icon = item.icon;
 
           return (
+
             <motion.div
               key={item.title}
-              initial={{ opacity: 0, y: 25 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              initial={{
+                opacity: 0,
+                y: 30,
+              }}
+              whileInView={{
+                opacity: 1,
+                y: 0,
+              }}
               transition={{
                 duration: 0.45,
                 delay: index * 0.08,
               }}
-              viewport={{ once: true }}
+              viewport={{
+                once: true,
+              }}
               whileHover={{
                 y: -8,
                 scale: 1.02,
               }}
-              className={`
+              className="
+                group
+                relative
+                overflow-hidden
                 rounded-3xl
                 border
                 border-slate-800
-                bg-gradient-to-br
-                ${item.bg}
-                backdrop-blur
+                bg-slate-900
                 p-8
-              `}
+                transition-all
+                duration-300
+                hover:border-cyan-500/40
+                hover:shadow-[0_25px_50px_rgba(0,0,0,.45)]
+              "
             >
+
+              {/* Background Glow */}
+
               <div
                 className={`
-                  w-16
-                  h-16
-                  rounded-2xl
-                  bg-slate-900
-                  flex
-                  items-center
-                  justify-center
-                  ${item.color}
+                  absolute
+                  inset-0
+                  bg-gradient-to-br
+                  ${item.bg}
+                  opacity-40
+                  transition-opacity
+                  duration-300
+                  group-hover:opacity-70
                 `}
-              >
-                <Icon size={32} />
+              />
+
+              <div className="relative z-10">
+
+                <div
+                  className={`
+                    flex
+                    h-16
+                    w-16
+                    items-center
+                    justify-center
+                    rounded-2xl
+                    bg-slate-800
+                    ${item.color}
+                  `}
+                >
+                  <Icon size={30} />
+                </div>
+
+                <h3
+                  className="
+                    mt-7
+                    text-5xl
+                    font-black
+                    tracking-tight
+                    text-white
+                  "
+                >
+                  {loading ? "--" : item.value}
+                </h3>
+
+                <h4
+                  className="
+                    mt-3
+                    text-xl
+                    font-bold
+                    text-white
+                  "
+                >
+                  {item.title}
+                </h4>
+
+                <p
+                  className="
+                    mt-4
+                    leading-7
+                    text-slate-400
+                  "
+                >
+                  {item.description}
+                </p>
+
               </div>
 
-              <h3 className="mt-6 text-4xl font-extrabold">
-                {item.value}
-              </h3>
-
-              <p className="mt-2 text-xl font-semibold">
-                {item.title}
-              </p>
-
-              <p className="mt-4 text-slate-400 leading-relaxed">
-                {item.description}
-              </p>
             </motion.div>
+
           );
+
         })}
 
       </div>
+
     </section>
+
   );
+
 };
 
 export default LearningStats;

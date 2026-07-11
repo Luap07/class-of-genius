@@ -4,11 +4,12 @@ import {
   getCourses,
   createCourse,
   updateCourse,
-  deleteCourse
+  deleteCourse,
 } from "../../services/admin/adminCourseService";
 
 
 const useAdminCourses = () => {
+
 
   const [courses, setCourses] = useState([]);
 
@@ -17,19 +18,35 @@ const useAdminCourses = () => {
   const [error, setError] = useState(null);
 
 
+
+  // ==============================
+  // FETCH COURSES
+  // ==============================
+
   const fetchCourses = async () => {
 
     try {
 
       setLoading(true);
 
+      setError(null);
+
+
       const data = await getCourses();
 
+
       setCourses(data);
+
+
+      return data;
+
 
     } catch (err) {
 
       setError(err.message);
+
+      throw err;
+
 
     } finally {
 
@@ -40,28 +57,59 @@ const useAdminCourses = () => {
   };
 
 
-  const addCourse = async (courseData) => {
+
+
+
+  // ==============================
+  // CREATE COURSE
+  // ==============================
+
+  const addCourse = async (
+    courseData
+  ) => {
 
     try {
+
+      setError(null);
+
 
       const newCourse =
         await createCourse(courseData);
 
 
+
       setCourses((prev) => [
+
         ...prev,
+
         newCourse
+
       ]);
+
+
+
+      return newCourse;
+
 
 
     } catch (err) {
 
       setError(err.message);
 
+      throw err;
+
     }
 
   };
 
+
+
+
+
+
+  // ==============================
+  // UPDATE COURSE
+  // ==============================
 
   const editCourse = async (
     id,
@@ -70,6 +118,10 @@ const useAdminCourses = () => {
 
     try {
 
+      setError(null);
+
+
+
       const updatedCourse =
         await updateCourse(
           id,
@@ -77,46 +129,93 @@ const useAdminCourses = () => {
         );
 
 
+
       setCourses((prev) =>
+
         prev.map((course) =>
+
           course.id === id
+
             ? updatedCourse
+
             : course
+
         )
+
       );
+
+
+
+      return updatedCourse;
+
 
 
     } catch (err) {
 
       setError(err.message);
 
+      throw err;
+
     }
 
   };
 
 
-  const removeCourse = async (id) => {
+
+
+
+
+
+  // ==============================
+  // DELETE COURSE
+  // ==============================
+
+  const removeCourse = async (
+    id
+  ) => {
 
     try {
+
+      setError(null);
+
+
 
       await deleteCourse(id);
 
 
+
       setCourses((prev) =>
+
         prev.filter(
+
           (course) =>
+
             course.id !== id
+
         )
+
       );
+
+
+
+      return true;
+
 
 
     } catch (err) {
 
       setError(err.message);
 
+      throw err;
+
     }
 
   };
+
+
+
+
+
 
 
   useEffect(() => {
@@ -124,6 +223,10 @@ const useAdminCourses = () => {
     fetchCourses();
 
   }, []);
+
+
+
+
 
 
   return {
@@ -134,13 +237,14 @@ const useAdminCourses = () => {
 
     error,
 
+
     fetchCourses,
 
     addCourse,
 
     editCourse,
 
-    removeCourse
+    removeCourse,
 
   };
 

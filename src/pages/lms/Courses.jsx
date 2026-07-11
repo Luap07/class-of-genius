@@ -19,24 +19,6 @@ import BecomeInstructor from "../../components/courses/BecomeInstructor";
 import FAQ from "../../components/courses/FAQ";
 import Newsletter from "../../components/courses/Newsletter";
 import ExploreLearningDisciplines from "../../components/courses/ExploreLearningDisciplines";
-const defaultCategories = [
-  "Science",
-  "Technology",
-  "Engineering",
-  "Medicine",
-  "Business",
-  "Arts",
-  "Law",
-  "Programming",
-  "Languages",
-  "Artificial Intelligence",
-  "Cybersecurity",
-  "Cloud Computing",
-  "Data Science",
-  "Finance",
-  "Marketing",
-  "Architecture",
-];
 
 const Courses = () => {
   const {
@@ -72,10 +54,10 @@ const handleDisciplineSelect = (discipline) => {
   });
 };
 
-  const availableCategories =
-    categories.length
-      ? categories
-      : defaultCategories;
+const availableCategories = [
+  "All",
+  ...new Set(categories.filter(Boolean)),
+];
 
   const filteredCourses = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -129,10 +111,10 @@ const handleDisciplineSelect = (discipline) => {
       {/* Categories */}
 
       <CourseFilters
-        categories={["All", ...availableCategories]}
-        selected={category}
-        onSelect={setCategory}
-      />
+  categories={availableCategories}
+  selected={category}
+  onSelect={setCategory}
+/>
 
       {/* Featured Courses */}
 

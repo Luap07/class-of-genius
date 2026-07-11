@@ -1,7 +1,6 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-
 import { useCourses } from "../../context/LMScontext/CourseContext";
 
 // Components
@@ -18,15 +17,23 @@ import CourseFAQ from "../../components/courseDetails/CourseFAQ";
 const CourseDetails = () => {
   const { id } = useParams();
 
-  const { courses = [] } = useCourses();
+  const {
+  courses = [],
+  getCourse,
+  loading,
+} = useCourses();
 
-  const course =
-    courses.find(
-      (item) =>
-        String(item.id) === String(id) ||
-        item.slug === id
-    ) || courses[0];
+const course =
+  getCourse(id) ||
+  courses.find((item) => item.slug === id);
 
+  if (loading) {
+  return (
+    <div className="flex min-h-[70vh] items-center justify-center">
+      <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+    </div>
+  );
+}
   if (!course) {
     return (
       <div className="flex items-center justify-center min-h-[70vh]">

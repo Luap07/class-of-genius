@@ -1,445 +1,251 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import {
-  Save,
   ArrowLeft,
-  Upload,
-  Trash2,
-  Plus,
+  Loader2,
+  Save,
+  Image as ImageIcon,
+  Award,
+  BookOpen,
+  Globe,
+  Sparkles,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-
-const categories = [
-  "Programming",
-  "Business",
-  "Science",
-  "Engineering",
-  "Medicine",
-  "Arts",
-  "Law",
-  "Mathematics",
-];
-
-const levels = [
-  "Beginner",
-  "Intermediate",
-  "Advanced",
-];
+import AdminButton from "../../../components/admin/ui/AdminButton";
+import useEditCourse from "../../../hooks/admin/useEditCourse";
 
 const EditCourse = () => {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const [loading, setLoading] = useState(true);
-
-  const [course, setCourse] = useState({
-    title: "",
-    subtitle: "",
-    description: "",
-    instructor: "",
-    category: "",
-    level: "",
-    duration: "",
-    language: "",
-    price: "",
-    thumbnail: "",
-    certificate: true,
-  });
-
-  const [modules, setModules] = useState([]);
-
-  useEffect(() => {
-    // Backend Later
-    setTimeout(() => {
-      setCourse({
-        title: "Frontend Development",
-        subtitle: "Become a Professional Frontend Developer",
-        description:
-          "Complete modern frontend development from beginner to advanced.",
-        instructor: "John Doe",
-        category: "Programming",
-        level: "Beginner",
-        duration: "6 Months",
-        language: "English",
-        price: "49",
-        thumbnail: "",
-        certificate: true,
-      });
-
-      setModules([
-        {
-          title: "HTML & CSS",
-        },
-        {
-          title: "JavaScript",
-        },
-        {
-          title: "React",
-        },
-      ]);
-
-      setLoading(false);
-    }, 500);
-  }, [id]);
-
-  const handleChange = (e) => {
-    const { name, value, checked, type } = e.target;
-
-    setCourse((prev) => ({
-      ...prev,
-      [name]:
-        type === "checkbox"
-          ? checked
-          : value,
-    }));
-  };
-
-  const updateModule = (index, value) => {
-    const copy = [...modules];
-    copy[index].title = value;
-    setModules(copy);
-  };
-
-  const addModule = () => {
-    setModules([
-      ...modules,
-      {
-        title: "",
-      },
-    ]);
-  };
-
-  const removeModule = (index) => {
-    setModules(
-      modules.filter((_, i) => i !== index)
-    );
-  };
+  const {
+    course,
+    categories,
+    preview,
+    thumbnail,
+    loading,
+    saving,
+    uploading,
+    success,
+    error,
+    handleChange,
+    handleThumbnail,
+    handleSave,
+  } = useEditCourse(id);
 
   if (loading) {
     return (
-      <div className="flex h-[70vh] items-center justify-center text-xl">
-        Loading Course...
+      <div className="flex h-[70vh] items-center justify-center">
+        <Loader2 size={45} className="animate-spin text-cyan-400" />
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
+      {/* ================= ALERTS ================= */}
+      {success && (
+        <motion.div
+          initial={{ opacity: 0, y: -15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-emerald-300"
+        >
+          {success}
+        </motion.div>
+      )}
 
-      {/* Header */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300"
+        >
+          {error}
+        </motion.div>
+      )}
 
-      <div className="flex items-center justify-between">
-
+      {/* ================= HEADER ================= */}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-
           <button
             onClick={() => navigate(-1)}
-            className="mb-4 flex items-center gap-2 text-slate-400 hover:text-white"
+            className="mb-5 flex items-center gap-2 text-slate-400 transition hover:text-white"
           >
-            <ArrowLeft size={18} />
-            Back
+            <ArrowLeft size={18} /> Back
           </button>
-
-          <h1 className="text-4xl font-extrabold">
-            Edit Course
-          </h1>
-
+          <h1 className="text-4xl font-black">Edit Course</h1>
           <p className="mt-2 text-slate-400">
-            Update course information.
+            Update course information, media and publishing settings.
           </p>
-
         </div>
 
-        <button className="flex items-center gap-2 rounded-2xl bg-blue-600 px-6 py-4 font-semibold hover:bg-blue-700">
-
-          <Save size={18} />
-
-          Save Changes
-
-        </button>
-
+        <AdminButton onClick={handleSave} disabled={saving || uploading}>
+          {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+          {saving ? "Saving..." : "Save Changes"}
+        </AdminButton>
       </div>
 
-      {/* Basic */}
-
+      {/* ================= COURSE INFORMATION ================= */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="rounded-3xl border border-slate-800 bg-slate-900 p-8"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-[32px] border border-slate-800 bg-slate-900/70 p-8 backdrop-blur-xl"
       >
-
-        <h2 className="mb-6 text-2xl font-bold">
-          Course Information
-        </h2>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-
-          <div>
-
-            <label className="mb-2 block">
-              Title
-            </label>
-
-            <input
-              name="title"
-              value={course.title}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
-            />
-
+        <div className="mb-8 flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-400">
+            <BookOpen size={28} />
           </div>
-
           <div>
-
-            <label className="mb-2 block">
-              Instructor
-            </label>
-
-            <input
-              name="instructor"
-              value={course.instructor}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
-            />
-
+            <h2 className="text-2xl font-bold">Course Information</h2>
+            <p className="mt-1 text-slate-400">Manage your course details.</p>
           </div>
+        </div>
 
-          <div>
-
-            <label className="mb-2 block">
-              Subtitle
-            </label>
-
-            <input
-              name="subtitle"
-              value={course.subtitle}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
-            />
-
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className="mb-3 block font-semibold">Course Title</label>
+            <input name="title" value={course.title} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" placeholder="Enter course title" />
           </div>
-
-          <div>
-
-            <label className="mb-2 block">
-              Duration
-            </label>
-
-            <input
-              name="duration"
-              value={course.duration}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
-            />
-
+          <div className="md:col-span-2">
+            <label className="mb-3 block font-semibold">Slug</label>
+            <input name="slug" value={course.slug} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
           </div>
-
           <div>
-
-            <label className="mb-2 block">
-              Category
-            </label>
-
-            <select
-              name="category"
-              value={course.category}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
-            >
-
+            <label className="mb-3 block font-semibold">Instructor</label>
+            <input name="instructor" value={course.instructor} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" placeholder="Instructor name" />
+          </div>
+          <div>
+            <label className="mb-3 block font-semibold">Category</label>
+            <select name="category_id" value={course.category_id} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
+              <option value="">Select Category</option>
               {categories.map((cat) => (
-                <option
-                  key={cat}
-                  value={cat}
-                >
-                  {cat}
-                </option>
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
-
             </select>
-
           </div>
-
           <div>
-
-            <label className="mb-2 block">
-              Level
-            </label>
-
-            <select
-              name="level"
-              value={course.level}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
-            >
-
-              {levels.map((lvl) => (
-                <option
-                  key={lvl}
-                  value={lvl}
-                >
-                  {lvl}
-                </option>
-              ))}
-
+            <label className="mb-3 block font-semibold">Level</label>
+            <select name="level" value={course.level} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
+              <option>Beginner</option>
+              <option>Intermediate</option>
+              <option>Advanced</option>
             </select>
-
           </div>
-
           <div>
-
-            <label className="mb-2 block">
-              Price
-            </label>
-
-            <input
-              name="price"
-              value={course.price}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
-            />
-
+            <label className="mb-3 block font-semibold">Language</label>
+            <input name="language" value={course.language} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
           </div>
-
           <div>
-
-            <label className="mb-2 block">
-              Language
-            </label>
-
-            <input
-              name="language"
-              value={course.language}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
-            />
-
+            <label className="mb-3 block font-semibold">Duration</label>
+            <input name="duration" value={course.duration} onChange={handleChange} placeholder="Example: 12 Weeks" className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
           </div>
-
+          <div>
+            <label className="mb-3 block font-semibold">Lessons</label>
+            <input type="number" name="lessons_count" value={course.lessons_count} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
+          </div>
+          <div>
+            <label className="mb-3 block font-semibold">Price</label>
+            <input type="number" name="price" value={course.price} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-3 block font-semibold">Description</label>
+            <textarea rows="6" name="description" value={course.description} onChange={handleChange} className="w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-3 block font-semibold">Learning Outcomes</label>
+            <textarea rows="5" name="learning_outcomes" value={course.learning_outcomes} onChange={handleChange} placeholder="Students will learn..." className="w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-3 block font-semibold">Requirements</label>
+            <textarea rows="5" name="requirements" value={course.requirements} onChange={handleChange} placeholder="Laptop, internet connection..." className="w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
+          </div>
         </div>
-
-        <div className="mt-6">
-
-          <label className="mb-2 block">
-            Description
-          </label>
-
-          <textarea
-            rows={6}
-            name="description"
-            value={course.description}
-            onChange={handleChange}
-            className="w-full rounded-xl border border-slate-700 bg-slate-800 p-4"
-          />
-
-        </div>
-
       </motion.div>
 
-      {/* Thumbnail */}
-
-      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
-
-        <h2 className="mb-6 text-2xl font-bold">
-          Thumbnail
-        </h2>
-
-        <label className="flex h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 hover:border-blue-500">
-
-          <Upload size={40} />
-
-          <p className="mt-4">
-            Replace Thumbnail
-          </p>
-
-          <input
-            hidden
-            type="file"
-          />
-
-        </label>
-
-      </div>
-
-      {/* Modules */}
-
-      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
-
-        <div className="mb-6 flex justify-between">
-
-          <h2 className="text-2xl font-bold">
-            Modules
-          </h2>
-
-          <button
-            onClick={addModule}
-            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2"
-          >
-
-            <Plus size={18} />
-
-            Add Module
-
-          </button>
-
-        </div>
-
-        <div className="space-y-4">
-
-          {modules.map((module, index) => (
-
-            <div
-              key={index}
-              className="flex gap-3"
-            >
-
-              <input
-                value={module.title}
-                onChange={(e) =>
-                  updateModule(
-                    index,
-                    e.target.value
-                  )
-                }
-                className="flex-1 rounded-xl border border-slate-700 bg-slate-800 p-4"
-              />
-
-              <button
-                onClick={() =>
-                  removeModule(index)
-                }
-                className="rounded-xl bg-red-600 px-4"
-              >
-                <Trash2 size={18} />
-              </button>
-
+      {/* ================= THUMBNAIL ================= */}
+      <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="rounded-[32px] border border-slate-800 bg-slate-900/70 p-7 backdrop-blur-xl">
+        <div className="mb-6 flex items-center gap-3"><ImageIcon size={24} className="text-cyan-400" /><h3 className="text-xl font-bold">Course Thumbnail</h3></div>
+        <label className="block cursor-pointer">
+          <input type="file" accept="image/*" hidden onChange={handleThumbnail} />
+          {preview ? (
+            <img src={preview} alt="Course thumbnail" className="h-64 w-full rounded-2xl border border-slate-700 object-cover transition hover:opacity-80" />
+          ) : (
+            <div className="flex h-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 bg-slate-950 text-slate-500">
+              <ImageIcon size={55} />
+              <p className="mt-4">Click to upload thumbnail</p>
             </div>
-
-          ))}
-
-        </div>
-
-      </div>
-
-      {/* Certificate */}
-
-      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
-
-        <label className="flex items-center gap-3">
-
-          <input
-            type="checkbox"
-            checked={course.certificate}
-            name="certificate"
-            onChange={handleChange}
-          />
-
-          Award Certificate
-
+          )}
         </label>
+        {thumbnail && (
+          <div className="mt-4 rounded-xl bg-cyan-500/10 p-3 text-sm text-cyan-300">
+            {uploading ? "Uploading image..." : thumbnail.name}
+          </div>
+        )}
+      </motion.div>
 
-      </div>
+      {/* ================= COURSE VIDEO ================= */}
+      <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }} className="rounded-[32px] border border-slate-800 bg-slate-900/70 p-7 backdrop-blur-xl">
+        <div className="mb-6 flex items-center gap-3"><Globe size={24} className="text-cyan-400" /><h3 className="text-xl font-bold">Course Video</h3></div>
+        <label className="mb-3 block font-semibold">Video URL</label>
+        <input type="text" name="video_url" value={course.video_url} onChange={handleChange} placeholder="https://youtube.com/watch?v=..." className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4 outline-none" />
+      </motion.div>
 
+      {/* ================= SETTINGS ================= */}
+      <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }} className="rounded-[32px] border border-slate-800 bg-slate-900/70 p-7 backdrop-blur-xl">
+        <div className="mb-6 flex items-center gap-3"><Sparkles size={24} className="text-cyan-400" /><h3 className="text-xl font-bold">Course Settings</h3></div>
+        <div className="space-y-6">
+          <div>
+            <label className="mb-3 block font-semibold">Status</label>
+            <select name="status" value={course.status} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
+              <option value="Draft">Draft</option>
+              <option value="Published">Published</option>
+            </select>
+          </div>
+          <label className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <div><p className="font-semibold">Featured Course</p><p className="text-sm text-slate-500">Show this course on homepage</p></div>
+            <input type="checkbox" name="featured" checked={course.featured} onChange={handleChange} className="h-5 w-5" />
+          </label>
+          <label className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 p-4">
+            <div><p className="font-semibold">Award Certificate</p><p className="text-sm text-slate-500">Give students certificates after completion</p></div>
+            <input type="checkbox" name="certificate" checked={course.certificate} onChange={handleChange} className="h-5 w-5" />
+          </label>
+        </div>
+      </motion.div>
+
+      {/* ================= LIVE PREVIEW ================= */}
+      <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }} className="rounded-[32px] border border-slate-800 bg-slate-900/70 p-7 backdrop-blur-xl">
+        <h3 className="mb-6 text-xl font-bold">Live Preview</h3>
+        <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-950">
+          {preview ? (
+            <img src={preview} alt={course.title} className="h-52 w-full object-cover" />
+          ) : (
+            <div className="flex h-52 items-center justify-center bg-gradient-to-br from-cyan-600 via-blue-700 to-slate-900">
+              <BookOpen size={70} className="text-white/50" />
+            </div>
+          )}
+          <div className="space-y-5 p-6">
+            <span className="inline-flex rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-400">{course.category || "No Category"}</span>
+            <h2 className="text-2xl font-black">{course.title || "Course Title"}</h2>
+            <p className="line-clamp-3 text-sm leading-7 text-slate-400">{course.description || "Course description will appear here."}</p>
+            <div className="flex items-center justify-between border-t border-slate-800 pt-5">
+              <span className="text-sm text-slate-500">{course.level}</span>
+              <span className="text-lg font-bold text-cyan-400">{Number(course.price) === 0 ? "FREE" : `$${Number(course.price).toFixed(2)}`}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-slate-900 p-4 text-center">
+                <Award size={22} className="mx-auto mb-2 text-yellow-400" />
+                <p className="text-xs text-slate-400">Certificate</p>
+                <p className="mt-1 font-semibold">{course.certificate ? "Yes" : "No"}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-900 p-4 text-center">
+                <BookOpen size={22} className="mx-auto mb-2 text-cyan-400" />
+                <p className="text-xs text-slate-400">Lessons</p>
+                <p className="mt-1 font-semibold">{course.lessons_count || 0}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };

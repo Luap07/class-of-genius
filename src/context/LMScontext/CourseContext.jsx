@@ -1,332 +1,145 @@
-// src/context/CourseContext.jsx
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { supabase } from "../../lib/supabaseClient";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
-
-
-// Create Context
 const CourseContext = createContext();
 
-
-// Storage key
-const COURSE_STORAGE_KEY = "lms_courses";
-
-
-// Default Data
-const defaultCourses = {
-  availableCourses: [
-    {
-      id: 1,
-      title: "Introduction to Physics",
-      category: "Physics",
-      instructor: "Science Department",
-      progress: 0,
-      lessons: 12,
-      completedLessons: 0,
-      enrolled: false
-    },
-    {
-      id: 2,
-      title: "Organic Chemistry",
-      category: "Chemistry",
-      instructor: "Science Department",
-      progress: 0,
-      lessons: 15,
-      completedLessons: 0,
-      enrolled: false
-    },
-    {
-      id: 3,
-      title: "Advanced Mathematics",
-      category: "Mathematics",
-      instructor: "Mathematics Department",
-      progress: 0,
-      lessons: 20,
-      completedLessons: 0,
-      enrolled: false
-    }
-  ],
-
-  enrolledCourses: []
-};
-
-
-
-// Provider
 export const CourseProvider = ({ children }) => {
+  /* ======================================================
+     STATE
+  ====================================================== */
+  const [courses, setCourses] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [featuredCourses, setFeaturedCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
+  /* ======================================================
+     FETCH DATA
+  ====================================================== */
+  const fetchCourses = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  const [availableCourses, setAvailableCourses] = useState(
-    defaultCourses.availableCourses
-  );
+      const { data, error } = await supabase
+        .from("courses")
+        .select(`*, categories(id, name)`)
+        .eq("status", "Published")
+        .order("created_at", { ascending: false });
 
+      if (error) throw error;
 
-  const [enrolledCourses, setEnrolledCourses] = useState(
-    defaultCourses.enrolledCourses
-  );
+      const formattedCourses = (data || []).map((course) => ({
+        id: course.id,
+        title: course.title || "",
+        slug: course.slug || "",
+        description: course.description || "",
+        shortDescription: course.short_description || "",
+        thumbnail: course.thumbnail || "",
+        banner: course.banner || "",
+        instructor: course.instructor || "Class Of Genius",
+        category: course.categories?.name || course.category || "General",
+        categoryId: course.category_id || null,
+        featured: course.featured || false,
+        price: course.price || 0,
+        lessons: course.total_lessons || 0,
+        duration: course.duration || "",
+        level: course.level || "Beginner",
+        language: course.language || "English",
+        certificate: course.certificate || false,
+        rating: course.rating || 0,
+        students: course.students || 0,
+        status: course.status,
+        createdAt: course.created_at,
+      }));
 
-
-
-  // Load saved courses
-  useEffect(() => {
-
-    const savedCourses = localStorage.getItem(
-      COURSE_STORAGE_KEY
-    );
-
-
-    if(savedCourses){
-
-      const parsed = JSON.parse(savedCourses);
-
-      setAvailableCourses(parsed.availableCourses || []);
-      setEnrolledCourses(parsed.enrolledCourses || []);
-
+      setCourses(formattedCourses);
+      setFeaturedCourses(formattedCourses.filter((course) => course.featured));
+    } catch (err) {
+      console.error("Fetch Courses Error:", err);
+      setError(err.message);
+      setCourses([]);
+      setFeaturedCourses([]);
+    } finally {
+      setLoading(false);
     }
-
   }, []);
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("course_categories")
+        .select("*")
+        .order("name", { ascending: true });
 
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (err) {
+      console.error("Fetch Categories Error:", err);
+      setCategories([]);
+    }
+  }, []);
 
+  const refreshCourses = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchCourses(), fetchCategories()]);
+    setRefreshing(false);
+  };
 
-  // Save courses
+  /* ======================================================
+     HELPERS
+  ====================================================== */
+  const getCourse = (courseId) => 
+    courses.find((course) => String(course.id) === String(courseId)) || null;
+
+  const getCoursesByCategory = (category) => 
+    (!category || category === "All") ? courses : courses.filter((c) => c.category === category);
+
+  const searchCourses = (keyword = "") => {
+    const search = keyword.toLowerCase();
+    return courses.filter((c) => 
+      [c.title, c.description, c.shortDescription, c.instructor, c.category]
+        .some((field) => field?.toLowerCase().includes(search))
+    );
+  };
+
+  const getFeaturedCourses = () => featuredCourses;
+
   useEffect(() => {
+    refreshCourses();
+  }, []);
 
-    localStorage.setItem(
-      COURSE_STORAGE_KEY,
-      JSON.stringify({
-        availableCourses,
-        enrolledCourses
-      })
-    );
-
-
-  }, [
-    availableCourses,
-    enrolledCourses
-  ]);
-
-
-
-
-
-  // Enroll course
-  const enrollCourse = (courseId) => {
-
-
-    const course = availableCourses.find(
-      course => course.id === courseId
-    );
-
-
-    if(!course) return;
-
-
-
-    const alreadyEnrolled =
-      enrolledCourses.some(
-        item => item.id === courseId
-      );
-
-
-    if(alreadyEnrolled) return;
-
-
-
-    const updatedCourse = {
-      ...course,
-      enrolled:true,
-      progress:0,
-      completedLessons:0
-    };
-
-
-
-    setEnrolledCourses(prev => [
-      ...prev,
-      updatedCourse
-    ]);
-
-
-
-    setAvailableCourses(prev =>
-      prev.map(course =>
-        course.id === courseId
-        ?
-        {
-          ...course,
-          enrolled:true
-        }
-        :
-        course
-      )
-    );
-
+  /* ======================================================
+     PROVIDER
+  ====================================================== */
+  const value = {
+    courses,
+    featuredCourses,
+    categories,
+    loading,
+    refreshing,
+    error,
+    totalCourses: courses.length,
+    totalCategories: categories.length,
+    fetchCourses,
+    fetchCategories,
+    refreshCourses,
+    getCourse,
+    getCoursesByCategory,
+    getFeaturedCourses,
+    searchCourses,
   };
 
-
-
-
-
-
-
-  // Start Course
-  const startCourse = (courseId) => {
-
-
-    setEnrolledCourses(prev =>
-
-      prev.map(course =>
-
-        course.id === courseId
-
-        ?
-
-        {
-          ...course,
-          started:true
-        }
-
-        :
-
-        course
-
-      )
-
-    );
-
-  };
-
-
-
-
-
-
-
-  // Remove Course
-  const removeCourse = (courseId) => {
-
-
-    setEnrolledCourses(prev =>
-      prev.filter(
-        course => course.id !== courseId
-      )
-    );
-
-
-
-    setAvailableCourses(prev =>
-
-      prev.map(course =>
-
-        course.id === courseId
-
-        ?
-
-        {
-          ...course,
-          enrolled:false
-        }
-
-        :
-
-        course
-
-      )
-
-    );
-
-
-  };
-
-
-
-
-
-
-  // Get single course
-  const getCourse = (courseId)=>{
-
-
-    return enrolledCourses.find(
-      course=>course.id===courseId
-    );
-
-  };
-
-
-
-
-
-
-
-  // Total enrolled courses
-  const totalCourses = enrolledCourses.length;
-
-
-
-
-
-
-
-  return (
-
-    <CourseContext.Provider
-
-      value={{
-
-        availableCourses,
-
-        enrolledCourses,
-
-        enrollCourse,
-
-        startCourse,
-
-        removeCourse,
-
-        getCourse,
-
-        totalCourses
-
-      }}
-
-    >
-
-      {children}
-
-    </CourseContext.Provider>
-
-  );
-
-
+  return <CourseContext.Provider value={value}>{children}</CourseContext.Provider>;
 };
 
-
-
-
-
-
-
-// Custom hook
 export const useCourses = () => {
-
   const context = useContext(CourseContext);
-
-
-  if(!context){
-
-    throw new Error(
-      "useCourses must be used inside CourseProvider"
-    );
-
+  if (!context) {
+    throw new Error("useCourses must be used inside CourseProvider");
   }
-
-
   return context;
-
 };
-
-
-
 
 export default CourseContext;

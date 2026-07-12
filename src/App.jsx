@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 /* ================= CONTEXTS ================= */
 import { AuthContext, AuthProvider } from "./context/AuthContext";
 import { ConnectProvider } from "./context/ConnectContext";
+import { CourseProvider } from "./context/LMSContext/CourseContext";
 import { DocumentProvider } from "./context/DocumentContext";
 import { SearchProvider } from "./context/SearchContext";
 
@@ -38,7 +39,8 @@ import LMSPortal from "./pages/lms/LMSPortal";
 import Courses from "./pages/lms/Courses";
 import CourseDetails from "./pages/lms/CourseDetails";
 import Lesson from "./pages/lms/Lesson";
-
+import ExploreCourses from "./pages/courses/ExploreCourses";
+import BecomeInstructorForm from "./pages/instructor/BecomeInstructorForm";
 import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 /* ================= AI ================= */
 import AITutor from "./pages/AITutor";
@@ -102,10 +104,16 @@ const AnimatedRoutes = () => {
           element={
             <>
               <Navbar />
-              <PageWrapper><Home /></PageWrapper>
+              <PageWrapper><Home />
+              </PageWrapper>
             </>
+            
           }
         />
+        <Route
+  path="/become-instructor"
+  element={<BecomeInstructorForm />}
+/>
 
           {/* LAB */}
           {/* 🧪 VIRTUAL LAB */}
@@ -262,7 +270,16 @@ const AnimatedRoutes = () => {
     </ProtectedRoute>
   }
 />
-
+<Route
+  path="/courses"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <Courses />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
 <Route
   path="/lms/courses"
   element={
@@ -308,17 +325,23 @@ const AnimatedRoutes = () => {
 /* ================= APP ================= */
 function App() {
   return (
-    <AuthProvider>
-      <ConnectProvider>
-        <SearchProvider>
-          <DocumentProvider>
-            <Router>
-              <AnimatedRoutes />
-            </Router>
-          </DocumentProvider>
-        </SearchProvider>
-      </ConnectProvider>
-    </AuthProvider>
+   <AuthProvider>
+  <ConnectProvider>
+    <SearchProvider>
+
+      <CourseProvider>
+
+        <DocumentProvider>
+          <Router>
+            <AnimatedRoutes />
+          </Router>
+        </DocumentProvider>
+
+      </CourseProvider>
+
+    </SearchProvider>
+  </ConnectProvider>
+</AuthProvider>
   );
 }
 

@@ -1,7 +1,15 @@
-import React, { useMemo, useRef, useState } from "react";
+// src/pages/courses/Courses.jsx
+
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import { useNavigate, useLocation } from "react-router-dom";
 
 import { useCourses } from "../../context/LMSContext/CourseContext";
-import { useNavigate } from "react-router-dom";
 
 import CourseHero from "../../components/courses/CourseHero";
 import CourseSearch from "../../components/courses/CourseSearch";
@@ -10,7 +18,7 @@ import FeaturedCourses from "../../components/courses/FeaturedCourses";
 import CourseGrid from "../../components/courses/CourseGrid";
 import EmptyCourses from "../../components/courses/EmptyCourses";
 
-// New Sections
+// Premium Sections
 import LearningStats from "../../components/courses/LearningStats";
 import WhyWonder from "../../components/courses/WhyWonder";
 import LearningPaths from "../../components/courses/LearningPaths";
@@ -21,44 +29,73 @@ import Newsletter from "../../components/courses/Newsletter";
 import ExploreLearningDisciplines from "../../components/courses/ExploreLearningDisciplines";
 
 const Courses = () => {
+  // Router
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Course Context
   const {
     courses = [],
     categories = [],
   } = useCourses();
 
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
+ // Search & Filter
+const params = new URLSearchParams(location.search);
+
+const [search, setSearch] = useState("");
+const [category, setCategory] = useState(
+  params.get("category") || "All"
+);
+
+useEffect(() => {
+  const params = new URLSearchParams(location.search);
+
+  const selectedCategory =
+    params.get("category");
+
+  if (selectedCategory) {
+    setCategory(selectedCategory);
+  } else {
+    setCategory("All");
+  }
+}, [location.search]);
+
+  // Scroll References
   const coursesRef = useRef(null);
-const disciplinesRef = useRef(null);
+  const disciplinesRef = useRef(null);
 
-const scrollToCourses = () => {
-  coursesRef.current?.scrollIntoView({
-    behavior: "smooth",
-    block: "start",
-  });
-};
+  // Scroll to Courses
+  const scrollToCourses = () => {
+    coursesRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
 
-const scrollToDisciplines = () => {
-  disciplinesRef.current?.scrollIntoView({
-    behavior: "smooth",
-    block: "start",
-  });
-};
+  // Scroll to Disciplines
+  const scrollToDisciplines = () => {
+    disciplinesRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
 
-const handleDisciplineSelect = (discipline) => {
-  setCategory(discipline);
+  // Handle Discipline Selection
+  const handleDisciplineSelect = (discipline) => {
+    setCategory(discipline);
 
-  coursesRef.current?.scrollIntoView({
-    behavior: "smooth",
-    block: "start",
-  });
-};
+    coursesRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+    // Available Categories
+  const availableCategories = [
+    "All",
+    ...new Set(categories.filter(Boolean)),
+  ];
 
-const availableCategories = [
-  "All",
-  ...new Set(categories.filter(Boolean)),
-];
-
+  // Filter Courses
   const filteredCourses = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
@@ -74,14 +111,24 @@ const availableCategories = [
         category === "All" ||
         course.category === category;
 
-      return matchesSearch && matchesCategory;
+      return (
+        matchesSearch &&
+        matchesCategory
+      );
     });
-  }, [courses, search, category]);
+  }, [
+    courses,
+    search,
+    category,
+  ]);
 
-  const featuredCourses = filteredCourses.filter(
-    (course) => course.featured
-  );
+  // Featured Courses
+  const featuredCourses =
+    filteredCourses.filter(
+      (course) => course.featured
+    );
 
+  // Reset Filters
   const resetFilters = () => {
     setSearch("");
     setCategory("All");
@@ -97,10 +144,15 @@ const availableCategories = [
 
       {/* Hero */}
 
-        <CourseHero
-        onBrowseCourses={scrollToCourses}
-        onExploreCategories={scrollToDisciplines}
-    />
+      <CourseHero
+        onBrowseCourses={
+          scrollToCourses
+        }
+        onExploreCategories={
+          scrollToDisciplines
+        }
+      />
+
       {/* Search */}
 
       <CourseSearch
@@ -111,37 +163,46 @@ const availableCategories = [
       {/* Categories */}
 
       <CourseFilters
-  categories={availableCategories}
-  selected={category}
-  onSelect={setCategory}
-/>
+        categories={
+          availableCategories
+        }
+        selected={category}
+        onSelect={setCategory}
+      />
 
-      {/* Featured Courses */}
+      {/* Featured */}
 
       {featuredCourses.length > 0 && (
+
         <FeaturedCourses
           courses={featuredCourses}
         />
+
       )}
+            {/* ===============================
+          ALL COURSES
+      =============================== */}
 
-      {/* All Courses */}
+      <div ref={coursesRef}>
 
-     <div ref={coursesRef}>
+        {filteredCourses.length === 0 ? (
 
-                 {filteredCourses.length === 0 ? (
-                  <EmptyCourses
-                onReset={resetFilters}
-                 />
-                ) : (
-             <CourseGrid
-  courses={filteredCourses}
-  onCourseOpen={(course) =>
-    navigate(`/courses/${course.id}`)
-  }
-/>
-         )}
+          <EmptyCourses
+            onReset={resetFilters}
+          />
 
-    </div>
+        ) : (
+
+          <CourseGrid
+            courses={filteredCourses}
+            onCourseOpen={(course) =>
+              navigate(`/courses/${course.id}`)
+            }
+          />
+
+        )}
+
+      </div>
 
       {/* ===============================
           PREMIUM SECTIONS
@@ -154,21 +215,23 @@ const availableCategories = [
       <LearningPaths />
 
       <div ref={disciplinesRef}>
-         <ExploreLearningDisciplines
-         onSelectDiscipline={handleDisciplineSelect}
-        />    
-    </div>
+
+        <ExploreLearningDisciplines
+          onSelectDiscipline={
+            handleDisciplineSelect
+          }
+        />
+
+      </div>
 
       <Testimonials />
 
       <BecomeInstructor />
 
-
       <FAQ />
 
       <Newsletter />
-
-    </div>
+          </div>
   );
 };
 

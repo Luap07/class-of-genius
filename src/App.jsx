@@ -62,6 +62,11 @@ import BiologyLab from "./pages/BiologyLab";
 import MathematicsLab from "./pages/MathematicsLab";
 import WorkEnergySimulation from "./pages/WorkEnergySimulation";
 
+/* ================= SUPPORT SESSION ================= */
+import SupportHome from "./pages/support/SupportHome";
+import FAQ from "./pages/support/FAQ";
+import ChatSupport from "./pages/support/ChatSupport";
+
 /* ================= PROTECTED ROUTE ================= */
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -111,11 +116,25 @@ const AnimatedRoutes = () => {
           }
         />
         <Route
-  path="/become-instructor"
-  element={<BecomeInstructorForm />}
-/>
+        path="/become-instructor"
+       element={<BecomeInstructorForm />}
+          />
 
-          {/* LAB */}
+          <Route 
+            path="/support"
+            element={<SupportHome />}
+        />
+
+          <Route
+          path="/support/chat"
+          element={<ChatSupport />}
+          />
+          <Route
+           path="/support/faq"
+           element={<FAQ />}
+          />
+
+          
           {/* 🧪 VIRTUAL LAB */}
 <Route
   path="/lab/physics"

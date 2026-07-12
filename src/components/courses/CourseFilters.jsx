@@ -4,21 +4,37 @@ import {
   Filter,
 } from "lucide-react";
 
+
 const CourseFilters = ({
   categories = [],
   selected = "All",
   onSelect,
 }) => {
+
+
+  const allCategories = [
+    {
+      id: "all",
+      name: "All",
+    },
+    ...categories,
+  ];
+
+
+
   return (
+
     <motion.div
       initial={{
         opacity: 0,
         y: 15,
       }}
+
       animate={{
         opacity: 1,
         y: 0,
       }}
+
       className="
         rounded-3xl
         border
@@ -28,7 +44,15 @@ const CourseFilters = ({
       "
     >
 
-      <div className="flex items-center gap-3 mb-5">
+
+      <div
+        className="
+          mb-5
+          flex
+          items-center
+          gap-3
+        "
+      >
 
         <Filter
           size={24}
@@ -42,6 +66,9 @@ const CourseFilters = ({
       </div>
 
 
+
+
+
       <div
         className="
           flex
@@ -50,38 +77,57 @@ const CourseFilters = ({
         "
       >
 
-        {categories.map((item) => (
+        {allCategories.map((item)=>(
+
 
           <button
-            key={item}
-            onClick={() => onSelect?.(item)}
+
+            key={item.id}
+
+            onClick={() =>
+              onSelect?.(item.id)
+            }
+
             className={`
+              rounded-2xl
               px-5
               py-3
-              rounded-2xl
               font-semibold
               transition
+
               ${
-                selected === item
-                ? 
+                selected === item.id
+
+                ?
+
                 "bg-blue-600 text-white"
+
                 :
+
                 "bg-slate-800 text-slate-300 hover:bg-slate-700"
+
               }
+
             `}
           >
 
-            {item}
+            {item.name}
 
           </button>
 
+
         ))}
+
 
       </div>
 
 
+
     </motion.div>
+
   );
+
 };
+
 
 export default CourseFilters;

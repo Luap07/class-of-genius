@@ -8,7 +8,9 @@ import AdminButton from "../../../components/admin/ui/AdminButton";
 
 const CreateResource = () => {
   const navigate = useNavigate();
-  const { topicId } = useParams();
+const { topicId } = useParams();
+
+console.log("CREATE RESOURCE TOPIC ID:", topicId);
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -36,7 +38,7 @@ const CreateResource = () => {
 
   const getBucket = () => {
     switch (formData.resource_type) {
-      case "pdf": return "course-pdfs";
+      case "pdf": return "course-documents";
       case "docx": return "course-documents";
       case "video": return "course-videos";
       default: return null;
@@ -68,7 +70,12 @@ const CreateResource = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+
+  if (!topicId) {
+    alert("Missing topic ID");
+    return;
+  }
     if (!formData.title.trim()) return alert("Resource title is required.");
     
     if (formData.resource_type !== "youtube" && !formData.file) {

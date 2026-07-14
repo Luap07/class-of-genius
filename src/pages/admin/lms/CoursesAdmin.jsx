@@ -481,7 +481,7 @@ const CoursesAdmin = () => {
 
           <button
 
-            onClick={() => navigate("/admin/lms/resources")}
+            onClick={() => navigate("/admin/lms/topic/TOPIC_ID/resources")}
 
             className="
               rounded-2xl

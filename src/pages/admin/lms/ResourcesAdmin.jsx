@@ -19,6 +19,8 @@ const ResourcesAdmin = () => {
   const navigate = useNavigate();
   const { topicId } = useParams();
 
+  console.log("RESOURCES TOPIC ID:", topicId);
+
   const [topic, setTopic] = useState(null);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,12 +95,18 @@ const ResourcesAdmin = () => {
           <h1 className="text-3xl font-bold text-white">{topic?.title || "Learning Unit"} Resources</h1>
           <p className="mt-2 text-slate-400">Manage PDFs, documents, videos, and external lessons.</p>
         </div>
-        <AdminButton
-          icon={<Plus size={18} />}
-          onClick={() => navigate(`/admin/lms/topic/${topicId}/resources/create`)}
-        >
-          Add Resource
-        </AdminButton>
+       <AdminButton
+  icon={<Plus size={18} />}
+  onClick={() => {
+    console.log("GOING TO CREATE RESOURCE:", topicId);
+
+    navigate(
+      `/admin/lms/topic/${topicId}/resources/create`
+    );
+  }}
+>
+  Add Resource
+</AdminButton>
       </div>
 
       {/* SEARCH */}

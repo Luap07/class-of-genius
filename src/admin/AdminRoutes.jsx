@@ -90,6 +90,7 @@ import StorageSettings from "../pages/admin/settings/StorageSettings";
 import Integrations from "../pages/admin/settings/Integrations";
 import APIKeys from "../pages/admin/settings/APIKeys";
 
+
 const AdminRoutes = () => {
   return (
     <Routes>
@@ -98,16 +99,34 @@ const AdminRoutes = () => {
         {/* Dashboard */}
         <Route index element={<AdminDashboard />} />
 
-        {/* ================= LMS ================= */}
+{/* ================= LMS ================= */}
+
+
+<Route
+  path="lms/course/:courseId/topics"
+  element={<TopicsAdmin />}
+/>
+
+
+<Route
+  path="lms/topic/:topicId/resources"
+  element={<ResourcesAdmin />}
+/>
+
+
+<Route
+  path="lms/topic/:topicId/resources/create"
+  element={<CreateResource />}
+/>
+
+
+<Route
+  path="lms/topic/:topicId/resources/edit/:resourceId"
+  element={<EditResource />}
+/>
+
 
 <Route path="lms" element={<CoursesAdmin />} />
-
-<Route path="lms/create" element={<CreateCourse />} />
-
-<Route path="lms/edit/:id" element={<EditCourse />} />
-
-<Route path="lms/categories" element={<CourseCategories />} />
-
 
 
 {/* ================= LEARNING UNITS ================= */}
@@ -132,7 +151,7 @@ const AdminRoutes = () => {
 {/* ================= RESOURCES ================= */}
 
 <Route
-  path="lms/topic/:topicId/resources"
+  path="lms/topic/:topicId/resources/*"
   element={<ResourcesAdmin />}
 />
 
@@ -145,8 +164,6 @@ const AdminRoutes = () => {
   path="lms/topic/:topicId/resources/edit/:resourceId"
   element={<EditResource />}
 />
-
-
 
 {/* ================= WEEKLY TASKS ================= */}
 
@@ -179,10 +196,6 @@ const AdminRoutes = () => {
 <Route path="lms/topics" element={<TopicsAdmin />} />
 <Route path="lms/topics/create" element={<CreateTopic />} />
 <Route path="lms/topics/edit/:topicId" element={<EditTopic />} />
-
-<Route path="lms/resources" element={<ResourcesAdmin />} />
-<Route path="lms/resources/create" element={<CreateResource />} />
-<Route path="lms/resources/edit/:resourceId" element={<EditResource />} />
 
 <Route path="lms/tasks" element={<WeeklyTasksAdmin />} />
 <Route path="lms/tasks/create" element={<CreateWeeklyTask />} />

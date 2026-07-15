@@ -16,6 +16,8 @@ import QuizzesAdmin from "../pages/admin/lms/QuizzesAdmin";
 import CertificatesAdmin from "../pages/admin/lms/CertificatesAdmin";
 import StudentsAdmin from "../pages/admin/lms/StudentsAdmin";
 import InstructorsAdmin from "../pages/admin/lms/InstructorsAdmin";
+import MaterialsAdmin from "../pages/admin/lms/MaterialsAdmin";
+import CreateMaterial from "../pages/admin/lms/CreateMaterial";
 
 /* ================= VIRTUAL LABS ================= */
 import VirtualLabsDashboard from "../pages/admin/virtualLabs/VirtualLabsDashboard";
@@ -101,35 +103,23 @@ const AdminRoutes = () => {
 
 {/* ================= LMS ================= */}
 
+<Route 
+  path="lms" 
+  element={<CoursesAdmin />} 
+/>
 
-<Route
-  path="lms/course/:courseId/topics"
-  element={<TopicsAdmin />}
+<Route 
+  path="lms/create" 
+  element={<CreateCourse />} 
+/>
+
+<Route 
+  path="lms/edit/:id" 
+  element={<EditCourse />} 
 />
 
 
-<Route
-  path="lms/topic/:topicId/resources"
-  element={<ResourcesAdmin />}
-/>
-
-
-<Route
-  path="lms/topic/:topicId/resources/create"
-  element={<CreateResource />}
-/>
-
-
-<Route
-  path="lms/topic/:topicId/resources/edit/:resourceId"
-  element={<EditResource />}
-/>
-
-
-<Route path="lms" element={<CoursesAdmin />} />
-
-
-{/* ================= LEARNING UNITS ================= */}
+{/* ================= TOPICS ================= */}
 
 <Route
   path="lms/course/:courseId/topics"
@@ -151,7 +141,118 @@ const AdminRoutes = () => {
 {/* ================= RESOURCES ================= */}
 
 <Route
-  path="lms/topic/:topicId/resources/*"
+  path="lms/course/:courseId/resources"
+  element={<ResourcesAdmin />}
+/>
+
+
+
+<Route
+  path="lms/topic/:topicId/resources"
+  element={<ResourcesAdmin />}
+/>
+
+
+<Route
+  path="lms/topic/:topicId/resources/create"
+  element={<CreateResource />}
+/>
+
+
+<Route
+  path="lms/topic/:topicId/resources/edit/:resourceId"
+  element={<EditResource />}
+/>
+
+
+
+
+
+{/* ================= WEEKLY TASKS ================= */}
+
+
+<Route
+  path="lms/course/:courseId/tasks"
+  element={<WeeklyTasksAdmin />}
+/>
+
+
+<Route
+  path="lms/topic/:topicId/tasks"
+  element={<WeeklyTasksAdmin />}
+/>
+
+
+<Route
+  path="lms/topic/:topicId/tasks/create"
+  element={<CreateWeeklyTask />}
+/>
+
+
+
+
+
+
+{/* ================= MONTHLY QUIZ ================= */}
+
+
+<Route
+  path="lms/course/:courseId/quizzes"
+  element={<MonthlyQuizAdmin />}
+/>
+
+
+<Route
+  path="lms/topic/:topicId/quizzes"
+  element={<MonthlyQuizAdmin />}
+/>
+
+
+<Route
+  path="lms/topic/:topicId/quizzes/create"
+  element={<CreateMonthlyQuiz />}
+/>
+
+
+
+
+
+
+{/* ================= MATERIALS ================= */}
+
+
+<Route
+  path="lms/course/:courseId/materials"
+  element={<MaterialsAdmin />}
+/>
+
+
+<Route
+  path="lms/materials/create"
+  element={<CreateMaterial />}
+/>
+
+{/* ================= LEARNING UNITS ================= */}
+<Route
+  path="lms/course/:courseId/topics"
+  element={<TopicsAdmin />}
+/>
+
+<Route
+  path="lms/course/:courseId/topics/create"
+  element={<CreateTopic />}
+/>
+
+<Route
+  path="lms/course/:courseId/topics/edit/:topicId"
+  element={<EditTopic />}
+/>
+
+
+
+{/* ================= RESOURCES ================= */}
+<Route
+  path="lms/topic/:topicId/resources"
   element={<ResourcesAdmin />}
 />
 
@@ -164,6 +265,7 @@ const AdminRoutes = () => {
   path="lms/topic/:topicId/resources/edit/:resourceId"
   element={<EditResource />}
 />
+
 
 {/* ================= WEEKLY TASKS ================= */}
 
@@ -191,26 +293,7 @@ const AdminRoutes = () => {
   element={<CreateMonthlyQuiz />}
 />
 
-{/* ==============lm$============ */}
-
-<Route path="lms/topics" element={<TopicsAdmin />} />
-<Route path="lms/topics/create" element={<CreateTopic />} />
-<Route path="lms/topics/edit/:topicId" element={<EditTopic />} />
-
-<Route path="lms/tasks" element={<WeeklyTasksAdmin />} />
-<Route path="lms/tasks/create" element={<CreateWeeklyTask />} />
-
-<Route path="lms/monthly-quizzes" element={<MonthlyQuizAdmin />} />
-<Route path="lms/monthly-quizzes/create" element={<CreateMonthlyQuiz />} />        {/* Virtual Labs */}
-        <Route path="labs" element={<VirtualLabsDashboard />} />
-        <Route path="labs/physics" element={<PhysicsExperiments />} />
-        <Route path="labs/chemistry" element={<ChemistryExperiments />} />
-        <Route path="labs/biology" element={<BiologyExperiments />} />
-        <Route path="labs/mathematics" element={<MathematicsExperiments />} />
-        <Route path="labs/add" element={<AddExperiment />} />
-        <Route path="labs/edit/:id" element={<EditExperiment />} />
-
-        {/* CBT */}
+                  {/* CBT */}
         <Route path="cbt" element={<CBTDashboard />} />
         <Route path="cbt/subjects" element={<SubjectsAdmin />} />
         <Route path="cbt/questions" element={<QuestionsAdmin />} />

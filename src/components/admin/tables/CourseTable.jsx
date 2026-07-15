@@ -10,6 +10,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+import { useNavigate } from "react-router-dom";
+
 const badgeStyles = {
   Published:
     "bg-green-500/20 text-green-400 border border-green-500/30",
@@ -30,6 +32,9 @@ const CourseTable = ({
   onEdit,
   onDelete,
 }) => {
+
+  const navigate = useNavigate();
+
   const [activeMenu, setActiveMenu] = useState(null);
 
   return (

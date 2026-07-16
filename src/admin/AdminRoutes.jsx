@@ -1,5 +1,3 @@
-// src/admin/AdminRoutes.jsx
-
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
@@ -18,6 +16,9 @@ import StudentsAdmin from "../pages/admin/lms/StudentsAdmin";
 import InstructorsAdmin from "../pages/admin/lms/InstructorsAdmin";
 import MaterialsAdmin from "../pages/admin/lms/MaterialsAdmin";
 import CreateMaterial from "../pages/admin/lms/CreateMaterial";
+import EditWeeklyTask from "../pages/admin/lms/EditWeeklyTask";
+import EditMonthlyQuiz from "../pages/admin/lms/EditMonthlyQuiz";
+import ViewMonthlyQuiz from "../pages/admin/lms/ViewMonthlyQuiz";
 
 /* ================= VIRTUAL LABS ================= */
 import VirtualLabsDashboard from "../pages/admin/virtualLabs/VirtualLabsDashboard";
@@ -101,106 +102,38 @@ const AdminRoutes = () => {
         {/* Dashboard */}
         <Route index element={<AdminDashboard />} />
 
-{/* ================= LMS ================= */}
+        {/* ================= LMS COURSES ================= */}
+        <Route path="lms" element={<CoursesAdmin />} />
+        <Route path="lms/create" element={<CreateCourse />} />
+        <Route path="lms/edit/:id" element={<EditCourse />} />
 
-<Route 
-  path="lms" 
-  element={<CoursesAdmin />} 
-/>
+        {/* ================= TOPICS ================= */}
+        <Route path="lms/course/:courseId/topics" element={<TopicsAdmin />} />
+        <Route path="lms/course/:courseId/topics/create" element={<CreateTopic />} />
+        <Route path="lms/course/:courseId/topics/edit/:topicId" element={<EditTopic />} />
+      <Route path="lms/tasks/edit/:id" element={<EditWeeklyTask />}/>
+        {/* ================= RESOURCES ================= */}
+        <Route path="lms/topic/:topicId/resources" element={<ResourcesAdmin />} />
+        <Route path="lms/topic/:topicId/resources/create" element={<CreateResource />} />
+        <Route path="lms/topic/:topicId/resources/edit/:resourceId" element={<EditResource />} />
 
-<Route 
-  path="lms/create" 
-  element={<CreateCourse />} 
-/>
-
-<Route 
-  path="lms/edit/:id" 
-  element={<EditCourse />} 
-/>
-
-
-{/* ================= TOPICS ================= */}
-
-<Route
-  path="lms/course/:courseId/topics"
-  element={<TopicsAdmin />}
-/>
-
-<Route
-  path="lms/course/:courseId/topics/create"
-  element={<CreateTopic />}
-/>
-
-<Route
-  path="lms/course/:courseId/topics/edit/:topicId"
-  element={<EditTopic />}
-/>
-
-
-
-{/* ================= RESOURCES ================= */}
-
-<Route
-  path="lms/course/:courseId/resources"
-  element={<ResourcesAdmin />}
-/>
-
-
-
-<Route
-  path="lms/topic/:topicId/resources"
-  element={<ResourcesAdmin />}
-/>
-
-
-<Route
-  path="lms/topic/:topicId/resources/create"
-  element={<CreateResource />}
-/>
-
-
-<Route
-  path="lms/topic/:topicId/resources/edit/:resourceId"
-  element={<EditResource />}
-/>
-
-
-
-
-
-{/* ================= WEEKLY TASKS ================= */}
-
-
-<Route
-  path="lms/course/:courseId/tasks"
-  element={<WeeklyTasksAdmin />}
-/>
-
+       {/* ================= WEEKLY TASKS ================= */}
 
 <Route
   path="lms/topic/:topicId/tasks"
   element={<WeeklyTasksAdmin />}
 />
 
-
 <Route
   path="lms/topic/:topicId/tasks/create"
   element={<CreateWeeklyTask />}
 />
 
-
-
-
-
-
-{/* ================= MONTHLY QUIZ ================= */}
-
-
 <Route
-  path="lms/course/:courseId/quizzes"
-  element={<MonthlyQuizAdmin />}
+  path="lms/topic/:topicId/tasks/edit/:id"
+  element={<EditWeeklyTask />}
 />
-
+        {/* ================= MONTHLY QUIZZES ================= */}
 
 <Route
   path="lms/topic/:topicId/quizzes"
@@ -214,86 +147,21 @@ const AdminRoutes = () => {
 />
 
 
-
-
-
-
-{/* ================= MATERIALS ================= */}
-
-
 <Route
-  path="lms/course/:courseId/materials"
-  element={<MaterialsAdmin />}
+  path="lms/topic/:topicId/quizzes/edit/:id"
+  element={<EditMonthlyQuiz />}
 />
 
 
 <Route
-  path="lms/materials/create"
-  element={<CreateMaterial />}
+  path="lms/topic/:topicId/quizzes/view/:id"
+  element={<ViewMonthlyQuiz />}
 />
+        {/* ================= MATERIALS ================= */}
+        <Route path="lms/course/:courseId/materials" element={<MaterialsAdmin />} />
+        <Route path="lms/materials/create" element={<CreateMaterial />} />
 
-{/* ================= LEARNING UNITS ================= */}
-<Route
-  path="lms/course/:courseId/topics"
-  element={<TopicsAdmin />}
-/>
-
-<Route
-  path="lms/course/:courseId/topics/create"
-  element={<CreateTopic />}
-/>
-
-<Route
-  path="lms/course/:courseId/topics/edit/:topicId"
-  element={<EditTopic />}
-/>
-
-
-
-{/* ================= RESOURCES ================= */}
-<Route
-  path="lms/topic/:topicId/resources"
-  element={<ResourcesAdmin />}
-/>
-
-<Route
-  path="lms/topic/:topicId/resources/create"
-  element={<CreateResource />}
-/>
-
-<Route
-  path="lms/topic/:topicId/resources/edit/:resourceId"
-  element={<EditResource />}
-/>
-
-
-{/* ================= WEEKLY TASKS ================= */}
-
-<Route
-  path="lms/topic/:topicId/tasks"
-  element={<WeeklyTasksAdmin />}
-/>
-
-<Route
-  path="lms/topic/:topicId/tasks/create"
-  element={<CreateWeeklyTask />}
-/>
-
-
-
-{/* ================= MONTHLY QUIZZES ================= */}
-
-<Route
-  path="lms/topic/:topicId/quizzes"
-  element={<MonthlyQuizAdmin />}
-/>
-
-<Route
-  path="lms/topic/:topicId/quizzes/create"
-  element={<CreateMonthlyQuiz />}
-/>
-
-                  {/* CBT */}
+        {/* ================= CBT ================= */}
         <Route path="cbt" element={<CBTDashboard />} />
         <Route path="cbt/subjects" element={<SubjectsAdmin />} />
         <Route path="cbt/questions" element={<QuestionsAdmin />} />

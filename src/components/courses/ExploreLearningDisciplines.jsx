@@ -29,38 +29,49 @@ const ExploreLearningDisciplines = ({
   }, []);
 
   const fetchCategories = async () => {
+  try {
+    setLoading(true);
+    setError("");
 
-    try {
-
-      setLoading(true);
-
-      setError("");
-
-      const { data, error } = await supabase
-
+    const [
+      { data: categoryData, error: categoryError },
+      { data: courseData, error: courseError },
+    ] = await Promise.all([
+      supabase
         .from("course_categories")
+        .select("*")
+        .order("name"),
 
+      supabase
+        .from("courses")
         .select(`
           id,
-          name,
-          description,
-          image,
-          color,
-          courses(
-            id
-          )
+          title,
+          thumbnail_url,
+          created_at,
+          featured,
+          category_id
         `)
+        .eq("status", "Published"),
+    ]);
 
-        .order("name");
+    if (categoryError) throw categoryError;
+    if (courseError) throw courseError;
 
-      if (error) throw error;
+    const formatted = (categoryData || []).map((category) => {
+      const categoryCourses = (courseData || []).filter(
+        (course) => course.category_id === category.id
+      );
 
-      const formatted = (data || []).map((category) => ({
+      categoryCourses.sort(
+        (a, b) =>
+          new Date(b.created_at) -
+          new Date(a.created_at)
+      );
 
+      return {
         id: category.id,
-
         name: category.name,
-
         description:
           category.description ||
           "Explore premium learning content.",
@@ -71,27 +82,26 @@ const ExploreLearningDisciplines = ({
           category.color ||
           "#06b6d4",
 
-        totalCourses:
-          category.courses?.length || 0,
+        totalCourses: categoryCourses.length,
 
-      }));
+        latestCourse:
+          categoryCourses[0] || null,
 
-      setCategories(formatted);
+        featuredCourse:
+          categoryCourses.find(
+            (c) => c.featured
+          ) || null,
+      };
+    });
 
-    } catch (err) {
-
-      console.error(err);
-
-      setError(err.message);
-
-    } finally {
-
-      setLoading(false);
-
-    }
-
-  };
-
+    setCategories(formatted);
+  } catch (err) {
+    console.error(err);
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
   /* ==========================================
       LOADING
   ========================================== */

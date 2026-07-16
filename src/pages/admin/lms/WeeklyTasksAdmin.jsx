@@ -1,3 +1,5 @@
+// src/pages/admin/lms/WeeklyTasksAdmin.jsx
+
 import React, {
   useEffect,
   useState,
@@ -14,6 +16,7 @@ import {
 
 import {
   useNavigate,
+  useParams,
 } from "react-router-dom";
 
 import {
@@ -26,38 +29,59 @@ const WeeklyTasksAdmin = () => {
 
   const navigate = useNavigate();
 
-  /* ================= STATE ================= */
+  const { topicId } = useParams();
 
-  const [tasks, setTasks] = useState([]);
+  /* ================= STATE ================= */
 
   const [loading, setLoading] = useState(true);
 
+  const [tasks, setTasks] = useState([]);
 
+  const [topic, setTopic] = useState(null);
 
-  /* ================= FETCH TASKS ================= */
+  /* ================= FETCH ================= */
 
-  const fetchTasks = async () => {
+  const fetchData = async () => {
+
+    if (!topicId) return;
 
     try {
 
       setLoading(true);
 
+      /* ---------- Topic ---------- */
+
       const {
-
-        data,
-
-        error,
-
+        data: topicData,
+        error: topicError,
       } = await supabase
+        .from("course_topics")
+        .select(`
+          id,
+          title,
+          course_id,
+          courses(
+            title
+          )
+        `)
+        .eq("id", topicId)
+        .single();
 
+      if (topicError) throw topicError;
+
+      setTopic(topicData);
+
+      /* ---------- Weekly Tasks ---------- */
+
+      const {
+        data,
+        error,
+      } = await supabase
         .from("weekly_tasks")
-
         .select("*")
-
-        .order("created_at", {
-
-          ascending: false,
-
+        .eq("topic_id", topicId)
+        .order("week", {
+          ascending: true,
         });
 
       if (error) throw error;
@@ -68,11 +92,7 @@ const WeeklyTasksAdmin = () => {
 
       console.error(error);
 
-      alert(
-
-        "Failed to load weekly tasks."
-
-      );
+      alert("Failed to load weekly tasks.");
 
     } finally {
 
@@ -82,25 +102,18 @@ const WeeklyTasksAdmin = () => {
 
   };
 
-
-
   useEffect(() => {
 
-    fetchTasks();
+    fetchData();
 
-  }, []);
-
-
-
+  }, [topicId]);
 
   /* ================= DELETE ================= */
 
   const handleDelete = async (id) => {
 
     const confirmDelete = window.confirm(
-
       "Delete this weekly task?"
-
     );
 
     if (!confirmDelete) return;
@@ -108,60 +121,41 @@ const WeeklyTasksAdmin = () => {
     try {
 
       const {
-
         error,
-
       } = await supabase
-
         .from("weekly_tasks")
-
         .delete()
-
         .eq("id", id);
 
       if (error) throw error;
 
       setTasks((previous) =>
-
         previous.filter(
-
-          (task) =>
-
-            task.id !== id
-
+          (task) => task.id !== id
         )
-
       );
 
     } catch (error) {
 
       console.error(error);
 
-      alert(
-
-        "Unable to delete task."
-
-      );
+      alert("Unable to delete task.");
 
     }
 
   };
 
-
-
+  /* ================= LOADING ================= */
 
   if (loading) {
 
     return (
 
-      <div className="flex min-h-[400px] items-center justify-center">
+      <div className="flex min-h-[450px] items-center justify-center">
 
         <Loader2
-
           size={42}
-
           className="animate-spin text-blue-500"
-
         />
 
       </div>
@@ -169,13 +163,11 @@ const WeeklyTasksAdmin = () => {
     );
 
   }
-
-
-
-  return (
+    return (
 
     <div className="space-y-8 p-6 text-white">
-              {/* ================= HEADER ================= */}
+
+      {/* ================= HEADER ================= */}
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 
@@ -198,32 +190,22 @@ const WeeklyTasksAdmin = () => {
 
           <p className="mt-3 text-slate-400">
 
-            Create assignments, upload task instructions and
-            manage student submissions.
+            {topic?.courses?.title} • {topic?.title}
 
           </p>
 
         </div>
 
-
-
         <AdminButton
-
           icon={<Plus size={18} />}
-
           onClick={() =>
-            navigate("/admin/lms/tasks/create")
+            navigate(`/admin/lms/topic/${topicId}/tasks/create`)
           }
-
         >
-
           Create Weekly Task
-
         </AdminButton>
 
       </div>
-
-
 
       {/* ================= TABLE ================= */}
 
@@ -236,39 +218,31 @@ const WeeklyTasksAdmin = () => {
             <tr>
 
               <th className="px-6 py-4">
+                Week
+              </th>
 
+              <th className="px-6 py-4">
                 Task
-
               </th>
 
               <th className="px-6 py-4">
-
-                Course
-
+                Due Date
               </th>
 
               <th className="px-6 py-4">
-
-                Topic
-
+                Priority
               </th>
 
               <th className="px-6 py-4">
-
-                Deadline
-
+                Difficulty
               </th>
 
               <th className="px-6 py-4">
-
-                Status
-
+                XP
               </th>
 
               <th className="px-6 py-4 text-center">
-
                 Actions
-
               </th>
 
             </tr>
@@ -277,193 +251,116 @@ const WeeklyTasksAdmin = () => {
 
           <tbody>
 
-            {
+            {tasks.length > 0 ? (
 
-              tasks.length > 0 ? (
+              tasks.map((task) => (
 
-                tasks.map((task) => (
+                <tr
+                  key={task.id}
+                  className="border-t border-slate-800 hover:bg-slate-800/40"
+                >
 
-                  <tr
+                  <td className="px-6 py-5">
 
-                    key={task.id}
+                    Week {task.week}
 
-                    className="
-                      border-t
-                      border-slate-800
-                      hover:bg-slate-800/40
-                    "
+                  </td>
 
-                  >
+                  <td className="px-6 py-5">
 
-                    <td className="px-6 py-5">
+                    <h3 className="font-semibold">
 
-                      <h3 className="font-semibold">
+                      {task.title}
 
-                        {task.title}
+                    </h3>
 
-                      </h3>
+                    <p className="mt-1 text-sm text-slate-400">
 
-                      <p className="mt-1 text-sm text-slate-400">
+                      {task.description || "No description"}
 
-                        {task.description || "No description"}
+                    </p>
 
-                      </p>
+                  </td>
 
-                    </td>
+                  <td className="px-6 py-5 text-slate-300">
 
+                    {task.due_date
+                      ? new Date(task.due_date).toLocaleDateString()
+                      : "-"}
 
+                  </td>
 
-                    <td className="px-6 py-5 text-slate-300">
+                  <td className="px-6 py-5">
 
-                      {task.course_name ||
+                    <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs text-blue-400">
 
-                        "Not Assigned"}
+                      {task.priority}
 
-                    </td>
+                    </span>
 
+                  </td>
 
+                  <td className="px-6 py-5 text-slate-300">
 
-                    <td className="px-6 py-5 text-slate-300">
+                    {task.difficulty}
 
-                      {task.topic_name ||
+                  </td>
 
-                        "Not Assigned"}
+                  <td className="px-6 py-5 text-yellow-400 font-semibold">
 
-                    </td>
+                    {task.xp} XP
 
+                  </td>
 
+                  <td className="px-6 py-5">
 
-                    <td className="px-6 py-5 text-slate-300">
+                    <div className="flex justify-center gap-3">
 
-                      {
-
-                        task.deadline
-
-                          ?
-
-                          new Date(
-
-                            task.deadline
-
-                          ).toLocaleDateString()
-
-                          :
-
-                          "-"
-
-                      }
-
-                    </td>
-
-
-
-                    <td className="px-6 py-5">
-
-                      <span
-
-                        className={
-
-                          task.status === "Published"
-
-                            ?
-
-                            "rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400"
-
-                            :
-
-                            "rounded-full bg-yellow-500/10 px-3 py-1 text-xs text-yellow-400"
-
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/admin/lms/topic/${topicId}/tasks/view/${task.id}`
+                          )
                         }
-
+                        className="text-blue-400 hover:text-blue-300"
                       >
+                        <Eye size={18} />
+                      </button>
 
-                        {task.status ||
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/admin/lms/topic/${topicId}/tasks/edit/${task.id}`
+                          )
+                        }
+                        className="text-green-400 hover:text-green-300"
+                      >
+                        <Edit size={18} />
+                      </button>
 
-                          "Draft"}
+                      <button
+                        onClick={() =>
+                          handleDelete(task.id)
+                        }
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 size={18} />
+                      </button>
 
-                      </span>
+                    </div>
 
-                    </td>
+                  </td>
 
+                </tr>
 
+              ))
 
-                    <td className="px-6 py-5">
+            ) : (
 
-                      <div className="flex justify-center gap-3">
-
-                        <button
-
-                          onClick={() =>
-
-                            navigate(
-
-                              `/admin/lms/tasks/view/${task.id}`
-
-                            )
-
-                          }
-
-                          className="text-blue-400 hover:text-blue-300"
-
-                        >
-
-                          <Eye size={18} />
-
-                        </button>
-
-
-
-                        <button
-
-                          onClick={() =>
-
-                            navigate(
-
-                              `/admin/lms/tasks/edit/${task.id}`
-
-                            )
-
-                          }
-
-                          className="text-green-400 hover:text-green-300"
-
-                        >
-
-                          <Edit size={18} />
-
-                        </button>
-
-
-
-                        <button
-
-                          onClick={() =>
-
-                            handleDelete(task.id)
-
-                          }
-
-                          className="text-red-400 hover:text-red-300"
-
-                        >
-
-                          <Trash2 size={18} />
-
-                        </button>
-
-                      </div>
-
-                    </td>
-
-                  </tr>
-
-                ))
-
-              ) : (
-                              <tr>
+              <tr>
 
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-6 py-20 text-center"
                 >
 
@@ -474,13 +371,13 @@ const WeeklyTasksAdmin = () => {
 
                   <h3 className="text-xl font-semibold text-white">
 
-                    No Weekly Tasks Found
+                    No Weekly Tasks Yet
 
                   </h3>
 
                   <p className="mt-2 text-slate-400">
 
-                    Create your first weekly task to get started.
+                    Create the first task for this topic.
 
                   </p>
 
@@ -489,12 +386,10 @@ const WeeklyTasksAdmin = () => {
                     <AdminButton
                       icon={<Plus size={18} />}
                       onClick={() =>
-                        navigate("/admin/lms/tasks/create")
+                        navigate(`/admin/lms/topic/${topicId}/tasks/create`)
                       }
                     >
-
                       Create Weekly Task
-
                     </AdminButton>
 
                   </div>

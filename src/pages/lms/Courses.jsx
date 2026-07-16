@@ -90,10 +90,51 @@ useEffect(() => {
     });
   };
     // Available Categories
-  const availableCategories = [
-    "All",
-    ...new Set(categories.filter(Boolean)),
-  ];
+ const availableCategories = useMemo(() => {
+  const unique = [];
+
+  const seen = new Set();
+
+  categories.forEach((cat) => {
+    if (!cat) return;
+
+    // Handle object categories
+    if (typeof cat === "object") {
+      const key = String(cat.id ?? cat.name);
+
+      if (!seen.has(key)) {
+        seen.add(key);
+
+        unique.push({
+          id: String(cat.id ?? cat.name),
+          name: cat.name,
+        });
+      }
+    }
+
+    // Handle string categories
+    else {
+      const key = String(cat);
+
+      if (!seen.has(key)) {
+        seen.add(key);
+
+        unique.push({
+          id: key,
+          name: key,
+        });
+      }
+    }
+  });
+
+return [
+  {
+    id: "All",
+    name: "All",
+  },
+  ...unique,
+];
+}, [categories]);
 
   // Filter Courses
   const filteredCourses = useMemo(() => {
@@ -107,10 +148,10 @@ useEffect(() => {
         course.instructor?.toLowerCase().includes(keyword) ||
         course.category?.toLowerCase().includes(keyword);
 
-      const matchesCategory =
-        category === "All" ||
-        course.category === category;
-
+  const matchesCategory =
+  category === "All" ||
+  String(course.category_id) === String(category);
+  
       return (
         matchesSearch &&
         matchesCategory

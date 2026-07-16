@@ -12,14 +12,17 @@ const CourseFilters = ({
 }) => {
 
 
-  const allCategories = [
-    {
-      id: "all",
-      name: "All",
-    },
-    ...categories,
-  ];
-
+ const allCategories = [
+  { id: "all", name: "All" },
+  ...categories.filter(
+    (item, index, self) =>
+      index ===
+      self.findIndex(
+        (c) =>
+          String(c.id) === String(item.id)
+      )
+  ),
+];
 
 
   return (
@@ -65,10 +68,6 @@ const CourseFilters = ({
 
       </div>
 
-
-
-
-
       <div
         className="
           flex
@@ -79,11 +78,9 @@ const CourseFilters = ({
 
         {allCategories.map((item)=>(
 
-
           <button
 
-            key={item.id}
-
+            key={item.id || item.name}
             onClick={() =>
               onSelect?.(item.id)
             }

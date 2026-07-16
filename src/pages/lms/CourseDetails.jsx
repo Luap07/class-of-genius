@@ -1,8 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useCourses } from "../../context/LMScontext/CourseContext";
-
+import { useCourses } from "../../context/LMSContext/CourseContext";
 // Components
 import CourseHero from "../../components/courseDetails/CourseHero";
 import CourseNav from "../../components/courseDetails/CourseNav";
@@ -26,6 +25,10 @@ const CourseDetails = () => {
 const course =
   getCourse(id) ||
   courses.find((item) => item.slug === id);
+
+  console.log("Route ID:", id);
+console.log("All Courses:", courses);
+console.log("Found Course:", course);
 
   if (loading) {
   return (

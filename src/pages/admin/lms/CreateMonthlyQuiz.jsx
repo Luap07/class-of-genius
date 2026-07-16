@@ -1,194 +1,518 @@
-// src/pages/admin/lms/CreateMonthlyQuiz.jsx
+import React, {
+  useEffect,
+  useState,
+} from "react";
 
-import React, { useEffect, useState } from "react";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../../../lib/supabaseClient";
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  ClipboardCheck,
+} from "lucide-react";
+
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+
+import {
+  supabase,
+} from "../../../lib/supabaseClient";
+
 import AdminButton from "../../../components/admin/ui/AdminButton";
 
 const CreateMonthlyQuiz = () => {
+
   const navigate = useNavigate();
+
+  const { topicId } = useParams();
+
+  /* ================= STATE ================= */
+
   const [loading, setLoading] = useState(false);
-  const [courses, setCourses] = useState([]);
-  const [topics, setTopics] = useState([]);
+
+  const [topic, setTopic] = useState(null);
 
   const [formData, setFormData] = useState({
-    course_id: "",
-    topic_id: "",
+
     title: "",
+
     description: "",
+
     month: "",
-    start_date: "",
-    end_date: "",
+
+    quiz_number: 1,
+
     duration: 30,
-    total_marks: 100,
-    pass_mark: 50,
+
+    passing_score: 50,
+
     status: "Draft",
+
   });
 
-  /* ================= FETCH DATA ================= */
-  const fetchCourses = async () => {
-    const { data, error } = await supabase
-      .from("courses")
-      .select("id, title")
-      .order("title");
-    if (!error) setCourses(data || []);
-  };
+  /* ================= FETCH TOPIC ================= */
 
-  const fetchTopics = async (courseId) => {
-    if (!courseId) {
-      setTopics([]);
+  const fetchTopic = async () => {
+
+    if (!topicId) return;
+
+    const {
+
+      data,
+
+      error,
+
+    } = await supabase
+
+      .from("course_topics")
+
+      .select(`
+        id,
+        title,
+        course_id,
+        courses(
+          title
+        )
+      `)
+
+      .eq("id", topicId)
+
+      .single();
+
+    if (error) {
+
+      console.error(error);
+
+      alert("Unable to load topic.");
+
       return;
+
     }
-    const { data, error } = await supabase
-      .from("topics")
-      .select("id, title")
-      .eq("course_id", courseId)
-      .order("title");
-    if (!error) setTopics(data || []);
+
+    setTopic(data);
+
   };
 
   useEffect(() => {
-    fetchCourses();
-  }, []);
 
-  /* ================= HANDLERS ================= */
+    fetchTopic();
+
+  }, [topicId]);
+
+  /* ================= INPUT ================= */
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
 
-    if (name === "course_id") {
-      fetchTopics(value);
-      setFormData((prev) => ({ ...prev, course_id: value, topic_id: "" }));
-    }
+    const {
+
+      name,
+
+      value,
+
+    } = e.target;
+
+    setFormData((previous) => ({
+
+      ...previous,
+
+      [name]: value,
+
+    }));
+
   };
 
+  /* ================= SAVE ================= */
+
   const handleSubmit = async (e) => {
+
     e.preventDefault();
 
-    if (!formData.course_id || !formData.title.trim() || !formData.month || !formData.start_date || !formData.end_date) {
-      return alert("Please fill all required fields.");
+    if (
+
+      !formData.title ||
+
+      !formData.month
+
+    ) {
+
+      alert("Quiz title and month are required.");
+
+      return;
+
     }
 
     setLoading(true);
-    const { error } = await supabase.from("monthly_quizzes").insert({
-      course_id: formData.course_id,
-      topic_id: formData.topic_id || null,
-      title: formData.title,
-      description: formData.description,
-      month: formData.month,
-      start_date: formData.start_date,
-      end_date: formData.end_date,
-      duration: Number(formData.duration),
-      total_marks: Number(formData.total_marks),
-      pass_mark: Number(formData.pass_mark),
-      question_count: 0,
-      status: formData.status,
-    });
+        const { error } = await supabase
+
+      .from("monthly_quizzes")
+
+      .insert({
+
+        topic_id: topicId,
+
+        course_id: topic.course_id,
+
+        title: formData.title,
+
+        description: formData.description,
+
+        month: formData.month,
+
+        quiz_number: Number(formData.quiz_number),
+
+        duration: Number(formData.duration),
+
+        passing_score: Number(formData.passing_score),
+
+        status: formData.status,
+
+        question_count: 0,
+
+      });
 
     setLoading(false);
 
     if (error) {
+
       console.error(error);
-      return alert(error.message);
+
+      alert(error.message);
+
+      return;
+
     }
 
     alert("Monthly Quiz created successfully.");
-    navigate("/admin/lms/monthly-quizzes");
+
+    navigate(`/admin/lms/topic/${topicId}/quizzes`);
+
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-8">
-      {/* HEADER */}
+
+    <div className="mx-auto max-w-5xl space-y-8 p-6">
+
+      {/* ================= HEADER ================= */}
+
       <div className="flex items-center justify-between">
+
         <div>
-          <h1 className="text-3xl font-bold text-white">Create Monthly Quiz</h1>
-          <p className="text-slate-400 mt-2">Create a new monthly assessment for your students.</p>
+
+          <div className="flex items-center gap-3">
+
+            <ClipboardCheck
+              size={30}
+              className="text-blue-400"
+            />
+
+            <h1 className="text-3xl font-bold text-white">
+
+              Create Monthly Quiz
+
+            </h1>
+
+          </div>
+
+          <p className="mt-2 text-slate-400">
+
+            Create a quiz for this topic.
+
+          </p>
+
         </div>
-        <AdminButton variant="secondary" onClick={() => navigate("/admin/lms/monthly-quizzes")}>
-          <ArrowLeft size={18} className="mr-2" />
+
+        <AdminButton
+
+          variant="secondary"
+
+          onClick={() => navigate(-1)}
+
+        >
+
+          <ArrowLeft size={18} />
+
           Back
+
         </AdminButton>
+
       </div>
 
-      {/* FORM */}
-      <form onSubmit={handleSubmit} className="rounded-3xl bg-slate-900 border border-slate-800 p-8 space-y-6 text-slate-200">
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <label className="block mb-2 text-sm text-slate-300">Course *</label>
-            <select name="course_id" value={formData.course_id} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white">
-              <option value="">Select Course</option>
-              {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block mb-2 text-sm text-slate-300">Topic</label>
-            <select name="topic_id" value={formData.topic_id} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white">
-              <option value="">Select Topic</option>
-              {topics.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
-            </select>
-          </div>
-        </div>
+      {/* ================= FORM ================= */}
+
+      <form
+
+        onSubmit={handleSubmit}
+
+        className="space-y-6 rounded-3xl border border-slate-800 bg-slate-900 p-8"
+
+      >
+
+        {/* COURSE */}
 
         <div>
-          <label className="block mb-2 text-sm text-slate-300">Quiz Title *</label>
-          <input type="text" name="title" value={formData.title} onChange={handleChange} placeholder="e.g. July Physics Assessment" className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white" />
+
+          <label className="mb-2 block text-sm text-slate-400">
+
+            Course
+
+          </label>
+
+          <div className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white">
+
+            {topic?.courses?.title || "Loading..."}
+
+          </div>
+
         </div>
+
+        {/* TOPIC */}
 
         <div>
-          <label className="block mb-2 text-sm text-slate-300">Description</label>
-          <textarea rows={4} name="description" value={formData.description} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white" />
+
+          <label className="mb-2 block text-sm text-slate-400">
+
+            Topic
+
+          </label>
+
+          <div className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white">
+
+            {topic?.title || "Loading..."}
+
+          </div>
+
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <label className="block mb-2 text-sm">Month *</label>
-            <input type="month" name="month" value={formData.month} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white" />
-          </div>
-          <div>
-            <label className="block mb-2 text-sm">Duration (Minutes)</label>
-            <input type="number" name="duration" value={formData.duration} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white" />
-          </div>
+        {/* TITLE */}
+
+        <div>
+
+          <label className="mb-2 block text-sm text-slate-400">
+
+            Quiz Title
+
+          </label>
+
+          <input
+
+            type="text"
+
+            name="title"
+
+            value={formData.title}
+
+            onChange={handleChange}
+
+            placeholder="e.g. Motion Assessment"
+
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white"
+
+          />
+
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        {/* DESCRIPTION */}
+
+        <div>
+
+          <label className="mb-2 block text-sm text-slate-400">
+
+            Description
+
+          </label>
+
+          <textarea
+
+            rows={4}
+
+            name="description"
+
+            value={formData.description}
+
+            onChange={handleChange}
+
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white"
+
+          />
+
+        </div>
+                {/* ================= QUIZ DETAILS ================= */}
+
+        <div className="grid gap-6 md:grid-cols-2">
+
           <div>
-            <label className="block mb-2 text-sm">Start Date</label>
-            <input type="datetime-local" name="start_date" value={formData.start_date} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white" />
+
+            <label className="mb-2 block text-sm text-slate-400">
+
+              Month
+
+            </label>
+
+            <input
+              type="month"
+              name="month"
+              value={formData.month}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white"
+            />
+
           </div>
+
           <div>
-            <label className="block mb-2 text-sm">End Date</label>
-            <input type="datetime-local" name="end_date" value={formData.end_date} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white" />
+
+            <label className="mb-2 block text-sm text-slate-400">
+
+              Quiz Number
+
+            </label>
+
+            <input
+              type="number"
+              min="1"
+              name="quiz_number"
+              value={formData.quiz_number}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white"
+            />
+
           </div>
+
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid gap-6 md:grid-cols-3">
+
           <div>
-            <label className="block mb-2 text-sm">Total Marks</label>
-            <input type="number" name="total_marks" value={formData.total_marks} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white" />
+
+            <label className="mb-2 block text-sm text-slate-400">
+
+              Duration (Minutes)
+
+            </label>
+
+            <input
+              type="number"
+              min="1"
+              name="duration"
+              value={formData.duration}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white"
+            />
+
           </div>
+
           <div>
-            <label className="block mb-2 text-sm">Pass Mark</label>
-            <input type="number" name="pass_mark" value={formData.pass_mark} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white" />
+
+            <label className="mb-2 block text-sm text-slate-400">
+
+              Passing Score (%)
+
+            </label>
+
+            <input
+              type="number"
+              min="0"
+              max="100"
+              name="passing_score"
+              value={formData.passing_score}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white"
+            />
+
           </div>
+
           <div>
-            <label className="block mb-2 text-sm">Status</label>
-            <select name="status" value={formData.status} onChange={handleChange} className="w-full rounded-xl bg-slate-950 border border-slate-700 px-4 py-3 text-white">
-              <option>Draft</option>
-              <option>Published</option>
+
+            <label className="mb-2 block text-sm text-slate-400">
+
+              Status
+
+            </label>
+
+            <select
+              name="status"
+              value={formData.status}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white"
+            >
+              <option value="Draft">
+                Draft
+              </option>
+
+              <option value="Published">
+                Published
+              </option>
+
             </select>
+
           </div>
+
         </div>
 
-        <div className="flex justify-end pt-4">
-          <AdminButton type="submit" disabled={loading}>
-            {loading ? <Loader2 size={18} className="animate-spin mr-2" /> : <Save size={18} className="mr-2" />}
-            {loading ? "Saving..." : "Create Quiz"}
+        {/* ================= ACTIONS ================= */}
+
+        <div className="flex justify-end gap-4 border-t border-slate-800 pt-6">
+
+          <AdminButton
+
+            type="button"
+
+            variant="secondary"
+
+            onClick={() => navigate(-1)}
+
+          >
+
+            Cancel
+
           </AdminButton>
+
+          <AdminButton
+
+            type="submit"
+
+            disabled={loading}
+
+          >
+
+            {loading ? (
+
+              <>
+
+                <Loader2
+                  size={18}
+                  className="mr-2 animate-spin"
+                />
+
+                Saving...
+
+              </>
+
+            ) : (
+
+              <>
+
+                <Save
+                  size={18}
+                  className="mr-2"
+                />
+
+                Create Monthly Quiz
+
+              </>
+
+            )}
+
+          </AdminButton>
+
         </div>
+
       </form>
+
     </div>
+
   );
+
 };
 
 export default CreateMonthlyQuiz;

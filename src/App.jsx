@@ -320,6 +320,16 @@ const AnimatedRoutes = () => {
     </ProtectedRoute>
   }
 />
+<Route
+  path="/courses/:id"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <CourseDetails />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
 
 <Route
   path="/lms/course/:id/lesson/:lessonId"

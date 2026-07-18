@@ -35,125 +35,232 @@ export const CourseProvider = ({ children }) => {
       FETCH COURSES
   ====================================================== */
 
-  const fetchCourses = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+ const fetchCourses = useCallback(async () => {
 
-      const { data, error } = await supabase
-        .from("courses")
-        .select("*")
-        .eq("status", "Published")
-        .order("created_at", {
-          ascending: false,
-        });
+  try {
 
-      if (error) throw error;
+    setLoading(true);
+    setError(null);
 
-      const formattedCourses = (data || []).map((course) => ({
-        id: course.id,
 
-        title: course.title || "",
+    const { data, error } = await supabase
+      .from("courses")
+      .select(`
+        *,
 
-        slug: course.slug || "",
+        course_modules(
+          id,
+          title,
+          description,
+          order_index,
 
-        description: course.description || "",
+          lessons(
+            id,
+            title,
+            description,
+            video_url,
+            duration,
+            order_index
+          )
+        ),
 
-        shortDescription:
-          course.short_description || "",
+
+        quizzes(
+          id,
+          title,
+          description
+        ),
+
+
+        weekly_tasks(
+          id,
+          title,
+          description,
+          due_date
+        ),
+
+
+        course_resources(
+          id,
+          title,
+          file_url,
+          type
+        )
+
+      `)
+      .eq(
+        "status",
+        "Published"
+      )
+      .order(
+        "created_at",
+        {
+          ascending:false
+        }
+      );
+
+
+    if(error)
+      throw error;
+
+
+
+    const formattedCourses =
+      (data || []).map(course => ({
+
+
+        id:
+          course.id,
+
+
+        title:
+          course.title || "",
+
+
+        slug:
+          course.slug || "",
+
+
+        description:
+          course.description || "",
+
+
 
         thumbnail:
           course.thumbnail_url || "",
 
-        banner:
-          course.banner || "",
+
 
         instructor:
           course.instructor ||
           "Class Of Genius",
 
+
+
         category:
-          course.category || "General",
+          course.category ||
+          "General",
 
-        category_id:
-          course.category_id || null,
 
-        categoryId:
-          course.category_id || null,
-
-        featured:
-          course.featured || false,
-
-        price:
-          Number(course.price) || 0,
-
-        lessons:
-          course.lessons_count ||
-          course.total_lessons ||
-          0,
-
-        duration:
-          course.duration || "",
 
         level:
-          course.level || "Beginner",
+          course.level ||
+          "Beginner",
+
+
 
         language:
-          course.language || "English",
+          course.language ||
+          "English",
 
-        certificate:
-          course.certificate || false,
+
 
         rating:
           Number(course.rating) || 0,
 
+
+
         students:
           Number(course.students) || 0,
 
-        status:
-          course.status,
+
+
+        lessons:
+          course.course_modules
+          ?.reduce(
+            (total,module)=>
+            total +
+            (module.lessons?.length || 0),
+            0
+          )
+          || 0,
+
+
+
+        modules:
+          course.course_modules || [],
+
+
+
+        quizzes:
+          course.quizzes || [],
+
+
+
+        weeklyTasks:
+          course.weekly_tasks || [],
+
+
+
+        resources:
+          course.course_resources || [],
+
+
+
+        certificate:
+          course.certificate || false,
+
+
 
         createdAt:
           course.created_at,
+
+
       }));
 
-      setCourses(formattedCourses);
 
-      console.log("Formatted Courses:", formattedCourses);
 
-      setFeaturedCourses(
-        formattedCourses.filter(
-          (course) => course.featured
-        )
-      );
+    setCourses(formattedCourses);
 
-      setRecentCourses(
-        [...formattedCourses]
-          .sort(
-            (a, b) =>
-              new Date(b.createdAt) -
-              new Date(a.createdAt)
-          )
-          .slice(0, 12)
-      );
-    } catch (err) {
-      console.error(
-        "Fetch Courses Error:",
-        err
-      );
 
-      setError(err.message);
 
-      setCourses([]);
+    setFeaturedCourses(
+      formattedCourses.filter(
+        course =>
+        course.featured
+      )
+    );
 
-      setFeaturedCourses([]);
 
-      setRecentCourses([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
+    setRecentCourses(
+      formattedCourses.slice(
+        0,
+        12
+      )
+    );
+
+
+
+  }
+
+  catch(err){
+
+
+    console.error(
+      "Fetch Courses Error:",
+      err
+    );
+
+
+    setError(
+      err.message
+    );
+
+
+    setCourses([]);
+
+  }
+
+
+  finally{
+
+    setLoading(false);
+
+  }
+
+
+},[]);
   /* ======================================================
       FETCH CATEGORIES
   ====================================================== */

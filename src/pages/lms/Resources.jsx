@@ -1,214 +1,597 @@
-import React, { useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   Search,
   Filter,
   FileText,
-  BookOpen,
-  Image as ImageIcon,
+  File,
+  Video,
+  PlayCircle,
+  Loader2,
+  FolderOpen,
 } from "lucide-react";
 
+import { supabase } from "../../lib/supabaseClient";
 import ResourceCard from "../../components/lms/ResourceCard";
 
-const resources = [
-  {
-    id: 1,
-    title: "Newton's Laws Notes",
-    subject: "Physics",
-    type: "pdf",
-    size: "2.3 MB",
-    uploaded: "July 2026",
-    description:
-      "Complete notes covering Newton's three laws of motion.",
-  },
-  {
-    id: 2,
-    title: "Organic Chemistry Slides",
-    subject: "Chemistry",
-    type: "ppt",
-    size: "5.1 MB",
-    uploaded: "June 2026",
-    description:
-      "Lecture slides on hydrocarbons and organic reactions.",
-  },
-  {
-    id: 3,
-    title: "Human Anatomy",
-    subject: "Biology",
-    type: "image",
-    size: "4.8 MB",
-    uploaded: "July 2026",
-    description:
-      "High-resolution anatomical diagrams for revision.",
-  },
-  {
-    id: 4,
-    title: "Calculus Formula Sheet",
-    subject: "Mathematics",
-    type: "pdf",
-    size: "900 KB",
-    uploaded: "May 2026",
-    description:
-      "Important calculus formulas for quick revision.",
-  },
-  {
-    id: 5,
-    title: "Programming Fundamentals",
-    subject: "Computer Science",
-    type: "doc",
-    size: "1.7 MB",
-    uploaded: "July 2026",
-    description:
-      "Introduction to programming concepts and algorithms.",
-  },
+const filters = [
+  "All",
+  "pdf",
+  "docx",
+  "video",
+  "youtube",
 ];
 
-const filters = ["All", "pdf", "doc", "ppt", "image"];
-
 const Resources = () => {
+
+  /* ==========================================================
+      STATE
+  ========================================================== */
+
+  const [resources, setResources] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+
+  const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
+
   const [filter, setFilter] = useState("All");
 
+  /* ==========================================================
+      FETCH RESOURCES
+  ========================================================== */
+
+  useEffect(() => {
+
+    fetchResources();
+
+  }, []);
+
+  const fetchResources = async () => {
+
+    try {
+
+      setLoading(true);
+
+      setError("");
+
+      const {
+        data,
+        error,
+      } = await supabase
+
+        .from("resources")
+
+        .select(`
+          *,
+          course_topics(
+            id,
+            title
+          )
+        `)
+
+        .order("created_at", {
+          ascending: false,
+        });
+
+      if (error) throw error;
+
+      setResources(data || []);
+
+    } catch (err) {
+
+      console.error(err);
+
+      setError(err.message);
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  };
+
+  /* ==========================================================
+      SEARCH + FILTER
+  ========================================================== */
+
   const filteredResources = useMemo(() => {
+
     return resources.filter((resource) => {
-      const matchesFilter =
-        filter === "All" || resource.type === filter;
 
       const matchesSearch =
-        resource.title.toLowerCase().includes(search.toLowerCase()) ||
-        resource.subject.toLowerCase().includes(search.toLowerCase());
 
-      return matchesFilter && matchesSearch;
+        resource.title
+          ?.toLowerCase()
+          .includes(search.toLowerCase())
+
+        ||
+
+        resource.description
+          ?.toLowerCase()
+          .includes(search.toLowerCase())
+
+        ||
+
+        resource.course_topics?.title
+          ?.toLowerCase()
+          .includes(search.toLowerCase());
+
+      const matchesFilter =
+
+        filter === "All"
+
+          ? true
+
+          : resource.resource_type === filter;
+
+      return matchesSearch && matchesFilter;
+
     });
-  }, [search, filter]);
 
-  return (
-    <div className="space-y-8">
+  }, [
+    resources,
+    search,
+    filter,
+  ]);
 
-      {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold">
-          Learning Resources
-        </h1>
+  /* ==========================================================
+      STATISTICS
+  ========================================================== */
 
-        <p className="text-slate-400 mt-2">
-          Access notes, slides, diagrams, and study materials.
-        </p>
+  const stats = useMemo(() => {
+
+    return {
+
+      pdf: resources.filter(
+
+        (item) =>
+          item.resource_type === "pdf"
+
+      ).length,
+
+      docx: resources.filter(
+
+        (item) =>
+          item.resource_type === "docx"
+
+      ).length,
+
+      video: resources.filter(
+
+        (item) =>
+          item.resource_type === "video"
+
+      ).length,
+
+      youtube: resources.filter(
+
+        (item) =>
+          item.resource_type === "youtube"
+
+      ).length,
+
+    };
+
+  }, [resources]);
+
+  /* ==========================================================
+      ACTIONS
+  ========================================================== */
+
+  const openResource = (resource) => {
+
+    if (
+      resource.resource_type === "youtube"
+    ) {
+
+      window.open(
+        resource.youtube_url,
+        "_blank"
+      );
+
+      return;
+
+    }
+
+    if (resource.file_url) {
+
+      window.open(
+        resource.file_url,
+        "_blank"
+      );
+
+    }
+
+  };
+
+  const downloadResource = (resource) => {
+
+    if (!resource.file_url) return;
+
+    const link =
+      document.createElement("a");
+
+    link.href = resource.file_url;
+
+    link.target = "_blank";
+
+    link.download = resource.title;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+  };
+
+  /* ==========================================================
+      LOADING
+  ========================================================== */
+
+  if (loading) {
+
+    return (
+
+      <div className="flex justify-center py-32">
+
+        <Loader2
+          size={45}
+          className="animate-spin text-blue-500"
+        />
+
       </div>
 
-      {/* Search */}
-      <div className="flex flex-col lg:flex-row justify-between gap-5">
+    );
 
-        <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 lg:w-[450px]">
+  }
 
-          <Search size={20} className="text-slate-500" />
+  /* ==========================================================
+      ERROR
+  ========================================================== */
+
+  if (error) {
+
+    return (
+
+      <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-8">
+
+        <h2 className="text-2xl font-bold text-red-400">
+
+          Failed to load resources
+
+        </h2>
+
+        <p className="mt-3 text-slate-300">
+
+          {error}
+
+        </p>
+
+      </div>
+
+    );
+
+  }
+
+  /* ==========================================================
+      UI
+  ========================================================== */
+
+  return (
+
+    <div className="space-y-8">
+
+      {/* HEADER */}
+
+      <div>
+
+        <h1 className="text-4xl font-bold text-white">
+
+          Learning Resources
+
+        </h1>
+
+        <p className="mt-2 text-slate-400">
+
+          Browse every PDF, document,
+          uploaded video and YouTube lesson
+          available in your enrolled courses.
+
+        </p>
+
+      </div>
+
+      {/* SEARCH */}
+
+      <div className="flex flex-col gap-5 lg:flex-row lg:justify-between">
+
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 lg:w-[470px]">
+
+          <Search
+            size={20}
+            className="text-slate-500"
+          />
 
           <input
+
             placeholder="Search resources..."
+
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="bg-transparent outline-none w-full placeholder:text-slate-500"
+
+            onChange={(e) =>
+              setSearch(e.target.value)
+            }
+
+            className="w-full bg-transparent outline-none placeholder:text-slate-500"
+
           />
 
         </div>
 
-        <button className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-6 py-3 rounded-2xl">
+        <button className="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900 px-6 py-3">
+
           <Filter size={18} />
+
           Filters
+
         </button>
 
       </div>
+            {/* FILTERS */}
 
-      {/* Filter Chips */}
       <div className="flex flex-wrap gap-3">
 
         {filters.map((item) => (
 
           <button
+
             key={item}
+
             onClick={() => setFilter(item)}
-            className={`px-5 py-3 rounded-xl transition ${
-              filter === item
-                ? "bg-blue-600"
-                : "bg-slate-900 border border-slate-800 hover:bg-slate-800"
-            }`}
+
+            className={`
+              rounded-xl
+              px-5
+              py-3
+              font-medium
+              transition
+              ${
+                filter === item
+                  ? "bg-blue-600 text-white"
+                  : "border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800"
+              }
+            `}
+
           >
+
             {item.toUpperCase()}
+
           </button>
 
         ))}
 
       </div>
 
-      {/* Stats */}
-      <div className="grid md:grid-cols-3 gap-6">
+      {/* ===========================
+            RESOURCE STATS
+      =========================== */}
 
-        <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6">
-          <FileText className="text-red-400 mb-4" size={32} />
-          <h3 className="text-2xl font-bold">
-            PDFs
-          </h3>
-          <p className="text-slate-400">
-            Revision notes and manuals.
-          </p>
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
+
+          <div className="flex items-center justify-between">
+
+            <div>
+
+              <p className="text-sm text-slate-400">
+
+                PDF Files
+
+              </p>
+
+              <h2 className="mt-2 text-4xl font-bold text-white">
+
+                {stats.pdf}
+
+              </h2>
+
+            </div>
+
+            <div className="rounded-2xl bg-red-500/10 p-4">
+
+              <FileText
+                size={28}
+                className="text-red-400"
+              />
+
+            </div>
+
+          </div>
+
         </div>
 
-        <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6">
-          <BookOpen className="text-blue-400 mb-4" size={32} />
-          <h3 className="text-2xl font-bold">
-            Documents
-          </h3>
-          <p className="text-slate-400">
-            Study guides and handouts.
-          </p>
+        <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
+
+          <div className="flex items-center justify-between">
+
+            <div>
+
+              <p className="text-sm text-slate-400">
+
+                Documents
+
+              </p>
+
+              <h2 className="mt-2 text-4xl font-bold text-white">
+
+                {stats.docx}
+
+              </h2>
+
+            </div>
+
+            <div className="rounded-2xl bg-blue-500/10 p-4">
+
+              <File
+                size={28}
+                className="text-blue-400"
+              />
+
+            </div>
+
+          </div>
+
         </div>
 
-        <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6">
-          <ImageIcon className="text-purple-400 mb-4" size={32} />
-          <h3 className="text-2xl font-bold">
-            Diagrams
-          </h3>
-          <p className="text-slate-400">
-            Images and illustrations.
-          </p>
+        <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
+
+          <div className="flex items-center justify-between">
+
+            <div>
+
+              <p className="text-sm text-slate-400">
+
+                Uploaded Videos
+
+              </p>
+
+              <h2 className="mt-2 text-4xl font-bold text-white">
+
+                {stats.video}
+
+              </h2>
+
+            </div>
+
+            <div className="rounded-2xl bg-purple-500/10 p-4">
+
+              <Video
+                size={28}
+                className="text-purple-400"
+              />
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
+
+          <div className="flex items-center justify-between">
+
+            <div>
+
+              <p className="text-sm text-slate-400">
+
+                YouTube Lessons
+
+              </p>
+
+              <h2 className="mt-2 text-4xl font-bold text-white">
+
+                {stats.youtube}
+
+              </h2>
+
+            </div>
+
+            <div className="rounded-2xl bg-red-500/10 p-4">
+
+              <PlayCircle
+  size={28}
+  className="text-red-400"
+/>
+
+            </div>
+
+          </div>
+
         </div>
 
       </div>
 
-      {/* Resource Grid */}
-      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-8">
+      {/* ===========================
+            RESOURCE GRID
+      =========================== */}
 
-        {filteredResources.map((resource) => (
+      {
 
-          <ResourceCard
-            key={resource.id}
-            {...resource}
-            onView={() => console.log("Preview:", resource.title)}
-            onDownload={() => console.log("Download:", resource.title)}
-          />
+        filteredResources.length > 0 ? (
 
-        ))}
+          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
 
-      </div>
+            {
 
-      {/* Empty State */}
-      {filteredResources.length === 0 && (
+              filteredResources.map((resource) => (
 
-        <div className="rounded-3xl border border-slate-800 bg-slate-900 p-12 text-center">
+                <ResourceCard
 
-          <h2 className="text-2xl font-bold">
-            No resources found
-          </h2>
+                  key={resource.id}
 
-          <p className="text-slate-400 mt-3">
-            Try another search term or filter.
-          </p>
+                  resource={resource}
 
-        </div>
+                  onOpen={openResource}
 
-      )}
+                  onDownload={downloadResource}
 
-    </div>
+                />
+
+              ))
+
+            }
+
+          </div>
+
+        ) : (
+
+          <div
+            className="
+              rounded-3xl
+              border
+              border-dashed
+              border-slate-700
+              bg-slate-900
+              py-24
+              text-center
+            "
+          >
+
+            <FolderOpen
+              size={60}
+              className="mx-auto text-slate-600"
+            />
+
+            <h2 className="mt-6 text-2xl font-bold text-white">
+
+              No Resources Found
+
+            </h2>
+
+            <p className="mt-3 text-slate-400">
+
+              No learning materials matched your search.
+
+            </p>
+
+          </div>
+
+        )
+
+      }
+          </div>
+
   );
+
 };
 
 export default Resources;

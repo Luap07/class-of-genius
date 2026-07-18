@@ -1,40 +1,98 @@
-// src/components/lms/WeeklyTaskCard.jsx
-
 import React from "react";
+
 import { motion } from "framer-motion";
+
 import {
   CalendarDays,
   BookOpen,
-  CheckCircle2,
+  FolderOpen,
+  Clock3,
+  ClipboardCheck,
   Circle,
-  Trash2,
+  CheckCircle2,
   ArrowRight,
+  AlertCircle,
 } from "lucide-react";
 
-
-const WeeklyTaskCard = ({
-  id,
-  title = "Untitled Task",
-  course = "General",
-  description = "",
-  dueDate = "No date",
-  status = "pending",
-  onOpen = () => {},
-  onComplete = () => {},
-  onDelete = () => {},
+const TaskCard = ({
+  task,
+  onOpen,
 }) => {
 
+  const {
 
-  const completed = status === "completed";
+    title,
 
+    description,
 
+    status,
+
+    due_date,
+
+    week,
+
+    month,
+
+    task_type,
+
+    course_topics,
+
+    courses,
+
+  } = task;
+
+  const completed =
+    status === "completed" ||
+    status === "submitted" ||
+    status === "graded";
+
+  const badgeColor = () => {
+
+    switch (status) {
+
+      case "completed":
+
+      case "graded":
+
+        return "bg-green-500/10 text-green-400";
+
+      case "submitted":
+
+        return "bg-blue-500/10 text-blue-400";
+
+      case "overdue":
+
+        return "bg-red-500/10 text-red-400";
+
+      default:
+
+        return "bg-yellow-500/10 text-yellow-400";
+
+    }
+
+  };
+
+  const formatDate = (date) => {
+
+    if (!date) return "No due date";
+
+    return new Date(date).toLocaleDateString(
+      "en-US",
+      {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }
+    );
+
+  };
 
   return (
 
     <motion.div
 
       whileHover={{
-        y: -5,
+        y: -6,
       }}
 
       transition={{
@@ -42,272 +100,232 @@ const WeeklyTaskCard = ({
       }}
 
       className="
-      rounded-3xl
-      border
-      border-slate-800
-      bg-slate-900
-      p-6
-      shadow-lg
+        rounded-3xl
+        border
+        border-slate-800
+        bg-slate-900
+        overflow-hidden
       "
 
     >
 
+      {/* HEADER */}
 
-      {/* Header */}
+      <div className="border-b border-slate-800 p-6">
 
-      <div className="flex justify-between items-start gap-4">
+        <div className="flex items-start justify-between gap-5">
 
+          <div>
 
-        <div>
+            <div className="flex flex-wrap items-center gap-3">
 
+              <span
+                className="
+                  rounded-xl
+                  bg-blue-500/10
+                  px-3
+                  py-1
+                  text-xs
+                  font-semibold
+                  text-blue-400
+                "
+              >
+                {task_type === "monthly"
+                  ? "Monthly Task"
+                  : "Weekly Task"}
+              </span>
 
-          <div className="
-          flex
-          items-center
-          gap-2
-          text-blue-400
-          text-sm
-          font-medium
-          ">
+              <span
+                className={`
+                  rounded-xl
+                  px-3
+                  py-1
+                  text-xs
+                  font-semibold
+                  ${badgeColor()}
+                `}
+              >
+                {status || "Pending"}
+              </span>
 
-            <BookOpen size={16}/>
+            </div>
 
-            {course}
+            <h2 className="mt-4 text-2xl font-bold text-white">
+
+              {title}
+
+            </h2>
+
+            <p className="mt-3 text-slate-400 leading-relaxed">
+
+              {description || "No description available."}
+
+            </p>
 
           </div>
 
+          <div>
 
+            {
 
-          <h2 className="
-          text-xl
-          font-bold
-          mt-3
-          ">
+              completed
 
-            {title}
+              ?
 
-          </h2>
+              <CheckCircle2
+                size={34}
+                className="text-green-400"
+              />
 
+              :
+
+              <Circle
+                size={34}
+                className="text-slate-500"
+              />
+
+            }
+
+          </div>
 
         </div>
-
-
-
-
-        <button
-
-          onClick={() =>
-            onComplete(id)
-          }
-
-          className="
-          text-slate-400
-          hover:text-green-400
-          transition
-          "
-
-        >
-
-          {completed ? (
-
-            <CheckCircle2
-              size={28}
-              className="text-green-400"
-            />
-
-          ) : (
-
-            <Circle
-              size={28}
-            />
-
-          )}
-
-        </button>
-
 
       </div>
 
+      {/* DETAILS */}
 
+      <div className="grid gap-4 p-6 md:grid-cols-2">
 
+        <div className="rounded-2xl bg-slate-950 border border-slate-800 p-4">
 
+          <div className="flex items-center gap-2 text-slate-500">
 
+            <BookOpen size={16} />
 
+            Course
 
+          </div>
 
+          <p className="mt-2 font-semibold text-white">
 
-      {/* Description */}
+            {courses?.title || "General"}
 
-      {description && (
-
-        <p className="
-        text-slate-400
-        mt-5
-        leading-relaxed
-        ">
-
-          {description}
-
-        </p>
-
-      )}
-
-
-
-
-
-
-
-
-
-      {/* Footer */}
-
-      <div className="
-      mt-6
-      flex
-      justify-between
-      items-center
-      "
-
-      >
-
-
-        <div className="
-        flex
-        items-center
-        gap-2
-        text-sm
-        text-slate-400
-        ">
-
-          <CalendarDays size={16}/>
-
-          {dueDate}
+          </p>
 
         </div>
 
+        <div className="rounded-2xl bg-slate-950 border border-slate-800 p-4">
 
+          <div className="flex items-center gap-2 text-slate-500">
 
+            <FolderOpen size={16} />
 
+            Topic
 
+          </div>
 
+          <p className="mt-2 font-semibold text-white">
 
-        <div className="
-        flex
-        items-center
-        gap-3
-        ">
+            {course_topics?.title || "No Topic"}
 
+          </p>
 
+        </div>
+                <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+
+          <div className="flex items-center gap-2 text-slate-500">
+
+            <CalendarDays size={16} />
+
+            Due Date
+
+          </div>
+
+          <p className="mt-2 font-semibold text-white">
+
+            {formatDate(due_date)}
+
+          </p>
+
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+
+          <div className="flex items-center gap-2 text-slate-500">
+
+            <Clock3 size={16} />
+
+            Schedule
+
+          </div>
+
+          <p className="mt-2 font-semibold text-white">
+
+            {task_type === "monthly"
+              ? `Month ${month || "-"}`
+              : `Week ${week || "-"}`}
+
+          </p>
+
+        </div>
+
+      </div>
+
+      {/* FOOTER */}
+
+      <div className="border-t border-slate-800 p-6">
+
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
+          <div className="flex items-center gap-3">
+
+            <AlertCircle
+              size={18}
+              className="text-amber-400"
+            />
+
+            <p className="text-sm text-slate-400">
+
+              Complete this task before the due date to keep your learning streak active.
+
+            </p>
+
+          </div>
 
           <button
 
-            onClick={() =>
-              onDelete(id)
-            }
+            onClick={() => onOpen?.(task)}
 
             className="
-            p-2
-            rounded-xl
-            hover:bg-red-500/10
-            text-slate-400
-            hover:text-red-400
-            transition
+              inline-flex
+              items-center
+              justify-center
+              gap-2
+              rounded-2xl
+              bg-gradient-to-r
+              from-blue-600
+              to-cyan-500
+              px-6
+              py-3
+              font-semibold
+              text-white
+              transition
+              hover:scale-[1.02]
             "
 
           >
 
-            <Trash2 size={18}/>
+            <ClipboardCheck size={18} />
+
+            Open Task
+
+            <ArrowRight size={18} />
 
           </button>
-
-
-
-
-
-
-          <button
-
-            onClick={() =>
-              onOpen(id)
-            }
-
-            className="
-            flex
-            items-center
-            gap-2
-            rounded-xl
-            bg-blue-600
-            px-4
-            py-2
-            font-semibold
-            hover:bg-blue-700
-            transition
-            "
-
-          >
-
-            Open
-
-            <ArrowRight size={16}/>
-
-          </button>
-
-
 
         </div>
 
-
-
       </div>
-
-
-
-
-
-
-      {/* Status */}
-
-      <div className="mt-5">
-
-
-        <span
-
-          className={`
-          inline-flex
-          px-3
-          py-1
-          rounded-full
-          text-xs
-          font-semibold
-
-          ${
-            completed
-
-            ?
-
-            "bg-green-500/10 text-green-400"
-
-            :
-
-            "bg-yellow-500/10 text-yellow-400"
-
-          }
-
-          `}
-
-        >
-
-          {completed ? "Completed" : "Pending"}
-
-
-        </span>
-
-
-      </div>
-
-
-
 
     </motion.div>
 
@@ -315,6 +333,4 @@ const WeeklyTaskCard = ({
 
 };
 
-
-
-export default WeeklyTaskCard;
+export default TaskCard;

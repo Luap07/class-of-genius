@@ -1,217 +1,374 @@
 import React from "react";
+
 import { motion } from "framer-motion";
+
 import {
   FileText,
   File,
   Video,
-  Headphones,
-  Image,
-  Link as LinkIcon,
+  PlayCircle,
   Download,
-  ExternalLink,
   Eye,
   CalendarDays,
+  FolderOpen,
 } from "lucide-react";
 
-const iconMap = {
-  pdf: FileText,
-  doc: File,
-  docx: File,
-  ppt: File,
-  pptx: File,
-  video: Video,
-  audio: Headphones,
-  image: Image,
-  link: LinkIcon,
-};
-
-const colorMap = {
-  pdf: "text-red-400 bg-red-500/10",
-  doc: "text-blue-400 bg-blue-500/10",
-  docx: "text-blue-400 bg-blue-500/10",
-  ppt: "text-orange-400 bg-orange-500/10",
-  pptx: "text-orange-400 bg-orange-500/10",
-  video: "text-purple-400 bg-purple-500/10",
-  audio: "text-cyan-400 bg-cyan-500/10",
-  image: "text-pink-400 bg-pink-500/10",
-  link: "text-emerald-400 bg-emerald-500/10",
-};
-
 const ResourceCard = ({
-  resource = {},
+  resource,
   onOpen,
   onDownload,
 }) => {
+
   const {
-    title = "Untitled Resource",
-    description = "No description available.",
-    type = "pdf",
-    size = "--",
-    uploadDate = "Recently",
-    downloads = 0,
+
+    title,
+
+    description,
+
+    resource_type,
+
+    file_url,
+
+    youtube_url,
+
+    created_at,
+
+    course_topics,
+
   } = resource;
 
-  const Icon = iconMap[type] || FileText;
-  const colors = colorMap[type] || colorMap.pdf;
+  /* ==========================================
+      ICON
+  ========================================== */
+
+  const getIcon = () => {
+
+    switch (resource_type) {
+
+      case "pdf":
+
+        return (
+          <FileText
+            size={28}
+            className="text-red-400"
+          />
+        );
+
+      case "doc":
+
+      case "docx":
+
+        return (
+          <File
+            size={28}
+            className="text-blue-400"
+          />
+        );
+
+      case "video":
+
+        return (
+          <Video
+            size={28}
+            className="text-purple-400"
+          />
+        );
+
+      case "youtube":
+
+        return (
+          <PlayCircle
+            size={28}
+            className="text-red-400"
+          />
+        );
+
+      default:
+
+        return (
+          <FolderOpen
+            size={28}
+            className="text-slate-400"
+          />
+        );
+
+    }
+
+  };
+
+  /* ==========================================
+      COLOR
+  ========================================== */
+
+  const getColor = () => {
+
+    switch (resource_type) {
+
+      case "pdf":
+
+        return "bg-red-500/10";
+
+      case "doc":
+
+      case "docx":
+
+        return "bg-blue-500/10";
+
+      case "video":
+
+        return "bg-purple-500/10";
+
+      case "youtube":
+
+        return "bg-red-500/10";
+
+      default:
+
+        return "bg-slate-800";
+
+    }
+
+  };
+
+  const formatDate = (date) => {
+
+    if (!date) return "-";
+
+    return new Date(date).toLocaleDateString(
+      "en-US",
+      {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }
+    );
+
+  };
 
   return (
+
     <motion.div
-      whileHover={{ y: -5 }}
-      transition={{ duration: 0.25 }}
+
+      whileHover={{
+        y: -6,
+      }}
+
+      transition={{
+        duration: 0.25,
+      }}
+
       className="
+        overflow-hidden
         rounded-3xl
         border
         border-slate-800
         bg-slate-900
-        overflow-hidden
       "
-    >
-      {/* Header */}
 
-      <div className="p-6 flex items-start justify-between">
+    >
+
+      {/* HEADER */}
+
+      <div className="p-6">
 
         <div className="flex gap-4">
 
           <div
             className={`
-              w-14
-              h-14
-              rounded-2xl
               flex
+              h-14
+              w-14
               items-center
               justify-center
-              ${colors}
+              rounded-2xl
+              ${getColor()}
             `}
           >
-            <Icon size={28} />
+
+            {getIcon()}
+
           </div>
 
-          <div>
+          <div className="flex-1">
 
-            <h2 className="text-xl font-bold">
+            <h2 className="line-clamp-2 text-xl font-bold text-white">
+
               {title}
+
             </h2>
 
-            <p className="text-slate-400 mt-2">
-              {description}
+            <p className="mt-2 line-clamp-3 text-sm text-slate-400">
+
+              {description || "No description provided."}
+
             </p>
 
           </div>
 
         </div>
 
-      </div>
+        {/* TOPIC */}
 
-      {/* Details */}
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 p-4">
 
-      <div className="px-6 pb-6">
+          <p className="text-xs uppercase tracking-wider text-slate-500">
 
-        <div className="grid grid-cols-2 gap-4">
+            Topic
 
-          <div className="rounded-2xl bg-slate-950 border border-slate-800 p-4">
+          </p>
 
-            <p className="text-slate-500 text-sm">
-              File Type
+          <p className="mt-2 font-semibold text-white">
+
+            {course_topics?.title || "General Resource"}
+
+          </p>
+
+        </div>
+
+        {/* INFO */}
+
+        <div className="mt-5 grid grid-cols-2 gap-4">
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+
+            <p className="text-xs uppercase text-slate-500">
+
+              Type
+
             </p>
 
-            <p className="font-semibold uppercase mt-1">
-              {type}
+            <p className="mt-2 font-semibold uppercase text-white">
+
+              {resource_type}
+
             </p>
 
           </div>
 
-          <div className="rounded-2xl bg-slate-950 border border-slate-800 p-4">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
 
-            <p className="text-slate-500 text-sm">
-              File Size
+            <p className="text-xs uppercase text-slate-500">
+
+              Added
+
             </p>
 
-            <p className="font-semibold mt-1">
-              {size}
-            </p>
+            <div className="mt-2 flex items-center gap-2 text-white">
+
+              <CalendarDays size={15} />
+
+              {formatDate(created_at)}
+
+            </div>
 
           </div>
 
         </div>
-
-        <div className="mt-5 flex justify-between text-sm text-slate-400">
-
-          <div className="flex items-center gap-2">
-            <CalendarDays size={16} />
-            {uploadDate}
-          </div>
-
-          <div>
-            {downloads} Downloads
-          </div>
-
-        </div>
+                {/* ACTIONS */}
 
         <div className="mt-6 flex gap-3">
 
           <button
+
             onClick={() => onOpen?.(resource)}
+
             className="
-              flex-1
               flex
+              flex-1
               items-center
               justify-center
               gap-2
               rounded-2xl
               bg-blue-600
-              hover:bg-blue-700
-              transition
               py-3
               font-semibold
+              text-white
+              transition
+              hover:bg-blue-500
             "
+
           >
+
             <Eye size={18} />
-            Open
+
+            {resource_type === "youtube"
+              ? "Watch"
+              : resource_type === "video"
+              ? "Play"
+              : "Open"}
+
           </button>
 
-          <button
-            onClick={() => onDownload?.(resource)}
-            className="
-              flex-1
-              flex
-              items-center
-              justify-center
-              gap-2
-              rounded-2xl
-              border
-              border-slate-700
-              hover:bg-slate-800
-              transition
-              py-3
-              font-semibold
-            "
-          >
-            <Download size={18} />
-            Download
-          </button>
+          {
 
-          <button
-            className="
-              w-14
-              flex
-              items-center
-              justify-center
-              rounded-2xl
-              border
-              border-slate-700
-              hover:bg-slate-800
-              transition
-            "
-          >
-            <ExternalLink size={18} />
-          </button>
+            resource_type !== "youtube" && (
+
+              <button
+
+                onClick={() => onDownload?.(resource)}
+
+                disabled={!file_url}
+
+                className={`
+                  flex
+                  flex-1
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-2xl
+                  border
+                  border-slate-700
+                  py-3
+                  font-semibold
+                  transition
+
+                  ${
+                    file_url
+                      ? "hover:bg-slate-800"
+                      : "cursor-not-allowed opacity-50"
+                  }
+                `}
+
+              >
+
+                <Download size={18} />
+
+                Download
+
+              </button>
+
+            )
+
+          }
+
+        </div>
+
+        {/* FILE / LINK */}
+
+        <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950 p-4">
+
+          <p className="text-xs uppercase tracking-wider text-slate-500">
+
+            Source
+
+          </p>
+
+          <p className="mt-2 truncate text-sm text-blue-400">
+
+            {resource_type === "youtube"
+              ? youtube_url || "No YouTube URL"
+              : file_url || "No file available"}
+
+          </p>
 
         </div>
 
       </div>
 
     </motion.div>
+
   );
+
 };
 
 export default ResourceCard;

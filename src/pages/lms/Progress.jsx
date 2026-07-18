@@ -1,201 +1,308 @@
 // src/pages/lms/Progress.jsx
 
-import React from "react";
+import React, {
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import { motion } from "framer-motion";
 
 import {
   TrendingUp,
   BookOpen,
   Clock3,
   Target,
-  Flame,
   Award,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
-import {
-  useProgress
-} from "../../context/LMSContext/ProgressContext";
+import { supabase } from "../../lib/supabaseClient";
 
-import {
-  useCourses
-} from "../../context/LMSContext/CourseContext";
-
-import {
-  useAchievements
-} from "../../context/LMSContext/AchievementContext";
+import { AuthContext } from "../../context/AuthContext";
 
 import ProgressCard from "../../components/lms/ProgressCard";
 
-
-
-
-
 const Progress = () => {
 
+  const { user } = useContext(AuthContext);
 
-  const {
+  const [loading, setLoading] = useState(true);
 
-    progress,
-    totalCompletedLessons
+  const [enrollments, setEnrollments] = useState([]);
 
-  } = useProgress();
+  const [lessonProgress, setLessonProgress] = useState([]);
 
+  const [taskSubmissions, setTaskSubmissions] = useState([]);
 
+  const [certificates, setCertificates] = useState([]);
 
+  const [overallProgress, setOverallProgress] = useState(0);
 
+  /* ==========================================
+        LOAD PROGRESS
+  ========================================== */
 
-  const {
+  useEffect(() => {
 
-    enrolledCourses,
-    totalCourses
+    if (!user) return;
 
-  } = useCourses();
+    loadProgress();
 
+  }, [user]);
 
+  const loadProgress = async () => {
 
+    try {
 
+      setLoading(true);
 
-  const {
+      /* =====================================
+            COURSE ENROLLMENTS
+      ===================================== */
 
-    xp,
-    level,
-    streak,
-    badges
+      const {
 
-  } = useAchievements();
+        data: enrollmentData,
+        error: enrollmentError,
 
+      } = await supabase
 
+        .from("course_enrollments")
 
+        .select(`
+          *,
+          courses(*)
+        `)
 
+        .eq("student_id", user.id);
 
+      if (enrollmentError) throw enrollmentError;
 
+      setEnrollments(enrollmentData || []);
 
+      /* =====================================
+            LESSON PROGRESS
+      ===================================== */
 
-  // Course progress data from context
+      const {
 
-  const progressData = enrolledCourses.map(
-    (course) => {
+        data: lessonData,
+        error: lessonError,
 
+      } = await supabase
 
-      const courseProgress =
-        progress[course.id] || {
+        .from("lesson_progress")
 
-          completedLessons: [],
+        .select("*")
 
-          percentage: 0
+        .eq("student_id", user.id);
 
-        };
+      if (lessonError) throw lessonError;
 
+      setLessonProgress(lessonData || []);
 
+      /* =====================================
+            TASK SUBMISSIONS
+      ===================================== */
 
-      return {
+      const {
 
-        id: course.id,
+        data: submissionData,
+        error: submissionError,
 
-        title: course.title,
+      } = await supabase
 
-        instructor:
-          course.instructor || "ClassOfGenius",
+        .from("weekly_task_submissions")
 
+        .select("*")
 
-        progress:
-          courseProgress.percentage,
+        .eq("student_id", user.id);
 
+      if (submissionError) throw submissionError;
 
-        lessonsCompleted:
-          courseProgress.completedLessons.length,
+      setTaskSubmissions(submissionData || []);
 
+      /* =====================================
+            CERTIFICATES
+      ===================================== */
 
-        totalLessons:
-          course.lessons,
+      const {
 
+        data: certificateData,
+        error: certificateError,
 
-        hoursSpent:
-          0,
+      } = await supabase
 
+        .from("certificates")
 
-        certificate:
-          courseProgress.percentage === 100,
+        .select("*")
 
+        .eq("student_id", user.id);
 
-        color:
-          "from-blue-600 to-cyan-500"
+      if (certificateError) throw certificateError;
 
-      };
+      setCertificates(certificateData || []);
 
+      /* =====================================
+            OVERALL %
+      ===================================== */
+
+      if ((enrollmentData || []).length > 0) {
+
+        const total = enrollmentData.reduce(
+
+          (sum, item) => sum + (item.progress || 0),
+
+          0
+
+        );
+
+        setOverallProgress(
+
+          Math.round(total / enrollmentData.length)
+
+        );
+
+      } else {
+
+        setOverallProgress(0);
+
+      }
+
+    } catch (err) {
+
+      console.error(err);
+
+    } finally {
+
+      setLoading(false);
 
     }
-  );
 
+  };
 
+  /* ==========================================
+        COURSE CARDS
+  ========================================== */
 
+  const progressCourses = useMemo(() => {
 
+    return enrollments.map((item) => ({
 
+      id: item.id,
 
+      title: item.courses?.title,
 
+      instructor: item.courses?.instructor,
 
+      progress: item.progress || 0,
+
+      certificate: item.completed,
+
+      lessonsCompleted:
+
+        lessonProgress.filter(
+
+          lesson => lesson.completed
+
+        ).length,
+
+      totalLessons:
+
+        item.courses?.lessons_count || 0,
+
+      color:
+
+        "from-blue-600 to-cyan-500",
+
+    }));
+
+  }, [enrollments, lessonProgress]);
+    /* ==========================================
+        STATS
+  ========================================== */
 
   const stats = [
 
     {
-      title: "Courses",
-
-      value: totalCourses,
-
+      title: "Enrolled Courses",
+      value: enrollments.length,
       icon: BookOpen,
-
       color: "text-blue-400",
     },
 
-
     {
       title: "Lessons Completed",
-
-      value: totalCompletedLessons,
-
+      value: lessonProgress.filter(
+        lesson => lesson.completed
+      ).length,
       icon: Clock3,
-
       color: "text-cyan-400",
     },
 
-
     {
-      title: "XP Points",
-
-      value: xp,
-
+      title: "Tasks Submitted",
+      value: taskSubmissions.length,
       icon: Target,
-
       color: "text-orange-400",
     },
 
-
     {
-      title: "Study Streak",
-
-      value: `${streak} Days`,
-
-      icon: Flame,
-
-      color: "text-red-400",
+      title: "Certificates",
+      value: certificates.length,
+      icon: Award,
+      color: "text-yellow-400",
     },
 
   ];
 
+  /* ==========================================
+        LOADING
+  ========================================== */
 
+  if (loading) {
 
+    return (
 
+      <div className="flex min-h-[70vh] items-center justify-center">
 
+        <Loader2
+          size={44}
+          className="animate-spin text-blue-500"
+        />
 
+      </div>
 
+    );
 
+  }
 
   return (
 
-    <div className="space-y-10">
+    <motion.div
 
+      initial={{
+        opacity: 0,
+      }}
 
+      animate={{
+        opacity: 1,
+      }}
 
-      {/* Header */}
+      transition={{
+        duration: 0.4,
+      }}
+
+      className="space-y-10"
+
+    >
+
+      {/* ===================================
+            HEADER
+      =================================== */}
 
       <div>
 
@@ -205,34 +312,26 @@ const Progress = () => {
 
         </h1>
 
+        <p className="mt-2 text-slate-400">
 
-        <p className="text-slate-400 mt-2">
-
-          Track your study performance and achievements.
+          Monitor your enrolled courses,
+          completed lessons,
+          submitted tasks
+          and certificates.
 
         </p>
 
-
       </div>
 
+      {/* ===================================
+            STATS
+      =================================== */}
 
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
 
-
-
-
-
-
-
-      {/* Statistics */}
-
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
-
-
-        {stats.map((item)=>{
-
+        {stats.map((item) => {
 
           const Icon = item.icon;
-
 
           return (
 
@@ -240,362 +339,225 @@ const Progress = () => {
 
               key={item.title}
 
-              className="rounded-3xl bg-slate-900 border border-slate-800 p-6"
+              className="rounded-3xl border border-slate-800 bg-slate-900 p-6"
 
             >
 
               <Icon
-
                 size={36}
-
                 className={item.color}
-
               />
 
-
-              <h2 className="text-3xl font-bold mt-5">
+              <h2 className="mt-5 text-3xl font-bold">
 
                 {item.value}
 
               </h2>
 
-
-              <p className="text-slate-400 mt-2">
+              <p className="mt-2 text-slate-400">
 
                 {item.title}
 
               </p>
 
-
             </div>
 
           );
 
-
         })}
-
 
       </div>
 
+      {/* ===================================
+            OVERALL PROGRESS
+      =================================== */}
 
+      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
 
-
-
-
-
-
-
-      {/* Overall Progress */}
-
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-8">
-
-
-        <div className="flex justify-between mb-5">
-
+        <div className="mb-5 flex items-center justify-between">
 
           <h2 className="text-2xl font-bold">
 
-            Overall Completion
+            Overall Progress
 
           </h2>
 
+          <span className="text-3xl font-bold text-blue-400">
 
-
-          <span className="text-3xl font-bold">
-
-            {
-              enrolledCourses.length > 0
-
-              ?
-
-              Math.round(
-
-                progressData.reduce(
-
-                  (total, course)=>
-
-                    total + course.progress,
-
-
-                  0
-
-                )
-                /
-                enrolledCourses.length
-
-              )
-
-              :
-
-              0
-
-            }%
+            {overallProgress}%
 
           </span>
 
-
         </div>
 
-
-
-
-
-        <div className="h-5 rounded-full bg-slate-800 overflow-hidden">
-
+        <div className="h-5 overflow-hidden rounded-full bg-slate-800">
 
           <div
 
-            className="h-full bg-gradient-to-r from-blue-500 to-cyan-400"
+            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-700"
 
             style={{
-
-              width:
-
-              `${
-                enrolledCourses.length > 0
-
-                ?
-
-                Math.round(
-
-                  progressData.reduce(
-
-                    (total, course)=>
-
-                    total + course.progress,
-
-
-                    0
-
-                  )
-                  /
-                  enrolledCourses.length
-
-                )
-
-                :
-
-                0
-
-              }%`
-
+              width: `${overallProgress}%`,
             }}
 
           />
 
-
         </div>
-
 
       </div>
 
-
-
-
-
-
-
-
-
-      {/* Course Progress */}
+      {/* ===================================
+            COURSE PROGRESS
+      =================================== */}
 
       <div>
 
-
-        <h2 className="text-3xl font-bold mb-6">
+        <h2 className="mb-6 text-3xl font-bold">
 
           Course Progress
 
         </h2>
 
+        {progressCourses.length > 0 ? (
 
-
-
-        {progressData.length > 0 ? (
-
-
-          <div className="grid lg:grid-cols-2 gap-8">
-
-
-            {progressData.map((course)=>(
-
+          <div className="grid gap-8 lg:grid-cols-2">
+                        {progressCourses.map((course) => (
 
               <ProgressCard
-
                 key={course.id}
-
                 {...course}
-
               />
-
 
             ))}
 
-
           </div>
-
 
         ) : (
 
+          <div className="rounded-3xl border border-slate-800 bg-slate-900 p-12 text-center">
 
-          <div className="rounded-3xl bg-slate-900 border border-slate-800 p-10 text-center">
+            <BookOpen
+              size={54}
+              className="mx-auto text-slate-600"
+            />
 
+            <h3 className="mt-6 text-2xl font-bold text-white">
 
-            <h3 className="text-2xl font-bold">
-
-              No courses yet
+              No Enrolled Courses
 
             </h3>
 
+            <p className="mt-3 text-slate-400">
 
-            <p className="text-slate-400 mt-3">
-
-              Enroll in a course to start tracking progress.
+              Enroll in a course to begin tracking your learning progress.
 
             </p>
-
 
           </div>
 
-
         )}
-
-
 
       </div>
 
+      {/* ===================================
+            CERTIFICATES
+      =================================== */}
 
+      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8">
 
+        <div className="mb-8 flex items-center gap-3">
 
-
-
-
-
-
-      {/* Achievements */}
-
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-8">
-
-
-        <div className="flex items-center gap-3 mb-8">
-
-
-          <Award className="text-yellow-400"/>
-
+          <Award
+            size={28}
+            className="text-yellow-400"
+          />
 
           <h2 className="text-2xl font-bold">
 
-            Achievements
+            Certificates Earned
 
           </h2>
 
-
         </div>
 
+        {certificates.length > 0 ? (
 
+          <div className="grid gap-5 md:grid-cols-2">
 
-
-
-        <div className="grid md:grid-cols-2 gap-5">
-
-
-          {
-
-            badges.length > 0 ?
-
-
-            badges.map((badge)=>(
-
+            {certificates.map((certificate) => (
 
               <div
 
-                key={badge.id}
+                key={certificate.id}
 
-                className="rounded-2xl border border-slate-800 bg-slate-950 p-5 flex items-center gap-3"
+                className="flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-950 p-5"
 
               >
 
-
-                <TrendingUp className="text-green-400"/>
-
+                <CheckCircle2
+                  size={34}
+                  className="text-green-400"
+                />
 
                 <div>
 
+                  <h3 className="font-semibold text-white">
 
-                  <h3 className="font-bold">
+                    Certificate #
 
-                    {badge.title}
+                    {certificate.certificate_number}
 
                   </h3>
 
+                  <p className="mt-1 text-sm text-slate-400">
 
-                  <p className="text-slate-400 text-sm">
+                    Issued{" "}
 
-                    {badge.description}
+                    {new Date(
+                      certificate.issued_at
+                    ).toLocaleDateString()}
 
                   </p>
 
-
                 </div>
-
 
               </div>
 
+            ))}
 
-            ))
+          </div>
 
-            :
+        ) : (
 
-            <p className="text-slate-400">
+          <div className="rounded-2xl border border-dashed border-slate-700 p-10 text-center">
 
-              Complete lessons and courses to unlock achievements.
+            <Award
+              size={48}
+              className="mx-auto text-slate-600"
+            />
+
+            <h3 className="mt-5 text-xl font-bold">
+
+              No Certificates Yet
+
+            </h3>
+
+            <p className="mt-3 text-slate-400">
+
+              Complete courses successfully to unlock certificates.
 
             </p>
 
-          }
+          </div>
 
-
-        </div>
-
+        )}
 
       </div>
 
-
-
-
-
-
-
-
-      {/* Level */}
-
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-8">
-
-
-        <h2 className="text-2xl font-bold">
-
-          Current Level
-
-        </h2>
-
-
-        <p className="text-4xl font-bold mt-3">
-
-          Level {level}
-
-        </p>
-
-
-      </div>
-
-
-
-    </div>
+    </motion.div>
 
   );
 
 };
-
-
 
 export default Progress;

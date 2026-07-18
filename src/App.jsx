@@ -36,6 +36,7 @@ import UploadNovel from "./pages/UploadNovel";
 
 /* ================= LMS ================= */
 import LMSPortal from "./pages/lms/LMSPortal";
+import VerifyCertificate from "./pages/lms/VerifyCertificate";
 import Courses from "./pages/lms/Courses";
 import CourseDetails from "./pages/lms/CourseDetails";
 import Lesson from "./pages/lms/Lesson";
@@ -180,6 +181,16 @@ const AnimatedRoutes = () => {
     </ProtectedRoute>
   }
       />
+
+      <Route
+
+path="/verify/:certificate_number"
+
+element={
+<VerifyCertificate/>
+}
+
+/>
 
      
         {/* AUTH */}

@@ -48,22 +48,21 @@ export const CourseProvider = ({ children }) => {
       .select(`
         *,
 
-        course_modules(
-          id,
-          title,
-          description,
-          order_index,
+       course_modules(
+  id,
+  title,
+  description,
+  order_index,
 
-          lessons(
-            id,
-            title,
-            description,
-            video_url,
-            duration,
-            order_index
-          )
-        ),
-
+  course_lessons(
+    id,
+    title,
+    description,
+    video_url,
+    duration,
+    order_index
+  )
+),
 
         quizzes(
           id,
@@ -165,21 +164,20 @@ export const CourseProvider = ({ children }) => {
 
 
 
-        lessons:
-          course.course_modules
-          ?.reduce(
-            (total,module)=>
-            total +
-            (module.lessons?.length || 0),
-            0
-          )
-          || 0,
+       lessons:
+course.course_modules?.reduce(
+  (total, module) =>
+    total +
+    (module.course_lessons?.length || 0),
+0) || 0,
 
 
 
-        modules:
-          course.course_modules || [],
-
+modules:
+(course.course_modules || []).map((module) => ({
+  ...module,
+  lessons: module.course_lessons || [],
+})),
 
 
         quizzes:

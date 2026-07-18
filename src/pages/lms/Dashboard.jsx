@@ -2,711 +2,1043 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-
 import {
-  BookOpen,CheckCircle2,Clock3,Trophy,Flame,TrendingUp, CalendarDays,PlayCircle} from "lucide-react";
+  BookOpen,
+  CheckCircle2,
+  Clock3,
+  Trophy,
+  Flame,
+  TrendingUp,
+  CalendarDays,
+  PlayCircle,
+  ArrowRight,
+  Target,
+  Brain,
+  Sparkles,
+  BarChart3,
+  Award,
+} from "lucide-react";
 
+import { Link } from "react-router-dom";
 
-// CONTEXTS
+/* =========================
+   CONTEXTS
+========================= */
 
 import { useCourses } from "../../context/LMSContext/CourseContext";
 import { useProgress } from "../../context/LMSContext/ProgressContext";
 import { useWeeklyTasks } from "../../context/LMSContext/WeeklyTaskContext";
 import { useCertificates } from "../../context/LMSContext/CertificateContext";
 import { useAchievements } from "../../context/LMSContext/AchievementContext";
-import Footer from "../../components/lms/Footer"
+import { useProfile } from "../../context/LMSContext/ProfileContext";
 
+import Footer from "../../components/lms/Footer";
 
-/* ============================
+/* =========================
    GLASS CARD
-============================ */
+========================= */
 
-const GlassCard = ({children,className=""}) => {
+const GlassCard = ({ children, className = "" }) => (
+  <motion.div
+    whileHover={{ y: -4 }}
+    transition={{ duration: 0.25 }}
+    className={`relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/55 backdrop-blur-xl p-6 ${className}`}
+  >
+    <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] via-transparent to-cyan-500/[0.03]" />
+    <div className="relative z-10">{children}</div>
+  </motion.div>
+);
 
-return (
+/* =========================
+   PREMIUM STAT CARD
+========================= */
 
-<div
-className={`bg-slate-900/50 border border-slate-800 rounded-3xl p-6 backdrop-blur-md ${className}`}>
-{children}
-</div>
-)
-}
+const StatCard = ({
+  title,
+  value,
+  icon: Icon,
+  color,
+  subtitle,
+}) => (
+  <motion.div
+    whileHover={{
+      y: -8,
+      scale: 1.02,
+    }}
+    transition={{
+      duration: 0.25,
+    }}
+    className="group relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/70 p-6"
+  >
+    <div
+      className={`absolute inset-0 opacity-0 transition duration-500 group-hover:opacity-100 ${color}`}
+    />
 
-/* ============================STAT CARD============================ */
+    <div className="relative z-10">
+      <div className="flex items-center justify-between">
+        <div className="rounded-2xl bg-white/10 p-4">
+          <Icon size={28} />
+        </div>
 
-const StatCard = ({title,value,icon:Icon}) => {
+        <ArrowRight
+          size={18}
+          className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100"
+        />
+      </div>
 
-return (
-<motion.div whileHover={{y:-5 }}
-    className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6">
-<div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center">
-<Icon size={28} />
-</div>
-<p className="text-slate-400 mt-5">{title}</p>
-<h2 className="text-3xl font-bold mt-2 ">{value}</h2>
-</motion.div>
-)}
+      <h2 className="mt-6 text-4xl font-black">
+        {value}
+      </h2>
 
-/* ============================DASHBOARD============================ */
+      <p className="mt-2 text-slate-300 font-semibold">
+        {title}
+      </p>
+
+      <p className="mt-1 text-sm text-slate-500">
+        {subtitle}
+      </p>
+    </div>
+  </motion.div>
+);
+
+/* =========================
+   DASHBOARD
+========================= */
+
 const Dashboard = () => {
 
-const {totalCourses = 0} = useCourses() || {};
+  const {
+    totalCourses = 0,
+  } = useCourses() || {};
+
+  const {
+    profile,
+  } = useProfile() || {};
+
+  const {
+    currentLearning = [],
+    weeklyProgress = [],
+    totalCompletedLessons = 0,
+    studyHours = 0,
+    completeLesson = () => {},
+  } = useProgress() || {};
+
+  const {
+    tasks = [],
+  } = useWeeklyTasks() || {};
+
+  const {
+    totalCertificates = 0,
+  } = useCertificates() || {};
+
+  const {
+    badges = [],
+  } = useAchievements() || {};
+
+  /* =========================
+     SAFE DATA
+  ========================= */
+
+  const username =
+    profile?.username
+      ? profile.username.charAt(0).toUpperCase() +
+        profile.username.slice(1)
+      : "Student";
+
+  const firstName = username.split(" ")[0];
+
+  const greeting = (() => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return "Good Morning";
+
+    if (hour < 17) return "Good Afternoon";
+
+    return "Ready to learn today?";
+  })();
+
+  const today = new Date().toLocaleDateString(
+    "en-US",
+    {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    }
+  );
+
+  const courses = Array.isArray(currentLearning)
+    ? currentLearning
+    : [];
+
+  const progress = Array.isArray(weeklyProgress)
+    ? weeklyProgress
+    : [];
+
+  const weeklyTasks = Array.isArray(tasks)
+    ? tasks
+    : [];
 
-const {
-currentLearning = [],
-weeklyProgress = [],
-totalCompletedLessons = 0,
-studyHours = 0,
-completeLesson = ()=>{}
-} = useProgress() || {};
+  const achievements = Array.isArray(badges)
+    ? badges
+    : [];
 
-const { tasks = [] } = useWeeklyTasks() || {};
+  const streak = 28;
 
-const {totalCertificates = 0} = useCertificates() || {};
+  const xp =
+    totalCompletedLessons * 15;
 
-const {badges = []} = useAchievements() || {};
+  const level =
+    Math.floor(xp / 100) + 1;
 
-/*SAFE ARRAYS*/
-const courses =
-Array.isArray(currentLearning)
-?
-currentLearning
-:
-[];
+  const stats = [
+    {
+      title: "Courses",
+      value: totalCourses,
+      icon: BookOpen,
+      subtitle: "Available Courses",
+      color:
+        "bg-gradient-to-br from-cyan-500/10 to-transparent",
+    },
+    {
+      title: "Lessons",
+      value: totalCompletedLessons,
+      icon: CheckCircle2,
+      subtitle: "Completed Lessons",
+      color:
+        "bg-gradient-to-br from-emerald-500/10 to-transparent",
+    },
+    {
+      title: "Study Hours",
+      value: `${studyHours}h`,
+      icon: Clock3,
+      subtitle: "Learning Time",
+      color:
+        "bg-gradient-to-br from-orange-500/10 to-transparent",
+    },
+    {
+      title: "Certificates",
+      value: totalCertificates,
+      icon: Trophy,
+      subtitle: "Achievements",
+      color:
+        "bg-gradient-to-br from-violet-500/10 to-transparent",
+    },
+  ];
+  return (
+  <div className="space-y-8">
 
-const progress =
-Array.isArray(weeklyProgress) ? weeklyProgress: [];
+    {/* =========================
+        HERO
+    ========================= */}
 
-const weeklyTasks = Array.isArray(tasks) ? tasks : [];
+    <motion.section
+      initial={{ opacity: 0, y: 25 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="relative overflow-hidden rounded-[36px] border border-slate-800 bg-gradient-to-br from-[#08111f] via-[#0d1628] to-[#050913]"
+    >
 
-const achievements = Array.isArray(badges) ? badges : [];
+      <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-cyan-500/10 blur-[120px]" />
 
-const stats=[
-{title:"Courses",value:totalCourses,icon:BookOpen},
+      <div className="absolute right-0 bottom-0 h-80 w-80 rounded-full bg-blue-600/10 blur-[120px]" />
 
-{title:"Completed Lessons",value:totalCompletedLessons,icon:CheckCircle2},
+      <div className="absolute inset-0 opacity-[0.04] [background-image:linear-gradient(rgba(255,255,255,.15)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.15)_1px,transparent_1px)] [background-size:40px_40px]" />
 
-{title:"Study Hours",value:`${studyHours}h`,icon:Clock3},
+      <div className="relative z-10 p-10 lg:p-14">
 
-{title:"Certificates",value:totalCertificates,icon:Trophy}];
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-center lg:justify-between">
 
-return (
-    <div className="space-y-8">
-{/* HERO */}
-<motion.div initial={{opacity:0,y:20}}
+          {/* LEFT */}
 
-animate={{opacity:1,y:0}}
-className="rounded-3xl p-10 bg-gradient-to-r from-indigo-900 via-slate-900 to-black border border-slate-800">
+          <div className="max-w-3xl">
 
-<div className="flex justify-between items-center gap-6 flex-wrap"><div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-5 py-2 text-cyan-300">
 
-<h1 className="text-5xl font-bold">Welcome Back 👋</h1>
-<p className="text-slate-400 mt-4 text-lg">
-Continue your learning journey.
-</p>
-</div>
+              <Sparkles size={18} />
 
-<div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-3xl p-6">
-<Flame className="text-orange-400" size={40}/>
-<div>
+              Welcome Back
 
-<h2 className="text-3xl font-bold">28 Days</h2>
+            </div>
 
-<p className="text-slate-400">Learning streak</p>
-</div>
-</div>
-</div>
-</motion.div>
+            <h1 className="mt-8 text-5xl font-black leading-tight lg:text-6xl">
 
-{/* STATS */}
-<div
-className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+              {greeting},
 
-{stats.map((item)=>(
-<StatCard key={item.title}
-{...item}/>
-))
-}
-</div>
-{/* ============================ MAIN CONTENT============================ */}
-<div className="grid xl:grid-cols-3 gap-6">
+              <span className="text-cyan-400">
 
-{/* ============================ CONTINUE LEARNING ============================ */}
-<GlassCard className="xl:col-span-2">
+                {" "}
+                {firstName}
 
-<div className="flex justify-between items-center mb-6"><div>
+              </span>
 
-<h2 className="text-2xl font-bold">Continue Learning</h2>
+            </h1>
 
-<p className="text-slate-400">Pick up where you stopped.</p>
-</div>
-</div>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-400">
 
-{
-courses.length === 0 ? (
-<div className="border border-dashed border-slate-700 rounded-2xl p-10 text-center">
-<BookOpen size={45} className="mx-auto text-slate-500"/>
+              {today}
 
-<h3 className="text-xl font-bold mt-4">No Active Course</h3>
+              <br />
 
-<p className="text-slate-500 mt-2">Start a course to see it here.</p>
-</div>
-) : 
-(
-<div className="space-y-5">
-{courses.map((course)=>(
-<motion.div
-    key={course.id}
-        whileHover={{y:-4}}
-className="bg-slate-950 border border-slate-800 rounded-2xl p-5">
+              Continue your learning journey, complete weekly
+              tasks, earn certificates and build your future.
 
-<div className="flex justify-between items-center">
-<div>
+            </p>
 
+            <div className="mt-10 flex flex-wrap gap-4">
 
-<h3
-className="
-text-xl
-font-bold
-"
->
+              <Link
+                to="/lms/courses"
+                className="flex items-center gap-3 rounded-2xl bg-cyan-500 px-8 py-4 font-semibold text-slate-950 transition hover:bg-cyan-400"
+              >
+                <BookOpen size={20} />
 
-{course.title}
+                Browse Courses
 
-</h3>
+              </Link>
 
+              <Link
+                to="/lms/profile"
+                className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900/60 px-8 py-4 font-semibold transition hover:border-cyan-500"
+              >
+                <Brain size={20} />
 
+                My Profile
 
-<p
-className="
-text-slate-400
-mt-1
-"
->
+              </Link>
 
-{course.currentLesson || "Continue lesson"}
+            </div>
 
-</p>
+          </div>
 
+          {/* RIGHT */}
 
-</div>
+          <div className="grid gap-5 sm:grid-cols-2">
 
+            <GlassCard className="min-w-[220px]">
 
+              <div className="flex items-center gap-4">
 
-<span
-className="
-text-blue-400
-font-bold
-"
->
+                <div className="rounded-2xl bg-orange-500/20 p-4">
 
-{course.progress || 0}%
+                  <Flame
+                    className="text-orange-400"
+                    size={28}
+                  />
 
-</span>
+                </div>
 
+                <div>
 
-</div>
+                  <h2 className="text-4xl font-black">
 
-<div
-className="
-mt-5
-h-3
-bg-slate-800
-rounded-full
-overflow-hidden
-"
->
+                    {streak}
 
+                  </h2>
 
-<div
+                  <p className="text-slate-400">
 
-style={{
-width:`${course.progress || 0}%`
-}}
+                    Day Streak
 
-className="
-h-full
-bg-blue-500
-rounded-full
-"
+                  </p>
 
-/>
+                </div>
 
+              </div>
 
-</div>
+            </GlassCard>
 
+            <GlassCard>
 
+              <div className="flex items-center gap-4">
 
+                <div className="rounded-2xl bg-blue-500/20 p-4">
 
+                  <Award
+                    className="text-blue-400"
+                    size={28}
+                  />
 
-<div
-className="
-flex
-justify-between
-items-center
-mt-6
-"
->
+                </div>
 
+                <div>
 
-<p
-className="
-text-slate-400
-text-sm
-"
->
+                  <h2 className="text-4xl font-black">
 
-{
-course.lessonsCompleted || 0
-}
+                    Lv {level}
 
-/
+                  </h2>
 
-{
-course.totalLessons || 0
-}
+                  <p className="text-slate-400">
 
-Lessons
+                    Learning Level
 
-</p>
+                  </p>
 
+                </div>
 
+              </div>
 
+            </GlassCard>
 
-<button
+            <GlassCard>
 
-onClick={()=>
-completeLesson(course.id)
-}
+              <div className="flex items-center gap-4">
 
-className="
-flex
-items-center
-gap-2
-bg-blue-600
-px-5
-py-3
-rounded-xl
-font-semibold
-hover:bg-blue-700
-"
+                <div className="rounded-2xl bg-emerald-500/20 p-4">
 
->
+                  <Target
+                    className="text-emerald-400"
+                    size={28}
+                  />
 
+                </div>
 
-<PlayCircle size={18}/>
+                <div>
 
-Continue
+                  <h2 className="text-4xl font-black">
 
+                    {xp}
 
-</button>
+                  </h2>
 
+                  <p className="text-slate-400">
 
-</div>
+                    XP Earned
 
+                  </p>
 
+                </div>
 
-</motion.div>
+              </div>
 
+            </GlassCard>
 
-))
+            <GlassCard>
 
+              <div className="flex items-center gap-4">
 
-}
+                <div className="rounded-2xl bg-violet-500/20 p-4">
 
+                  <BarChart3
+                    className="text-violet-400"
+                    size={28}
+                  />
 
-</div>
+                </div>
 
+                <div>
 
-)
+                  <h2 className="text-4xl font-black">
 
-}
+                    {weeklyTasks.length}
 
+                  </h2>
 
-</GlassCard>
+                  <p className="text-slate-400">
 
+                    Active Tasks
 
+                  </p>
 
+                </div>
 
+              </div>
 
+            </GlassCard>
 
-{/* ============================
-    WEEKLY PROGRESS
-============================ */}
+          </div>
 
+        </div>
 
-<GlassCard>
+      </div>
 
+    </motion.section>
 
-<div
-className="
-flex
-justify-between
-items-center
-mb-6
-"
->
+    {/* =========================
+        LIVE STATS
+    ========================= */}
 
+    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
 
-<div>
+      {stats.map((item) => (
+        <StatCard
+          key={item.title}
+          {...item}
+        />
+      ))}
 
+    </div>
+        {/* =========================
+        MAIN GRID
+    ========================= */}
 
-<h2
-className="
-text-2xl
-font-bold
-"
->
+    <div className="grid gap-8 xl:grid-cols-3">
 
-Weekly Progress
+      {/* =========================
+          CONTINUE LEARNING
+      ========================= */}
 
-</h2>
+      <GlassCard className="xl:col-span-2">
 
+        <div className="mb-8 flex items-center justify-between">
 
-<p
-className="
-text-slate-400
-"
->
+          <div>
 
-Your learning activity
+            <h2 className="text-3xl font-bold">
+              Continue Learning
+            </h2>
 
-</p>
+            <p className="mt-2 text-slate-400">
+              Resume exactly where you stopped.
+            </p>
 
+          </div>
 
-</div>
+          <Link
+            to="/lms/courses"
+            className="rounded-xl border border-slate-700 px-5 py-3 transition hover:border-cyan-500"
+          >
+            View All
+          </Link>
 
+        </div>
 
+        {courses.length === 0 ? (
 
-<TrendingUp
-className="
-text-blue-400
-"
-size={28}
-/>
+          <div className="rounded-3xl border border-dashed border-slate-700 py-16 text-center">
 
+            <BookOpen
+              size={60}
+              className="mx-auto text-slate-600"
+            />
 
-</div>
+            <h3 className="mt-6 text-2xl font-bold">
+              No Active Course
+            </h3>
 
+            <p className="mt-3 text-slate-500">
+              Enroll in a course to begin learning.
+            </p>
 
+            <Link
+              to="/lms/courses"
+              className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-cyan-500 px-8 py-4 font-semibold text-slate-950"
+            >
+              Browse Courses
+            </Link>
 
+          </div>
 
+        ) : (
 
-<div
-className="
-flex
-items-end
-gap-3
-h-56
-"
->
+          <div className="space-y-6">
 
+            {courses.map((course) => (
 
-{
+              <motion.div
+                key={course.id}
+                whileHover={{
+                  y: -5,
+                }}
+                className="rounded-3xl border border-slate-800 bg-slate-950 p-6"
+              >
 
-progress.length === 0 ? (
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
 
+                  <div className="flex items-center gap-5">
 
-<p
-className="
-text-slate-500
-"
->
+                    <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-slate-800">
 
-No progress data yet.
+                      {course.thumbnail ? (
 
-</p>
+                        <img
+                          src={course.thumbnail}
+                          alt={course.title}
+                          className="h-full w-full object-cover"
+                        />
 
+                      ) : (
 
-)
+                        <BookOpen
+                          size={34}
+                          className="text-cyan-400"
+                        />
 
-:
+                      )}
 
-(
+                    </div>
 
-progress.map((day)=>(
+                    <div>
 
+                      <h3 className="text-2xl font-bold">
 
-<div
+                        {course.title}
 
-key={day.day}
+                      </h3>
 
-className="
-flex-1
-flex
-flex-col
-items-center
-"
->
+                      <p className="mt-2 text-slate-400">
 
+                        {course.currentLesson ||
+                          "Continue your next lesson"}
 
-<div
-className="
-h-44
-w-full
-flex
-items-end
-"
->
+                      </p>
 
+                      <div className="mt-3 flex flex-wrap gap-3">
 
-<motion.div
+                        <span className="rounded-full bg-blue-500/10 px-3 py-1 text-sm text-blue-300">
 
-initial={{
-height:0
-}}
+                          {course.level || "Beginner"}
 
-animate={{
-height:`${day.value || 0}%`
-}}
+                        </span>
 
-className="
-w-full
-rounded-t-xl
-bg-cyan-500
-"
+                        <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">
 
-/>
+                          {course.lessonsCompleted || 0}/
+                          {course.totalLessons ||
+                            course.lessons ||
+                            0} Lessons
 
+                        </span>
 
-</div>
+                      </div>
 
+                    </div>
 
+                  </div>
 
-<p
-className="
-text-sm
-text-slate-400
-mt-3
-"
->
+                  <div className="w-full lg:w-72">
 
-{day.day}
+                    <div className="mb-2 flex justify-between text-sm">
 
-</p>
+                      <span className="text-slate-400">
 
+                        Progress
 
+                      </span>
 
-</div>
+                      <span className="font-bold text-cyan-400">
 
+                        {course.progress || 0}%
 
-))
+                      </span>
 
+                    </div>
 
-)
+                    <div className="h-3 overflow-hidden rounded-full bg-slate-800">
 
+                      <motion.div
+                        initial={{
+                          width: 0,
+                        }}
+                        animate={{
+                          width: `${course.progress || 0}%`,
+                        }}
+                        transition={{
+                          duration: 1,
+                        }}
+                        className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500"
+                      />
 
-}
+                    </div>
 
+                    <button
+                      onClick={() =>
+                        completeLesson(course.id)
+                      }
+                      className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-cyan-500 py-4 font-bold text-slate-950 transition hover:bg-cyan-400"
+                    >
 
-</div>
+                      <PlayCircle size={20} />
 
+                      Continue Learning
 
+                    </button>
 
-</GlassCard>
+                  </div>
 
+                </div>
 
+              </motion.div>
 
-</div>
-{/* ============================
-    ACHIEVEMENTS
-============================ */}
+            ))}
 
+          </div>
 
-<GlassCard>
+        )}
 
+      </GlassCard>
+            {/* =========================
+          RIGHT SIDEBAR
+      ========================= */}
 
-<div
-className="
-flex
-justify-between
-items-center
-mb-6
-"
->
+      <div className="space-y-8">
 
+        {/* =========================
+            WEEKLY PROGRESS
+        ========================= */}
 
-<div>
+        <GlassCard>
 
-<h2
-className="
-text-2xl
-font-bold
-"
->
+          <div className="flex items-center justify-between">
 
-Achievements
+            <div>
 
-</h2>
+              <h2 className="text-2xl font-bold">
+                Weekly Progress
+              </h2>
 
+              <p className="mt-2 text-slate-400">
+                Your learning activity this week.
+              </p>
 
-<p className="text-slate-400">Badges earned from learning.</p>
-</div>
-<Trophy size={28} className="text-yellow-400"/>
-</div>
+            </div>
 
-{achievements.length === 0 ? (
-<div className="border border-dashed border-slate-700 rounded-2xl p-10 text-center">
-<Trophy size={45} className="mx-auto text-slate-600"/>
+            <TrendingUp
+              size={28}
+              className="text-cyan-400"
+            />
 
-<h3 className="text-xl font-bold mt-4">No Achievements Yet</h3>
-<p className="text-slate-500 mt-2">Complete lessons and quizzes to unlock badges.</p>
-</div>
+          </div>
 
-) : (
+          <div className="mt-8 flex h-56 items-end gap-3">
 
-<div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-{
-achievements.map((badge)=>(
+            {progress.length === 0 ? (
 
-<motion.div key={badge.id} whileHover={{
-y:-5
-}}
+              <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-slate-700 text-slate-500">
 
-className="bg-slate-950 border border-slate-800 rounded-3xl p-6">
-<div className="w-14 h-14 rounded-2xl bg-yellow-500 flex items-center justify-center">
-<Trophy size={28} />
-</div>
-<h3 className="text-xl font-bold mt-5">
-{badge.title || "Achievement"}
+                No progress available.
 
-</h3>
-<p className="text-slate-400 mt-2">
+              </div>
 
-{badge.description || "Unlocked badge"}
+            ) : (
 
-</p>
-<CheckCircle2 className="text-green-400 mt-5"/>
+              progress.map((day) => (
 
-</motion.div>
-))
-}
+                <div
+                  key={day.day}
+                  className="flex flex-1 flex-col items-center"
+                >
 
-</div>
-)
+                  <div className="flex h-44 w-full items-end">
 
-}
-</GlassCard>
+                    <motion.div
+                      initial={{
+                        height: 0,
+                      }}
+                      animate={{
+                        height: `${day.value || 0}%`,
+                      }}
+                      transition={{
+                        duration: 1,
+                      }}
+                      className="w-full rounded-t-xl bg-gradient-to-t from-cyan-500 to-blue-500"
+                    />
 
-{/* ============================WeeklyTasks============================ */}
-<GlassCard>
-<div className="flex justify-between items-center mb-6">
-<div>
-<h2 className="text-2xl font-bold">Upcoming weeklytasks</h2>
+                  </div>
 
-<p className="text-slate-400">Stay ahead of deadlines.</p>
-</div>
-<CalendarDays size={28} className="text-cyan-400"/>
+                  <span className="mt-3 text-sm text-slate-400">
 
-</div>
-{
+                    {day.day}
 
-weeklyTasks.length === 0 ? (
+                  </span>
 
-<div className="text-center text-slate-500 py-8"> No task available. </div>
+                </div>
 
-) : (
+              ))
 
-<div className="space-y-4">
-{
+            )}
 
-weeklyTasks.map((task)=>(
+          </div>
 
-<motion.div
-    key={task.id}
-    whileHover={{
-y:-3
-}}
+        </GlassCard>
 
-className="bg-slate-950 border border-slate-800 rounded-2xl p-5">
-<div
-className="flex justify-between items-center">
-<div>
-<h3 className="text-lg font-bold">
+        {/* =========================
+            UPCOMING TASKS
+        ========================= */}
 
-{task.title || "WeeklyTasks"}
+        <GlassCard>
 
-</h3>
-<p className="text-slate-400 mt-1">
+          <div className="flex items-center justify-between">
 
-{task.course || "Course"}
-</p>
-</div>
-<span className="text-blue-400 text-sm">
+            <div>
 
-{task.dueDate || "No date"}
+              <h2 className="text-2xl font-bold">
+                Weekly Tasks
+              </h2>
 
-</span>
-</div>
-</motion.div>
-))
+              <p className="mt-2 text-slate-400">
+                Don't miss your deadlines.
+              </p>
 
-}
+            </div>
 
-</div>
-)
-}
-</GlassCard>
-{/* ============================QUICK ACTIONS=========================== */}
-<GlassCard>
-<div className="mb-6">
-<h2 className="text-2xl font-bold">Quick Actions</h2>
+            <CalendarDays
+              size={28}
+              className="text-blue-400"
+            />
 
-<p className="text-slate-400">Access your learning tools quickly.</p>
-</div>
+          </div>
 
-<div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
+          <div className="mt-8 space-y-5">
 
-<motion.button
-whileHover={{
-scale:1.03
-}}
+            {weeklyTasks.length === 0 ? (
 
-className="rounded-2xl p-6 text-left bg-blue-600">
+              <div className="rounded-2xl border border-dashed border-slate-700 py-10 text-center text-slate-500">
 
-<BookOpen size={32}/>
+                No weekly task available.
 
-<h3 className="text-xl font-bold mt-4">Courses</h3>
-<p className="text-white/80 mt-2">Continue learning.</p>
-</motion.button>
+              </div>
 
-<motion.button
-whileHover={{
-scale:1.03
-}}
+            ) : (
 
-className="rounded-2xl p-6 text-left bg-purple-600">
+              weeklyTasks.map((task) => (
 
-<CheckCircle2 size={32} />
-<h3 className="text-xl font-bold mt-4">WeeklyTasks</h3>
-<p className="text-white/80 mt-2">Complete your tasks.</p>
-</motion.button>
-<motion.button whileHover={{ 
-scale:1.03
-}}
-className="rounded-2xl p-6 text-left bg-emerald-600">
+                <motion.div
+                  key={task.id}
+                  whileHover={{
+                    x: 6,
+                  }}
+                  className="rounded-2xl border border-slate-800 bg-slate-950 p-5"
+                >
 
-<TrendingUp size={32}/>
-<h3 className="text-xl font-bold mt-4">Progress</h3>
-<p className="text-white/80 mt-2">Track your growth.</p>
-</motion.button>
-<motion.button whileHover={{ scale:1.03}}
-className="rounded-2xl p-6 text-left bg-orange-600">
-<CalendarDays size={32} />
+                  <div className="flex items-start justify-between gap-4">
 
-<h3 className="text-xl font-bold mt-4">Calendar</h3>
+                    <div>
 
-<p className="text-white/80 mt-2">View upcoming events.</p>
-</motion.button>
-</div>
+                      <h3 className="font-bold">
 
-</GlassCard>
+                        {task.title}
 
-{/* Footer */}
-<Footer />
+                      </h3>
 
-</div>
-    );
+                      <p className="mt-2 text-sm text-slate-400">
+
+                        {task.course || "General Course"}
+
+                      </p>
+
+                    </div>
+
+                    <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs text-cyan-300">
+
+                      {task.dueDate || "No Date"}
+
+                    </span>
+
+                  </div>
+
+                </motion.div>
+
+              ))
+
+            )}
+
+          </div>
+
+        </GlassCard>
+
+      </div>
+
+    </div>
+          {/* =========================
+          ACHIEVEMENTS
+      ========================= */}
+
+      <GlassCard>
+
+        <div className="flex items-center justify-between mb-8">
+
+          <div>
+
+            <h2 className="text-3xl font-bold">
+              Achievements
+            </h2>
+
+            <p className="text-slate-400 mt-2">
+              Rewards you've unlocked through learning.
+            </p>
+
+          </div>
+
+          <Trophy
+            size={30}
+            className="text-yellow-400"
+          />
+
+        </div>
+
+        {achievements.length === 0 ? (
+
+          <div className="rounded-3xl border border-dashed border-slate-700 py-14 text-center">
+
+            <Trophy
+              size={60}
+              className="mx-auto text-slate-600"
+            />
+
+            <h3 className="mt-6 text-2xl font-bold">
+              No Achievements Yet
+            </h3>
+
+            <p className="mt-3 text-slate-500">
+              Complete courses, quizzes and weekly tasks to unlock badges.
+            </p>
+
+          </div>
+
+        ) : (
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+
+            {achievements.map((badge) => (
+
+              <motion.div
+                key={badge.id}
+                whileHover={{
+                  y: -6,
+                  scale: 1.02,
+                }}
+                className="rounded-3xl border border-slate-800 bg-slate-950 p-6"
+              >
+
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-yellow-500">
+
+                  <Trophy size={30} />
+
+                </div>
+
+                <h3 className="mt-6 text-xl font-bold">
+
+                  {badge.title || "Achievement"}
+
+                </h3>
+
+                <p className="mt-3 text-slate-400">
+
+                  {badge.description || "Achievement unlocked."}
+
+                </p>
+
+                <div className="mt-6 flex items-center gap-2 text-emerald-400">
+
+                  <CheckCircle2 size={18} />
+
+                  <span>Unlocked</span>
+
+                </div>
+
+              </motion.div>
+
+            ))}
+
+          </div>
+
+        )}
+
+      </GlassCard>
+
+      {/* =========================
+          QUICK ACTIONS
+      ========================= */}
+
+      <GlassCard>
+
+        <div className="mb-8">
+
+          <h2 className="text-3xl font-bold">
+            Quick Actions
+          </h2>
+
+          <p className="mt-2 text-slate-400">
+            Jump straight into your learning.
+          </p>
+
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            className="rounded-3xl bg-gradient-to-br from-cyan-500 to-blue-600 p-6 text-left"
+          >
+
+            <BookOpen size={34} />
+
+            <h3 className="mt-5 text-xl font-bold">
+              Courses
+            </h3>
+
+            <p className="mt-2 text-white/80">
+              Browse all available courses.
+            </p>
+
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            className="rounded-3xl bg-gradient-to-br from-purple-600 to-violet-700 p-6 text-left"
+          >
+
+            <CheckCircle2 size={34} />
+
+            <h3 className="mt-5 text-xl font-bold">
+              Weekly Tasks
+            </h3>
+
+            <p className="mt-2 text-white/80">
+              Finish your assignments.
+            </p>
+
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            className="rounded-3xl bg-gradient-to-br from-emerald-500 to-green-600 p-6 text-left"
+          >
+
+            <TrendingUp size={34} />
+
+            <h3 className="mt-5 text-xl font-bold">
+              Progress
+            </h3>
+
+            <p className="mt-2 text-white/80">
+              Track your learning journey.
+            </p>
+
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            className="rounded-3xl bg-gradient-to-br from-orange-500 to-red-500 p-6 text-left"
+          >
+
+            <CalendarDays size={34} />
+
+            <h3 className="mt-5 text-xl font-bold">
+              Calendar
+            </h3>
+
+            <p className="mt-2 text-white/80">
+              View upcoming events.
+            </p>
+
+          </motion.button>
+
+        </div>
+
+      </GlassCard>
+
+      {/* =========================
+          FOOTER
+      ========================= */}
+
+      <Footer />
+
+    </div>
+
+  );
 
 };
+
 export default Dashboard;

@@ -241,16 +241,21 @@ setProfile({
 
 ...profileData,
 
+id:user.id,
 
-email:
-user.email
+email:user.email,
+
+avatar:
+profileData.avatar ||
+profileData.avatar_url ||
+"",
+
+
+username:
+profileData.username ||
+user.email?.split("@")[0],
 
 });
-
-
-
-
-
 
 setStats({
 
@@ -277,12 +282,6 @@ submissions:
 submissions?.length || 0,
 
 });
-
-
-
-
-
-
 
 /*
 =========================

@@ -65,12 +65,12 @@ useEffect(() => {
   const disciplinesRef = useRef(null);
 
   // Scroll to Courses
-  const scrollToCourses = () => {
-    coursesRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  };
+ const scrollToCourses = () => {
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+};
 
   // Scroll to Disciplines
   const scrollToDisciplines = () => {

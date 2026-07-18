@@ -10,6 +10,9 @@ import {
   X,
 } from "lucide-react";
 
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
+
 import ProfileDropdown from "../components/profile/ProfileDropdown";
 
 const DashboardHeader = () => {
@@ -19,8 +22,17 @@ const DashboardHeader = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navigate = useNavigate();
-  const username = "Akinwole Damilare";
-  const firstLetter = username.charAt(0).toUpperCase();
+  const { profile, user } = useContext(AuthContext);
+
+const username =
+  profile?.username ||
+  profile?.full_name ||
+  user?.user_metadata?.username ||
+  user?.user_metadata?.full_name ||
+  user?.email?.split("@")[0] ||
+  "Student";
+
+const firstLetter = username.charAt(0).toUpperCase();
   const [reminderTime, setReminderTime] = useState("18:00");
 
   const scrollToFAQ = () => {

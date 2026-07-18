@@ -13,6 +13,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { useNavigate, useLocation } from "react-router-dom";
+
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -39,6 +41,20 @@ const floating = {
 };
 
 const CourseHero = ({ onBrowseCourses, onExploreCategories }) => {
+  const navigate = useNavigate();
+
+const location = useLocation();
+
+const handleBrowseCourses = () => {
+  if (location.pathname !== "/courses") {
+    navigate("/courses");
+  } else {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+};
   /* ===========================================
      LIVE STATS
   =========================================== */
@@ -164,12 +180,16 @@ const CourseHero = ({ onBrowseCourses, onExploreCategories }) => {
               className="mt-10 flex flex-wrap gap-5"
             >
               <button
-                onClick={onBrowseCourses}
-                className="group flex items-center gap-3 rounded-2xl bg-cyan-500 px-8 py-4 font-semibold text-slate-950 transition-all duration-300 hover:-translate-y-1 hover:bg-cyan-400 hover:shadow-[0_20px_40px_rgba(34,211,238,.25)]"
-              >
-                Explore Courses
-                <ArrowRight size={18} className="transition group-hover:translate-x-1" />
-              </button>
+  onClick={handleBrowseCourses}
+  className="group flex w-full items-center justify-center gap-3 rounded-2xl bg-cyan-500 py-4 font-bold text-slate-950 transition hover:bg-cyan-400"
+>
+  Explore Courses
+
+  <ArrowRight
+    size={18}
+    className="transition group-hover:translate-x-1"
+  />
+</button>
 
               <button
                 onClick={onExploreCategories}
@@ -291,13 +311,10 @@ const CourseHero = ({ onBrowseCourses, onExploreCategories }) => {
                   </div>
 
                   {/* CTA */}
-                  <button
-                    onClick={onBrowseCourses}
-                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-cyan-500 px-6 py-4 font-semibold text-slate-950 transition-all duration-300 hover:bg-cyan-400"
-                  >
-                    Start Learning
-                    <ArrowRight size={18} />
-                  </button>
+                  <button onClick={handleBrowseCourses}>
+  Explore Courses
+                  <ArrowRight size={18} className="transition group-hover:translate-x-1" />
+</button>
                 </div>
               </div>
             </motion.div>

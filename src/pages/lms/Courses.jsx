@@ -13,10 +13,9 @@ import { useCourses } from "../../context/LMSContext/CourseContext";
 
 import CourseHero from "../../components/courses/CourseHero";
 import CourseSearch from "../../components/courses/CourseSearch";
-import CourseFilters from "../../components/courses/CourseFilters";
 import FeaturedCourses from "../../components/courses/FeaturedCourses";
 import CourseGrid from "../../components/courses/CourseGrid";
-import EmptyCourses from "../../components/courses/EmptyCourses";
+import ExploreHub from "../../components/courses/ExploreHub";
 
 // Premium Sections
 import LearningStats from "../../components/courses/LearningStats";
@@ -35,9 +34,8 @@ const Courses = () => {
 
   // Course Context
   const {
-    courses = [],
-    categories = [],
-  } = useCourses();
+  courses = [],
+} = useCourses();
 
  // Search & Filter
 const params = new URLSearchParams(location.search);
@@ -89,15 +87,7 @@ useEffect(() => {
       block: "start",
     });
   };
-    // Available Categories
- const availableCategories = useMemo(() => {
-  const unique = [];
-
-  const seen = new Set();
-
-  categories.forEach((cat) => {
-    if (!cat) return;
-
+    
     // Handle object categories
     if (typeof cat === "object") {
       const key = String(cat.id ?? cat.name);
@@ -112,31 +102,7 @@ useEffect(() => {
       }
     }
 
-    // Handle string categories
-    else {
-      const key = String(cat);
-
-      if (!seen.has(key)) {
-        seen.add(key);
-
-        unique.push({
-          id: key,
-          name: key,
-        });
-      }
-    }
-  });
-
-return [
-  {
-    id: "All",
-    name: "All",
-  },
-  ...unique,
-];
-}, [categories]);
-
-  // Filter Courses
+      // Filter Courses
   const filteredCourses = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
@@ -169,16 +135,7 @@ return [
       (course) => course.featured
     );
 
-  // Reset Filters
-  const resetFilters = () => {
-    setSearch("");
-    setCategory("All");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
+  
 
   return (
     <div className="space-y-14 pb-20">
@@ -201,16 +158,7 @@ return [
         onChange={setSearch}
       />
 
-      {/* Categories */}
-
-      <CourseFilters
-        categories={
-          availableCategories
-        }
-        selected={category}
-        onSelect={setCategory}
-      />
-
+     
       {/* Featured */}
 
       {featuredCourses.length > 0 && (
@@ -220,31 +168,25 @@ return [
         />
 
       )}
-            {/* ===============================
-          ALL COURSES
-      =============================== */}
+            {/* =============================== ALL COURSES =============================== */}
 
       <div ref={coursesRef}>
 
-        {filteredCourses.length === 0 ? (
+  {filteredCourses.length > 0 && (
+    <CourseGrid
+      courses={filteredCourses}
+      onCourseOpen={(course) =>
+        navigate(`/courses/${course.id}`)
+      }
+    />
+  )}
 
-          <EmptyCourses
-            onReset={resetFilters}
-          />
+  <ExploreHub
+    courses={filteredCourses}
+    search={search}
+  />
 
-        ) : (
-
-          <CourseGrid
-            courses={filteredCourses}
-            onCourseOpen={(course) =>
-              navigate(`/courses/${course.id}`)
-            }
-          />
-
-        )}
-
-      </div>
-
+</div>
       {/* ===============================
           PREMIUM SECTIONS
       =============================== */}

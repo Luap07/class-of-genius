@@ -43,6 +43,10 @@ import Lesson from "./pages/lms/Lesson";
 import ExploreCourses from "./pages/courses/ExploreCourses";
 import BecomeInstructorForm from "./pages/instructor/BecomeInstructorForm";
 import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
+import CategorySubjects from "./pages/courses/CategorySubjects";
+import SubjectCourses from "./pages/courses/SubjectCourses";
+import ExploreCategories from "./pages/courses/ExploreCategories";
+
 /* ================= AI ================= */
 import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
@@ -310,6 +314,51 @@ element={
     </ProtectedRoute>
   }
 />
+
+<Route
+  path="/courses/:category"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <CategorySubjects />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/subjects"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <ExploreCategories />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/courses/:category/:subject"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <SubjectCourses />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/courses/:id"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <CourseDetails />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
 <Route
   path="/lms/courses"
   element={
@@ -322,7 +371,7 @@ element={
 />
 
 <Route
-  path="/lms/course/:id"
+  path="/course/:id"
   element={
     <ProtectedRoute>
       <PageWrapper>
@@ -331,17 +380,6 @@ element={
     </ProtectedRoute>
   }
 />
-<Route
-  path="/courses/:id"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <CourseDetails />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
-
 <Route
   path="/lms/course/:id/lesson/:lessonId"
   element={

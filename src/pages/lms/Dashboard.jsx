@@ -287,7 +287,7 @@ const Dashboard = () => {
             <div className="mt-10 flex flex-wrap gap-4">
 
               <Link
-                to="/lms/courses"
+                to="/subjects"
                 className="flex items-center gap-3 rounded-2xl bg-cyan-500 px-8 py-4 font-semibold text-slate-950 transition hover:bg-cyan-400"
               >
                 <BookOpen size={20} />

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -10,310 +10,544 @@ import {
   Globe,
   HeartPulse,
   GraduationCap,
-  ArrowRight,
 } from "lucide-react";
+
+
+import CategoryStats from "../../components/courses/CategoriesStats";
+import CategoryGrid from "../../components/courses/CategoryGrid";
+import WhyScholiqen from "../../components/courses/WhyScholiqen";
+import CategoryCTA from "../../components/courses/CategoriesCTA";
+
 
 const categories = [
   {
-    id: "Science",
-    title: "Science",
-    subtitle: "Physics • Chemistry • Biology • Mathematics",
-    icon: Atom,
-    gradient: "from-cyan-500 to-blue-600",
-    glow: "bg-cyan-500/20",
-    courses: "120+ Courses",
+    id:"science",
+    title:"Science",
+    description:
+    "Master Physics, Chemistry, Biology and Mathematics with interactive learning.",
+    icon:Atom,
+    color:"from-cyan-500 to-blue-600",
+    courses:"120+",
+    students:"18K+",
+    ai:true,
+    labs:true,
+    subjects:[
+      "Physics",
+      "Chemistry",
+      "Biology",
+      "Mathematics"
+    ]
   },
-  {
-    id: "Technology",
-    title: "Technology",
-    subtitle: "Programming • AI • Cyber Security",
-    icon: Laptop,
-    gradient: "from-indigo-500 to-blue-600",
-    glow: "bg-indigo-500/20",
-    courses: "90+ Courses",
-  },
-  {
-    id: "Business",
-    title: "Business",
-    subtitle: "Accounting • Finance • Marketing",
-    icon: Briefcase,
-    gradient: "from-emerald-500 to-green-600",
-    glow: "bg-emerald-500/20",
-    courses: "70+ Courses",
-  },
-  {
-    id: "Arts",
-    title: "Arts",
-    subtitle: "Design • Literature • Creative Arts",
-    icon: Palette,
-    gradient: "from-pink-500 to-rose-600",
-    glow: "bg-pink-500/20",
-    courses: "60+ Courses",
-  },
-  {
-    id: "Geography",
-    title: "Geography",
-    subtitle: "Earth Science • Environment",
-    icon: Globe,
-    gradient: "from-teal-500 to-cyan-600",
-    glow: "bg-teal-500/20",
-    courses: "40+ Courses",
-  },
-  {
-    id: "Health",
-    title: "Health",
-    subtitle: "Anatomy • Nursing • Public Health",
-    icon: HeartPulse,
-    gradient: "from-red-500 to-orange-600",
-    glow: "bg-red-500/20",
-    courses: "80+ Courses",
-  },
-  {
-    id: "University",
-    title: "University",
-    subtitle: "Engineering • Medicine • Law • Computer Science",
-    icon: GraduationCap,
-    gradient: "from-yellow-500 to-amber-600",
-    glow: "bg-yellow-500/20",
-    courses: "250+ Courses",
-  },
-];
 
+
+  {
+    id:"technology",
+    title:"Technology",
+    description:
+    "Programming, Artificial Intelligence, Cyber Security and Cloud Computing.",
+    icon:Laptop,
+    color:"from-indigo-500 to-blue-600",
+    courses:"95+",
+    students:"14K+",
+    ai:true,
+    labs:false,
+    subjects:[
+      "Programming",
+      "Artificial Intelligence",
+      "Cyber Security",
+      "Cloud Computing"
+    ]
+  },
+
+
+  {
+    id:"business",
+    title:"Business",
+    description:
+    "Accounting, Finance, Entrepreneurship, Marketing and Business Management.",
+    icon:Briefcase,
+    color:"from-emerald-500 to-green-600",
+    courses:"82+",
+    students:"11K+",
+    ai:true,
+    labs:false,
+    subjects:[
+      "Accounting",
+      "Finance",
+      "Marketing",
+      "Management"
+    ]
+  },
+
+
+  {
+    id:"arts",
+    title:"Arts",
+    description:
+    "Creative Arts, Literature, Music, Design and Digital Creativity.",
+    icon:Palette,
+    color:"from-pink-500 to-rose-600",
+    courses:"70+",
+    students:"8K+",
+    ai:false,
+    labs:false,
+    subjects:[
+      "Design",
+      "Literature",
+      "Music",
+      "Creative Arts"
+    ]
+  },
+
+
+  {
+    id:"geography",
+    title:"Geography",
+    description:
+    "Earth Science, GIS, Climate Change and Environmental Studies.",
+    icon:Globe,
+    color:"from-teal-500 to-cyan-600",
+    courses:"45+",
+    students:"5K+",
+    ai:false,
+    labs:true,
+    subjects:[
+      "GIS",
+      "Climate",
+      "Environment",
+      "Earth Science"
+    ]
+  },
+
+
+  {
+    id:"health",
+    title:"Health",
+    description:
+    "Medicine, Anatomy, Nursing, Pharmacy and Public Health.",
+    icon:HeartPulse,
+    color:"from-red-500 to-orange-600",
+    courses:"88+",
+    students:"13K+",
+    ai:true,
+    labs:true,
+    subjects:[
+      "Medicine",
+      "Anatomy",
+      "Nursing",
+      "Public Health"
+    ]
+  },
+
+
+  {
+    id:"university",
+    title:"University",
+    description:
+    "Engineering, Computer Science, Law, Medicine and Degree Programmes.",
+    icon:GraduationCap,
+    color:"from-yellow-500 to-amber-600",
+    courses:"250+",
+    students:"32K+",
+    ai:true,
+    labs:true,
+    subjects:[
+      "Engineering",
+      "Computer Science",
+      "Law",
+      "Medicine"
+    ]
+  }
+
+];
 export default function ExploreCategories() {
+
   const navigate = useNavigate();
 
+  const [search, setSearch] = useState("");
+
+
+  const filteredCategories = useMemo(() => {
+
+    const keyword = search
+      .trim()
+      .toLowerCase();
+
+
+    if (!keyword) {
+      return categories;
+    }
+
+
+    return categories.filter((category) => (
+
+      category.title
+        .toLowerCase()
+        .includes(keyword)
+
+      ||
+
+      category.description
+        .toLowerCase()
+        .includes(keyword)
+
+      ||
+
+      category.subjects.some((subject) =>
+        subject
+          .toLowerCase()
+          .includes(keyword)
+      )
+
+    ));
+
+  }, [search]);
+
+
+
   return (
-    <div className="min-h-screen bg-[#040B14] text-white overflow-hidden">
 
-      <div className="fixed inset-0 -z-10">
+    <div
+      className="
+        relative
+        min-h-screen
+        overflow-hidden
+        bg-[#030712]
+        text-white
+      "
+    >
 
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#102845_0%,#040B14_65%)]" />
 
-        <div className="absolute top-0 left-0 w-[550px] h-[550px] rounded-full bg-cyan-500/10 blur-[180px]" />
+      {/* ================= PREMIUM BACKGROUND ================= */}
 
-        <div className="absolute bottom-0 right-0 w-[550px] h-[550px] rounded-full bg-blue-600/10 blur-[180px]" />
+<div
+  className="
+    absolute
+    inset-0
+    overflow-hidden
+    pointer-events-none
+  "
+>
 
-        <div
-          className="absolute inset-0 opacity-[0.04]
-          [background-image:linear-gradient(rgba(255,255,255,.15)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.15)_1px,transparent_1px)]
-          [background-size:42px_42px]"
-        />
+  {/* Base */}
 
-      </div>
+  <div
+    className="
+      absolute
+      inset-0
+      bg-[#020617]
+    "
+  />
 
-      <div className="max-w-7xl mx-auto px-6 py-20">
 
-        <motion.div
-          initial={{ opacity:0, y:30 }}
-          animate={{ opacity:1, y:0 }}
-          transition={{ duration:.6 }}
+  {/* Main Gradient */}
+
+  <div
+    className="
+      absolute
+      inset-0
+      bg-[radial-gradient(circle_at_50%_0%,rgba(14,116,144,0.25),transparent_45%),radial-gradient(circle_at_90%_80%,rgba(37,99,235,0.18),transparent_40%)]
+    "
+  />
+
+
+  {/* Moving Cyan Atmosphere */}
+
+  <motion.div
+
+    animate={{
+      x:[
+        -120,
+        80,
+        -120
+      ],
+
+      y:[
+        0,
+        60,
+        0
+      ],
+    }}
+
+    transition={{
+      duration:25,
+      repeat:Infinity,
+      ease:"linear"
+    }}
+
+    className="
+      absolute
+      -left-48
+      top-20
+      h-[600px]
+      w-[600px]
+      rounded-full
+      bg-cyan-500/10
+      blur-[160px]
+    "
+
+  />
+
+
+
+  {/* Moving Blue Atmosphere */}
+
+  <motion.div
+
+    animate={{
+      x:[
+        100,
+        -80,
+        100
+      ],
+
+      y:[
+        80,
+        -40,
+        80
+      ],
+    }}
+
+    transition={{
+      duration:30,
+      repeat:Infinity,
+      ease:"linear"
+    }}
+
+    className="
+      absolute
+      right-[-200px]
+      bottom-[-150px]
+      h-[700px]
+      w-[700px]
+      rounded-full
+      bg-blue-600/10
+      blur-[180px]
+    "
+
+  />
+
+
+
+  {/* Dotted Grid */}
+
+  <div
+    className="
+      absolute
+      inset-0
+      opacity-[0.08]
+      bg-[radial-gradient(#94a3b8_1px,transparent_1px)]
+      [background-size:32px_32px]
+    "
+  />
+
+
+
+  {/* Top Fade */}
+
+  <div
+    className="
+      absolute
+      inset-x-0
+      top-0
+      h-40
+      bg-gradient-to-b
+      from-cyan-500/10
+      to-transparent
+    "
+  />
+
+
+</div>
+
+
+
+      {/* ================= CONTENT ================= */}
+
+
+      <main
+        className="
+          relative
+          z-10
+          mx-auto
+          max-w-7xl
+          px-6
+          py-20
+        "
+      >
+
+
+        {/* ================= HERO ================= */}
+
+
+        <motion.section
+
+          initial={{
+            opacity:0,
+            y:35
+          }}
+
+          animate={{
+            opacity:1,
+            y:0
+          }}
+
+          transition={{
+            duration:.7
+          }}
+
           className="text-center"
+
         >
 
-          <div className="inline-flex px-5 py-2 rounded-full border border-cyan-500/30 bg-cyan-500/10">
 
-            <span className="text-cyan-300 font-semibold">
-              Explore Every Learning Category
+          <div
+            className="
+              inline-flex
+              items-center
+              gap-3
+              rounded-full
+              border
+              border-cyan-500/30
+              bg-cyan-500/10
+              px-6
+              py-2
+            "
+          >
+
+            <span
+              className="
+                font-semibold
+                text-cyan-300
+              "
+            >
+              Explore Every Learning Path
             </span>
+
 
           </div>
 
-          <h1 className="mt-8 text-6xl font-black leading-tight">
 
-            Choose Your
+
+          <h1
+            className="
+              mt-8
+              text-5xl
+              font-black
+              lg:text-7xl
+            "
+          >
+
+            Learn Without
 
             <span className="text-cyan-400">
-              {" "}Learning Path
+              {" "}Limits
             </span>
+
 
           </h1>
 
-          <p className="mt-6 max-w-3xl mx-auto text-slate-400 text-lg leading-8">
 
-            Every category contains multiple subjects,
-            professional courses,
-            certificates,
-            AI Tutor,
-            practical projects
-            and interactive labs.
+
+          <p
+            className="
+              mx-auto
+              mt-8
+              max-w-3xl
+              text-lg
+              leading-9
+              text-slate-400
+            "
+          >
+
+            Browse thousands of courses,
+            AI tutoring, virtual laboratories,
+            projects and certificates.
 
           </p>
 
-        </motion.div>
 
-        <div className="grid lg:grid-cols-3 gap-8 mt-20">
-            {categories.map((category, index) => {
-
-  const Icon = category.icon;
-
-  return (
-
-    <motion.div
-      key={category.id}
-      initial={{
-        opacity: 0,
-        y: 40,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      transition={{
-        duration: .45,
-        delay: index * .08,
-      }}
-      whileHover={{
-        y: -12,
-        scale: 1.02,
-      }}
-      whileTap={{
-        scale: .98,
-      }}
-      onClick={() =>
-        navigate(`/courses/${category.id}`)
-      }
-      className="group cursor-pointer relative overflow-hidden rounded-[34px] border border-slate-800 bg-slate-900/70 backdrop-blur-xl"
-    >
-
-      {/* Hover Gradient */}
-
-      <div
-        className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-700 bg-gradient-to-br ${category.gradient}`}
-      />
-
-      {/* Glow */}
-
-      <div
-        className={`absolute -right-24 -top-24 w-64 h-64 rounded-full blur-[120px] opacity-0 group-hover:opacity-100 transition duration-700 ${category.glow}`}
-      />
-
-      {/* Content */}
-
-      <div className="relative z-10 p-9">
+        </motion.section>
+                {/* ================= SEARCH ================= */}
 
         <div
-          className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${category.gradient} flex items-center justify-center shadow-2xl`}
+          className="
+            mx-auto
+            mt-14
+            max-w-4xl
+            flex
+            overflow-hidden
+            rounded-3xl
+            border
+            border-slate-700
+            bg-slate-900/70
+            backdrop-blur-xl
+          "
         >
 
-          <Icon
-            size={36}
-            className="text-white"
-          />
+          <div className="flex items-center px-6">
 
-        </div>
-
-        <div className="mt-8">
-
-          <h2 className="text-3xl font-black">
-
-            {category.title}
-
-          </h2>
-
-          <p className="mt-4 text-slate-300 leading-7">
-
-            {category.subtitle}
-
-          </p>
-
-        </div>
-
-        <div className="mt-8 inline-flex rounded-full border border-cyan-500/30 bg-cyan-500/10 px-5 py-2">
-
-          <span className="text-cyan-300 font-semibold">
-
-            {category.courses}
-
-          </span>
-
-        </div>
-
-        <div className="mt-10 flex items-center justify-between">
-
-          <span className="font-semibold text-cyan-300">
-
-            Browse Subjects
-
-          </span>
-
-          <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
-
-            <ArrowRight
-              size={20}
-              className="group-hover:translate-x-1 transition"
+            <input
+              value={search}
+              onChange={(e)=>setSearch(e.target.value)}
+              placeholder="
+                Search categories, subjects or courses...
+              "
+              className="
+                flex-1
+                bg-transparent
+                py-6
+                text-lg
+                outline-none
+                placeholder:text-slate-500
+              "
             />
 
           </div>
 
+
         </div>
 
-      </div>
 
-    </motion.div>
 
-  );
 
-})}
-        </div>
+        {/* ================= STATS ================= */}
+
+
+        <CategoryStats />
+
+
+
+
+        {/* ================= CATEGORY GRID ================= */}
+
+
+        <CategoryGrid
+          categories={filteredCategories}
+          navigate={navigate}
+        />
+
+
+
+
+        {/* ================= WHY SCHOLIQEN ================= */}
+
+
+        <WhyScholiqen />
+
+
+
 
         {/* ================= CTA ================= */}
 
-        <motion.div
-          initial={{
-            opacity: 0,
-            y: 40,
-          }}
-          whileInView={{
-            opacity: 1,
-            y: 0,
-          }}
-          viewport={{
-            once: true,
-          }}
-          transition={{
-            duration: 0.6,
-          }}
-          className="mt-24 overflow-hidden rounded-[36px] border border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 p-12"
-        >
 
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-10">
+        <CategoryCTA
+          navigate={navigate}
+        />
 
-            <div>
 
-              <h2 className="text-4xl lg:text-5xl font-black">
+      </main>
 
-                Unlimited Learning Starts Here
-
-              </h2>
-
-              <p className="mt-6 max-w-2xl text-slate-300 leading-8">
-
-                Explore thousands of professional courses,
-                interactive virtual laboratories,
-                AI-powered tutoring,
-                quizzes,
-                downloadable resources,
-                real-world projects,
-                and internationally recognized certificates.
-
-              </p>
-
-            </div>
-
-            <button
-              onClick={() => navigate("/courses")}
-              className="rounded-2xl bg-cyan-500 px-10 py-5 text-lg font-bold text-slate-950 transition hover:bg-cyan-400"
-            >
-
-              Back to Courses
-
-            </button>
-
-          </div>
-
-        </motion.div>
-
-      </div>
 
     </div>
 

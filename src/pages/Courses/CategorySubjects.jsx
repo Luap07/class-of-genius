@@ -27,7 +27,7 @@ import {
 ========================================== */
 
 const SUBJECTS = {
-  Science: [
+  science: [
     {
       id: "physics",
       title: "Physics",
@@ -58,7 +58,7 @@ const SUBJECTS = {
     },
   ],
 
-  Technology: [
+  technology: [
     {
       id: "computer-science",
       title: "Computer Science",
@@ -89,7 +89,7 @@ const SUBJECTS = {
     },
   ],
 
-  Business: [
+  business: [
     {
       id: "accounting",
       title: "Accounting",
@@ -99,7 +99,7 @@ const SUBJECTS = {
     },
   ],
 
-  Arts: [
+  arts: [
     {
       id: "fine-art",
       title: "Fine Art",
@@ -109,7 +109,7 @@ const SUBJECTS = {
     },
   ],
 
-  Geography: [
+  geography: [
     {
       id: "geography",
       title: "Geography",
@@ -119,7 +119,7 @@ const SUBJECTS = {
     },
   ],
 
-  Health: [
+  health: [
     {
       id: "anatomy",
       title: "Anatomy",
@@ -129,7 +129,7 @@ const SUBJECTS = {
     },
   ],
 
-  University: [
+  university: [
     {
       id: "engineering",
       title: "Engineering",
@@ -221,7 +221,7 @@ export default function CategorySubjects() {
         >
 
           <button
-            onClick={() => navigate("/courses")}
+            onClick={() => navigate("/subjects")}
             className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 transition"
           >
             <ArrowLeft size={18} />

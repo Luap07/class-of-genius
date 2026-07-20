@@ -24,8 +24,7 @@ const ExploreHub = ({ courses = [], search = "" }) => {
   icon: BookOpen,
   color: "from-cyan-500 to-blue-600",
   action: () => navigate("/subjects"),
-},
-{
+},{
       title: "AI Tutor",
       description:
         "Learn with your personal AI tutor whenever you're stuck.",

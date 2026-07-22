@@ -4,11 +4,13 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import AdminLayout from "./AdminLayout";
 import AdminDashboard from "./AdminDashboard";
 
+/* ================= Newsletter ================= */
+import NewsletterAdmin from "../pages/admin/NewsletterAdmin";
+        
 /* ================= LMS ================= */
 import CoursesAdmin from "../pages/admin/lms/CoursesAdmin";
 import CreateCourse from "../pages/admin/lms/CreateCourse";
 import EditCourse from "../pages/admin/lms/EditCourse";
-import CourseCategories from "../pages/admin/lms/CourseCategories";
 import LearningPathsAdmin from "../pages/admin/lms/LearningPathsAdmin";
 import QuizzesAdmin from "../pages/admin/lms/QuizzesAdmin";
 import CertificatesAdmin from "../pages/admin/lms/CertificatesAdmin";
@@ -36,6 +38,7 @@ import QuestionsAdmin from "../pages/admin/cbt/QuestionsAdmin";
 import ExamsAdmin from "../pages/admin/cbt/ExamsAdmin";
 import ResultsAdmin from "../pages/admin/cbt/ResultsAdmin";
 import AnalyticsAdmin from "../pages/admin/cbt/AnalyticsAdmin";
+import CourseCategories from "../pages/admin/lms/CourseCategories";
 
 /* ================= NOVELS ================= */
 import NovelsDashboard from "../pages/admin/novels/NovelsDashboard";
@@ -116,6 +119,7 @@ const AdminRoutes = () => {
         <Route path="lms/topic/:topicId/resources" element={<ResourcesAdmin />} />
         <Route path="lms/topic/:topicId/resources/create" element={<CreateResource />} />
         <Route path="lms/topic/:topicId/resources/edit/:resourceId" element={<EditResource />} />
+        <Route path="lms/categories" element={<CourseCategories />}/>
 
        {/* ================= WEEKLY TASKS ================= */}
 
@@ -179,6 +183,8 @@ const AdminRoutes = () => {
         <Route path="novels/chapters" element={<ChaptersAdmin />} />
         <Route path="novels/reviews" element={<NovelReviews />} />
 
+            {/* Newsletter */}
+        <Route path="newsletter" element={<NewsletterAdmin />}/>
         {/* Users */}
         <Route path="users" element={<UsersDashboard />} />
         <Route path="users/students" element={<Students />} />

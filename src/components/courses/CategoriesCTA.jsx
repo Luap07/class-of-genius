@@ -1,38 +1,29 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-
-export default function CategoryCTA({
-  navigate,
-}) {
+export default function CategoryCTA({ scrollToCategories }) {
+  const navigate = useNavigate();
 
   return (
-
     <motion.section
-
       initial={{
-        opacity:0,
-        y:40,
+        opacity: 0,
+        y: 40,
       }}
-
       whileInView={{
-        opacity:1,
-        y:0,
+        opacity: 1,
+        y: 0,
       }}
-
       viewport={{
-        once:true,
+        once: true,
       }}
-
       transition={{
-        duration:0.7,
+        duration: 0.7,
       }}
-
       className="mt-28"
-
     >
-
       <div
         className="
           relative
@@ -47,9 +38,7 @@ export default function CategoryCTA({
           p-14
         "
       >
-
         {/* Background Glow */}
-
         <div
           className="
             absolute
@@ -62,7 +51,6 @@ export default function CategoryCTA({
             blur-[140px]
           "
         />
-
 
         <div
           className="
@@ -77,8 +65,6 @@ export default function CategoryCTA({
           "
         />
 
-
-
         <div
           className="
             relative
@@ -89,13 +75,7 @@ export default function CategoryCTA({
             text-center
           "
         >
-
-
-          <Sparkles
-            size={48}
-            className="text-cyan-400"
-          />
-
+          <Sparkles size={48} className="text-cyan-400" />
 
           <h2
             className="
@@ -104,11 +84,8 @@ export default function CategoryCTA({
               font-black
             "
           >
-
             Start Learning Today
-
           </h2>
-
 
           <p
             className="
@@ -119,15 +96,11 @@ export default function CategoryCTA({
               text-slate-300
             "
           >
-
             Discover professional courses,
-            AI-powered tutoring, interactive
-            virtual laboratories, quizzes,
-            projects and certificates.
-
+            AI-powered tutoring,
+            interactive virtual laboratories,
+            quizzes, projects and certificates.
           </p>
-
-
 
           <div
             className="
@@ -138,14 +111,9 @@ export default function CategoryCTA({
               gap-6
             "
           >
-
-
+            {/* Browse Courses */}
             <button
-
-              onClick={() =>
-                navigate("/courses")
-              }
-
+              onClick={scrollToCategories}
               className="
                 rounded-2xl
                 bg-cyan-500
@@ -156,21 +124,13 @@ export default function CategoryCTA({
                 transition
                 hover:bg-cyan-400
               "
-
             >
-
               Browse Courses
-
             </button>
 
-
-
+            {/* AI Tutor */}
             <button
-
-              onClick={() =>
-                navigate("/ai-tutor")
-              }
-
+              onClick={() => navigate("/ai-tutor")}
               className="
                 rounded-2xl
                 border
@@ -183,25 +143,12 @@ export default function CategoryCTA({
                 transition
                 hover:border-cyan-400
               "
-
             >
-
               AI Tutor
-
             </button>
-
-
           </div>
-
-
         </div>
-
-
       </div>
-
-
     </motion.section>
-
   );
-
 }

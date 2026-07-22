@@ -1,4 +1,10 @@
-import React, { useEffect, useState } from "react";
+// src/pages/admin/courses/CreateCourse.jsx
+
+import React, {
+  useEffect,
+  useState,
+} from "react";
+
 import {
   Upload,
   Save,
@@ -6,406 +12,2248 @@ import {
   Loader2,
   Image as ImageIcon,
   GraduationCap,
-  Award,
-  Sparkles,
   Target,
+  Sparkles,
   Briefcase,
 } from "lucide-react";
-import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../../../lib/supabaseClient";
+
+import {
+  motion,
+} from "framer-motion";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  supabase,
+} from "../../../lib/supabaseClient";
+
 
 const CreateCourse = () => {
+
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
-  const [thumbnail, setThumbnail] = useState(null);
-  const [preview, setPreview] = useState("");
-  const [categories, setCategories] = useState([]);
 
-  const [course, setCourse] = useState({
-    title: "",
-    video_type:"youtube",
-    video_file:null,
-    video_duration:"",
-    subtitle: "",
-    slug: "",
-    description: "",
-    category_id: "",
-    instructor: "",
-    level: "Beginner",
-    language: "English",
-    duration: "",
-    lessons_count: 0,
-    price: 0,
-    certificate: true,
-    featured: false,
-    status: "Draft",
-    requirements: "",
-    learning_outcomes: "",
-    target_audience: "",
-    skills: "",
-    tags: "",
-    seo_title: "",
-    seo_description: "",
-    academic_level: "",
-    course_type: "",
-    difficulty: "Easy",
-    study_time: "",
-    career_paths: "",
-    job_roles: "",
-    average_salary: "",
-    experience_required: "",
-    companies: "",
-    remote_friendly: false,
-    internship_available: false,
-      });
+  const [loading,setLoading] = useState(false);
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  const [uploading,setUploading] = useState(false);
 
-  const loadCategories = async () => {
-    const { data, error } = await supabase
-      .from("course_categories")
-      .select("*")
-      .order("name");
+  const [error,setError] = useState("");
 
-    if (!error) {
-      setCategories(data || []);
-    }
-  };
+  const [success,setSuccess] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value, checked, type } = e.target;
-    setCourse((prev) => {
-      const updated = {
-        ...prev,
-        [name]: type === "checkbox" ? checked : value,
-      };
-      if (name === "title") {
-        updated.slug = value
-          .toLowerCase()
-          .replace(/[^a-z0-9 ]/g, "")
-          .replace(/\s+/g, "-");
-      }
-      return updated;
-    });
-  };
 
-  const handleImage = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setThumbnail(file);
-    setPreview(URL.createObjectURL(file));
-  };
+  const [categories,setCategories] = useState([]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+  const [subjects,setSubjects] = useState([]);
 
-    try {
-      let thumbnailUrl = "";
-      if (thumbnail) {
-        setUploading(true);
-        const fileName = `${Date.now()}-${thumbnail.name}`;
-        const { error: uploadError } = await supabase
-          .storage
-          .from("course-thumbnails")
-          .upload(fileName, thumbnail);
 
-        if (uploadError) throw uploadError;
+  const [thumbnail,setThumbnail] = useState(null);
 
-        const { data: imageData } = supabase
-          .storage
-          .from("course-thumbnails")
-          .getPublicUrl(fileName);
+  const [preview,setPreview] = useState("");
 
-        thumbnailUrl = imageData.publicUrl;
-        setUploading(false);
-      }
 
-     const { error: insertError } = await supabase
-  .from("courses")
-  .insert([
-    {
-      title: course.title,
-      slug: course.slug,
-      description: course.description,
 
-      thumbnail: thumbnailUrl,
-      thumbnail_url: thumbnailUrl,
+  const [course,setCourse] = useState({
 
-      category_id: course.category_id,
+    title:"",
 
-      instructor: course.instructor,
-      level: course.level,
-      language: course.language,
+    slug:"",
 
-      duration: course.duration,
-      lessons_count: Number(course.lessons_count),
+    description:"",
 
-      price: Number(course.price),
 
-      certificate: course.certificate,
-      featured: course.featured,
+    category_id:"",
 
-      status: course.status,
+    subject_id:"",
 
-      requirements: course.requirements,
-      learning_outcomes: course.learning_outcomes,
 
-      students: 0,
-      rating: 0
-    }
-  ]);
-      if (insertError) throw insertError;
-     setSuccess(true);
+    instructor:"",
 
-console.log("COURSE SAVED:", course);
 
-alert("Course saved successfully");
-    } catch (err) {
-      console.log(err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    level:"Beginner",
 
-  return (
-    <form onSubmit={handleSubmit}>
-      <div className="space-y-8 text-white">
-        {/* ================= Course Details ================= */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="rounded-[30px] border border-slate-800 bg-slate-900/70 p-8 backdrop-blur-xl">
-          <div className="mb-8 flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-400"><GraduationCap size={28} /></div>
-            <div>
-              <h2 className="text-2xl font-bold">Course Details</h2>
-              <p className="mt-1 text-slate-400">Configure course information and classification.</p>
-            </div>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Course Title</label>
-              <input name="title" value={course.title} onChange={handleChange} placeholder="Complete React Developer Course" className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4 outline-none focus:border-cyan-400" />
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Subtitle</label>
-              <input name="subtitle" value={course.subtitle} onChange={handleChange} placeholder="Build modern applications" className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4 outline-none focus:border-cyan-400" />
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Category</label>
-              <select name="category_id" value={course.category_id} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
-                <option value="">Select Category</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Instructor</label>
-              <input name="instructor" value={course.instructor} onChange={handleChange} placeholder="John Doe" className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Level</label>
-              <select name="level" value={course.level} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
-                <option>Beginner</option>
-                <option>Intermediate</option>
-                <option>Advanced</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Language</label>
-              <input name="language" value={course.language} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Duration</label>
-              <input name="duration" value={course.duration} onChange={handleChange} placeholder="20 Hours" className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Number of Lessons</label>
-              <input type="number" name="lessons_count" value={course.lessons_count} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
-            </div>
-          </div>
-        </motion.div>
+    language:"English",
 
-        {/* ================= Academic Classification ================= */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-[30px] border border-slate-800 bg-slate-900/70 p-8 backdrop-blur-xl">
-          <div className="mb-8 flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-400"><Target size={28} /></div>
-            <div>
-              <h2 className="text-2xl font-bold">Academic Classification</h2>
-              <p className="mt-1 text-slate-400">Define educational level and course type.</p>
-            </div>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Academic Level</label>
-              <select name="academic_level" value={course.academic_level} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
-                <option value="">None</option>
-                <option>Primary</option>
-                <option>JSS 1</option>
-                <option>JSS 2</option>
-                <option>JSS 3</option>
-                <option>SS 1</option>
-                <option>SS 2</option>
-                <option>SS 3</option>
-                <option>University</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Course Type</label>
-              <select name="course_type" value={course.course_type} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
-                <option>Academic</option>
-                <option>Professional</option>
-                <option>Certification</option>
-                <option>Bootcamp</option>
-                <option>Workshop</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Difficulty</label>
-              <select name="difficulty" value={course.difficulty} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
-                <option>Easy</option>
-                <option>Moderate</option>
-                <option>Hard</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Weekly Study Time</label>
-              <input name="study_time" value={course.study_time} onChange={handleChange} placeholder="5 Hours / Week" className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
-            </div>
-          </div>
-        </motion.div>
 
-        {/* ================= Skills & Technologies ================= */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-[30px] border border-slate-800 bg-slate-900/70 p-8 backdrop-blur-xl">
-          <div className="mb-8 flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-400"><Sparkles size={28} /></div>
-            <div>
-              <h2 className="text-2xl font-bold">Skills & Technologies</h2>
-              <p className="mt-1 text-slate-400">Technologies covered in this course.</p>
-            </div>
-          </div>
-          <div className="space-y-6">
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Skills</label>
-              <textarea rows="6" name="skills" value={course.skills} onChange={handleChange} placeholder={`React\nJavaScript\nNode.js\nPython\nAWS`} className="w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4 outline-none focus:border-cyan-400" />
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Career Paths</label>
-              <input name="career_paths" value={course.career_paths} onChange={handleChange} placeholder="Frontend Developer, Cloud Engineer" className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
-            </div>
-          </div>
-        </motion.div>
+    duration:"",
 
-        
-        {/* ================= Career Opportunities ================= */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="rounded-[30px] border border-slate-800 bg-slate-900/70 p-8 backdrop-blur-xl">
-          <div className="mb-8 flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400"><Briefcase size={28} /></div>
-            <div>
-              <h2 className="text-2xl font-bold">Career Opportunities</h2>
-              <p className="mt-1 text-slate-400">Show learners future career options.</p>
-            </div>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label className="mb-3 block text-sm font-semibold">Job Roles</label>
-              <textarea rows="4" name="job_roles" value={course.job_roles} onChange={handleChange} placeholder={`Frontend Developer\nBackend Developer\nFull Stack Developer`} className="w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Average Salary</label>
-              <input name="average_salary" value={course.average_salary} onChange={handleChange} placeholder="$60,000 - $120,000" className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
-            </div>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Experience Required</label>
-              <select name="experience_required" value={course.experience_required} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
-                <option>No Experience</option>
-                <option>0-1 Years</option>
-                <option>1-3 Years</option>
-                <option>3-5 Years</option>
-                <option>5+ Years</option>
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-3 block text-sm font-semibold">Hiring Companies</label>
-              <input name="companies" value={course.companies} onChange={handleChange} placeholder="Google, Microsoft, Flutterwave" className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4" />
-            </div>
-          </div>
-        </motion.div>
+    lessons_count:0,
 
-      
-        {/* ================= Course Settings ================= */}
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="rounded-[30px] border border-slate-800 bg-slate-900/70 p-8 backdrop-blur-xl">
-          <div className="mb-6 flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-400"><Sparkles size={24} /></div>
-            <div>
-              <h3 className="text-xl font-bold">Course Settings</h3>
-              <p className="text-sm text-slate-400">Publishing options</p>
-            </div>
-          </div>
-          <div className="space-y-6">
-            <label className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 px-5 py-4">
-              <span>Featured Course</span>
-              <input type="checkbox" name="featured" checked={course.featured} onChange={handleChange} className="h-5 w-5" />
-            </label>
-            <label className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 px-5 py-4">
-              <span>Remote Friendly</span>
-              <input type="checkbox" name="remote_friendly" checked={course.remote_friendly} onChange={handleChange} className="h-5 w-5" />
-            </label>
-            <label className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 px-5 py-4">
-              <span>Internship Available</span>
-              <input type="checkbox" name="internship_available" checked={course.internship_available} onChange={handleChange} className="h-5 w-5" />
-            </label>
-            <div>
-              <label className="mb-3 block text-sm font-semibold">Status</label>
-              <select name="status" value={course.status} onChange={handleChange} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-5 py-4">
-                <option>Draft</option>
-                <option>Published</option>
-              </select>
-            </div>
-          </div>
-        </motion.div>
 
-        {/* ================= Thumbnail Upload ================= */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-[30px] border border-slate-800 bg-slate-900/70 p-8 backdrop-blur-xl">
-          <div className="mb-6 flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-400"><ImageIcon size={28} /></div>
-            <div>
-              <h2 className="text-2xl font-bold">Thumbnail</h2>
-              <p className="text-slate-400">Course cover image</p>
-            </div>
-          </div>
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-slate-700 bg-slate-950 p-10 hover:border-cyan-400">
-            <Upload size={35} />
-            <p className="mt-3">Upload Image</p>
-            <input type="file" accept="image/*" hidden onChange={handleImage} />
-          </label>
-          {preview && (
-            <img src={preview} alt="preview" className="mt-6 h-64 w-full rounded-3xl object-cover" />
-          )}
-        </motion.div>
+    price:0,
 
-        {/* ================= Submit ================= */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4 rounded-[30px] border border-slate-800 bg-slate-900/70 p-8 md:flex-row md:justify-between">
-          <button type="button" onClick={() => navigate(-1)} className="flex items-center justify-center gap-3 rounded-2xl border border-slate-700 px-8 py-4 font-semibold hover:bg-slate-800">
-            <ArrowLeft />
+
+    certificate:true,
+
+    featured:false,
+
+
+    status:"Draft",
+
+
+    requirements:"",
+
+    learning_outcomes:"",
+
+
+    skills:"",
+
+    career_paths:"",
+
+
+    job_roles:"",
+
+
+    average_salary:"",
+
+
+    experience_required:"",
+
+
+    companies:"",
+
+
+    remote_friendly:false,
+
+    internship_available:false,
+
+  });
+
+
+
+/* =====================================
+   LOAD CATEGORY + SUBJECT
+===================================== */
+
+
+useEffect(()=>{
+
+  loadCategories();
+
+  loadSubjects();
+
+},[]);
+
+
+
+
+const loadCategories = async()=>{
+
+
+  const {
+
+    data,
+
+    error
+
+  } = await supabase
+
+  .from("course_categories")
+
+  .select("*")
+
+  .order("name");
+
+
+  if(!error){
+
+    setCategories(data || []);
+
+  }
+
+};
+
+
+
+
+
+const loadSubjects = async()=>{
+
+
+  const {
+
+    data,
+
+    error
+
+  } = await supabase
+
+  .from("subjects")
+
+  .select("*")
+
+  .order("name");
+
+
+
+  if(!error){
+
+    setSubjects(data || []);
+
+  }
+
+
+};
+
+
+
+
+
+/* =====================================
+   INPUT HANDLER
+===================================== */
+
+
+const handleChange = (e)=>{
+
+
+ const {
+
+ name,
+
+ value,
+
+ checked,
+
+ type
+
+
+ } = e.target;
+
+
+
+ setCourse(prev=>({
+
+
+   ...prev,
+
+
+   [name]:
+
+   type === "checkbox"
+
+   ? checked
+
+   : value
+
+
+
+ }));
+
+
+
+ if(name==="title"){
+
+
+ setCourse(prev=>({
+
+ ...prev,
+
+
+ slug:value
+
+ .toLowerCase()
+
+ .replace(/[^a-z0-9 ]/g,"")
+
+ .replace(/\s+/g,"-")
+
+
+ }));
+
+
+ }
+
+
+};
+
+
+
+
+
+/* =====================================
+   IMAGE
+===================================== */
+
+
+const handleImage=(e)=>{
+
+
+ const file=e.target.files[0];
+
+
+ if(!file)return;
+
+
+ setThumbnail(file);
+
+
+ setPreview(
+
+ URL.createObjectURL(file)
+
+ );
+
+
+};
+
+
+
+
+/* =====================================
+   UPLOAD IMAGE
+===================================== */
+
+
+const uploadThumbnail = async()=>{
+
+
+ if(!thumbnail)
+
+ return "";
+
+
+
+ setUploading(true);
+
+
+
+ const fileName =
+
+ `${Date.now()}-${thumbnail.name}`;
+
+
+
+ const {
+
+ error
+
+ } = await supabase
+
+ .storage
+
+ .from("course-thumbnails")
+
+ .upload(
+
+ fileName,
+
+ thumbnail
+
+ );
+
+
+
+ if(error){
+
+   throw error;
+
+ }
+
+
+
+ const {
+
+ data
+
+ } = supabase
+
+ .storage
+
+ .from("course-thumbnails")
+
+ .getPublicUrl(fileName);
+
+
+
+ setUploading(false);
+
+
+
+ return data.publicUrl;
+
+
+};
+/* =====================================
+   CREATE COURSE
+===================================== */
+
+
+const handleSubmit = async(e)=>{
+
+ e.preventDefault();
+
+
+ setLoading(true);
+
+ setError("");
+
+ setSuccess(false);
+
+
+
+ try{
+
+
+   const thumbnailUrl = await uploadThumbnail();
+
+
+
+   const {
+
+    error:insertError
+
+   } = await supabase
+
+   .from("courses")
+
+   .insert([
+
+   {
+
+
+    title:course.title,
+
+
+    slug:course.slug,
+
+
+    description:course.description,
+
+
+
+    thumbnail:
+
+    thumbnailUrl,
+
+
+
+    thumbnail_url:
+
+    thumbnailUrl,
+
+
+
+    category_id:
+
+    course.category_id,
+
+
+
+    subject_id:
+
+    course.subject_id,
+
+
+
+    instructor:
+
+    course.instructor,
+
+
+
+    level:
+
+    course.level,
+
+
+
+    language:
+
+    course.language,
+
+
+
+    duration:
+
+    course.duration,
+
+
+
+    lessons_count:
+
+    Number(course.lessons_count),
+
+
+
+    price:
+
+    Number(course.price),
+
+
+
+    certificate:
+
+    course.certificate,
+
+
+
+    featured:
+
+    course.featured,
+
+
+
+    status:
+
+    course.status,
+
+
+
+    requirements:
+
+    course.requirements,
+
+
+
+    learning_outcomes:
+
+    course.learning_outcomes,
+
+
+
+    skills:
+
+    course.skills,
+
+
+
+    career_paths:
+
+    course.career_paths,
+
+
+
+    job_roles:
+
+    course.job_roles,
+
+
+
+    average_salary:
+
+    course.average_salary,
+
+
+
+    experience_required:
+
+    course.experience_required,
+
+
+
+    companies:
+
+    course.companies,
+
+
+
+    remote_friendly:
+
+    course.remote_friendly,
+
+
+
+    internship_available:
+
+    course.internship_available,
+
+
+
+    students:0,
+
+
+    rating:0,
+
+
+   }
+
+
+   ]);
+
+
+
+
+
+   if(insertError)
+
+   throw insertError;
+
+
+
+   setSuccess(true);
+
+
+
+   alert(
+
+   "Course created successfully"
+
+   );
+
+
+
+   navigate("/admin/lms/courses");
+
+
+
+ }
+
+
+ catch(err){
+
+
+ console.error(
+
+ "CREATE COURSE ERROR:",
+
+ err
+
+ );
+
+
+ setError(
+
+ err.message
+
+ );
+
+
+ }
+
+
+ finally{
+
+
+ setLoading(false);
+
+
+ }
+
+
+};
+
+
+
+
+
+return (
+
+<form
+
+onSubmit={handleSubmit}
+
+className="space-y-8 text-white"
+
+>
+
+
+{/* ===========================
+ COURSE DETAILS
+=========================== */}
+
+
+<motion.div
+
+initial={{
+
+opacity:0,
+
+y:20
+
+}}
+
+animate={{
+
+opacity:1,
+
+y:0
+
+}}
+
+className="rounded-[30px]
+
+border border-slate-800
+
+bg-slate-900/70
+
+p-8
+
+backdrop-blur-xl"
+
+>
+
+
+<div className="flex items-center gap-4 mb-8">
+
+
+<div className="h-14 w-14 rounded-2xl
+
+bg-violet-500/10
+
+text-violet-400
+
+flex items-center justify-center">
+
+
+<GraduationCap size={30}/>
+
+
+</div>
+
+
+
+<div>
+
+<h2 className="text-2xl font-bold">
+
+Course Details
+
+</h2>
+
+
+<p className="text-slate-400">
+
+Basic course information
+
+</p>
+
+
+</div>
+
+
+</div>
+
+
+
+
+<div className="grid md:grid-cols-2 gap-6">
+
+
+<div>
+
+<label className="block mb-3 text-sm">
+
+Course Title
+
+</label>
+
+
+<input
+
+name="title"
+
+value={course.title}
+
+onChange={handleChange}
+
+placeholder="Complete React Developer Bootcamp"
+
+className="w-full rounded-2xl
+
+bg-slate-950
+
+border border-slate-700
+
+px-5 py-4
+
+outline-none"
+
+/>
+
+
+</div>
+
+
+
+
+
+<div>
+
+
+<label className="block mb-3 text-sm">
+
+Category
+
+</label>
+
+
+
+<select
+
+name="category_id"
+
+value={course.category_id}
+
+onChange={handleChange}
+
+className="w-full rounded-2xl
+
+bg-slate-950
+
+border border-slate-700
+
+px-5 py-4"
+
+>
+
+
+<option value="">
+
+Select Category
+
+</option>
+
+
+
+{
+
+categories.map(cat=>(
+
+
+<option
+
+key={cat.id}
+
+value={cat.id}
+
+>
+
+{cat.name}
+
+</option>
+
+
+))
+
+}
+
+
+
+</select>
+
+
+</div>
+
+
+
+
+<div>
+
+
+<label className="block mb-3 text-sm">
+
+Subject
+
+</label>
+
+
+
+<select
+
+name="subject_id"
+
+value={course.subject_id}
+
+onChange={handleChange}
+
+className="w-full rounded-2xl
+
+bg-slate-950
+
+border border-slate-700
+
+px-5 py-4"
+
+>
+
+
+<option value="">
+
+Select Subject
+
+</option>
+
+
+
+{
+
+subjects.map(sub=>(
+
+
+<option
+
+key={sub.id}
+
+value={sub.id}
+
+>
+
+{sub.name}
+
+</option>
+
+
+))
+
+}
+
+
+
+</select>
+
+
+</div>
+
+
+
+
+
+<div>
+
+
+<label className="block mb-3 text-sm">
+
+Instructor
+
+</label>
+
+
+
+<input
+
+name="instructor"
+
+value={course.instructor}
+
+onChange={handleChange}
+
+placeholder="Instructor name"
+
+className="w-full rounded-2xl
+
+bg-slate-950
+
+border border-slate-700
+
+px-5 py-4"
+
+/>
+
+
+</div>
+
+
+</div>
+
+
+</motion.div>
+{/* ===========================
+ COURSE INFORMATION
+=========================== */}
+
+<motion.div
+
+initial={{
+opacity:0,
+y:20
+}}
+
+animate={{
+opacity:1,
+y:0
+}}
+
+className="
+rounded-[30px]
+border border-slate-800
+bg-slate-900/70
+p-8
+backdrop-blur-xl
+"
+
+>
+
+
+<div className="flex items-center gap-4 mb-8">
+
+
+<div className="
+h-14 w-14
+rounded-2xl
+bg-cyan-500/10
+text-cyan-400
+flex items-center justify-center
+">
+
+<Target size={30}/>
+
+</div>
+
+
+
+<div>
+
+<h2 className="text-2xl font-bold">
+
+Course Information
+
+</h2>
+
+
+<p className="text-slate-400">
+
+Learning details and difficulty
+
+</p>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+<div className="grid md:grid-cols-2 gap-6">
+
+
+
+<div>
+
+<label className="block mb-3 text-sm">
+
+Level
+
+</label>
+
+
+<select
+
+name="level"
+
+value={course.level}
+
+onChange={handleChange}
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+"
+
+>
+
+
+<option>
+
+Beginner
+
+</option>
+
+
+<option>
+
+Intermediate
+
+</option>
+
+
+<option>
+
+Advanced
+
+</option>
+
+
+</select>
+
+
+</div>
+
+
+
+
+
+<div>
+
+<label className="block mb-3 text-sm">
+
+Language
+
+</label>
+
+
+<input
+
+name="language"
+
+value={course.language}
+
+onChange={handleChange}
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+"
+
+/>
+
+
+</div>
+
+
+
+
+
+<div>
+
+<label className="block mb-3 text-sm">
+
+Duration
+
+</label>
+
+
+<input
+
+name="duration"
+
+value={course.duration}
+
+onChange={handleChange}
+
+placeholder="20 Hours"
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+"
+
+/>
+
+
+</div>
+
+
+
+
+
+<div>
+
+<label className="block mb-3 text-sm">
+
+Number Of Lessons
+
+</label>
+
+
+<input
+
+type="number"
+
+name="lessons_count"
+
+value={course.lessons_count}
+
+onChange={handleChange}
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+"
+
+/>
+
+
+</div>
+
+
+
+
+
+<div>
+
+<label className="block mb-3 text-sm">
+
+Price
+
+</label>
+
+
+<input
+
+type="number"
+
+name="price"
+
+value={course.price}
+
+onChange={handleChange}
+
+placeholder="0"
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+"
+
+/>
+
+
+</div>
+
+
+
+</div>
+
+
+</motion.div>
+
+
+
+
+
+{/* ===========================
+ SKILLS
+=========================== */}
+
+
+<motion.div
+
+initial={{
+opacity:0,
+y:20
+}}
+
+animate={{
+opacity:1,
+y:0
+}}
+
+className="
+rounded-[30px]
+border border-slate-800
+bg-slate-900/70
+p-8
+backdrop-blur-xl
+"
+
+>
+
+
+
+<div className="flex items-center gap-4 mb-8">
+
+
+<div className="
+h-14 w-14
+rounded-2xl
+bg-blue-500/10
+text-blue-400
+flex items-center justify-center
+">
+
+<Sparkles size={30}/>
+
+</div>
+
+
+
+<div>
+
+<h2 className="text-2xl font-bold">
+
+Skills & Outcomes
+
+</h2>
+
+
+<p className="text-slate-400">
+
+What students will learn
+
+</p>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+<div className="space-y-6">
+
+
+<div>
+
+<label className="block mb-3 text-sm">
+
+Skills
+
+</label>
+
+
+<textarea
+
+rows="5"
+
+name="skills"
+
+value={course.skills}
+
+onChange={handleChange}
+
+placeholder="
+React
+JavaScript
+Python
+Database
+"
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+resize-none
+"
+
+/>
+
+
+</div>
+
+
+
+
+
+<div>
+
+<label className="block mb-3 text-sm">
+
+Learning Outcomes
+
+</label>
+
+
+<textarea
+
+rows="5"
+
+name="learning_outcomes"
+
+value={course.learning_outcomes}
+
+onChange={handleChange}
+
+placeholder="
+Build real applications
+Understand programming concepts
+"
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+resize-none
+"
+
+/>
+
+
+</div>
+
+
+
+<div>
+
+<label className="block mb-3 text-sm">
+
+Requirements
+
+</label>
+
+
+<textarea
+
+rows="4"
+
+name="requirements"
+
+value={course.requirements}
+
+onChange={handleChange}
+
+placeholder="
+Basic computer knowledge
+"
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+resize-none
+"
+
+/>
+
+
+</div>
+
+
+
+</div>
+
+
+</motion.div>
+{/* ===========================
+ CAREER OPPORTUNITIES
+=========================== */}
+
+<motion.div
+
+initial={{
+opacity:0,
+y:20
+}}
+
+animate={{
+opacity:1,
+y:0
+}}
+
+className="
+rounded-[30px]
+border border-slate-800
+bg-slate-900/70
+p-8
+backdrop-blur-xl
+"
+
+>
+
+
+<div className="flex items-center gap-4 mb-8">
+
+
+<div className="
+h-14 w-14
+rounded-2xl
+bg-indigo-500/10
+text-indigo-400
+flex items-center justify-center
+">
+
+<Briefcase size={30}/>
+
+</div>
+
+
+
+<div>
+
+<h2 className="text-2xl font-bold">
+
+Career Opportunities
+
+</h2>
+
+
+<p className="text-slate-400">
+
+Help students understand career paths
+
+</p>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+<div className="grid md:grid-cols-2 gap-6">
+
+
+
+<div className="md:col-span-2">
+
+
+<label className="block mb-3 text-sm">
+
+Job Roles
+
+</label>
+
+
+<textarea
+
+rows="4"
+
+name="job_roles"
+
+value={course.job_roles}
+
+onChange={handleChange}
+
+placeholder="
+Frontend Developer
+Backend Developer
+Data Analyst
+"
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+resize-none
+"
+
+/>
+
+
+</div>
+
+
+
+
+
+<div>
+
+
+<label className="block mb-3 text-sm">
+
+Average Salary
+
+</label>
+
+
+<input
+
+name="average_salary"
+
+value={course.average_salary}
+
+onChange={handleChange}
+
+placeholder="$50,000 - $100,000"
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+"
+
+/>
+
+
+</div>
+
+
+
+
+
+<div>
+
+
+<label className="block mb-3 text-sm">
+
+Experience Required
+
+</label>
+
+
+<select
+
+name="experience_required"
+
+value={course.experience_required}
+
+onChange={handleChange}
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+"
+
+>
+
+
+<option>
+
+No Experience
+
+</option>
+
+
+<option>
+
+0-1 Years
+
+</option>
+
+
+<option>
+
+1-3 Years
+
+</option>
+
+
+<option>
+
+3+ Years
+
+</option>
+
+
+</select>
+
+
+</div>
+
+
+
+
+
+<div className="md:col-span-2">
+
+
+<label className="block mb-3 text-sm">
+
+Hiring Companies
+
+</label>
+
+
+<input
+
+name="companies"
+
+value={course.companies}
+
+onChange={handleChange}
+
+placeholder="
+Google, Microsoft, Meta
+"
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5 py-4
+"
+
+/>
+
+
+</div>
+
+
+
+</div>
+
+
+</motion.div>
+
+
+
+
+
+{/* ===========================
+ THUMBNAIL
+=========================== */}
+
+
+<motion.div
+
+initial={{
+opacity:0,
+y:20
+}}
+
+animate={{
+opacity:1,
+y:0
+}}
+
+className="
+rounded-[30px]
+border border-slate-800
+bg-slate-900/70
+p-8
+backdrop-blur-xl
+"
+
+>
+
+
+<div className="flex items-center gap-4 mb-8">
+
+
+<div className="
+h-14
+w-14
+rounded-2xl
+bg-orange-500/10
+text-orange-400
+flex items-center justify-center
+">
+
+<ImageIcon size={30}/>
+
+</div>
+
+
+
+<div>
+
+<h2 className="text-2xl font-bold">
+
+Course Thumbnail
+
+</h2>
+
+
+<p className="text-slate-400">
+
+Upload course cover image
+
+</p>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+<label
+
+className="
+flex
+cursor-pointer
+flex-col
+items-center
+justify-center
+rounded-3xl
+border
+border-dashed
+border-slate-700
+bg-slate-950
+p-12
+hover:border-cyan-400
+transition
+"
+
+>
+
+
+<Upload size={40}/>
+
+
+<p className="mt-4">
+
+Upload Image
+
+</p>
+
+
+<input
+
+type="file"
+
+accept="image/*"
+
+hidden
+
+onChange={handleImage}
+
+/>
+
+
+</label>
+
+
+
+
+
+{
+preview &&
+
+<img
+
+src={preview}
+
+alt="preview"
+
+className="
+mt-6
+h-64
+w-full
+rounded-3xl
+object-cover
+"
+
+/>
+
+}
+
+
+
+</motion.div>
+{/* ===========================
+ COURSE SETTINGS
+=========================== */}
+
+<motion.div
+
+initial={{
+opacity:0,
+y:20
+}}
+
+animate={{
+opacity:1,
+y:0
+}}
+
+className="
+rounded-[30px]
+border border-slate-800
+bg-slate-900/70
+p-8
+backdrop-blur-xl
+"
+
+>
+
+
+<div className="flex items-center gap-4 mb-8">
+
+
+<div className="
+h-14
+w-14
+rounded-2xl
+bg-violet-500/10
+text-violet-400
+flex
+items-center
+justify-center
+">
+
+<Sparkles size={30}/>
+
+</div>
+
+
+
+<div>
+
+<h2 className="text-2xl font-bold">
+
+Publishing Settings
+
+</h2>
+
+
+<p className="text-slate-400">
+
+Control course visibility
+
+</p>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+<div className="space-y-5">
+
+
+
+<label
+
+className="
+flex
+items-center
+justify-between
+rounded-2xl
+border
+border-slate-800
+bg-slate-950
+px-6
+py-5
+"
+
+>
+
+
+<span>
+
+Featured Course
+
+</span>
+
+
+<input
+
+type="checkbox"
+
+name="featured"
+
+checked={course.featured}
+
+onChange={handleChange}
+
+className="h-5 w-5"
+
+/>
+
+
+</label>
+
+
+
+
+
+<label
+
+className="
+flex
+items-center
+justify-between
+rounded-2xl
+border
+border-slate-800
+bg-slate-950
+px-6
+py-5
+"
+
+>
+
+
+<span>
+
+Certificate Available
+
+</span>
+
+
+<input
+
+type="checkbox"
+
+name="certificate"
+
+checked={course.certificate}
+
+onChange={handleChange}
+
+className="h-5 w-5"
+
+/>
+
+
+</label>
+
+
+
+
+
+<div>
+
+
+<label className="block mb-3 text-sm">
+
+Course Status
+
+</label>
+
+
+<select
+
+name="status"
+
+value={course.status}
+
+onChange={handleChange}
+
+className="
+w-full
+rounded-2xl
+bg-slate-950
+border border-slate-700
+px-5
+py-4
+"
+
+>
+
+
+<option value="Draft">
+
+Draft
+
+</option>
+
+
+<option value="Published">
+
+Published
+
+</option>
+
+
+</select>
+
+
+</div>
+
+
+
+</div>
+
+
+</motion.div>
+
+
+
+
+
+
+
+        {/* ===========================
+            ACTION BUTTONS
+        =========================== */}
+
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          className="
+            flex
+            flex-col
+            md:flex-row
+            gap-5
+            justify-between
+            rounded-[30px]
+            border
+            border-slate-800
+            bg-slate-900/70
+            p-8
+          "
+        >
+
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="
+              flex
+              items-center
+              justify-center
+              gap-3
+              rounded-2xl
+              border
+              border-slate-700
+              px-8
+              py-4
+              font-semibold
+            "
+          >
+            <ArrowLeft size={20}/>
             Cancel
           </button>
-          <button type="submit" disabled={loading} className="flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-10 py-4 font-bold">
-            {loading ? <Loader2 className="animate-spin" /> : <Save />}
-            {loading ? (uploading ? "Uploading..." : "Saving...") : "Create Course"}
+
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="
+              flex
+              items-center
+              justify-center
+              gap-3
+              rounded-2xl
+              bg-gradient-to-r
+              from-cyan-500
+              to-blue-600
+              px-10
+              py-4
+              font-bold
+              text-slate-950
+            "
+          >
+
+            {
+              loading
+              ?
+              <Loader2 className="animate-spin"/>
+              :
+              <Save/>
+            }
+
+            {
+              loading
+              ?
+              "Saving..."
+              :
+              "Create Course"
+            }
+
           </button>
+
+
         </motion.div>
-      </div>
+
+
+             {/* ===========================
+            ACTION BUTTONS
+        =========================== */}
+
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          className="
+            flex
+            flex-col
+            md:flex-row
+            gap-5
+            justify-between
+            rounded-[30px]
+            border
+            border-slate-800
+            bg-slate-900/70
+            p-8
+          "
+        >
+
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="
+              flex
+              items-center
+              justify-center
+              gap-3
+              rounded-2xl
+              border
+              border-slate-700
+              px-8
+              py-4
+              font-semibold
+            "
+          >
+            <ArrowLeft size={20}/>
+            Cancel
+          </button>
+
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="
+              flex
+              items-center
+              justify-center
+              gap-3
+              rounded-2xl
+              bg-gradient-to-r
+              from-cyan-500
+              to-blue-600
+              px-10
+              py-4
+              font-bold
+              text-slate-950
+            "
+          >
+
+            {
+              loading
+              ?
+              <Loader2 className="animate-spin"/>
+              :
+              <Save/>
+            }
+
+            {
+              loading
+              ?
+              "Saving..."
+              :
+              "Create Course"
+            }
+
+          </button>
+
+
+        </motion.div>
+
+
+
     </form>
   );
 };
+
 
 export default CreateCourse;

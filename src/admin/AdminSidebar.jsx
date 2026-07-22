@@ -10,6 +10,7 @@ import {
   BarChart3,
   Image,
   Settings,
+  Mail,
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
@@ -24,6 +25,10 @@ const menuItems = [
   { title: "Analytics", icon: BarChart3, path: "/admin/analytics" },
   { title: "Media", icon: Image, path: "/admin/media" },
   { title: "Settings", icon: Settings, path: "/admin/settings" },
+  { title: "Newsletter", icon: Mail, path: "/admin/newsletter",  },
+  { title: "Media", icon: Image, path: "/admin/media" },
+  { title: "Settings", icon: Settings, path: "/admin/settings" },
+
 ];
 
 const AdminSidebar = () => {

@@ -302,36 +302,26 @@ export default function DocumentsAdmin() {
       } =
         await supabase
           .from("documents")
-          .insert([
-            {
-              title: title.trim(),
+         .from("resources")
+.insert([
+{
+ title: title.trim(),
 
-              description:
-                description.trim(),
+ description: description.trim(),
 
-              category:
-                selectedCategory,
+ resource_type:
+ file.type.includes("pdf")
+ ? "pdf"
+ : "docx",
 
-              file_url:
-                publicUrl,
+ file_url: publicUrl,
 
-              file_name:
-                file.name,
+ topic_id:selectedTopic,
 
-              file_type:
-                file.type,
-
-              file_size:
-                file.size,
-            },
-          ]);
-
-
-
+}
+])
       if (databaseError)
         throw databaseError;
-
-
 
       // refresh list
 

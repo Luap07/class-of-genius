@@ -1,155 +1,281 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
-  FileText,
-  Bot,
-  FlaskConical,
   PlayCircle,
-  BookOpen,
-  Download,
+  Youtube,
+  Video,
   ArrowRight,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
 
 const StudyResources = ({
-  country,
-  grade,
-  subject,
-  topic,
+  resources = [],
 }) => {
+
   const navigate = useNavigate();
 
-  const resources = [
-    {
-      title: "Study Notes",
-      description: "Read comprehensive curriculum notes.",
-      icon: FileText,
-      color: "text-cyan-400",
-      action: () =>
-        navigate("notes"),
-    },
 
-    {
-      title: "AI Tutor",
-      description: "Ask questions and get instant explanations.",
-      icon: Bot,
-      color: "text-violet-400",
-      action: () =>
-        navigate("/ai-tutor"),
-    },
+  // ONLY SHOW VIDEOS
+  const videos = resources.filter(
+    (resource) =>
+      resource.resource_type === "video" ||
+      resource.resource_type === "youtube"
+  );
 
-    {
-      title: "Virtual Lab",
-      description: "Perform practical experiments.",
-      icon: FlaskConical,
-      color: "text-green-400",
-      action: () =>
-        navigate("/lab"),
-    },
-
-    {
-      title: "Video Lessons",
-      description: "Watch instructor-led lessons.",
-      icon: PlayCircle,
-      color: "text-red-400",
-      action: () =>
-        navigate("videos"),
-    },
-
-    {
-      title: "Recommended Books",
-      description: "Reference textbooks and materials.",
-      icon: BookOpen,
-      color: "text-amber-400",
-      action: () =>
-        navigate("books"),
-    },
-
-    {
-      title: "Downloads",
-      description: "PDFs, worksheets and resources.",
-      icon: Download,
-      color: "text-blue-400",
-      action: () =>
-        navigate("downloads"),
-    },
-  ];
 
   return (
+
     <section className="mt-12">
 
-      <div className="flex items-center justify-between mb-6">
 
-        <div>
+      <div className="mb-8">
 
-          <h2 className="text-3xl font-bold">
+        <h2 className="
+          text-3xl
+          font-black
+          text-white
+        ">
+          Video Resources
+        </h2>
 
-            Study Resources
 
-          </h2>
+        <p className="
+          mt-2
+          text-slate-400
+        ">
+          Watch lessons and explanations for this topic.
+        </p>
 
-          <p className="text-slate-400 mt-2">
-
-            Everything you need to master this topic.
-
-          </p>
-
-        </div>
 
       </div>
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
 
-        {resources.map((resource) => {
 
-          const Icon = resource.icon;
+      {
+        videos.length === 0 ?
 
-          return (
+        (
 
-            <button
-              key={resource.title}
-              onClick={resource.action}
-              className="text-left bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-cyan-500 transition-all duration-300 hover:-translate-y-1"
-            >
+          <div className="
+            rounded-3xl
+            border
+            border-slate-800
+            bg-slate-900
+            p-12
+            text-center
+          ">
 
-              <div className="flex justify-between items-start">
 
-                <div
-                  className={`w-14 h-14 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center ${resource.color}`}
+            <Video
+              size={50}
+              className="
+                mx-auto
+                text-slate-600
+              "
+            />
+
+
+            <h3 className="
+              mt-5
+              text-xl
+              font-bold
+              text-white
+            ">
+              No Videos Available
+            </h3>
+
+
+            <p className="
+              mt-2
+              text-slate-400
+            ">
+              Your instructor has not uploaded videos yet.
+            </p>
+
+
+          </div>
+
+        )
+
+        :
+
+        (
+
+          <div className="
+            grid
+            gap-6
+            md:grid-cols-2
+            xl:grid-cols-3
+          ">
+
+
+            {
+              videos.map((video)=>(
+
+
+                <motion.div
+
+                  key={video.id}
+
+                  whileHover={{
+                    y:-8
+                  }}
+
+                  className="
+                    overflow-hidden
+                    rounded-3xl
+                    border
+                    border-slate-800
+                    bg-slate-900
+                  "
+
                 >
 
-                  <Icon size={28} />
 
-                </div>
+                  {/* VIDEO PREVIEW */}
 
-                <ArrowRight
-                  size={20}
-                  className="text-slate-500"
-                />
+                  <div className="
+                    flex
+                    h-48
+                    items-center
+                    justify-center
+                    bg-slate-950
+                  ">
 
-              </div>
 
-              <h3 className="text-xl font-bold mt-6">
+                    {
+                      video.resource_type === "youtube"
 
-                {resource.title}
+                      ?
 
-              </h3>
+                      <Youtube
+                        size={60}
+                        className="
+                          text-red-500
+                        "
+                      />
 
-              <p className="text-slate-400 mt-3 leading-7">
+                      :
 
-                {resource.description}
+                      <PlayCircle
+                        size={60}
+                        className="
+                          text-cyan-400
+                        "
+                      />
 
-              </p>
+                    }
 
-            </button>
 
-          );
+                  </div>
 
-        })}
 
-      </div>
+
+
+                  <div className="p-6">
+
+
+                    <h3 className="
+                      text-xl
+                      font-bold
+                      text-white
+                    ">
+
+                      {video.title}
+
+                    </h3>
+
+
+
+                    <p className="
+                      mt-3
+                      text-sm
+                      leading-6
+                      text-slate-400
+                    ">
+
+                      {
+                        video.description ||
+                        "Video lesson"
+                      }
+
+                    </p>
+
+
+
+
+                    <button
+
+                      onClick={()=>{
+
+                        if(video.resource_type==="youtube")
+                        {
+
+                          window.open(
+                            video.file_url,
+                            "_blank"
+                          );
+
+                        }
+                        else
+                        {
+
+                          navigate(
+                            `/video/${video.id}`
+                          );
+
+                        }
+
+                      }}
+
+                      className="
+                        mt-6
+                        flex
+                        w-full
+                        items-center
+                        justify-center
+                        gap-2
+                        rounded-xl
+                        bg-cyan-500
+                        py-3
+                        font-bold
+                        text-slate-950
+                      "
+
+                    >
+
+                      Watch Video
+
+                      <ArrowRight size={18}/>
+
+
+                    </button>
+
+
+                  </div>
+
+
+
+                </motion.div>
+
+
+              ))
+            }
+
+
+          </div>
+
+        )
+
+      }
+
 
     </section>
+
   );
+
 };
+
 
 export default StudyResources;

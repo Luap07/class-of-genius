@@ -41,28 +41,33 @@ export default function ExploreCategories() {
 
   const [search, setSearch] = useState("");
 
-  const formattedCategories = useMemo(() => {
-    return categories.map((category) => {
-      const Icon = ICON_MAP[category.name] || GraduationCap;
+ const formattedCategories = useMemo(() => {
+  return categories.map((category) => {
+    const Icon = ICON_MAP[category.name] || GraduationCap;
 
-      const categoryCourses = courses.filter(
-        (course) => String(course.category_id) === String(category.id)
-      );
+    const categoryCourses = courses.filter(
+      (course) => String(course.category_id) === String(category.id)
+    );
 
-      return {
-        id: category.id,
-        title: category.name,
-        description: category.description || "Explore courses and learning paths.",
-        icon: Icon,
-        color: category.color || "from-cyan-500 to-blue-600",
-        courses: `${categoryCourses.length}+`,
-        students: "0+",
-        ai: true,
-        labs: false,
-        subjects: category.subject_area ? [category.subject_area] : [],
-      };
-    });
-  }, [categories, courses]);
+    return {
+      ...category,
+
+      icon: Icon,
+
+      totalCourses: categoryCourses.length,
+
+      totalStudents: categoryCourses.reduce(
+        (sum, course) => sum + (Number(course.students) || 0),
+        0
+      ),
+
+      totalLessons: categoryCourses.reduce(
+        (sum, course) => sum + (Number(course.lessons) || 0),
+        0
+      ),
+    };
+  });
+}, [categories, courses]);
 
   const filteredCategories = useMemo(() => {
     const keyword = search.trim().toLowerCase();

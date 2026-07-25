@@ -58,9 +58,15 @@ const CategoryCourses = () => {
     useMemo(() => {
       let list = courses.filter(
         (course) =>
-          String(course.categoryId) ===
+          String(course.category_id) ===
           String(categoryId)
       );
+
+      console.log("========== CATEGORY DEBUG ==========");
+      console.log("URL categoryId:", categoryId);
+      console.log("Matched Courses:", list.length);
+      console.table(list);
+      console.log("===================================");
 
       if (search.trim()) {
         const keyword =
@@ -153,13 +159,12 @@ const CategoryCourses = () => {
   if (loading) {
     return (
       <div className="flex h-[70vh] items-center justify-center">
-
         <div className="h-16 w-16 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
-
       </div>
     );
-  };
-    return (
+  }
+
+  return (
     <div className="min-h-screen bg-[#050B14] text-white">
 
       {/* ================= HERO ================= */}
@@ -368,10 +373,9 @@ const CategoryCourses = () => {
 
       </section>
 
-      {/* SEARCH + SORT SECTION STARTS NEXT */}
+      {/* ================= SEARCH + SORT ================= */}
 
       <div className="mx-auto max-w-7xl px-6 py-12">
-                {/* ================= SEARCH + SORT ================= */}
 
         <div className="mb-12 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
 
@@ -389,7 +393,7 @@ const CategoryCourses = () => {
               onChange={(e) =>
                 setSearch(e.target.value)
               }
-              placeholder={`Search ${category?.name} courses...`}
+              placeholder={`Search ${category?.name || ""} courses...`}
               className="
                 w-full
                 rounded-2xl
@@ -521,7 +525,7 @@ const CategoryCourses = () => {
 
               <h2 className="text-3xl font-black">
 
-                All {category?.name} Courses
+                All {category?.name || ""} Courses
 
               </h2>
 
@@ -576,7 +580,8 @@ const CategoryCourses = () => {
                 ))}
 
               </div>
-                            {/* Load More */}
+
+              {/* Load More */}
 
               {visible < categoryCourses.length && (
 

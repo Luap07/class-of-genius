@@ -13,11 +13,14 @@ import {
   Mail,
   ChevronUp,
   ChevronDown,
+  Video
 } from "lucide-react";
 
 const menuItems = [
   { title: "Dashboard", icon: LayoutDashboard, path: "/admin" },
   { title: "LMS", icon: GraduationCap, path: "/admin/lms" },
+  { title: "Documents", icon: FileText, path: "/admin/documents",},
+  { title: "Resources", icon: Video,path: "/admin/resources"},
   { title: "Virtual Labs", icon: FlaskConical, path: "/admin/labs" },
   { title: "CBT", icon: FileText, path: "/admin/cbt" },
   { title: "Novels", icon: BookOpen, path: "/admin/novels" },
@@ -28,7 +31,6 @@ const menuItems = [
   { title: "Newsletter", icon: Mail, path: "/admin/newsletter",  },
   { title: "Media", icon: Image, path: "/admin/media" },
   { title: "Settings", icon: Settings, path: "/admin/settings" },
-  { title: "Documents", icon: FileText, path: "/admin/documents",},
 ];
 
 const AdminSidebar = () => {

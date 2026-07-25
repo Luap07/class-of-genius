@@ -32,27 +32,27 @@ export const CourseProvider = ({ children }) => {
         .from("courses")
         .select(`
           *,
-  course_categories!courses_category_id_fkey(
-  id,
-  name,
- description
-),
+          course_categories!courses_category_id_fkey(
+            id,
+            name,
+            description
+          ),
           subjects(
             id,
             name
           ),
-         course_modules(
-  id,
-  title,
-  description,
-  course_lessons(
-    id,
-    title,
-    description,
-    video_url,
-    duration
-  )
-),
+          course_modules(
+            id,
+            title,
+            description,
+            course_lessons(
+              id,
+              title,
+              description,
+              video_url,
+              duration
+            )
+          ),
           course_quizzes(
             id,
             title,
@@ -64,17 +64,30 @@ export const CourseProvider = ({ children }) => {
             description,
             due_date
           ),
-          course_resources(
-            id,
-            title,
-            file_url,
-            
-          )
+         resources(
+ id,
+ title,
+ resource_type,
+ url,
+ file_url,
+ topic_id
+)
         `)
         .eq("status", "Published")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+
+      console.log("================================");
+      console.log("RAW COURSES FROM SUPABASE");
+      console.table(data);
+
+      const published = data?.filter((c) => c.status === "Published");
+
+      console.log("PUBLISHED:", published?.length);
+      console.log("FIRST COURSE:");
+      console.log(data?.[0]);
+      console.log("================================");
 
       const formattedCourses = (data || []).map((course) => ({
         id: course.id,
@@ -114,11 +127,14 @@ export const CourseProvider = ({ children }) => {
         
         quizzes: course.course_quizzes || [],
         weeklyTasks: course.weekly_tasks || [],
-        resources: course.course_resources || [],
+        resources: course.resources || [],
         requirements: course.requirements || "",
         learning_outcomes: course.learning_outcomes || "",
         createdAt: course.created_at,
       }));
+
+      console.log("FORMATTED COURSES");
+      console.table(formattedCourses);
 
       setCourses(formattedCourses);
       setFeaturedCourses(formattedCourses.filter((course) => course.featured));

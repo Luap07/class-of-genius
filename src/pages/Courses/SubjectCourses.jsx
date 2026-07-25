@@ -11,6 +11,7 @@ import SubjectHero from "../../components/subjectCourses/SubjectHero";
 import SubjectStats from "../../components/subjectCourses/SubjectStats";
 import SubjectCourseGrid from "../../components/subjectCourses/SubjectCourseGrid";
 import SubjectBottomCTA from "../../components/subjectCourses/SubjectBottomCTA";
+import SubjectDocuments from "../../components/subjectCourses/SubjectDocuments";
 
 export default function SubjectCourses() {
   const navigate = useNavigate();
@@ -21,9 +22,33 @@ export default function SubjectCourses() {
   } = useParams();
 
   const {
-    courses,
-    loading,
-  } = useCourses();
+  courses,
+  loading,
+} = useCourses();
+
+
+const categoryDocuments = useMemo(()=>{
+
+  const docs = [];
+
+  filteredCourses.forEach((course)=>{
+
+    if(course.documents){
+
+      docs.push(
+        ...course.documents
+      );
+
+    }
+
+  });
+
+
+  return docs;
+
+},[
+ filteredCourses
+]);
 
   const decodedCategory = decodeURIComponent(category || "")
     .toLowerCase()
@@ -105,11 +130,11 @@ export default function SubjectCourses() {
           }}
         >
           <SubjectHero
-            navigate={navigate}
-            category={decodedCategory}
-            subject={decodedSubject}
-            totalCourses={filteredCourses.length}
-          />
+  navigate={navigate}
+  categoryName={decodedCategory}
+  subjectName={decodedSubject}
+  totalCourses={filteredCourses.length}
+/>
         </motion.div>
 
         <motion.div
@@ -153,6 +178,9 @@ export default function SubjectCourses() {
             loading={loading}
             courses={filteredCourses}
           />
+          <SubjectDocuments
+ documents={categoryDocuments}
+/>
         </motion.div>
 
         <motion.div

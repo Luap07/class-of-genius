@@ -114,24 +114,18 @@ const AdminRoutes = () => {
         <Route path="lms/course/:courseId/topics" element={<TopicsAdmin />} />
         <Route path="lms/course/:courseId/topics/create" element={<CreateTopic />} />
         <Route path="lms/course/:courseId/topics/edit/:topicId" element={<EditTopic />} />
-      <Route path="lms/tasks/edit/:id" element={<EditWeeklyTask />}/>
+        <Route path="lms/tasks/edit/:id" element={<EditWeeklyTask />}/>
         {/* ================= RESOURCES ================= */}
         <Route path="lms/topic/:topicId/resources" element={<ResourcesAdmin />} />
         <Route path="lms/topic/:topicId/resources/create" element={<CreateResource />} />
         <Route path="lms/topic/:topicId/resources/edit/:resourceId" element={<EditResource />} />
         <Route path="lms/categories" element={<CourseCategories />}/>
-
+        <Route path="/resources" element={<ResourcesAdmin />}
+/>
        {/* ================= WEEKLY TASKS ================= */}
 
-<Route
-  path="lms/topic/:topicId/tasks"
-  element={<WeeklyTasksAdmin />}
-/>
-
-<Route
-  path="lms/topic/:topicId/tasks/create"
-  element={<CreateWeeklyTask />}
-/>
+      <Route path="lms/topic/:topicId/tasks" element={<WeeklyTasksAdmin />}/>
+      <Route path="lms/topic/:topicId/tasks/create" element={<CreateWeeklyTask />}/>
 
 <Route
   path="lms/topic/:topicId/tasks/edit/:id"

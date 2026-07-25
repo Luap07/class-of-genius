@@ -1,91 +1,218 @@
-import { createContext, useState } from "react";
+// src/context/DocumentContext.jsx
 
-export const DocumentContext = createContext();
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
-export const DocumentProvider = ({ children }) => {
-  const [documents, setDocuments] = useState(
-    () => JSON.parse(localStorage.getItem("docs")) || []
-  );
+import { supabase } from "../lib/supabaseClient";
 
-  const [pinned, setPinned] = useState(
-    () => JSON.parse(localStorage.getItem("pinned")) || []
-  );
 
-  const [downloads, setDownloads] = useState(
-    () => JSON.parse(localStorage.getItem("downloads")) || []
-  );
+export const DocumentContext =
+  createContext();
 
-  const save = (key, value) =>
-    localStorage.setItem(key, JSON.stringify(value));
 
-  /* ========== ADD DOC ========== */
-  const addDocument = (doc) => {
-    const newDocs = [doc, ...documents];
-    setDocuments(newDocs);
-    save("docs", newDocs);
-  };
+export const useDocuments = () =>
+  useContext(DocumentContext);
 
-  /* ========== DELETE DOC ========== */
-  const removeDocument = (id) => {
-    const newDocs = documents.filter((d) => d.id !== id);
-    setDocuments(newDocs);
-    save("docs", newDocs);
 
-    setPinned(pinned.filter((p) => p.id !== id));
-    setDownloads(downloads.filter((d) => d.id !== id));
-  };
 
-  /* ========== OPEN DOC (TRACK RECENT) ========== */
-  const openDocument = (doc) => {
-    window.open(doc.url, "_blank");
-  };
+export const DocumentProvider = ({
+  children,
+}) => {
 
-  /* ========== PIN / UNPIN ========== */
-  const togglePin = (doc) => {
-    const exists = pinned.find((p) => p.id === doc.id);
-    let updated;
 
-    if (exists) {
-      updated = pinned.filter((p) => p.id !== doc.id);
-    } else {
-      updated = [doc, ...pinned];
+  const [documents, setDocuments] =
+    useState([]);
+
+
+  const [loading, setLoading] =
+    useState(true);
+
+
+  const [error, setError] =
+    useState(null);
+
+
+
+  // ===========================
+  // FETCH DOCUMENTS
+  // ===========================
+
+  const fetchDocuments = async () => {
+
+    try {
+
+      setLoading(true);
+
+      setError(null);
+
+
+      const {
+        data,
+        error,
+      } =
+        await supabase
+          .from("documents")
+          .select("*")
+          .order(
+            "created_at",
+            {
+              ascending:false,
+            }
+          );
+
+
+      if(error)
+        throw error;
+
+
+      setDocuments(
+        data || []
+      );
+
+
+    } catch(err){
+
+      console.error(
+        "Fetch Documents Error:",
+        err
+      );
+
+      setError(
+        err.message
+      );
+
+
+    } finally {
+
+      setLoading(false);
+
     }
 
-    setPinned(updated);
-    save("pinned", updated);
   };
 
-  /* ========== DOWNLOAD ========== */
-  const addDownload = (doc) => {
-    const exists = downloads.find((d) => d.id === doc.id);
-    if (exists) return;
 
-    const updated = [doc, ...downloads];
-    setDownloads(updated);
-    save("downloads", updated);
 
-    // auto open download
-    const a = document.createElement("a");
-    a.href = doc.url;
-    a.download = doc.name || "file";
-    a.click();
+  useEffect(()=>{
+
+    fetchDocuments();
+
+  },[]);
+
+
+
+
+  // ===========================
+  // DELETE DOCUMENT
+  // ===========================
+
+  const deleteDocument = async (
+    id,
+    fileUrl
+  ) => {
+
+    try {
+
+
+      const fileName =
+        decodeURIComponent(
+          fileUrl.split("/").pop()
+        );
+
+
+
+      await supabase.storage
+.from("course-documents")        .remove([
+          fileName
+        ]);
+
+
+
+      const {
+        error
+      } =
+        await supabase
+          .from("documents")
+          .delete()
+          .eq(
+            "id",
+            id
+          );
+
+
+
+      if(error)
+        throw error;
+
+
+
+      await fetchDocuments();
+
+
+
+    } catch(err){
+
+      console.error(
+        "Delete Document Error:",
+        err
+      );
+
+    }
+
   };
+
+
+
+
+
+  // ===========================
+  // OPEN DOCUMENT
+  // ===========================
+
+  const openDocument = (
+    url
+  ) => {
+
+    window.open(
+      url,
+      "_blank"
+    );
+
+  };
+
+
+
+
 
   return (
-    <DocumentContext.Provider
-      value={{
-        documents,
-        pinned,
-        downloads,
 
-        addDocument,
-        removeDocument,
+    <DocumentContext.Provider
+
+      value={{
+
+        documents,
+
+        loading,
+
+        error,
+
+        fetchDocuments,
+
+        deleteDocument,
+
         openDocument,
-        togglePin,
-        addDownload,
+
       }}
+
     >
+
       {children}
+
     </DocumentContext.Provider>
+
   );
+
 };

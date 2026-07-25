@@ -57,7 +57,7 @@ import EditTopic from "../pages/admin/lms/EditTopic";
 import ResourcesAdmin from "../pages/admin/lms/ResourcesAdmin";
 import CreateResource from "../pages/admin/lms/CreateResource";
 import EditResource from "../pages/admin/lms/EditResource";
-
+import DocumentsAdmin from "./DocumentsAdmin";
 import WeeklyTasksAdmin from "../pages/admin/lms/WeeklyTasksAdmin";
 import CreateWeeklyTask from "../pages/admin/lms/CreateWeeklyTask";
 
@@ -172,6 +172,9 @@ const AdminRoutes = () => {
         <Route path="cbt/exams" element={<ExamsAdmin />} />
         <Route path="cbt/results" element={<ResultsAdmin />} />
         <Route path="cbt/analytics" element={<AnalyticsAdmin />} />
+
+        {/* ================= DOCUMENTS ================= */}
+        <Route path="documents" element={<DocumentsAdmin />}/>
 
         {/* Novels */}
         <Route path="novels" element={<NovelsDashboard />} />

@@ -15,7 +15,7 @@ import InstructorCard from "../../components/courseDetails/InstructorCard";
 import CourseReviews from "../../components/courseDetails/CourseReviews";
 import RelatedCourses from "../../components/courseDetails/RelatedCourses";
 import CourseFAQ from "../../components/courseDetails/CourseFAQ";
-
+import CourseDocuments from "../../components/CourseDocuments";
 
 const CourseDetails = () => {
 
@@ -246,12 +246,43 @@ const CourseDetails = () => {
 
 
           </section>
+              <section id="documents">
+
+  <div className="
+    mb-6
+  ">
+
+    <h2 className="
+      text-2xl
+      font-bold
+    ">
+      Course Documents
+    </h2>
 
 
+    <p className="
+      text-slate-400
+      mt-2
+    ">
+      Download notes, materials, and resources for this course.
+    </p>
+
+  </div>
 
 
+  <CourseDocuments
 
+  category={
+    course.category
+  }
 
+  categoryId={
+    course.category_id
+  }
+
+/>
+
+</section>
 
           <section id="instructor">
 

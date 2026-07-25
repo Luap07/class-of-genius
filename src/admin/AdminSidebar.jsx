@@ -28,7 +28,7 @@ const menuItems = [
   { title: "Newsletter", icon: Mail, path: "/admin/newsletter",  },
   { title: "Media", icon: Image, path: "/admin/media" },
   { title: "Settings", icon: Settings, path: "/admin/settings" },
-
+  { title: "Documents", icon: FileText, path: "/admin/documents",},
 ];
 
 const AdminSidebar = () => {

@@ -41,19 +41,18 @@ export const CourseProvider = ({ children }) => {
             id,
             name
           ),
-          course_modules(
-            id,
-            title,
-            description,
-            order_index,
-           course_lessons(
+         course_modules(
   id,
   title,
   description,
-  video_url,
-  duration
-)
-          ),
+  course_lessons(
+    id,
+    title,
+    description,
+    video_url,
+    duration
+  )
+),
           course_quizzes(
             id,
             title,
@@ -69,7 +68,7 @@ export const CourseProvider = ({ children }) => {
             id,
             title,
             file_url,
-            type
+            
           )
         `)
         .eq("status", "Published")

@@ -2,11 +2,12 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
-  useCallback,
 } from "react";
+
 import { supabase } from "../../lib/supabaseClient";
 
 const CourseContext = createContext();
@@ -14,15 +15,18 @@ const CourseContext = createContext();
 export const CourseProvider = ({ children }) => {
   const [courses, setCourses] = useState([]);
   const [categories, setCategories] = useState([]);
+
   const [featuredCourses, setFeaturedCourses] = useState([]);
   const [recentCourses, setRecentCourses] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  /* ======================================================
-     FETCH COURSES
-  ====================================================== */
+  /* =====================================================
+      FETCH COURSES
+  ===================================================== */
+
   const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
@@ -30,227 +34,186 @@ export const CourseProvider = ({ children }) => {
 
       const { data, error } = await supabase
         .from("courses")
-        .select(`
-          *,
-          course_categories!courses_category_id_fkey(
-            id,
-            name,
-            description
-          ),
-          subjects(
-            id,
-            name
-          ),
-          course_modules(
-            id,
-            title,
-            description,
-            course_lessons(
-              id,
-              title,
-              description,
-              video_url,
-              duration
-            )
-          ),
-          course_quizzes(
-            id,
-            title,
-            description
-          ),
-          weekly_tasks(
-            id,
-            title,
-            description,
-            due_date
-          ),
-         resources(
- id,
- title,
- resource_type,
- url,
- file_url,
- topic_id
-)
-        `)
+        .select("*")
         .eq("status", "Published")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      console.log("================================");
-      console.log("RAW COURSES FROM SUPABASE");
-      console.table(data);
-
-      const published = data?.filter((c) => c.status === "Published");
-
-      console.log("PUBLISHED:", published?.length);
-      console.log("FIRST COURSE:");
-      console.log(data?.[0]);
-      console.log("================================");
-
-      const formattedCourses = (data || []).map((course) => ({
+      const formatted = (data || []).map((course) => ({
         id: course.id,
+
         title: course.title || "",
+
         slug: course.slug || "",
+
         description: course.description || "",
-        thumbnail: course.thumbnail_url || course.thumbnail || "",
-        
-        /* CATEGORY */
+
+        thumbnail:
+          course.thumbnail_url ||
+          course.thumbnail ||
+          "",
+
         category_id: course.category_id,
-        category: course.course_categories?.name || "General",
-        
-        /* SUBJECT */
+
         subject_id: course.subject_id,
-        subject: course.subjects?.name || "",
-        
-        instructor: course.instructor || "Class Of Genius",
-        level: course.level || "Beginner",
-        language: course.language || "English",
-        duration: course.duration || "",
-        price: Number(course.price) || 0,
-        rating: Number(course.rating) || 0,
-        students: Number(course.students) || 0,
-        featured: course.featured || false,
-        certificate: course.certificate || false,
-        
-        /* MODULES */
-        modules: (course.course_modules || []).map((module) => ({
-          ...module,
-          lessons: module.course_lessons || [],
-        })),
-        
-        lessons: (course.course_modules || []).reduce(
-          (total, module) => total + (module.course_lessons?.length || 0),
-          0
-        ),
-        
-        quizzes: course.course_quizzes || [],
-        weeklyTasks: course.weekly_tasks || [],
-        resources: course.resources || [],
-        requirements: course.requirements || "",
-        learning_outcomes: course.learning_outcomes || "",
-        createdAt: course.created_at,
+
+        instructor:
+          course.instructor ||
+          "Class Of Genius",
+
+        level:
+          course.level ||
+          "Beginner",
+
+        language:
+          course.language ||
+          "English",
+
+        duration:
+          course.duration ||
+          "",
+
+        price:
+          Number(course.price) || 0,
+
+        rating:
+          Number(course.rating) || 0,
+
+        students:
+          Number(course.students) || 0,
+
+        featured:
+          course.featured || false,
+
+        certificate:
+          course.certificate || false,
+
+        requirements:
+          course.requirements || "",
+
+        learning_outcomes:
+          course.learning_outcomes || "",
+
+        created_at:
+          course.created_at,
       }));
 
-      console.log("FORMATTED COURSES");
-      console.table(formattedCourses);
+      setCourses(formatted);
 
-      setCourses(formattedCourses);
-      setFeaturedCourses(formattedCourses.filter((course) => course.featured));
-      setRecentCourses(formattedCourses.slice(0, 12));
+      setFeaturedCourses(
+        formatted.filter((c) => c.featured)
+      );
+
+      setRecentCourses(
+        formatted.slice(0, 12)
+      );
     } catch (err) {
-      console.error("Fetch Courses Error MESSAGE:", err.message);
-      console.error("FULL ERROR:", JSON.stringify(err, null, 2));
+      console.error(err);
+
       setError(err.message);
+
       setCourses([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  /* ======================================================
-     FETCH CATEGORIES
-  ====================================================== */
+  /* =====================================================
+      FETCH CATEGORIES
+  ===================================================== */
+
   const fetchCategories = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("course_categories")
-        .select(`
-          id,
-          name,
-          description,
-          image,
-          created_at
-        `)
-        .order("name", { ascending: true });
+        .select("*")
+        .order("name");
 
       if (error) throw error;
 
       setCategories(data || []);
     } catch (err) {
-      console.error("Fetch Categories Error:", err);
+      console.error(err);
+
       setCategories([]);
     }
   }, []);
 
-  /* ======================================================
-     REFRESH
-  ====================================================== */
+  /* =====================================================
+      REFRESH
+  ===================================================== */
+
   const refreshCourses = async () => {
     setRefreshing(true);
-    await Promise.all([fetchCourses(), fetchCategories()]);
+
+    await Promise.all([
+      fetchCourses(),
+      fetchCategories(),
+    ]);
+
     setRefreshing(false);
   };
 
-  /* ======================================================
-     HELPERS
-  ====================================================== */
-  const getCourse = (courseId) =>
-    courses.find((course) => String(course.id) === String(courseId)) || null;
+  /* =====================================================
+      HELPERS
+  ===================================================== */
 
-  const getCoursesByCategory = (categoryId) => {
-    if (!categoryId || categoryId === "All") return courses;
-    return courses.filter(
-      (course) => String(course.category_id) === String(categoryId)
+  const getCourse = (id) =>
+    courses.find(
+      (course) =>
+        String(course.id) === String(id)
     );
-  };
+
+  const getCoursesByCategory = (categoryId) =>
+    courses.filter(
+      (course) =>
+        String(course.category_id) ===
+        String(categoryId)
+    );
 
   const searchCourses = (keyword = "") => {
-    const search = keyword.toLowerCase();
-    return courses.filter((course) =>
-      [
-        course.title,
-        course.description,
-        course.instructor,
-        course.category,
-        course.subject,
-      ].some((value) => value?.toLowerCase().includes(search))
-    );
-  };
+    const text = keyword.toLowerCase();
 
-  const getFeaturedCourses = () => featuredCourses;
-
-  const getRandomCategoryCourses = () => {
-    const grouped = {};
-    courses.forEach((course) => {
-      if (!grouped[course.category_id]) {
-        grouped[course.category_id] = [];
-      }
-      grouped[course.category_id].push(course);
-    });
-
-    return Object.values(grouped).map(
-      (list) => list[Math.floor(Math.random() * list.length)]
+    return courses.filter(
+      (course) =>
+        course.title
+          ?.toLowerCase()
+          .includes(text) ||
+        course.description
+          ?.toLowerCase()
+          .includes(text)
     );
   };
 
   useEffect(() => {
     refreshCourses();
-  }, [refreshCourses]);
-
-  const value = {
-    courses,
-    categories,
-    featuredCourses,
-    recentCourses,
-    loading,
-    refreshing,
-    error,
-    totalCourses: courses.length,
-    totalCategories: categories.length,
-    fetchCourses,
-    fetchCategories,
-    refreshCourses,
-    getCourse,
-    getCoursesByCategory,
-    getFeaturedCourses,
-    getRandomCategoryCourses,
-    searchCourses,
-  };
+  }, []);
 
   return (
-    <CourseContext.Provider value={value}>
+    <CourseContext.Provider
+      value={{
+        courses,
+        categories,
+        featuredCourses,
+        recentCourses,
+
+        loading,
+        refreshing,
+        error,
+
+        totalCourses: courses.length,
+        totalCategories: categories.length,
+
+        fetchCourses,
+        fetchCategories,
+        refreshCourses,
+
+        getCourse,
+        getCoursesByCategory,
+        searchCourses,
+      }}
+    >
       {children}
     </CourseContext.Provider>
   );
@@ -260,7 +223,9 @@ export const useCourses = () => {
   const context = useContext(CourseContext);
 
   if (!context) {
-    throw new Error("useCourses must be used inside CourseProvider");
+    throw new Error(
+      "useCourses must be used inside CourseProvider"
+    );
   }
 
   return context;

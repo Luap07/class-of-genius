@@ -3,6 +3,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+
 import Cog from "../../assets/cog.png";
 
 import {
@@ -34,81 +35,75 @@ const ICON_MAP = {
 };
 
 export default function ExploreCategories() {
-  const categoryGridRef = useRef(null);
   const navigate = useNavigate();
 
-  const { categories, courses } = useCourses();
+  const categoryGridRef = useRef(null);
+
+  const {
+    categories = [],
+    courses = [],
+    loading,
+  } = useCourses();
 
   const [search, setSearch] = useState("");
 
- const formattedCategories = useMemo(() => {
-  return categories.map((category) => {
-    const Icon = ICON_MAP[category.name] || GraduationCap;
+  console.log("Categories From Context:", categories);
+  console.log("Courses From Context:", courses);
 
-    const categoryCourses = courses.filter(
-      (course) => String(course.category_id) === String(category.id)
-    );
+  const formattedCategories = useMemo(() => {
+    return categories.map((category) => {
+      const Icon = ICON_MAP[category.name] || GraduationCap;
 
-    return {
-      ...category,
+      const categoryCourses = courses.filter(
+        (course) =>
+          String(course.category_id) === String(category.id)
+      );
 
-      icon: Icon,
+      return {
+        ...category,
 
-      totalCourses: categoryCourses.length,
+        icon: Icon,
 
-      totalStudents: categoryCourses.reduce(
-        (sum, course) => sum + (Number(course.students) || 0),
-        0
-      ),
+        title: category.name,
 
-      totalLessons: categoryCourses.reduce(
-        (sum, course) => sum + (Number(course.lessons) || 0),
-        0
-      ),
-    };
-  });
-}, [categories, courses]);
+        totalCourses: categoryCourses.length,
+
+        totalStudents: categoryCourses.reduce(
+          (sum, course) =>
+            sum + (Number(course.students) || 0),
+          0
+        ),
+
+        totalLessons: categoryCourses.reduce(
+          (sum, course) =>
+            sum + (Number(course.lessons) || 0),
+          0
+        ),
+      };
+    });
+  }, [categories, courses]);
 
   const filteredCategories = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
     if (!keyword) return formattedCategories;
 
-    return formattedCategories.filter(
-      (category) =>
-        category.title.toLowerCase().includes(keyword) ||
-        category.description.toLowerCase().includes(keyword) ||
-        category.subjects.some((subject) =>
-          subject.toLowerCase().includes(keyword)
-        )
-    );
-  }, [search, formattedCategories]);
+    return formattedCategories.filter((category) => {
+      const name = category.name || "";
+      const description = category.description || "";
+
+      return (
+        name.toLowerCase().includes(keyword) ||
+        description.toLowerCase().includes(keyword)
+      );
+    });
+  }, [formattedCategories, search]);
 
   return (
-    <div
-      className="
-        relative
-        min-h-screen
-        overflow-hidden
-        bg-[#030712]
-        text-white
-      "
-    >
-      {/* ================= BACKGROUND ================= */}
-      <div
-        className="
-          absolute
-          inset-0
-          pointer-events-none
-        "
-      >
-        <div
-          className="
-            absolute
-            inset-0
-            bg-[#020617]
-          "
-        />
+    <div className="relative min-h-screen overflow-hidden bg-[#030712] text-white">
+      {/* Background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[#020617]" />
 
         <div
           className="
@@ -129,165 +124,56 @@ export default function ExploreCategories() {
         />
       </div>
 
-      <main
-        className="
-          relative
-          z-10
-          mx-auto
-          max-w-7xl
-          px-6
-          py-20
-        "
-      >
-        {/* ================= STATIC CATEGORY HEADER ================= */}
+      <main className="relative z-10 mx-auto max-w-7xl px-6 py-20">
         <motion.section
-          initial={{
-            opacity: 0,
-            y: -20,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          className="
-            mb-14
-            text-center
-          "
+          initial={{ opacity: 0, y: -15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-14 text-center"
         >
-          {/* LOGO */}
-          <div
-            className="
-              mx-auto
-              flex
-              h-20
-              w-20
-              items-center
-              justify-center
-              rounded-3xl
-              border
-              border-cyan-500/30
-              bg-cyan-500/10
-              shadow-lg
-              shadow-cyan-500/10
-            "
-          >
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-cyan-500/30 bg-cyan-500/10">
             <img
               src={Cog}
-              alt="Scholiqen Logo"
-              className="
-                h-12
-                w-12
-                object-contain
-              "
+              alt="Scholiqen"
+              className="h-12 w-12 object-contain"
             />
           </div>
 
-          {/* BRAND */}
-          <h2
-            className="
-              mt-5
-              text-2xl
-              font-black
-              tracking-wide
-              text-cyan-400
-            "
-          >
+          <h2 className="mt-5 text-2xl font-black text-cyan-400">
             SCHOLIQEN
           </h2>
 
-          <h1
-            className="
-              mt-4
-              text-5xl
-              font-black
-              lg:text-6xl
-            "
-          >
+          <h1 className="mt-4 text-5xl font-black">
             Explore Learning Categories
           </h1>
 
-          <p
-            className="
-              mx-auto
-              mt-5
-              max-w-3xl
-              text-lg
-              text-slate-400
-            "
-          >
-            Discover science, technology, business, arts, health and university
-            learning paths powered by Scholiqen.
+          <p className="mx-auto mt-5 max-w-3xl text-lg text-slate-400">
+            Discover all learning categories available on the platform.
           </p>
-
-          <div
-            className="
-              mt-8
-              flex
-              flex-wrap
-              justify-center
-              gap-3
-            "
-          >
-            {[
-              "Science",
-              "Technology",
-              "Business",
-              "Arts",
-              "Health",
-              "University",
-            ].map((item) => (
-              <span
-                key={item}
-                className="
-                  rounded-full
-                  border
-                  border-slate-700
-                  bg-slate-900/70
-                  px-5
-                  py-2
-                  text-sm
-                  text-slate-300
-                "
-              >
-                {item}
-              </span>
-            ))}
-          </div>
         </motion.section>
 
-        {/* ================= SEARCH ================= */}
-        <div
-          className="
-            mx-auto
-            mt-10
-            max-w-4xl
-            rounded-3xl
-            border
-            border-slate-700
-            bg-slate-900/70
-            backdrop-blur-xl
-          "
-        >
+        <div className="mx-auto max-w-4xl rounded-3xl border border-slate-700 bg-slate-900/70">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search categories, subjects..."
-            className="
-              w-full
-              bg-transparent
-              px-6
-              py-6
-              text-lg
-              outline-none
-            "
+            placeholder="Search categories..."
+            className="w-full bg-transparent px-6 py-5 outline-none"
           />
         </div>
 
         <CategoryStats />
 
-        <div ref={categoryGridRef} id="category-grid">
-          <CategoryGrid categories={filteredCategories} navigate={navigate} />
-        </div>
+        {loading ? (
+          <div className="py-24 text-center text-slate-400">
+            Loading Categories...
+          </div>
+        ) : (
+          <div ref={categoryGridRef}>
+            <CategoryGrid
+              categories={filteredCategories}
+              navigate={navigate}
+            />
+          </div>
+        )}
 
         <WhyScholiqen />
 
@@ -295,7 +181,6 @@ export default function ExploreCategories() {
           scrollToCategories={() =>
             categoryGridRef.current?.scrollIntoView({
               behavior: "smooth",
-              block: "start",
             })
           }
         />

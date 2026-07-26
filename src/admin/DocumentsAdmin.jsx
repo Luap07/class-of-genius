@@ -1,3 +1,6 @@
+// // src/admin/pages/DocumentsAdmin.jsx
+
+
 // src/admin/pages/DocumentsAdmin.jsx
 
 import React, {
@@ -19,14 +22,22 @@ import {
   AlignLeft,
   Trash2,
   ExternalLink,
+  Image as ImageIcon,
+  FileArchive,
+  FileSpreadsheet,
+  FileCode,
+  BarChart3,
+  Files,
 } from "lucide-react";
 
-import { supabase } from "../lib/supabaseClient";
-
+import {
+  supabase,
+} from "../lib/supabaseClient";
 
 export default function DocumentsAdmin() {
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] =
+    useState("");
 
   const [description, setDescription] =
     useState("");
@@ -34,6 +45,8 @@ export default function DocumentsAdmin() {
   const [file, setFile] =
     useState(null);
 
+  const [thumbnail, setThumbnail] =
+    useState(null);
 
   const [categories, setCategories] =
     useState([]);
@@ -41,13 +54,14 @@ export default function DocumentsAdmin() {
   const [selectedCategory, setSelectedCategory] =
     useState("");
 
-
   const [documents, setDocuments] =
     useState([]);
 
   const [search, setSearch] =
     useState("");
 
+  const [filterCategory, setFilterCategory] =
+    useState("all");
 
   const [loadingCategories, setLoadingCategories] =
     useState(true);
@@ -58,430 +72,374 @@ export default function DocumentsAdmin() {
   const [uploading, setUploading] =
     useState(false);
 
+  useEffect(() => {
+    fetchCategories();
+    fetchDocuments();
+  }, []);
 
-
-  // ==========================
+  // ===========================
   // FETCH CATEGORIES
-  // ==========================
+  // ===========================
 
   const fetchCategories = async () => {
-
     try {
-
       setLoadingCategories(true);
 
-      const { data, error } =
-        await supabase
-          .from("course_categories")
-          .select("*")
-          .eq("active", true)
-          .order("display_order", {
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("course_categories")
+        .select("*")
+        .eq("active", true)
+        .order(
+          "display_order",
+          {
             ascending: true,
-          });
+          }
+        );
 
-
-      if (error)
-        throw error;
-
+      if (error) throw error;
 
       setCategories(data || []);
 
-
       if (data?.length) {
-        setSelectedCategory(
-          data[0].name
-        );
+        setSelectedCategory(data[0].id);
       }
-
-
-    } catch (error) {
-
-      console.error(
-        "Category Error:",
-        error
-      );
-
+    } catch (err) {
+      console.error(err);
     } finally {
-
       setLoadingCategories(false);
-
     }
-
   };
 
-
-
-  // ==========================
+  // ===========================
   // FETCH DOCUMENTS
-  // ==========================
+  // ===========================
 
   const fetchDocuments = async () => {
-
     try {
-
       setLoadingDocuments(true);
 
-
-      const { data, error } =
-        await supabase
-          .from("documents")
-          .select("*")
-          .order("created_at", {
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("documents")
+        .select(`
+          *,
+          course_categories (
+            id,
+            name
+          )
+        `)
+        .order(
+          "created_at",
+          {
             ascending: false,
-          });
+          }
+        );
 
-
-      if (error)
-        throw error;
-
+      if (error) throw error;
 
       setDocuments(data || []);
-
-
-    } catch(error){
-
-      console.error(
-        "Documents Error:",
-        error
-      );
-
+    } catch (err) {
+      console.error(err);
     } finally {
-
       setLoadingDocuments(false);
-
     }
-
   };
 
-
-
-  useEffect(() => {
-
-    fetchCategories();
-
-    fetchDocuments();
-
-  }, []);
-
-
-
-  // ==========================
-  // SEARCH FILTER
-  // ==========================
+  // ===========================
+  // SEARCH + FILTER
+  // ===========================
 
   const filteredDocuments =
     useMemo(() => {
+      return documents.filter(
+        (doc) => {
+          const matchesSearch =
+            doc.title
+              ?.toLowerCase()
+              .includes(search.toLowerCase())
+            ||
+            doc.description
+              ?.toLowerCase()
+              .includes(search.toLowerCase())
+            ||
+            doc.category
+              ?.toLowerCase()
+              .includes(search.toLowerCase());
 
-      return documents.filter((doc)=>{
+          const matchesCategory =
+            filterCategory === "all"
+            ||
+            doc.category_id === filterCategory;
 
-        const value =
-          search.toLowerCase();
-
-
-        return (
-
-          doc.title
-            ?.toLowerCase()
-            .includes(value)
-
-          ||
-
-          doc.category
-            ?.toLowerCase()
-            .includes(value)
-
-        );
-
-      });
-
-
-    },[
+          return (
+            matchesSearch &&
+            matchesCategory
+          );
+        }
+      );
+    }, [
       documents,
-      search
+      search,
+      filterCategory,
     ]);
 
+  // ===========================
+  // DASHBOARD STATS
+  // ===========================
 
+  const stats = useMemo(() => {
+    const total = documents.length;
 
-  // ==========================
+    const totalCategories =
+      new Set(
+        documents.map(
+          (d) => d.category
+        )
+      ).size;
+
+    const pdfs =
+      documents.filter(
+        (d) =>
+          d.file_type === "pdf"
+      ).length;
+
+    const images =
+      documents.filter(
+        (d) =>
+          d.thumbnail_url
+      ).length;
+
+    return {
+      total,
+      totalCategories,
+      pdfs,
+      images,
+    };
+  }, [
+    documents,
+  ]);
+
+  // ===========================
   // UPLOAD DOCUMENT
-  // ==========================
+  // ===========================
 
   const handleUpload = async (e) => {
-
     e.preventDefault();
-
 
     if (!title.trim()) {
       alert("Enter document title");
       return;
     }
 
-
     if (!selectedCategory) {
       alert("Select a category");
       return;
     }
-
 
     if (!file) {
       alert("Choose a file");
       return;
     }
 
-
-
     try {
-
       setUploading(true);
-
-
-
-      // ==========================
-      // CREATE UNIQUE FILE NAME
-      // ==========================
 
       const extension =
         file.name
           .split(".")
-          .pop();
-
-
+          .pop()
+          .toLowerCase();
 
       const fileName =
         `${Date.now()}-${Math.random()
           .toString(36)
           .substring(2)}.${extension}`;
 
-
-
-      // ==========================
-      // UPLOAD TO SUPABASE STORAGE
-      // ==========================
-
+      // Upload Document to Storage
       const {
-        error: uploadError
-      } =
-        await supabase.storage
-            .from("course-documents")          .upload(
-            fileName,
-            file
-          );
+        error: uploadError,
+      } = await supabase.storage
+        .from("course-documents")
+        .upload(
+          fileName,
+          file
+        );
 
+      if (uploadError) throw uploadError;
 
-
-      if (uploadError)
-        throw uploadError;
-
-
-
-      // ==========================
-      // GET FILE URL
-      // ==========================
-
+      // Public URL for Document
       const {
-        data
-      } =
-        supabase.storage
-            .from("course-documents")          .getPublicUrl(
-            fileName
-          );
+        data: publicData,
+      } = supabase.storage
+        .from("course-documents")
+        .getPublicUrl(
+          fileName
+        );
 
+      const publicUrl = publicData.publicUrl;
 
+      // Optional Thumbnail Upload
+      let thumbnailUrl = "";
 
-      const publicUrl =
-        data.publicUrl;
+      if (thumbnail) {
+        const thumbExtension = thumbnail.name.split(".").pop().toLowerCase();
+        const thumbName = `thumb-${Date.now()}-${Math.random().toString(36).substring(2)}.${thumbExtension}`;
 
+        const { error: thumbError } = await supabase.storage
+          .from("course-thumbnails")
+          .upload(thumbName, thumbnail);
 
+        if (thumbError) throw thumbError;
 
-      // ==========================
-      // SAVE DATABASE RECORD
-      // ==========================
+        const { data: thumbPublicData } = supabase.storage
+          .from("course-thumbnails")
+          .getPublicUrl(thumbName);
 
+        thumbnailUrl = thumbPublicData.publicUrl;
+      } else if (file.type.startsWith("image/")) {
+        thumbnailUrl = publicUrl;
+      }
+
+      const category =
+        categories.find(
+          (item) =>
+            item.id ===
+            selectedCategory
+        );
+
+      // Save document in Database
       const {
-        error: databaseError
-      } =
-        await supabase
-          .from("documents")
-         .from("resources")
-.insert([
-{
- title: title.trim(),
+        error: databaseError,
+      } = await supabase
+        .from("documents")
+        .insert([
+          {
+            title: title.trim(),
+            description: description.trim(),
+            category_id: selectedCategory,
+            category: category?.name,
+            file_url: publicUrl,
+            thumbnail_url: thumbnailUrl,
+            file_type: extension,
+            created_at: new Date(),
+          },
+        ]);
 
- description: description.trim(),
-
- resource_type:
- file.type.includes("pdf")
- ? "pdf"
- : "docx",
-
- file_url: publicUrl,
-
- topic_id:selectedTopic,
-
-}
-])
       if (databaseError)
         throw databaseError;
 
-      // refresh list
-
       await fetchDocuments();
 
-
-
-      // clear form
-
       setTitle("");
-
       setDescription("");
-
       setFile(null);
+      setThumbnail(null);
 
-
-
-      alert(
-        "Document uploaded successfully"
-      );
-
-
-
-    } catch(error) {
-
-
-      console.error(
-        "Upload Error:",
-        error
-      );
-
-
-      alert(
-        error.message
-      );
-
-
-
+      alert("Document uploaded successfully.");
+    } catch (error) {
+      console.error(error);
+      alert(error.message);
     } finally {
-
-
       setUploading(false);
-
-
     }
-
   };
 
-
-
-
-
-  // ==========================
+  // ===========================
   // DELETE DOCUMENT
-  // ==========================
+  // ===========================
 
-  const handleDelete = async (
-    id,
-    fileUrl
-  ) => {
-
-
+  const handleDelete = async (doc) => {
     const confirmDelete =
       window.confirm(
         "Delete this document?"
       );
 
-
-
     if (!confirmDelete)
       return;
 
-
-
     try {
-
-
       const fileName =
         decodeURIComponent(
-          fileUrl.split("/").pop()
+          doc.file_url
+            .split("/")
+            .pop()
         );
 
-
-
       await supabase.storage
-        .from("course-documents")        .remove([
-          fileName
+        .from("course-documents")
+        .remove([
+          fileName,
         ]);
 
-
-
-      const {
-        error
-      } =
-        await supabase
-          .from("documents")
-          .delete()
-          .eq(
-            "id",
-            id
+      if (doc.thumbnail_url && doc.thumbnail_url.includes("course-thumbnails")) {
+        const thumbName =
+          decodeURIComponent(
+            doc.thumbnail_url
+              .split("/")
+              .pop()
           );
 
+        await supabase.storage
+          .from("course-thumbnails")
+          .remove([thumbName]);
+      }
 
+      const {
+        error,
+      } = await supabase
+        .from("documents")
+        .delete()
+        .eq(
+          "id",
+          doc.id
+        );
 
-      if (error)
-        throw error;
+      if (error) throw error;
 
-
-
-      fetchDocuments();
-
-
-
-    } catch(error){
-
-
-      console.error(
-        "Delete Error:",
-        error
-      );
-
-
-      alert(
-        error.message
-      );
-
+      await fetchDocuments();
+    } catch (error) {
+      console.error(error);
+      alert(error.message);
     }
-
   };
 
-
-
-
-
-  // ==========================
+  // ===========================
   // OPEN DOCUMENT
-  // ==========================
+  // ===========================
 
-  const openDocument = (url) => {
-
+  const openDocument = (
+    url
+  ) => {
     window.open(
       url,
       "_blank"
     );
-
   };
 
-
+  // ===========================
+  // UI
+  // ===========================
 
   return (
-
-    <div className="min-h-screen bg-[#020617] text-white p-8">
-
-
-      <div className="max-w-7xl mx-auto">
-
-        {/* ==========================
-            HEADER
-        ========================== */}
-
+    <div
+      className="
+        min-h-screen
+        bg-[#020617]
+        text-white
+        p-8
+      "
+    >
+      <div
+        className="
+          mx-auto
+          max-w-7xl
+        "
+      >
         <motion.div
           initial={{
             opacity: 0,
@@ -491,692 +449,698 @@ export default function DocumentsAdmin() {
             opacity: 1,
             y: 0,
           }}
-          className="mb-10"
+          className="
+            mb-10
+          "
         >
-
-          <h1 className="text-4xl font-bold">
+          <h1
+            className="
+              text-4xl
+              font-black
+            "
+          >
             Document Manager
           </h1>
 
-
-          <p className="text-slate-400 mt-2">
-            Upload and manage course documents.
+          <p
+            className="
+              mt-2
+              text-slate-400
+            "
+          >
+            Upload, organize and manage
+            all course documents.
           </p>
-
         </motion.div>
 
+        {/* Statistics */}
 
+        <div
+          className="
+            mb-8
+            grid
+            gap-6
+            md:grid-cols-2
+            xl:grid-cols-4
+          "
+        >
+          <div
+            className="
+              rounded-3xl
+              border
+              border-slate-800
+              bg-slate-900
+              p-6
+            "
+          >
+            <BarChart3
+              className="
+                mb-4
+                text-cyan-400
+              "
+            />
+            <p
+              className="
+                text-sm
+                text-slate-400
+              "
+            >
+              Total Documents
+            </p>
+            <h2
+              className="
+                mt-2
+                text-3xl
+                font-black
+              "
+            >
+              {stats.total}
+            </h2>
+          </div>
 
+          <div
+            className="
+              rounded-3xl
+              border
+              border-slate-800
+              bg-slate-900
+              p-6
+            "
+          >
+            <FolderOpen
+              className="
+                mb-4
+                text-yellow-400
+              "
+            />
+            <p
+              className="
+                text-sm
+                text-slate-400
+              "
+            >
+              Categories
+            </p>
+            <h2
+              className="
+                mt-2
+                text-3xl
+                font-black
+              "
+            >
+              {stats.totalCategories}
+            </h2>
+          </div>
 
-        <div className="grid lg:grid-cols-[420px_1fr] gap-8">
+          <div
+            className="
+              rounded-3xl
+              border
+              border-slate-800
+              bg-slate-900
+              p-6
+            "
+          >
+            <FileText
+              className="
+                mb-4
+                text-red-400
+              "
+            />
+            <p
+              className="
+                text-sm
+                text-slate-400
+              "
+            >
+              PDF Files
+            </p>
+            <h2
+              className="
+                mt-2
+                text-3xl
+                font-black
+              "
+            >
+              {stats.pdfs}
+            </h2>
+          </div>
 
+          <div
+            className="
+              rounded-3xl
+              border
+              border-slate-800
+              bg-slate-900
+              p-6
+            "
+          >
+            <Files
+              className="
+                mb-4
+                text-emerald-400
+              "
+            />
+            <p
+              className="
+                text-sm
+                text-slate-400
+              "
+            >
+              With Thumbnails
+            </p>
+            <h2
+              className="
+                mt-2
+                text-3xl
+                font-black
+              "
+            >
+              {stats.images}
+            </h2>
+          </div>
+        </div>
 
-
-          {/* ==========================
-              UPLOAD FORM
-          ========================== */}
-
+        <div
+          className="
+            grid
+            gap-8
+            lg:grid-cols-[430px_1fr]
+          "
+        >
+          {/* Upload Form */}
 
           <motion.form
-
             onSubmit={handleUpload}
-
             initial={{
               opacity: 0,
               x: -20,
             }}
-
             animate={{
               opacity: 1,
               x: 0,
             }}
-
             className="
               rounded-3xl
-              bg-slate-900
               border
               border-slate-800
+              bg-slate-900
               p-6
               space-y-6
             "
-
           >
+            <h2
+              className="
+                text-xl
+                font-bold
+              "
+            >
+              Upload Document
+            </h2>
 
-
-
-
-            {/* TITLE */}
+            {/* Title */}
 
             <div>
-
-
-              <label className="flex items-center gap-2 mb-2 font-medium">
-
-                <FileText size={18}/>
-
-                Document Title
-
+              <label
+                className="
+                  mb-2
+                  flex
+                  items-center
+                  gap-2
+                  font-medium
+                "
+              >
+                <FileText size={18} />
+                Title
               </label>
-
-
-
               <input
-
                 value={title}
-
-                onChange={(e)=>
+                onChange={(e) =>
                   setTitle(
                     e.target.value
                   )
                 }
-
-                placeholder="Enter document title"
-
+                placeholder="Document title"
                 className="
-                  w-full
                   h-12
+                  w-full
                   rounded-xl
-                  bg-slate-800
                   border
                   border-slate-700
+                  bg-slate-800
                   px-4
                   outline-none
-                  focus:border-blue-500
+                  focus:border-cyan-500
                 "
-
               />
-
-
             </div>
 
-
-
-
-
-
-            {/* DESCRIPTION */}
+            {/* Description */}
 
             <div>
-
-
-              <label className="flex items-center gap-2 mb-2 font-medium">
-
-                <AlignLeft size={18}/>
-
+              <label
+                className="
+                  mb-2
+                  flex
+                  items-center
+                  gap-2
+                  font-medium
+                "
+              >
+                <AlignLeft size={18} />
                 Description
-
               </label>
-
-
-
               <textarea
-
-                rows="4"
-
+                rows={4}
                 value={description}
-
-                onChange={(e)=>
+                onChange={(e) =>
                   setDescription(
                     e.target.value
                   )
                 }
-
-                placeholder="Short description"
-
+                placeholder="Short description..."
                 className="
                   w-full
                   rounded-xl
-                  bg-slate-800
                   border
                   border-slate-700
+                  bg-slate-800
                   p-4
-                  resize-none
                   outline-none
-                  focus:border-blue-500
+                  resize-none
+                  focus:border-cyan-500
                 "
-
               />
-
-
             </div>
 
-
-
-
-
-
-
-            {/* CATEGORY */}
-
+            {/* Category */}
 
             <div>
-
-
-              <label className="flex items-center gap-2 mb-2 font-medium">
-
-                <Tag size={18}/>
-
+              <label
+                className="
+                  mb-2
+                  flex
+                  items-center
+                  gap-2
+                  font-medium
+                "
+              >
+                <Tag size={18} />
                 Category
-
               </label>
-
-
-
               <select
-
                 value={selectedCategory}
-
-                onChange={(e)=>
+                onChange={(e) =>
                   setSelectedCategory(
                     e.target.value
                   )
                 }
-
-
                 className="
-                  w-full
                   h-12
+                  w-full
                   rounded-xl
-                  bg-slate-800
                   border
                   border-slate-700
+                  bg-slate-800
                   px-4
                   outline-none
                 "
-
               >
-
-
-                {
-                  loadingCategories ?
-
-                  (
-
-                    <option>
-                      Loading categories...
+                {loadingCategories ? (
+                  <option>
+                    Loading...
+                  </option>
+                ) : (
+                  categories.map((cat) => (
+                    <option
+                      key={cat.id}
+                      value={cat.id}
+                    >
+                      {cat.name}
                     </option>
-
-                  )
-
-                  :
-
-                  (
-
-                    categories.map(
-                      (cat)=>(
-
-                        <option
-
-                          key={cat.id}
-
-                          value={cat.name}
-
-                        >
-
-                          {cat.name}
-
-                        </option>
-
-                      )
-                    )
-
-                  )
-
-                }
-
-
+                  ))
+                )}
               </select>
-
-
             </div>
-                
-                
-            {/* FILE UPLOAD */}
+
+            {/* Document File */}
 
             <div>
-
-              <label className="flex items-center gap-2 mb-3 font-medium">
-
-                <FolderOpen size={18}/>
-
-                Upload File
-
-              </label>
-
-
-
               <label
                 className="
-                  border-2
-                  border-dashed
-                  border-slate-700
-                  rounded-2xl
-                  p-8
+                  mb-3
                   flex
-                  flex-col
                   items-center
-                  justify-center
-                  cursor-pointer
-                  hover:border-blue-500
-                  transition
+                  gap-2
+                  font-medium
                 "
               >
-
-                <Upload
-                  size={42}
-                  className="text-blue-500 mb-3"
-                />
-
-
-                <p className="font-semibold">
-                  Click to select file
-                </p>
-
-
-                <p className="text-sm text-slate-400 mt-2">
-                  PDF • DOC • DOCX • PPT • XLS • ZIP
-                </p>
-
-
-
-                <input
-
-                  hidden
-
-                  type="file"
-
-                  accept="
-                    .pdf,
-                    .doc,
-                    .docx,
-                    .ppt,
-                    .pptx,
-                    .xls,
-                    .xlsx,
-                    .zip
-                  "
-
-                  onChange={(e)=>
-                    setFile(
-                      e.target.files[0]
-                    )
-                  }
-
-                />
-
+                <FolderOpen size={18} />
+                Document File
               </label>
-
-
-
-
-              {
-                file && (
-
-                  <div
-                    className="
-                      mt-4
-                      bg-slate-800
-                      border
-                      border-slate-700
-                      rounded-xl
-                      p-4
-                    "
-                  >
-
-                    <p className="font-medium">
-                      {file.name}
-                    </p>
-
-
-                    <p className="text-sm text-slate-400">
-                      {
-                        (
-                          file.size /
-                          1024 /
-                          1024
-                        ).toFixed(2)
-                      } MB
-                    </p>
-
-                  </div>
-
-                )
-              }
-
-
+              <input
+                type="file"
+                accept="
+                  .pdf,
+                  .doc,
+                  .docx,
+                  .ppt,
+                  .pptx,
+                  .xls,
+                  .xlsx
+                "
+                onChange={(e) =>
+                  setFile(
+                    e.target.files[0]
+                  )
+                }
+                className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-800 file:text-cyan-400 hover:file:bg-slate-700 cursor-pointer"
+              />
             </div>
 
+            {/* Thumbnail */}
 
+            <div>
+              <label
+                className="
+                  mb-3
+                  flex
+                  items-center
+                  gap-2
+                  font-medium
+                "
+              >
+                <Upload size={18} />
+                Thumbnail (Optional)
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) =>
+                  setThumbnail(
+                    e.target.files[0]
+                  )
+                }
+                className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-800 file:text-cyan-400 hover:file:bg-slate-700 cursor-pointer"
+              />
 
+              {thumbnail && (
+                <img
+                  src={URL.createObjectURL(
+                    thumbnail
+                  )}
+                  alt="Preview"
+                  className="
+                    mt-4
+                    h-40
+                    w-full
+                    rounded-2xl
+                    object-cover
+                  "
+                />
+              )}
+            </div>
 
-
-
-            {/* BUTTON */}
-
+            {/* UPLOAD BUTTON */}
 
             <button
-
               type="submit"
-
               disabled={uploading}
-
               className="
-                w-full
-                h-12
-                rounded-xl
-                bg-blue-600
-                hover:bg-blue-700
-                transition
                 flex
+                h-12
+                w-full
                 items-center
                 justify-center
                 gap-3
+                rounded-xl
+                bg-cyan-600
+                font-semibold
+                transition
+                hover:bg-cyan-500
                 disabled:opacity-50
               "
-
             >
-
-              {
-                uploading ?
-
-                (
-
-                  <>
-
-                    <Loader2
-                      size={18}
-                      className="animate-spin"
-                    />
-
-                    Uploading...
-
-                  </>
-
-                )
-
-                :
-
-                (
-
-                  <>
-
-                    <Upload size={18}/>
-
-                    Upload Document
-
-                  </>
-
-                )
-              }
-
-
+              {uploading ? (
+                <>
+                  <Loader2
+                    size={18}
+                    className="animate-spin"
+                  />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload size={18} />
+                  Upload Document
+                </>
+              )}
             </button>
-
-
           </motion.form>
 
-
-
-
-
-
-
-
-          {/* ==========================
-              DOCUMENT LIST
-          ========================== */}
-
+          {/* DOCUMENT LIST */}
 
           <motion.div
-
             initial={{
-              opacity:0
+              opacity: 0,
             }}
-
             animate={{
-              opacity:1
+              opacity: 1,
             }}
-
             className="
               rounded-3xl
-              bg-slate-900
               border
               border-slate-800
+              bg-slate-900
               p-6
             "
-
           >
-
-
-
             <div
               className="
+                mb-6
                 flex
                 items-center
                 justify-between
-                mb-6
+                gap-4
               "
             >
-
-
               <div className="relative flex-1">
-
-
                 <Search
-
                   size={18}
-
                   className="
                     absolute
                     left-4
                     top-3.5
                     text-slate-500
                   "
-
                 />
-
-
                 <input
-
                   value={search}
-
-                  onChange={(e)=>
+                  onChange={(e) =>
                     setSearch(
                       e.target.value
                     )
                   }
-
                   placeholder="Search documents..."
-
                   className="
-                    w-full
                     h-12
+                    w-full
                     rounded-xl
-                    bg-slate-800
                     border
                     border-slate-700
+                    bg-slate-800
                     pl-11
                     pr-4
                     outline-none
                   "
-
                 />
-
-
               </div>
 
-
-
-
               <button
-
                 onClick={fetchDocuments}
-
                 className="
-                  ml-4
-                  w-12
+                  flex
                   h-12
+                  w-12
+                  items-center
+                  justify-center
                   rounded-xl
                   bg-slate-800
+                  transition
+                  hover:bg-slate-700
+                "
+              >
+                <RefreshCw size={18} />
+              </button>
+            </div>
+
+            {loadingDocuments ? (
+              <div
+                className="
                   flex
+                  h-72
                   items-center
                   justify-center
                 "
-
               >
-
-                <RefreshCw size={18}/>
-
-              </button>
-
-
-
-            </div>
-                
-                
-            {
-              loadingDocuments ?
-
-              (
-
-                <div
+                <Loader2
                   className="
-                    h-60
-                    flex
-                    items-center
-                    justify-center
+                    animate-spin
+                    text-cyan-400
                   "
-                >
+                  size={40}
+                />
+              </div>
+            ) : filteredDocuments.length === 0 ? (
+              <div className="flex h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 text-slate-400">
+                <FileText size={48} className="mb-2 text-slate-600" />
+                <p>No documents found.</p>
+              </div>
+            ) : (
+              <div
+                className="
+                  grid
+                  gap-6
+                  md:grid-cols-2
+                  xl:grid-cols-3
+                "
+              >
+                {filteredDocuments.map(
+                  (doc) => (
+                    <div
+                      key={doc.id}
+                      className="
+                        overflow-hidden
+                        rounded-3xl
+                        border
+                        border-slate-800
+                        bg-slate-950
+                        transition
+                        hover:border-cyan-500/40
+                      "
+                    >
+                      {/* THUMBNAIL */}
+                      <div className="aspect-video bg-slate-900">
+                        <img
+                          src={
+                            doc.thumbnail_url ||
+                            "https://placehold.co/600x400/020617/38bdf8?text=Document"
+                          }
+                          alt={doc.title}
+                          className="
+                            h-full
+                            w-full
+                            object-cover
+                          "
+                        />
+                      </div>
 
-                  <Loader2
-                    className="animate-spin"
-                  />
+                      {/* CONTENT */}
+                      <div className="p-5">
+                        <h3
+                          className="
+                            text-lg
+                            font-bold
+                            text-white
+                          "
+                        >
+                          {doc.title}
+                        </h3>
 
-                </div>
-
-              )
-
-              :
-
-              filteredDocuments.length === 0 ?
-
-              (
-
-                <div
-                  className="text-center text-slate-400 py-20" >
-
-                  No documents found.
-
-                </div>
-
-              ) : (
-
-                <div className="space-y-4">
-
-                  {
-                    filteredDocuments.map(
-                      (doc)=>(
+                        <p
+                          className="
+                            mt-2
+                            line-clamp-3
+                            text-sm
+                            text-slate-400
+                          "
+                        >
+                          {doc.description || "No description provided."}
+                        </p>
 
                         <div
-                          key={doc.id}
-                          className="rounded-2xl bg-slate-800/50 border border-slate-700
-                            p-5
+                          className="
+                            mt-4
+                            inline-flex
+                            rounded-full
+                            bg-cyan-500/10
+                            px-3
+                            py-1
+                            text-xs
+                            font-medium
+                            text-cyan-400
                           "
-
                         >
+                          {doc.course_categories?.name ||
+                            doc.category ||
+                            "Uncategorized"}
+                        </div>
 
-
-                          <div
+                        <div
+                          className="
+                            mt-6
+                            flex
+                            items-center
+                            justify-between
+                          "
+                        >
+                          <button
+                            onClick={() =>
+                              openDocument(
+                                doc.file_url
+                              )
+                            }
                             className="
                               flex
-                              justify-between
-                              gap-4
+                              items-center
+                              gap-2
+                              rounded-xl
+                              bg-cyan-600
+                              px-4
+                              py-2
+                              text-sm
+                              font-semibold
+                              transition
+                              hover:bg-cyan-500
                             "
                           >
-                            <div>
+                            <ExternalLink
+                              size={16}
+                            />
+                            Open
+                          </button>
 
-                              <h3 className="font-semibold text-lg">
-                                {doc.title}
-                              </h3>
-
-
-                              <p className="text-sm text-slate-400 mt-2">
-                                {doc.description}
-                              </p>
-
-                              <span
-                                className="
-                                  inline-block
-                                  mt-3
-                                  px-3
-                                  py-1
-                                  rounded-full
-                                  bg-blue-600/20
-                                  text-blue-400
-                                  text-xs
-                                "
-                              >
-
-                                {doc.category}
-
-                              </span>
-                            </div>
-
-                            <div
-                              className="
-                                flex
-                                gap-2
-                              "
-                            >
-
-                              <button
-
-                                onClick={() =>
-                                  openDocument(
-                                    doc.file_url
-                                  )
-                                }
-
-                                className="w-10 h-10 rounded-xl bg-blue-600/20 flex items-center justify-center"
-
-                              >
-
-                                <ExternalLink size={18}/>
-
-                              </button>
-
-                              <button
-
-                                onClick={() =>
-                                  handleDelete(
-                                    doc.id,
-                                    doc.file_url
-                                  )
-                                }
-
-                                className="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center"
-
-                              >
-
-                                <Trash2 size={18}/>
-                              </button>
-                            </div>
-                          </div>
+                          <button
+                            onClick={() =>
+                              handleDelete(
+                                doc
+                              )
+                            }
+                            className="
+                              flex
+                              h-10
+                              w-10
+                              items-center
+                              justify-center
+                              rounded-xl
+                              bg-red-500/10
+                              text-red-400
+                              transition
+                              hover:bg-red-500/20
+                            "
+                          >
+                            <Trash2 size={18} />
+                          </button>
                         </div>
-                      )
-                    )
-                  }
-                </div>
-
-              )
-            }
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
           </motion.div>
-
         </div>
-
       </div>
     </div>
-
   );
-
 }

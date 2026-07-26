@@ -179,8 +179,8 @@ const categoryDocuments = useMemo(()=>{
             courses={filteredCourses}
           />
           <SubjectDocuments
- documents={categoryDocuments}
-/>
+              documents={categoryDocuments}
+            />
         </motion.div>
 
         <motion.div

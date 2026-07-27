@@ -157,12 +157,10 @@ useEffect(() => {
         value={search}
         onChange={setSearch}
       />
-
      
       {/* Featured */}
 
       {featuredCourses.length > 0 && (
-
         <FeaturedCourses
           courses={featuredCourses}
         />
@@ -182,8 +180,7 @@ useEffect(() => {
   )}
 
   <ExploreHub
-    courses={filteredCourses}
-    search={search}
+  
   />
 
 </div>

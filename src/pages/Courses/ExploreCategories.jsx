@@ -1,6 +1,11 @@
 // src/pages/courses/ExploreCategories.jsx
 
-import React, { useMemo, useRef, useState } from "react";
+import React, {
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -40,66 +45,96 @@ export default function ExploreCategories() {
   const categoryGridRef = useRef(null);
 
   const {
-    categories = [],
-    courses = [],
+    categories,
+    documents,
     loading,
   } = useCourses();
+  console.log("Categories:", categories);
+console.log("Documents:", documents);
 
   const [search, setSearch] = useState("");
 
-  console.log("Categories From Context:", categories);
-  console.log("Courses From Context:", courses);
-
   const formattedCategories = useMemo(() => {
-    return categories.map((category) => {
-      const Icon = ICON_MAP[category.name] || GraduationCap;
 
-      const categoryCourses = courses.filter(
-        (course) =>
-          String(course.category_id) === String(category.id)
+  return (categories || []).map((category) => {
+
+    const Icon =
+      ICON_MAP[category.name] ||
+      GraduationCap;
+
+
+    const categoryCourses =
+      (documents || []).filter(
+        (doc) =>
+          String(
+            doc.category_id
+          ) ===
+          String(
+            category.id
+          )
       );
 
-      return {
-        ...category,
 
-        icon: Icon,
+    return {
 
-        title: category.name,
+      id: category.id,
 
-        totalCourses: categoryCourses.length,
+      name: category.name,
 
-        totalStudents: categoryCourses.reduce(
-          (sum, course) =>
-            sum + (Number(course.students) || 0),
-          0
-        ),
+      title: category.name,
 
-        totalLessons: categoryCourses.reduce(
-          (sum, course) =>
-            sum + (Number(course.lessons) || 0),
-          0
-        ),
-      };
-    });
-  }, [categories, courses]);
+
+      description:
+        category.description ||
+        "Explore courses in this category.",
+
+
+      icon: Icon,
+
+
+      count:
+        categoryCourses.length,
+
+
+      totalCourses:
+        categoryCourses.length,
+
+
+      documents:
+        categoryCourses,
+
+    };
+
+  });
+
+}, [
+  categories,
+  documents,
+]);
 
   const filteredCategories = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    const keyword = search
+      .trim()
+      .toLowerCase();
 
-    if (!keyword) return formattedCategories;
+    if (!keyword) {
+      return formattedCategories;
+    }
 
-    return formattedCategories.filter((category) => {
-      const name = category.name || "";
-      const description = category.description || "";
-
-      return (
-        name.toLowerCase().includes(keyword) ||
-        description.toLowerCase().includes(keyword)
-      );
-    });
-  }, [formattedCategories, search]);
-
-  return (
+    return formattedCategories.filter(
+      (category) =>
+        category.name
+          ?.toLowerCase()
+          .includes(keyword) ||
+        category.description
+          ?.toLowerCase()
+          .includes(keyword)
+    );
+  }, [
+    formattedCategories,
+    search,
+  ]);
+    return (
     <div className="relative min-h-screen overflow-hidden bg-[#030712] text-white">
       {/* Background */}
       <div className="absolute inset-0 pointer-events-none">
@@ -125,9 +160,16 @@ export default function ExploreCategories() {
       </div>
 
       <main className="relative z-10 mx-auto max-w-7xl px-6 py-20">
+
         <motion.section
-          initial={{ opacity: 0, y: -15 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{
+            opacity: 0,
+            y: -15,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
           className="mb-14 text-center"
         >
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-cyan-500/30 bg-cyan-500/10">
@@ -147,35 +189,48 @@ export default function ExploreCategories() {
           </h1>
 
           <p className="mx-auto mt-5 max-w-3xl text-lg text-slate-400">
-            Discover all learning categories available on the platform.
+            Browse every learning category created from your backend.
           </p>
         </motion.section>
 
-        <div className="mx-auto max-w-4xl rounded-3xl border border-slate-700 bg-slate-900/70">
+        <div className="mx-auto max-w-4xl rounded-3xl border border-slate-700 bg-slate-900/70 backdrop-blur-xl">
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) =>
+              setSearch(e.target.value)
+            }
             placeholder="Search categories..."
-            className="w-full bg-transparent px-6 py-5 outline-none"
+            className="w-full bg-transparent px-6 py-5 outline-none placeholder:text-slate-500"
           />
         </div>
 
         <CategoryStats />
 
         {loading ? (
-          <div className="py-24 text-center text-slate-400">
-            Loading Categories...
+          <div className="flex h-64 items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+
+              <p className="text-slate-400">
+                Loading Categories...
+              </p>
+            </div>
           </div>
+          
         ) : (
           <div ref={categoryGridRef}>
-            <CategoryGrid
-              categories={filteredCategories}
-              navigate={navigate}
-            />
+           <CategoryCard
+  key={category.id}
+  category={category}
+  onClick={() =>
+    navigate(`/courses/category/${category.id}`)
+  }
+/>
           </div>
         )}
 
-        <WhyScholiqen />
+
+                <WhyScholiqen />
 
         <CategoryCTA
           scrollToCategories={() =>

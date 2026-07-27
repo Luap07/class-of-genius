@@ -10,6 +10,7 @@ import { useCourses } from "../../context/LMSContext/CourseContext";
 import SubjectHero from "../../components/subjectCourses/SubjectHero";
 import SubjectStats from "../../components/subjectCourses/SubjectStats";
 import SubjectCourseGrid from "../../components/subjectCourses/SubjectCourseGrid";
+import Subjects from "../../pages/Courses/Subjects";
 import SubjectBottomCTA from "../../components/subjectCourses/SubjectBottomCTA";
 import SubjectDocuments from "../../components/subjectCourses/SubjectDocuments";
 
@@ -22,33 +23,9 @@ export default function SubjectCourses() {
   } = useParams();
 
   const {
-  courses,
-  loading,
-} = useCourses();
-
-
-const categoryDocuments = useMemo(()=>{
-
-  const docs = [];
-
-  filteredCourses.forEach((course)=>{
-
-    if(course.documents){
-
-      docs.push(
-        ...course.documents
-      );
-
-    }
-
-  });
-
-
-  return docs;
-
-},[
- filteredCourses
-]);
+    courses,
+    loading,
+  } = useCourses();
 
   const decodedCategory = decodeURIComponent(category || "")
     .toLowerCase()
@@ -58,6 +35,7 @@ const categoryDocuments = useMemo(()=>{
     .toLowerCase()
     .trim();
 
+  // Filter courses first
   const filteredCourses = useMemo(() => {
     return courses.filter((course) => {
       const categoryMatch =
@@ -78,6 +56,19 @@ const categoryDocuments = useMemo(()=>{
     decodedSubject,
   ]);
 
+  // Then derive documents from filtered courses
+  const categoryDocuments = useMemo(() => {
+    const docs = [];
+
+    filteredCourses.forEach((course) => {
+      if (Array.isArray(course.documents)) {
+        docs.push(...course.documents);
+      }
+    });
+
+    return docs;
+  }, [filteredCourses]);
+
   const totalStudents = filteredCourses.reduce(
     (sum, course) => sum + (course.students || 0),
     0
@@ -92,13 +83,13 @@ const categoryDocuments = useMemo(()=>{
     filteredCourses.length > 0
       ? (
           filteredCourses.reduce(
-            (sum, course) =>
-              sum + (course.rating || 0),
+            (sum, course) => sum + (course.rating || 0),
             0
           ) / filteredCourses.length
         ).toFixed(1)
       : "0.0";
-        return (
+
+  return (
     <div className="min-h-screen overflow-hidden bg-[#050B14] text-white">
       {/* Background */}
       <div className="fixed inset-0 -z-10">
@@ -130,11 +121,11 @@ const categoryDocuments = useMemo(()=>{
           }}
         >
           <SubjectHero
-  navigate={navigate}
-  categoryName={decodedCategory}
-  subjectName={decodedSubject}
-  totalCourses={filteredCourses.length}
-/>
+            navigate={navigate}
+            categoryName={decodedCategory}
+            subjectName={decodedSubject}
+            totalCourses={filteredCourses.length}
+          />
         </motion.div>
 
         <motion.div
@@ -159,6 +150,8 @@ const categoryDocuments = useMemo(()=>{
           />
         </motion.div>
 
+        <Subjects />
+
         <motion.div
           initial={{
             opacity: 0,
@@ -178,9 +171,10 @@ const categoryDocuments = useMemo(()=>{
             loading={loading}
             courses={filteredCourses}
           />
+
           <SubjectDocuments
-              documents={categoryDocuments}
-            />
+            documents={categoryDocuments}
+          />
         </motion.div>
 
         <motion.div

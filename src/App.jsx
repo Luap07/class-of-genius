@@ -515,16 +515,15 @@ const AnimatedRoutes = () => {
         />
 
         <Route
-          path="/courses/:category"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-                <CategorySubjects />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
-
+  path="/courses/category/:categoryId"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <CategorySubjects />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
         <Route
           path="/courses/:category/:subject"
           element={

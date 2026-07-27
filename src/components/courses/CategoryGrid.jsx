@@ -13,11 +13,21 @@ const container = {
   },
 };
 
-export default function CategoryGrid({ categories = [], navigate }) {
-  if (!categories.length) {
+export default function CategoryGrid({
+  categories = [],
+  navigate,
+}) {
+  if (!categories || categories.length === 0) {
     return (
-      <div className="mt-16 rounded-3xl border border-slate-800 bg-slate-900 p-10 text-center text-slate-400">
-        No categories available yet.
+      <div className="mt-16 rounded-3xl border border-slate-800 bg-slate-900 p-10 text-center">
+        <h3 className="text-2xl font-bold text-white">
+          No Categories Found
+        </h3>
+
+        <p className="mt-3 text-slate-400">
+          Upload documents in Document Admin and assign them to a category.
+          Categories will automatically appear here.
+        </p>
       </div>
     );
   }
@@ -25,9 +35,12 @@ export default function CategoryGrid({ categories = [], navigate }) {
   return (
     <section className="mt-16">
       <div className="mb-10">
-        <h2 className="text-4xl font-black">Browse Categories</h2>
+        <h2 className="text-4xl font-black">
+          Browse Categories
+        </h2>
+
         <p className="mt-3 text-slate-400">
-          Select a category to discover subjects, courses and learning paths.
+          Select a category to view every document uploaded for it.
         </p>
       </div>
 
@@ -35,13 +48,17 @@ export default function CategoryGrid({ categories = [], navigate }) {
         variants={container}
         initial="hidden"
         animate="show"
-        className="grid gap-8 lg:grid-cols-3"
+        className="grid gap-8 md:grid-cols-2 xl:grid-cols-3"
       >
         {categories.map((category) => (
           <CategoryCard
             key={category.id}
             category={category}
-            onClick={() => navigate(`/courses/category/${category.id}`)}
+            onClick={() =>
+              navigate(
+                `/courses/category/${category.id}`
+              )
+            }
           />
         ))}
       </motion.div>

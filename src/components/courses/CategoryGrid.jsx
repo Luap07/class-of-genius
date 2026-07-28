@@ -52,14 +52,14 @@ export default function CategoryGrid({
       >
         {categories.map((category) => (
           <CategoryCard
-            key={category.id}
-            category={category}
-            onClick={() =>
-              navigate(
-                `/courses/category/${category.id}`
-              )
-            }
-          />
+  key={category.id}
+  category={category}
+  onClick={() =>
+    navigate(
+      `/courses/${category.id}`
+    )
+  }
+/>
         ))}
       </motion.div>
     </section>

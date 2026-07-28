@@ -28,6 +28,7 @@ import CategoryGrid from "../../components/courses/CategoryGrid";
 import WhyScholiqen from "../../components/courses/WhyScholiqen";
 import CategoryCTA from "../../components/courses/CategoriesCTA";
 import CategoriesFooter from "../../components/courses/CategoriesFooter";
+import CategoryCard from "../../components/courses/CategoryCard";
 
 const ICON_MAP = {
   Science: Atom,
@@ -206,30 +207,94 @@ console.log("Documents:", documents);
 
         <CategoryStats />
 
-        {loading ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="text-center">
-              <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+       {loading ? (
 
-              <p className="text-slate-400">
-                Loading Categories...
-              </p>
-            </div>
-          </div>
-          
-        ) : (
-          <div ref={categoryGridRef}>
-           <CategoryCard
-  key={category.id}
-  category={category}
-  onClick={() =>
-    navigate(`/courses/category/${category.id}`)
-  }
-/>
-          </div>
-        )}
+  <div className="flex h-64 items-center justify-center">
+    <div className="text-center">
 
+      <div
+        className="
+          mx-auto
+          mb-4
+          h-12
+          w-12
+          animate-spin
+          rounded-full
+          border-4
+          border-cyan-500
+          border-t-transparent
+        "
+      />
 
+      <p className="text-slate-400">
+        Loading Categories...
+      </p>
+
+    </div>
+  </div>
+
+) : (
+
+  <div
+    ref={categoryGridRef}
+    className="
+      grid
+      gap-8
+      md:grid-cols-2
+      xl:grid-cols-3
+      mt-12
+    "
+  >
+
+    {filteredCategories.length > 0 ? (
+
+      filteredCategories.map((category) => (
+
+        <CategoryCard
+
+          key={category.id}
+
+          category={category}
+
+          onClick={() =>
+            navigate(
+              `/courses/category/${category.id}`
+            )
+          }
+
+        />
+
+      ))
+
+    ) : (
+
+      <div
+        className="
+          col-span-full
+          rounded-3xl
+          border
+          border-dashed
+          border-slate-700
+          p-16
+          text-center
+        "
+      >
+
+        <h2 className="text-3xl font-bold">
+          No Categories Found
+        </h2>
+
+        <p className="mt-3 text-slate-400">
+          No learning categories are available.
+        </p>
+
+      </div>
+
+    )}
+
+  </div>
+
+)}
                 <WhyScholiqen />
 
         <CategoryCTA

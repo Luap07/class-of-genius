@@ -1,165 +1,31 @@
-import React from "react";
-import { motion } from "framer-motion";
-import { useNavigate, useParams } from "react-router-dom";
+import React, {
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  motion,
+} from "framer-motion";
+
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 import {
   ArrowLeft,
-  ArrowRight,
-  Atom,
-  FlaskConical,
-  Dna,
-  Calculator,
-  Globe,
-  Laptop,
-  Briefcase,
-  Palette,
-  HeartPulse,
-  Landmark,
-  GraduationCap,
-  Cpu,
-  Code2,
-  Shield,
-  Database,
+  Search,
+  BookOpen,
+  FileText,
+  ExternalLink,
+  Download,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 
-/* ==========================================
-   SUBJECTS
-========================================== */
-
-const SUBJECTS = {
-  science: [
-    {
-      id: "physics",
-      title: "Physics",
-      description: "Mechanics, Electricity, Waves & Modern Physics",
-      icon: Atom,
-      color: "from-cyan-500 to-blue-600",
-    },
-    {
-      id: "chemistry",
-      title: "Chemistry",
-      description: "Organic, Inorganic & Physical Chemistry",
-      icon: FlaskConical,
-      color: "from-orange-500 to-red-500",
-    },
-    {
-      id: "biology",
-      title: "Biology",
-      description: "Genetics, Ecology & Human Biology",
-      icon: Dna,
-      color: "from-green-500 to-emerald-600",
-    },
-    {
-      id: "mathematics",
-      title: "Mathematics",
-      description: "Pure & Applied Mathematics",
-      icon: Calculator,
-      color: "from-purple-500 to-indigo-600",
-    },
-  ],
-
-  technology: [
-    {
-      id: "computer-science",
-      title: "Computer Science",
-      description: "Programming, AI & Algorithms",
-      icon: Laptop,
-      color: "from-blue-500 to-cyan-500",
-    },
-    {
-      id: "software-engineering",
-      title: "Software Engineering",
-      description: "Full Stack Development",
-      icon: Code2,
-      color: "from-indigo-500 to-blue-500",
-    },
-    {
-      id: "cybersecurity",
-      title: "Cyber Security",
-      description: "Ethical Hacking & Network Security",
-      icon: Shield,
-      color: "from-red-500 to-pink-500",
-    },
-    {
-      id: "artificial-intelligence",
-      title: "Artificial Intelligence",
-      description: "Machine Learning & Deep Learning",
-      icon: Cpu,
-      color: "from-violet-500 to-purple-500",
-    },
-  ],
-
-  business: [
-    {
-      id: "accounting",
-      title: "Accounting",
-      description: "Financial & Management Accounting",
-      icon: Briefcase,
-      color: "from-emerald-500 to-green-600",
-    },
-  ],
-
-  arts: [
-    {
-      id: "fine-art",
-      title: "Fine Art",
-      description: "Creative Design & Visual Arts",
-      icon: Palette,
-      color: "from-pink-500 to-rose-500",
-    },
-  ],
-
-  geography: [
-    {
-      id: "geography",
-      title: "Geography",
-      description: "Physical & Human Geography",
-      icon: Globe,
-      color: "from-teal-500 to-cyan-500",
-    },
-  ],
-
-  health: [
-    {
-      id: "anatomy",
-      title: "Anatomy",
-      description: "Human Body Systems",
-      icon: HeartPulse,
-      color: "from-red-500 to-orange-500",
-    },
-  ],
-
-  university: [
-    {
-      id: "engineering",
-      title: "Engineering",
-      description: "Engineering Courses",
-      icon: Cpu,
-      color: "from-blue-500 to-indigo-600",
-    },
-    {
-      id: "computer-science",
-      title: "Computer Science",
-      description: "University CS Courses",
-      icon: Database,
-      color: "from-cyan-500 to-blue-500",
-    },
-    {
-      id: "law",
-      title: "Law",
-      description: "Law Faculty",
-      icon: Landmark,
-      color: "from-amber-500 to-yellow-500",
-    },
-    {
-      id: "medicine",
-      title: "Medicine",
-      description: "Medical Sciences",
-      icon: HeartPulse,
-      color: "from-red-500 to-pink-500",
-    },
-  ],
-};
+import {
+  useCourses,
+} from "../../context/LMSContext/CourseContext";
 
 const container = {
   hidden: {},
@@ -170,10 +36,10 @@ const container = {
   },
 };
 
-const item = {
+const cardAnimation = {
   hidden: {
     opacity: 0,
-    y: 35,
+    y: 30,
   },
   show: {
     opacity: 1,
@@ -187,153 +53,528 @@ const item = {
 export default function CategorySubjects() {
   const navigate = useNavigate();
 
-  const { category } = useParams();
+  const {
+    categoryId,
+  } = useParams();
 
-  const subjects = SUBJECTS[category] || [];
-    return (
-    <div className="min-h-screen bg-[#040B14] text-white overflow-hidden">
+  const {
+    categories = [],
+    documents = [],
+    loading,
+  } = useCourses();
 
-      {/* ================= BACKGROUND ================= */}
+  const [search, setSearch] = useState("");
 
-      <div className="fixed inset-0 -z-10">
+  /*
+    FIND CATEGORY
+  */
+  const selectedCategory = useMemo(() => {
+    return categories.find(
+      (cat) =>
+        String(cat.id) ===
+        String(categoryId)
+    );
+  }, [
+    categories,
+    categoryId,
+  ]);
 
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#0f2b46_0%,#040B14_60%)]" />
+  /*
+    FILTER SUBJECT RESOURCES
+  */
+  const categoryDocuments = useMemo(() => {
+    const list = documents.filter(
+      (doc) =>
+        String(doc.category_id) ===
+        String(categoryId)
+    );
 
-        <div className="absolute top-20 left-10 w-96 h-96 rounded-full bg-cyan-500/10 blur-[140px]" />
+    if (!search.trim()) {
+      return list;
+    }
 
-        <div className="absolute bottom-0 right-0 w-[450px] h-[450px] rounded-full bg-blue-600/10 blur-[170px]" />
+    const keyword =
+      search.toLowerCase().trim();
 
-        <div className="absolute inset-0 opacity-[0.04]
-        [background-image:linear-gradient(rgba(255,255,255,.15)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.15)_1px,transparent_1px)]
-        [background-size:45px_45px]" />
+    return list.filter(
+      (item) =>
+        item.title
+          ?.toLowerCase()
+          .includes(keyword) ||
+        item.description
+          ?.toLowerCase()
+          .includes(keyword)
+    );
+  }, [
+    documents,
+    categoryId,
+    search,
+  ]);
 
+  const totalFiles =
+    categoryDocuments.length;
+
+  return (
+    <div
+      className="
+        min-h-screen
+        overflow-hidden
+        bg-[#030712]
+        text-white
+      "
+    >
+      {/* BACKGROUND */}
+      <div
+        className="
+          fixed
+          inset-0
+          -z-10
+        "
+      >
+        <div
+          className="
+            absolute
+            inset-0
+            bg-[#020617]
+          "
+        />
+
+        <div
+          className="
+            absolute
+            left-0
+            top-0
+            h-[500px]
+            w-[500px]
+            rounded-full
+            bg-cyan-500/10
+            blur-[180px]
+          "
+        />
+
+        <div
+          className="
+            absolute
+            bottom-0
+            right-0
+            h-[500px]
+            w-[500px]
+            rounded-full
+            bg-blue-600/10
+            blur-[180px]
+          "
+        />
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
-
-        {/* ================= HERO ================= */}
-
-        <motion.div
-          initial={{ opacity: 0, y: 35 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: .6 }}
-          className="mb-16"
+      <main
+        className="
+          mx-auto
+          max-w-7xl
+          px-6
+          py-16
+        "
+      >
+        {/* HERO */}
+        <motion.section
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          className="mb-14"
         >
-
           <button
-            onClick={() => navigate("/subjects")}
-            className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 transition"
+            onClick={() =>
+              navigate("/subjects")
+            }
+            className="
+              flex
+              items-center
+              gap-2
+              text-slate-400
+              hover:text-cyan-400
+            "
           >
             <ArrowLeft size={18} />
-
             Back to Categories
           </button>
 
-          <h1 className="mt-8 text-5xl lg:text-6xl font-black tracking-tight">
+          <div
+            className="
+              mt-10
+              flex
+              flex-col
+              gap-6
+              md:flex-row
+              md:items-center
+            "
+          >
+            <div
+              className="
+                flex
+                h-24
+                w-24
+                items-center
+                justify-center
+                rounded-3xl
+                bg-gradient-to-br
+                from-cyan-500
+                to-blue-600
+              "
+            >
+              <BookOpen size={45} />
+            </div>
 
-            {category}
-
-            <span className="text-cyan-400">
-              {" "}Subjects
-            </span>
-
-          </h1>
-
-          <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-400">
-
-            Choose a subject to explore available learning paths,
-            practical lessons, projects and certifications.
-
-          </p>
-
-        </motion.div>
-
-        {/* ================= SUBJECT GRID ================= */}
-
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="grid md:grid-cols-2 xl:grid-cols-3 gap-8"
-        >
-                      {subjects.map((subject) => {
-
-            const Icon = subject.icon;
-
-            return (
-
-              <motion.div
-                key={subject.id}
-                variants={item}
-                whileHover={{
-                  y: -10,
-                  scale: 1.02,
-                }}
-                whileTap={{
-                  scale: .98,
-                }}
-                onClick={() =>
-                  navigate(
-                    `/courses/${category}/${subject.id}`
-                  )
-                }
-                className="group cursor-pointer relative overflow-hidden rounded-[30px] border border-slate-800 bg-slate-900/70 backdrop-blur-xl"
+            <div>
+              <h1
+                className="
+                  text-5xl
+                  font-black
+                "
               >
+                {
+                  selectedCategory?.name
+                  ||
+                  "Category"
+                }
+              </h1>
 
-                {/* Gradient */}
-                <div
-                  className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-500 bg-gradient-to-br ${subject.color}`}
-                />
+              <p
+                className="
+                  mt-3
+                  text-lg
+                  text-slate-400
+                "
+              >
+                Explore all learning materials
+                available in this category.
+              </p>
+            </div>
+          </div>
+          
+          {/* STATS */}
+          <div
+            className="
+              mt-10
+              grid
+              gap-5
+              md:grid-cols-3
+            "
+          >
+            <StatCard
+              icon={<Layers size={24} />}
+              title="Resources"
+              value={totalFiles}
+            />
 
-                {/* Glow */}
-                <div className="absolute -right-20 -top-20 w-52 h-52 rounded-full bg-white/10 blur-3xl opacity-0 group-hover:opacity-100 transition duration-500" />
+            <StatCard
+              icon={<FileText size={24} />}
+              title="Documents"
+              value={
+                categoryDocuments.filter(
+                  (doc) =>
+                    doc.file_type
+                    ?.toLowerCase()
+                    ===
+                    "pdf"
+                ).length
+              }
+            />
 
-                <div className="relative z-10 p-8">
+            <StatCard
+              icon={<Sparkles size={24} />}
+              title="Category"
+              value={
+                selectedCategory?.name
+                ||
+                "General"
+              }
+            />
+          </div>
 
-                  <div
-                    className={`w-16 h-16 rounded-2xl flex items-center justify-center bg-gradient-to-br ${subject.color}`}
+          {/* SEARCH */}
+          <div
+            className="
+              mt-10
+              flex
+              items-center
+              gap-4
+              rounded-3xl
+              border
+              border-slate-800
+              bg-slate-900/70
+              px-6
+              py-5
+            "
+          >
+            <Search
+              size={22}
+              className="text-slate-500"
+            />
+
+            <input
+              value={search}
+              onChange={(e) =>
+                setSearch(
+                  e.target.value
+                )
+              }
+              placeholder="
+                Search learning resources...
+              "
+              className="
+                w-full
+                bg-transparent
+                outline-none
+                placeholder:text-slate-500
+              "
+            />
+          </div>
+        </motion.section>
+
+        {/* RESOURCE GRID */}
+        {
+          loading ? (
+            <div
+              className="
+                flex
+                h-64
+                items-center
+                justify-center
+              "
+            >
+              <div
+                className="
+                  h-12
+                  w-12
+                  animate-spin
+                  rounded-full
+                  border-4
+                  border-cyan-500
+                  border-t-transparent
+                "
+              />
+            </div>
+          ) : (
+          <motion.div
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="
+              grid
+              gap-8
+              md:grid-cols-2
+              xl:grid-cols-3
+            "
+          >
+          {
+            categoryDocuments.length > 0 ? (
+              categoryDocuments.map(
+                (doc) => (
+                  <motion.div
+                    key={doc.id}
+                    variants={cardAnimation}
+                    whileHover={{
+                      y: -10,
+                    }}
+                    className="
+                      group
+                      relative
+                      overflow-hidden
+                      rounded-[32px]
+                      border
+                      border-slate-800
+                      bg-slate-900/80
+                      p-7
+                    "
                   >
-                    <Icon size={30} />
-                  </div>
+                    {/* CARD GLOW */}
+                    <div
+                      className="
+                        absolute
+                        -right-20
+                        -top-20
+                        h-48
+                        w-48
+                        rounded-full
+                        bg-cyan-500/10
+                        blur-[100px]
+                        transition
+                        group-hover:bg-cyan-500/20
+                      "
+                    />
 
-                  <h2 className="mt-8 text-3xl font-bold group-hover:text-white">
-                    {subject.title}
-                  </h2>
+                    <div
+                      className="
+                        relative
+                        z-10
+                      "
+                    >
+                      {/* ICON */}
+                      <div
+                        className="
+                          flex
+                          h-16
+                          w-16
+                          items-center
+                          justify-center
+                          rounded-2xl
+                          bg-gradient-to-br
+                          from-cyan-500
+                          to-blue-600
+                        "
+                      >
+                        <FileText
+                          size={32}
+                        />
+                      </div>
 
-                  <p className="mt-4 leading-7 text-slate-400 group-hover:text-slate-200 transition">
-                    {subject.description}
-                  </p>
+                      {/* TITLE */}
+                      <h2
+                        className="
+                          mt-7
+                          line-clamp-2
+                          text-2xl
+                          font-black
+                        "
+                      >
+                        {doc.title}
+                      </h2>
 
-                  <div className="mt-8 flex items-center justify-between">
+                      <p
+                        className="
+                          mt-4
+                          line-clamp-3
+                          leading-7
+                          text-slate-400
+                        "
+                      >
+                        {
+                          doc.description
+                          ||
+                          "No description available."
+                        }
+                      </p>
 
-                    <span className="text-cyan-400 font-semibold">
-                      Explore Subject
-                    </span>
+                      {/* FILE DETAILS */}
+                      <div
+                        className="
+                          mt-6
+                          flex
+                          flex-wrap
+                          gap-3
+                        "
+                      >
+                        <span
+                          className="
+                            rounded-full
+                            bg-cyan-500/10
+                            px-4
+                            py-2
+                            text-sm
+                            font-semibold
+                            text-cyan-300
+                          "
+                        >
+                          {
+                            doc.file_type
+                            ?.toUpperCase()
+                            ||
+                            "FILE"
+                          }
+                        </span>
 
-                    <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
+                        {
+                          doc.file_size && (
+                            <span
+                              className="
+                                rounded-full
+                                bg-slate-800
+                                px-4
+                                py-2
+                                text-sm
+                                text-slate-300
+                              "
+                            >
+                              {
+                                Math.round(
+                                  doc.file_size / 1024
+                                )
+                              }
+                              KB
+                            </span>
+                          )
+                        }
+                      </div>
 
-                      <ArrowRight
-                        size={20}
-                        className="group-hover:translate-x-1 transition"
-                      />
-
+                      {/* ACTIONS */}
+                      <div
+                        className="
+                          mt-8
+                          flex
+                          gap-3
+                        "
+                      >
+                     <button
+  onClick={() => {
+    console.log("Document:", doc);
+    console.log("Navigating to:", `/pdf/${doc.id}`);
+    navigate(`/pdf/${doc.id}`);
+  }}
+  className="
+    flex-1
+    rounded-2xl
+    bg-cyan-500
+    px-5
+    py-3
+    font-bold
+    text-slate-950
+  "
+>
+  Read Document
+</button>   {
+                          doc.file_url && (
+                            <button
+                              onClick={() => {
+                                const link = document.createElement("a");
+                                link.href = doc.file_url;
+                                link.download = doc.title;
+                                link.click();
+                              }}
+                              className="
+                                flex
+                                items-center
+                                justify-center
+                                rounded-2xl
+                                border
+                                border-slate-700
+                                px-4
+                                hover:border-cyan-500
+                                hover:text-cyan-400
+                              "
+                            >
+                              <Download size={20} />
+                            </button>
+                          )
+                        }
+                      </div>
                     </div>
+                  </motion.div>
+                )
+              )
+            ) : (
+              <EmptyState />
+            )
+          }
+          </motion.div>
+          )
+        }
 
-                  </div>
-
-                </div>
-
-              </motion.div>
-
-            );
-
-          })}
-
-        </motion.div>
-
-        {/* ================= FOOTER CTA ================= */}
-
-        <motion.div
+        {/* CTA SECTION */}
+        <motion.section
           initial={{
             opacity: 0,
             y: 40,
@@ -345,38 +586,185 @@ export default function CategorySubjects() {
           viewport={{
             once: true,
           }}
-          transition={{
-            duration: .6,
-          }}
-          className="mt-24 rounded-[32px] border border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 p-10 text-center"
+          className="
+            mt-24
+            rounded-[35px]
+            border
+            border-cyan-500/20
+            bg-gradient-to-r
+            from-cyan-500/10
+            via-blue-500/10
+            to-indigo-500/10
+            p-10
+            text-center
+          "
         >
+          <div
+            className="
+              mx-auto
+              flex
+              h-20
+              w-20
+              items-center
+              justify-center
+              rounded-3xl
+              bg-gradient-to-br
+              from-cyan-500
+              to-blue-600
+            "
+          >
+            <BookOpen size={40} />
+          </div>
 
-          <GraduationCap
-            size={60}
-            className="mx-auto text-cyan-400"
-          />
-
-          <h2 className="mt-6 text-4xl font-black">
-            Learn Without Limits
+          <h2
+            className="
+              mt-8
+              text-4xl
+              font-black
+            "
+          >
+            Keep Learning
           </h2>
 
-          <p className="mt-4 max-w-3xl mx-auto text-slate-400 leading-8">
-            Every subject contains professional courses,
-            practical projects, quizzes, certificates,
-            AI tutoring and interactive laboratories.
+          <p
+            className="
+              mx-auto
+              mt-4
+              max-w-2xl
+              text-lg
+              leading-8
+              text-slate-400
+            "
+          >
+            Explore more categories and continue
+            building your knowledge with Scholiqen.
           </p>
 
           <button
-            onClick={() => navigate("/courses")}
-            className="mt-10 px-8 py-4 rounded-2xl bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 transition"
+            onClick={() =>
+              navigate("/subjects")
+            }
+            className="
+              mt-8
+              rounded-2xl
+              bg-cyan-500
+              px-8
+              py-4
+              font-bold
+              text-slate-950
+              transition
+              hover:bg-cyan-400
+            "
           >
-            Browse More Categories
+            Browse Categories
           </button>
-
-        </motion.div>
-
-      </div>
-
+        </motion.section>
+      </main>
     </div>
   );
 }
+
+/* ============================================
+   STAT CARD
+============================================ */
+const StatCard = ({
+  icon,
+  title,
+  value,
+}) => {
+  return (
+    <div
+      className="
+        rounded-3xl
+        border
+        border-slate-800
+        bg-slate-900/70
+        p-6
+      "
+    >
+      <div
+        className="
+          flex
+          h-12
+          w-12
+          items-center
+          justify-center
+          rounded-2xl
+          bg-cyan-500/10
+          text-cyan-400
+        "
+      >
+        {icon}
+      </div>
+
+      <p
+        className="
+          mt-5
+          text-sm
+          text-slate-500
+        "
+      >
+        {title}
+      </p>
+
+      <h3
+        className="
+          mt-2
+          text-3xl
+          font-black
+        "
+      >
+        {value}
+      </h3>
+    </div>
+  );
+};
+
+/* ============================================
+   EMPTY STATE
+============================================ */
+const EmptyState = () => (
+  <div
+    className="
+      col-span-full
+      rounded-[32px]
+      border
+      border-dashed
+      border-slate-700
+      bg-slate-900/50
+      p-16
+      text-center
+    "
+  >
+    <BookOpen
+      size={70}
+      className="
+        mx-auto
+        text-slate-600
+      "
+    />
+
+    <h2
+      className="
+        mt-8
+        text-3xl
+        font-black
+      "
+    >
+      No Resources Found
+    </h2>
+
+    <p
+      className="
+        mx-auto
+        mt-4
+        max-w-xl
+        leading-7
+        text-slate-400
+      "
+    >
+      There are currently no learning materials
+      available in this category.
+    </p>
+  </div>
+);

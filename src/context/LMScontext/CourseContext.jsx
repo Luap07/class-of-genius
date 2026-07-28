@@ -11,38 +11,46 @@ import React, {
 
 import { supabase } from "../../lib/supabaseClient";
 
+
 const CourseContext = createContext();
+
 
 
 export const CourseProvider = ({ children }) => {
 
-  /* =====================================================
-      STATE
-  ===================================================== */
 
-  const [courses, setCourses] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [documents, setDocuments] = useState([]);
+  const [courses,setCourses] = useState([]);
 
-  const [featuredCourses, setFeaturedCourses] = useState([]);
-  const [recentCourses, setRecentCourses] = useState([]);
+  const [categories,setCategories] = useState([]);
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  const [documents,setDocuments] = useState([]);
 
 
+  const [featuredCourses,setFeaturedCourses] = useState([]);
 
-  /* =====================================================
-      FETCH COURSES
-  ===================================================== */
+  const [recentCourses,setRecentCourses] = useState([]);
 
-  const fetchCourses = useCallback(async () => {
 
-    try {
+  const [loading,setLoading] = useState(true);
 
-      setLoading(true);
-      setError(null);
+  const [refreshing,setRefreshing] = useState(false);
+
+  const [error,setError] = useState(null);
+
+
+
+
+
+  /*
+  ==========================================
+  FETCH COURSES
+  ==========================================
+  */
+
+
+  const fetchCourses = useCallback(async()=>{
+
+    try{
 
 
       const {
@@ -51,67 +59,33 @@ export const CourseProvider = ({ children }) => {
       } = await supabase
         .from("courses")
         .select("*")
-        .eq("status", "Published")
-        .order("created_at", {
-          ascending:false,
-        });
+        .eq(
+          "status",
+          "Published"
+        )
+        .order(
+          "created_at",
+          {
+            ascending:false
+          }
+        );
 
 
-      if(error) throw error;
+      if(error)
+        throw error;
 
 
 
       const formatted =
-        (data || []).map((course)=>({
+        (data || []).map(course=>({
 
-          id: course.id,
-
-          title:
-            course.title || "",
-
-          slug:
-            course.slug || "",
-
-          description:
-            course.description || "",
+          ...course,
 
 
           thumbnail:
             course.thumbnail_url ||
             course.thumbnail ||
             "",
-
-
-          category_id:
-            course.category_id,
-
-
-          subject_id:
-            course.subject_id,
-
-
-          instructor:
-            course.instructor ||
-            "Class Of Genius",
-
-
-          level:
-            course.level ||
-            "Beginner",
-
-
-          language:
-            course.language ||
-            "English",
-
-
-          duration:
-            course.duration ||
-            "",
-
-
-          price:
-            Number(course.price) || 0,
 
 
           rating:
@@ -122,25 +96,6 @@ export const CourseProvider = ({ children }) => {
             Number(course.students) || 0,
 
 
-          featured:
-            course.featured || false,
-
-
-          certificate:
-            course.certificate || false,
-
-
-          requirements:
-            course.requirements || "",
-
-
-          learning_outcomes:
-            course.learning_outcomes || "",
-
-
-          created_at:
-            course.created_at,
-
         }));
 
 
@@ -150,9 +105,10 @@ export const CourseProvider = ({ children }) => {
 
       setFeaturedCourses(
         formatted.filter(
-          (course)=>course.featured
+          item=>item.featured
         )
       );
+
 
 
       setRecentCourses(
@@ -160,21 +116,17 @@ export const CourseProvider = ({ children }) => {
       );
 
 
-    } catch(err){
+
+    }
+    catch(err){
 
       console.error(
-        "Fetch Courses Error:",
+        "COURSES ERROR",
         err
       );
 
 
-      setError(err.message);
       setCourses([]);
-
-
-    } finally {
-
-      setLoading(false);
 
     }
 
@@ -185,9 +137,13 @@ export const CourseProvider = ({ children }) => {
 
 
 
-  /* =====================================================
-      FETCH CATEGORIES
-  ===================================================== */
+
+
+  /*
+  ==========================================
+  FETCH CATEGORIES
+  ==========================================
+  */
 
   const fetchCategories = useCallback(async()=>{
 
@@ -198,34 +154,44 @@ export const CourseProvider = ({ children }) => {
         data,
         error,
       } = await supabase
-        .from("course_categories")
+        .from(
+          "course_categories"
+        )
         .select("*")
-        .order("name");
+        .order(
+          "name"
+        );
 
 
-      if(error) throw error;
+
+      if(error)
+        throw error;
+
+
+
+      console.log(
+        "CATEGORIES:",
+        data
+      );
+
 
 
       setCategories(
         data || []
       );
 
-      console.log(
-  "FETCHED CATEGORIES:",
-  data
-);
 
-    }catch(err){
 
+    }
+    catch(err){
 
       console.error(
-        "Fetch Categories Error:",
+        "CATEGORY ERROR",
         err
       );
 
 
       setCategories([]);
-
 
     }
 
@@ -236,9 +202,15 @@ export const CourseProvider = ({ children }) => {
 
 
 
-  /* =====================================================
-      FETCH DOCUMENTS
-  ===================================================== */
+
+
+
+
+  /*
+  ==========================================
+  FETCH DOCUMENT ADMIN FILES
+  ==========================================
+  */
 
 
   const fetchDocuments = useCallback(async()=>{
@@ -251,23 +223,29 @@ export const CourseProvider = ({ children }) => {
         data,
         error,
       } = await supabase
-        .from("documents")
-        .select(`
-          *,
-          course_categories(
-            id,
-            name
-          )
-        `)
+        .from(
+          "documents"
+        )
+        .select("*")
         .order(
           "created_at",
           {
-            ascending:false,
+            ascending:false
           }
         );
 
 
-      if(error) throw error;
+
+      if(error)
+        throw error;
+
+
+
+      console.log(
+        "DOCUMENT ADMIN FILES:",
+        data
+      );
+
 
 
       setDocuments(
@@ -275,11 +253,13 @@ export const CourseProvider = ({ children }) => {
       );
 
 
-    }catch(err){
+
+    }
+    catch(err){
 
 
       console.error(
-        "Fetch Documents Error:",
+        "DOCUMENT ERROR",
         err
       );
 
@@ -290,15 +270,22 @@ export const CourseProvider = ({ children }) => {
     }
 
 
+
   },[]);
 
 
 
 
 
-  /* =====================================================
-      CREATE CATEGORIES FROM DOCUMENT ADMIN
-  ===================================================== */
+
+
+
+
+  /*
+  ==========================================
+  CREATE CATEGORY COUNTS
+  ==========================================
+  */
 
 
   const documentCategories = useMemo(()=>{
@@ -308,22 +295,28 @@ export const CourseProvider = ({ children }) => {
 
 
 
-    documents.forEach((doc)=>{
+    documents.forEach(doc=>{
 
 
       const category =
-        doc.course_categories;
+        categories.find(
+          cat =>
+          String(cat.id)
+          ===
+          String(doc.category_id)
+        );
 
 
 
-      if(!category) return;
+      if(!category)
+        return;
 
 
 
       if(!map[category.id]){
 
 
-        map[category.id] = {
+        map[category.id]={
 
           id:
             category.id,
@@ -335,7 +328,6 @@ export const CourseProvider = ({ children }) => {
 
           count:
             0,
-
 
         };
 
@@ -357,7 +349,8 @@ export const CourseProvider = ({ children }) => {
 
 
   },[
-    documents
+    documents,
+    categories
   ]);
 
 
@@ -365,9 +358,140 @@ export const CourseProvider = ({ children }) => {
 
 
 
-  /* =====================================================
-      REFRESH
-  ===================================================== */
+
+
+
+  /*
+  ==========================================
+  HELPERS
+  ==========================================
+  */
+
+
+  const getCourse=(id)=>{
+
+
+    return courses.find(
+      item =>
+      String(item.id)
+      ===
+      String(id)
+    );
+
+
+  };
+
+
+
+
+
+
+
+  const getDocumentsByCategory=(categoryId)=>{
+
+
+    return documents.filter(
+      doc =>
+
+      String(doc.category_id)
+      ===
+      String(categoryId)
+
+    );
+
+
+  };
+
+
+
+
+
+
+
+  const searchDocuments=(keyword="")=>{
+
+
+    const text =
+      keyword
+      .toLowerCase()
+      .trim();
+
+
+
+    return documents.filter(
+      doc =>
+
+
+      doc.title
+      ?.toLowerCase()
+      .includes(text)
+
+
+
+      ||
+
+      doc.description
+      ?.toLowerCase()
+      .includes(text)
+
+
+
+    );
+
+
+  };
+
+
+
+
+
+
+
+  const searchCourses=(keyword="")=>{
+
+
+    const text =
+      keyword
+      .toLowerCase()
+      .trim();
+
+
+
+    return courses.filter(
+      course =>
+
+
+      course.title
+      ?.toLowerCase()
+      .includes(text)
+
+
+
+      ||
+
+      course.description
+      ?.toLowerCase()
+      .includes(text)
+
+
+
+    );
+
+
+  };
+
+
+
+
+
+
+
+
+  /*
+  ==========================================
+  REFRESH
+  ==========================================
+  */
 
 
   const refreshCourses = async()=>{
@@ -377,6 +501,7 @@ export const CourseProvider = ({ children }) => {
 
 
       setRefreshing(true);
+
 
 
       await Promise.all([
@@ -390,7 +515,9 @@ export const CourseProvider = ({ children }) => {
       ]);
 
 
-    }finally{
+
+    }
+    finally{
 
 
       setRefreshing(false);
@@ -405,151 +532,31 @@ export const CourseProvider = ({ children }) => {
 
 
 
-  /* =====================================================
-      HELPERS
-  ===================================================== */
 
+useEffect(()=>{
 
-  const getCourse = (id)=>
+  const loadData = async()=>{
 
-    courses.find(
-      (course)=>
-        String(course.id) === String(id)
-    );
+    setLoading(true);
 
+    await Promise.all([
+      fetchCourses(),
+      fetchCategories(),
+      fetchDocuments(),
+    ]);
 
+    setLoading(false);
 
+  };
 
 
-  const getCoursesByCategory =
-    (categoryId)=>
+  loadData();
 
-      courses.filter(
-        (course)=>
-
-          String(
-            course.category_id
-          ) === String(categoryId)
-
-      );
-
-
-
-
-
-  const getDocumentsByCategory =
-    (categoryId)=>
-
-      documents.filter(
-        (doc)=>
-
-          String(
-            doc.category_id ||
-            doc.course_categories?.id
-          )
-          ===
-          String(categoryId)
-
-      );
-
-
-
-
-
-
-
-  const searchCourses =
-    (keyword="")=>{
-
-
-      const text =
-        keyword
-        .toLowerCase()
-        .trim();
-
-
-
-      return courses.filter(
-        (course)=>
-
-          course.title
-          ?.toLowerCase()
-          .includes(text)
-
-          ||
-
-          course.description
-          ?.toLowerCase()
-          .includes(text)
-
-      );
-
-
-    };
-
-
-
-
-
-
-
-  const searchDocuments =
-    (keyword="")=>{
-
-
-      const text =
-        keyword
-        .toLowerCase()
-        .trim();
-
-
-
-      return documents.filter(
-        (doc)=>
-
-          doc.title
-          ?.toLowerCase()
-          .includes(text)
-
-          ||
-
-          doc.description
-          ?.toLowerCase()
-          .includes(text)
-
-          ||
-
-          doc.course_categories?.name
-          ?.toLowerCase()
-          .includes(text)
-
-      );
-
-
-    };
-
-
-
-
-
-
-
-  /* =====================================================
-      LOAD DATA
-  ===================================================== */
-
-
-  useEffect(()=>{
-
-    refreshCourses();
-
-  },[]);
-
-
-
-
-
-
+},[
+  fetchCourses,
+  fetchCategories,
+  fetchDocuments
+]);
 
   return (
 
@@ -557,17 +564,19 @@ export const CourseProvider = ({ children }) => {
 
       value={{
 
-        /* DATA */
-
         courses,
+categories: categories.map((category) => {
+  const docCategory = documentCategories.find(
+    (item) => String(item.id) === String(category.id)
+  );
 
-        categories:
-          documentCategories.length
-          ? documentCategories
-          : categories,
-
-
+  return {
+    ...category,
+    count: docCategory?.count || 0,
+  };
+}),
         documents,
+
 
 
         featuredCourses,
@@ -575,8 +584,6 @@ export const CourseProvider = ({ children }) => {
         recentCourses,
 
 
-
-        /* STATUS */
 
         loading,
 
@@ -586,26 +593,18 @@ export const CourseProvider = ({ children }) => {
 
 
 
-        /* COUNTS */
-
         totalCourses:
           courses.length,
-
-
-        totalCategories:
-          (
-            documentCategories.length
-            ? documentCategories
-            : categories
-          ).length,
 
 
         totalDocuments:
           documents.length,
 
 
+        totalCategories:
+          categories.length,
 
-        /* FETCH */
+
 
         fetchCourses,
 
@@ -615,13 +614,7 @@ export const CourseProvider = ({ children }) => {
 
         refreshCourses,
 
-
-
-        /* HELPERS */
-
         getCourse,
-
-        getCoursesByCategory,
 
         getDocumentsByCategory,
 
@@ -642,14 +635,17 @@ export const CourseProvider = ({ children }) => {
 
   );
 
-
 };
 
 
 
 
 
-export const useCourses = ()=>{
+
+
+
+
+export const useCourses=()=>{
 
 
   const context =
@@ -658,18 +654,25 @@ export const useCourses = ()=>{
     );
 
 
+
   if(!context){
+
 
     throw new Error(
       "useCourses must be used inside CourseProvider"
     );
 
+
   }
+
 
 
   return context;
 
 
 };
+
+
+
 
 export default CourseContext;

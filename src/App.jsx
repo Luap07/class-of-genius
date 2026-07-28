@@ -65,7 +65,7 @@ import Courses from "./pages/lms/Courses";
 import CourseDetails from "./pages/lms/CourseDetails";
 import Lesson from "./pages/lms/Lesson";
 import VerifyCertificate from "./pages/lms/VerifyCertificate";
-
+import PDFReader from "./pages/courses/PDFReader";
 import ExploreCategories from "./pages/courses/ExploreCategories";
 import ExploreCourses from "./pages/courses/ExploreCourses";
 import CategorySubjects from "./pages/courses/CategorySubjects";
@@ -422,6 +422,18 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* PDF */}
+        <Route
+  path="/pdf/:id"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <PDFReader />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
 
         {/* ================= CBT ================= */}
 

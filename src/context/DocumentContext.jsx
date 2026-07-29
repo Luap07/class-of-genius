@@ -9,15 +9,11 @@ import React, {
 
 import { supabase } from "../lib/supabaseClient";
 
-
 export const DocumentContext =
   createContext();
 
-
 export const useDocuments = () =>
   useContext(DocumentContext);
-
-
 
 export const DocumentProvider = ({
   children,
@@ -37,9 +33,7 @@ export const DocumentProvider = ({
 
 
 
-  // ===========================
-  // FETCH DOCUMENTS
-  // ===========================
+  // =========================== // FETCH DOCUMENTS // ===========================
 
   const fetchDocuments = async () => {
 
@@ -151,8 +145,6 @@ export const DocumentProvider = ({
 
       await fetchDocuments();
 
-
-
     } catch(err){
 
       console.error(
@@ -163,10 +155,6 @@ export const DocumentProvider = ({
     }
 
   };
-
-
-
-
 
   // ===========================
   // OPEN DOCUMENT
@@ -182,10 +170,6 @@ export const DocumentProvider = ({
     );
 
   };
-
-
-
-
 
   return (
 

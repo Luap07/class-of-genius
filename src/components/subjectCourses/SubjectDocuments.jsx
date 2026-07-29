@@ -44,20 +44,34 @@ documents.map((doc)=>(
 <div
 key={doc.id}
 className="
+overflow-hidden
 rounded-3xl
 border
 border-slate-800
 bg-slate-900
-p-6
+transition
+hover:border-cyan-500/40
+hover:-translate-y-1
 "
 >
 
 
-<FileText
-size={35}
-className="text-cyan-400"
-/>
-
+<div className="mb-5 overflow-hidden rounded-2xl bg-slate-950 aspect-video">
+  {doc.thumbnail_url ? (
+    <img
+      src={doc.thumbnail_url}
+      alt={doc.title}
+      className="h-full w-full object-cover transition duration-500 hover:scale-105"
+    />
+  ) : (
+    <div className="flex h-full items-center justify-center">
+      <FileText
+        size={50}
+        className="text-cyan-400"
+      />
+    </div>
+  )}
+</div>
 
 <h3 className="
 mt-5

@@ -5,12 +5,12 @@ import { motion } from "framer-motion";
 import {
   BookOpen,
   Clock3,
+  Sparkles,
   Star,
   Award,
   ArrowRight,
   PlayCircle,
   Layers3,
-  Sparkles,
   ShieldCheck,
   TrendingUp,
 } from "lucide-react";

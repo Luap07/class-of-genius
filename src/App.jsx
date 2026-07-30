@@ -9,33 +9,29 @@ import {
 
 import { AnimatePresence, motion } from "framer-motion";
 
-/* ===========================
-   CONTEXTS
-=========================== */
+/* =========================== CONTEXTS =========================== */
 
 import { AuthContext } from "./context/AuthContext";
 import { CourseProvider } from "./context/LMSContext/CourseContext";
 import { SearchProvider } from "./context/SearchContext";
 import { DocumentProvider } from "./context/DocumentContext";
 
-/* ===========================
-   ADMIN
-=========================== */
+/* ===========================LANGUAGE=========================== */
+import LanguagesHome from "./pages/languages/LanguagesHome";
+import LanguageDetails from "./pages/languages/LanguageDetails";
+
+/* ===========================ADMIN=========================== */
 
 import AdminRoutes from "./admin/AdminRoutes";
 import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 
-/* ===========================
-   COMPONENTS
-=========================== */
+/* =========================== COMPONENTS =========================== */
 
 import Navbar from "./components/Navbar";
 import Login from "./components/Login";
 import Contact from "./components/Contact";
 
-/* ===========================
-   GENERAL PAGES
-=========================== */
+/* =========================== GENERAL PAGES=========================== */
 
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
@@ -56,10 +52,7 @@ import Novels from "./pages/Novels";
 import StoryReader from "./pages/StoryReader";
 import UploadNovel from "./pages/UploadNovel";
 
-/* ===========================
-   LMS
-=========================== */
-
+/* ===========================  LMS=========================== */
 import LMSPortal from "./pages/lms/LMSPortal";
 import Courses from "./pages/lms/Courses";
 import CourseDetails from "./pages/lms/CourseDetails";
@@ -73,24 +66,18 @@ import SubjectCourses from "./pages/courses/SubjectCourses";
 
 import BecomeInstructorForm from "./pages/instructor/BecomeInstructorForm";
 
-/* ===========================
-   AI
-=========================== */
+/* =========================== AI ========================== */
 
 import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
 
-/* ===========================
-   CBT
-=========================== */
+/* ===========================  CBT ========================== */
 
 import CBT from "./pages/cbt/CBT";
 import SubjectSelect from "./pages/cbt/SubjectSelect";
 import CBTExam from "./pages/cbt/CBTExam";
 
-/* ===========================
-   VIRTUAL LAB
-=========================== */
+/* =========================== VIRTUAL LAB ========================== */
 
 import VirtualLabLanding from "./pages/VirtualLab";
 import PhysicsLab from "./pages/PhysicsLab";
@@ -207,6 +194,19 @@ const AnimatedRoutes = () => {
           }
         />
 
+<Route
+  path="/languages"
+  element={<LanguagesHome />}
+/>
+
+<Route
+  path="/languages/:id"
+  element={
+    <PageWrapper>
+      <LanguageDetails />
+    </PageWrapper>
+  }
+/>
         {/* ================= SUPPORT ================= */}
 
         <Route

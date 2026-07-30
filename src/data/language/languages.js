@@ -1,0 +1,1025 @@
+export const languages = [
+
+  {
+    id: "english",
+
+    name: "English",
+
+    nativeName: "English",
+
+    flag: "🇬🇧",
+
+    level: "Beginner",
+
+    description:
+      "Learn English for communication, study, work, and travel.",
+
+
+    color:
+      "from-blue-500 to-cyan-500",
+
+
+    categories: [
+      "Grammar",
+      "Vocabulary",
+      "Speaking",
+      "Listening",
+      "Writing",
+    ],
+
+
+    popular: true,
+
+  },
+
+
+  {
+    id: "spanish",
+
+    name: "Spanish",
+
+    nativeName: "Español",
+
+    flag: "🇪🇸",
+
+    level: "Beginner",
+
+    description:
+      "Master Spanish conversations and explore Spanish culture.",
+
+
+    color:
+      "from-yellow-500 to-red-500",
+
+
+    categories: [
+      "Grammar",
+      "Conversation",
+      "Vocabulary",
+      "Culture",
+    ],
+
+
+    popular: true,
+
+  },
+
+
+  {
+    id: "french",
+
+    name: "French",
+
+    nativeName: "Français",
+
+    flag: "🇫🇷",
+
+    level: "Beginner",
+
+    description:
+      "Learn French pronunciation, grammar, and everyday communication.",
+
+    color:
+      "from-blue-600 to-purple-600",
+
+    categories: [
+      "Grammar",
+      "Speaking",
+      "Reading",
+      "Culture",
+    ],
+
+    popular: true,
+
+  },
+
+
+  {
+    id: "german",
+
+    name: "German",
+
+    nativeName: "Deutsch",
+
+    flag: "🇩🇪",
+
+    level: "Intermediate",
+
+
+
+    description:
+      "Build German skills for travel, education, and business.",
+
+    color:
+      "from-yellow-400 to-red-600",
+
+
+    categories: [
+      "Grammar",
+      "Vocabulary",
+      "Conversation",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "japanese",
+
+    name: "Japanese",
+
+    nativeName: "日本語",
+
+    flag: "🇯🇵",
+
+    level: "Beginner",
+
+
+    description:
+      "Learn Japanese writing, speaking, and cultural expressions.",
+
+
+    color:
+      "from-red-500 to-pink-500",
+
+
+    categories: [
+      "Kanji",
+      "Grammar",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: true,
+
+  },
+
+
+  {
+    id: "chinese",
+
+    name: "Chinese",
+
+    nativeName: "中文",
+
+    flag: "🇨🇳",
+
+    level: "Beginner",
+
+    description:
+      "Learn Mandarin pronunciation, characters, and conversation.",
+
+
+    color:
+      "from-red-600 to-orange-500",
+
+
+    categories: [
+      "Characters",
+      "Speaking",
+      "Listening",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "arabic",
+
+    name: "Arabic",
+
+    nativeName: "العربية",
+
+    flag: "🇸🇦",
+
+    level: "Beginner",
+
+    description:
+      "Explore Arabic language, writing, and traditions.",
+
+    color:
+      "from-green-500 to-emerald-600",
+
+    categories: [
+      "Alphabet",
+      "Grammar",
+      "Conversation",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "yoruba",
+
+    name: "Yoruba",
+
+    nativeName: "Yorùbá",
+
+    flag: "🇳🇬",
+
+    level: "Beginner",
+
+    description:
+      "Learn Yoruba greetings, expressions, culture, and everyday conversations.",
+
+    color:
+      "from-green-500 to-yellow-500",
+
+
+    categories: [
+      "Greetings",
+      "Speaking",
+      "Culture",
+      "Vocabulary",
+    ],
+
+
+    popular: true,
+
+  },
+
+
+  {
+    id: "portuguese",
+
+    name: "Portuguese",
+
+    nativeName: "Português",
+
+    flag: "🇵🇹",
+
+    level: "Beginner",
+
+    description:
+      "Learn Portuguese for travel, communication, and global opportunities.",
+
+
+    color:
+      "from-green-500 to-yellow-400",
+
+
+    categories: [
+      "Grammar",
+      "Conversation",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "italian",
+
+    name: "Italian",
+
+    nativeName: "Italiano",
+
+    flag: "🇮🇹",
+
+    level: "Beginner",
+
+
+    description:
+      "Discover Italian language, food culture, art, and conversation.",
+
+
+    color:
+      "from-green-500 to-red-500",
+
+
+    categories: [
+      "Speaking",
+      "Grammar",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "korean",
+
+    name: "Korean",
+
+    nativeName: "한국어",
+
+    flag: "🇰🇷",
+
+    level: "Beginner",
+
+    description:
+      "Learn Korean writing, pronunciation, conversations, and culture.",
+
+
+    color:
+      "from-blue-500 to-red-500",
+
+
+    categories: [
+      "Hangul",
+      "Grammar",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: true,
+
+  },
+  {
+    id: "russian",
+
+    name: "Russian",
+
+    nativeName: "Русский",
+
+    flag: "🇷🇺",
+
+    level: "Intermediate",
+
+
+    description:
+      "Learn Russian vocabulary, conversations, writing, and cultural expressions.",
+
+
+    color:
+      "from-blue-500 to-red-500",
+
+
+    categories: [
+      "Alphabet",
+      "Grammar",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "hindi",
+
+    name: "Hindi",
+
+    nativeName: "हिन्दी",
+
+    flag: "🇮🇳",
+
+    level: "Beginner",
+
+    learners: "750K+",
+
+
+    description:
+      "Learn Hindi communication, writing, pronunciation, and Indian culture.",
+
+
+    color:
+      "from-orange-500 to-green-500",
+
+
+    categories: [
+      "Alphabet",
+      "Grammar",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: true,
+
+  },
+
+
+  {
+    id: "turkish",
+
+    name: "Turkish",
+
+    nativeName: "Türkçe",
+
+    flag: "🇹🇷",
+
+    level: "Intermediate",
+
+    learners: "400K+",
+
+
+    description:
+      "Explore Turkish conversations, grammar, and traditions.",
+
+
+    color:
+      "from-red-500 to-white",
+
+
+    categories: [
+      "Grammar",
+      "Vocabulary",
+      "Conversation",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "dutch",
+
+    name: "Dutch",
+
+    nativeName: "Nederlands",
+
+    flag: "🇳🇱",
+
+    level: "Beginner",
+
+    learners: "350K+",
+
+
+    description:
+      "Learn Dutch for travel, work, and everyday conversations.",
+
+
+    color:
+      "from-orange-500 to-blue-500",
+
+
+    categories: [
+      "Grammar",
+      "Speaking",
+      "Vocabulary",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "swahili",
+
+    name: "Swahili",
+
+    nativeName: "Kiswahili",
+
+    flag: "🇰🇪",
+
+    level: "Beginner",
+
+    learners: "300K+",
+
+
+    description:
+      "Discover East African language, culture, and communication.",
+
+
+    color:
+      "from-green-500 to-black",
+
+
+    categories: [
+      "Greetings",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "hausa",
+
+    name: "Hausa",
+
+    nativeName: "Hausa",
+
+    flag: "🇳🇬",
+
+    level: "Beginner",
+
+    learners: "250K+",
+
+
+    description:
+      "Learn Hausa expressions, conversations, and Northern Nigerian culture.",
+
+
+    color:
+      "from-green-600 to-yellow-500",
+
+
+    categories: [
+      "Vocabulary",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "igbo",
+
+    name: "Igbo",
+
+    nativeName: "Igbo",
+
+    flag: "🇳🇬",
+
+    level: "Beginner",
+
+    learners: "200K+",
+
+
+    description:
+      "Learn Igbo greetings, conversations, traditions, and expressions.",
+
+
+    color:
+      "from-green-500 to-emerald-700",
+
+
+    categories: [
+      "Greetings",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "greek",
+
+    name: "Greek",
+
+    nativeName: "Ελληνικά",
+
+    flag: "🇬🇷",
+
+    level: "Intermediate",
+
+    learners: "280K+",
+
+
+    description:
+      "Explore Greek language, history, and modern conversations.",
+
+
+    color:
+      "from-blue-500 to-white",
+
+
+    categories: [
+      "Alphabet",
+      "Grammar",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "hebrew",
+
+    name: "Hebrew",
+
+    nativeName: "עברית",
+
+    flag: "🇮🇱",
+
+    level: "Intermediate",
+
+    learners: "220K+",
+
+
+    description:
+      "Learn Hebrew writing, pronunciation, and everyday communication.",
+
+
+    color:
+      "from-blue-600 to-cyan-400",
+
+
+    categories: [
+      "Alphabet",
+      "Grammar",
+      "Speaking",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "swedish",
+
+    name: "Swedish",
+
+    nativeName: "Svenska",
+
+    flag: "🇸🇪",
+
+    level: "Beginner",
+
+    learners: "180K+",
+
+
+    description:
+      "Learn Swedish vocabulary, pronunciation, and Nordic culture.",
+
+
+    color:
+      "from-blue-500 to-yellow-400",
+
+
+    categories: [
+      "Grammar",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+    {
+    id: "polish",
+
+    name: "Polish",
+
+    nativeName: "Polski",
+
+    flag: "🇵🇱",
+
+    level: "Intermediate",
+
+    learners: "260K+",
+
+
+    description:
+      "Learn Polish conversations, grammar, pronunciation, and traditions.",
+
+
+    color:
+      "from-white to-red-500",
+
+
+    categories: [
+      "Grammar",
+      "Speaking",
+      "Vocabulary",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "thai",
+
+    name: "Thai",
+
+    nativeName: "ภาษาไทย",
+
+    flag: "🇹🇭",
+
+    level: "Beginner",
+
+    learners: "210K+",
+
+
+    description:
+      "Discover Thai speaking, writing, pronunciation, and culture.",
+
+
+    color:
+      "from-red-500 to-blue-500",
+
+
+    categories: [
+      "Alphabet",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "vietnamese",
+
+    name: "Vietnamese",
+
+    nativeName: "Tiếng Việt",
+
+    flag: "🇻🇳",
+
+    level: "Beginner",
+
+    learners: "230K+",
+
+
+    description:
+      "Learn Vietnamese communication, tones, vocabulary, and culture.",
+
+
+    color:
+      "from-red-500 to-yellow-400",
+
+
+    categories: [
+      "Pronunciation",
+      "Speaking",
+      "Vocabulary",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "indonesian",
+
+    name: "Indonesian",
+
+    nativeName: "Bahasa Indonesia",
+
+    flag: "🇮🇩",
+
+    level: "Beginner",
+
+    learners: "320K+",
+
+
+    description:
+      "Learn Indonesian language for travel, business, and communication.",
+
+
+    color:
+      "from-red-500 to-white",
+
+
+    categories: [
+      "Grammar",
+      "Conversation",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "persian",
+
+    name: "Persian",
+
+    nativeName: "فارسی",
+
+    flag: "🇮🇷",
+
+    level: "Intermediate",
+
+    learners: "160K+",
+
+
+    description:
+      "Explore Persian language, poetry, writing, and history.",
+
+
+    color:
+      "from-green-500 to-red-500",
+
+
+    categories: [
+      "Alphabet",
+      "Grammar",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "danish",
+
+    name: "Danish",
+
+    nativeName: "Dansk",
+
+    flag: "🇩🇰",
+
+    level: "Beginner",
+
+    learners: "150K+",
+
+
+    description:
+      "Learn Danish pronunciation, conversations, and Scandinavian culture.",
+
+
+    color:
+      "from-red-500 to-white",
+
+
+    categories: [
+      "Speaking",
+      "Grammar",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "finnish",
+
+    name: "Finnish",
+
+    nativeName: "Suomi",
+
+    flag: "🇫🇮",
+
+    level: "Intermediate",
+
+    learners: "120K+",
+
+
+    description:
+      "Learn Finnish vocabulary, grammar, and Nordic communication.",
+
+
+    color:
+      "from-blue-500 to-white",
+
+
+    categories: [
+      "Grammar",
+      "Vocabulary",
+      "Speaking",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "norwegian",
+
+    name: "Norwegian",
+
+    nativeName: "Norsk",
+
+    flag: "🇳🇴",
+
+    level: "Beginner",
+
+    learners: "140K+",
+
+
+    description:
+      "Discover Norwegian language, travel phrases, and Scandinavian culture.",
+
+
+    color:
+      "from-red-500 to-blue-500",
+
+
+    categories: [
+      "Grammar",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+  {
+    id: "czech",
+
+    name: "Czech",
+
+    nativeName: "Čeština",
+
+    flag: "🇨🇿",
+
+    level: "Intermediate",
+
+    learners: "110K+",
+
+    description:
+      "Learn Czech vocabulary, pronunciation, and everyday conversations.",
+
+
+    color:
+      "from-blue-500 to-red-500",
+
+
+    categories: [
+      "Grammar",
+      "Speaking",
+      "Culture",
+    ],
+
+
+    popular: false,
+
+  },
+
+
+];
+
+
+export const getLanguageById = (
+  id
+) => {
+
+  return languages.find(
+    (language) =>
+      language.id === id
+  );
+
+};
+
+
+export const getPopularLanguages = () => {
+
+  return languages.filter(
+    (language) =>
+      language.popular
+  );
+
+};
+
+
+export const getLanguagesByLevel = (
+  level
+) => {
+
+  return languages.filter(
+    (language) =>
+      language.level === level
+  );
+
+};
+

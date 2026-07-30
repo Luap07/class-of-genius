@@ -21,9 +21,7 @@ import {
 
 import { Link } from "react-router-dom";
 
-/* =========================
-   CONTEXTS
-========================= */
+/* ========================= CONTEXTS========================= */
 
 import { useCourses } from "../../context/LMSContext/CourseContext";
 import { useProgress } from "../../context/LMSContext/ProgressContext";

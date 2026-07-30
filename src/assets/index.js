@@ -19,7 +19,7 @@ import thomas from './Thomas.jpg';
 import cbt from './cbt.jpeg';
 import live from './live.jpg';
 import novel from './novel.jpg';
-import curriculum from './curriculum.jpeg';
+import multilingual from './multilingual.png';
 import lms from './lms.jpg';
 import adventure from './adventure.jpg';
 import My_School_Calendar from './My_School_Calendar.jpg';
@@ -64,7 +64,7 @@ export {
     cbt,
     live,
     novel,
-    curriculum,
+    multilingual,
     lms,
     adventure,
     My_School_Calendar, 

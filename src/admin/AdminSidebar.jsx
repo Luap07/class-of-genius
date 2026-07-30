@@ -19,8 +19,8 @@ import {
 const menuItems = [
   { title: "Dashboard", icon: LayoutDashboard, path: "/admin" },
   { title: "LMS", icon: GraduationCap, path: "/admin/lms" },
-  { title: "Documents", icon: FileText, path: "/admin/documents",},
-  { title: "Resources", icon: Video,path: "/admin/resources"},
+  { title: "Documents", icon: FileText, path: "/admin/documents" },
+  { title: "Resources", icon: Video, path: "/admin/resources" },
   { title: "Virtual Labs", icon: FlaskConical, path: "/admin/labs" },
   { title: "CBT", icon: FileText, path: "/admin/cbt" },
   { title: "Novels", icon: BookOpen, path: "/admin/novels" },
@@ -28,9 +28,7 @@ const menuItems = [
   { title: "Analytics", icon: BarChart3, path: "/admin/analytics" },
   { title: "Media", icon: Image, path: "/admin/media" },
   { title: "Settings", icon: Settings, path: "/admin/settings" },
-  { title: "Newsletter", icon: Mail, path: "/admin/newsletter",  },
-  { title: "Media", icon: Image, path: "/admin/media" },
-  { title: "Settings", icon: Settings, path: "/admin/settings" },
+  { title: "Newsletter", icon: Mail, path: "/admin/newsletter" },
 ];
 
 const AdminSidebar = () => {
@@ -50,20 +48,20 @@ const AdminSidebar = () => {
           const Icon = item.icon;
           return (
             <NavLink
-  key={item.title}
-  to={item.path}
-  end={item.path === "/admin"}
-  className={({ isActive }) =>
-    `flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 ${
-      isActive
-        ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
-        : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-    }`
-  }
->
-  <Icon size={20} />
-  <span className="font-medium text-sm">{item.title}</span>
-</NavLink>
+              key={item.title}
+              to={item.path}
+              end={item.path === "/admin"}
+              className={({ isActive }) =>
+                `flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 ${
+                  isActive
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                }`
+              }
+            >
+              <Icon size={20} />
+              <span className="font-medium text-sm">{item.title}</span>
+            </NavLink>
           );
         })}
       </nav>

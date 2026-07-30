@@ -16,155 +16,134 @@ import {
 
 import { supabase } from "../../../lib/supabaseClient";
 
-
 const ResourcesAdmin = () => {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [video, setVideo] = useState(null);
+  const [topicId, setTopicId] = useState("");
+  const [topics, setTopics] = useState([]);
+
+  const [resources, setResources] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // ============================
+  // FETCH TOPICS / CATEGORIES
+  // ============================
+
+  const fetchTopics = async () => {
+  try {
+
+    const {
+      data,
+      error
+    } = await supabase
+      .from("course_topics")
+      .select("*")
+      .order("position");
 
 
-  const [title,setTitle] = useState("");
-
-  const [description,setDescription] = useState("");
-
-  const [video,setVideo] = useState(null);
+    if(error)
+      throw error;
 
 
-  const [resources,setResources] = useState([]);
-
-  const [uploading,setUploading] = useState(false);
-
-  const [loading,setLoading] = useState(true);
+    setTopics(data || []);
 
 
+  } catch(error){
 
+    console.error(
+      "TOPIC FETCH ERROR",
+      error
+    );
+
+  }
+};
   // ============================
   // FETCH VIDEOS
   // ============================
 
-  const fetchResources = async()=>{
-
-    try{
-
+  const fetchResources = async () => {
+    try {
       setLoading(true);
-
 
       const {
         data,
         error
       } = await supabase
+        .from("resources")
+        .select("*")
+        .eq(
+          "resource_type",
+          "video"
+        )
+        .order(
+          "created_at",
+          {
+            ascending: false
+          }
+        );
 
-      .from("resources")
-
-      .select("*")
-
-      .eq(
-        "resource_type",
-        "video"
-      )
-
-      .order(
-        "created_at",
-        {
-          ascending:false
-        }
-      );
-
-
-      if(error)
+      if (error)
         throw error;
-
 
       setResources(
         data || []
       );
 
-
-    }catch(error){
-
+    } catch (error) {
       console.error(
         "RESOURCE FETCH ERROR",
         error
       );
-
-    }
-    finally{
-
+    } finally {
       setLoading(false);
-
     }
-
   };
 
-
-
-  useEffect(()=>{
-
+  useEffect(() => {
     fetchResources();
-
-  },[]);
-
-
-
-
+    fetchTopics();
+  }, []);
 
   // ============================
   // UPLOAD VIDEO
   // ============================
 
-
-  const uploadVideo = async(e)=>{
-
+  const uploadVideo = async (e) => {
     e.preventDefault();
 
-
-    if(!title || !video){
-
+    if (!title || !video) {
       alert(
         "Title and video required"
       );
-
       return;
-
     }
 
-
-    try{
-
+    try {
       setUploading(true);
-
-
 
       const extension =
         video.name
-        .split(".")
-        .pop();
-
-
+          .split(".")
+          .pop();
 
       const fileName =
         `${Date.now()}.${extension}`;
 
-
-
-
       // STORAGE UPLOAD
 
       const {
-        error:uploadError
+        error: uploadError
       } = await supabase.storage
+        .from("course-videos")
+        .upload(
+          fileName,
+          video
+        );
 
-      .from("course-videos")
-
-      .upload(
-        fileName,
-        video
-      );
-
-
-
-      if(uploadError)
+      if (uploadError)
         throw uploadError;
-
-
-
 
       // GET URL
 
@@ -172,162 +151,91 @@ const ResourcesAdmin = () => {
         data
       } =
       supabase.storage
-
-      .from("course-videos")
-
-      .getPublicUrl(
-        fileName
-      );
-
-
+        .from("course-videos")
+        .getPublicUrl(
+          fileName
+        );
 
       const videoUrl =
         data.publicUrl;
 
-
-
-
       // INSERT RESOURCE
-
 
       const {
         error
       } = await supabase
+        .from("resources")
+        .insert([
+          {
+            title,
+            description,
+            resource_type: "video",
+            file_url: videoUrl,
+            topic_id: topicId || null,
+          }
+        ]);
 
-      .from("resources")
-
-      .insert([
-
-        {
-
-          title,
-
-          description,
-
-          resource_type:"video",
-
-          file_url:videoUrl
-
-        }
-
-      ]);
-
-
-
-      if(error)
+      if (error)
         throw error;
 
-
-
-
       setTitle("");
-
       setDescription("");
-
       setVideo(null);
-
-
+      setTopicId("");
 
       await fetchResources();
-
-
 
       alert(
         "Video uploaded successfully"
       );
 
-
-
-    }catch(error){
-
-
+    } catch (error) {
       console.error(
         "UPLOAD ERROR",
         error
       );
 
-
       alert(
         error.message
       );
 
-
-    }finally{
-
-
+    } finally {
       setUploading(false);
-
-
     }
-
-
   };
-
-
-
-
-
 
   // ============================
   // DELETE VIDEO
   // ============================
 
-
-  const deleteVideo = async(resource)=>{
-
-
+  const deleteVideo = async (resource) => {
     const confirmDelete =
       window.confirm(
         "Delete this video?"
       );
 
-
-    if(!confirmDelete)
+    if (!confirmDelete)
       return;
 
-
-
-    try{
-
-
+    try {
       await supabase
-
-      .from("resources")
-
-      .delete()
-
-      .eq(
-        "id",
-        resource.id
-      );
-
-
+        .from("resources")
+        .delete()
+        .eq(
+          "id",
+          resource.id
+        );
 
       fetchResources();
 
-
-
-    }catch(error){
-
-
+    } catch (error) {
       console.error(
         error
       );
-
-
     }
-
-
   };
 
-
-
-
-
-
-
   return (
-
     <div
       className="
         min-h-screen
@@ -336,8 +244,6 @@ const ResourcesAdmin = () => {
         text-white
       "
     >
-
-
       <div
         className="
           mx-auto
@@ -345,21 +251,15 @@ const ResourcesAdmin = () => {
           space-y-10
         "
       >
-
-
         <div>
-
           <h1
             className="
               text-4xl
               font-black
             "
           >
-
             Video Resources
-
           </h1>
-
 
           <p
             className="
@@ -367,25 +267,14 @@ const ResourcesAdmin = () => {
               text-slate-400
             "
           >
-
             Upload and manage learning videos.
-
           </p>
-
-
         </div>
-
-
-
-
 
         {/* UPLOAD FORM */}
 
-
         <form
-
           onSubmit={uploadVideo}
-
           className="
             rounded-3xl
             border
@@ -394,12 +283,8 @@ const ResourcesAdmin = () => {
             p-8
             space-y-6
           "
-
         >
-
-
           <div>
-
             <label
               className="
                 mb-2
@@ -407,22 +292,15 @@ const ResourcesAdmin = () => {
                 font-semibold
               "
             >
-
               Video Title
-
             </label>
 
-
             <input
-
               value={title}
-
               onChange={
-                e=>setTitle(e.target.value)
+                e => setTitle(e.target.value)
               }
-
               placeholder="Example: Newton Laws Lesson"
-
               className="
                 w-full
                 rounded-xl
@@ -433,18 +311,10 @@ const ResourcesAdmin = () => {
                 py-3
                 outline-none
               "
-
             />
-
           </div>
 
-
-
-
-
-
           <div>
-
             <label
               className="
                 mb-2
@@ -452,22 +322,15 @@ const ResourcesAdmin = () => {
                 font-semibold
               "
             >
-
               Description
-
             </label>
 
-
             <textarea
-
               value={description}
-
               onChange={
-                e=>setDescription(e.target.value)
+                e => setDescription(e.target.value)
               }
-
               placeholder="Video description"
-
               className="
                 w-full
                 rounded-xl
@@ -477,20 +340,54 @@ const ResourcesAdmin = () => {
                 p-4
                 outline-none
               "
-
             />
-
-
           </div>
 
+          <div>
+            <label
+              className="
+                mb-2
+                block
+                font-semibold
+              "
+            >
+              Video Category
+            </label>
 
+            <select
+              value={topicId}
+              onChange={
+                e => setTopicId(e.target.value)
+              }
+              className="
+                w-full
+                rounded-xl
+                border
+                border-slate-700
+                bg-slate-800
+                px-4
+                py-3
+                outline-none
+              "
+            >
+              <option value="">
+                Select Category
+              </option>
 
-
-
-
+              {
+                topics.map((topic) => (
+                  <option
+                    key={topic.id}
+                    value={topic.id}
+                  >
+                    {topic.title}
+                  </option>
+                ))
+              }
+            </select>
+          </div>
 
           <label
-
             className="
               flex
               cursor-pointer
@@ -503,52 +400,30 @@ const ResourcesAdmin = () => {
               border-slate-700
               p-10
             "
-
           >
-
-
             <Upload
               size={40}
               className="text-blue-400"
             />
 
-
             <p className="mt-3">
-
-              Select Video
-
+              {video ? video.name : "Select Video"}
             </p>
 
-
-
             <input
-
               hidden
-
               type="file"
-
               accept="video/*"
-
               onChange={
-                e=>setVideo(
+                e => setVideo(
                   e.target.files[0]
                 )
               }
-
             />
-
-
           </label>
 
-
-
-
-
-
           <button
-
             disabled={uploading}
-
             className="
               flex
               w-full
@@ -560,45 +435,24 @@ const ResourcesAdmin = () => {
               py-3
               font-bold
             "
-
           >
-
             {
               uploading ?
-
               <Loader2
                 className="animate-spin"
               />
-
               :
-
               <Upload size={18}/>
             }
 
-
             Upload Video
 
-
           </button>
-
-
-
         </form>
-
-
-
-
-
-
-
 
         {/* VIDEO LIST */}
 
-
-
         <div>
-
-
           <h2
             className="
               mb-6
@@ -606,29 +460,18 @@ const ResourcesAdmin = () => {
               font-bold
             "
           >
-
             Uploaded Videos
-
           </h2>
-
-
-
 
           {
             loading ?
-
             (
-
               <Loader2
                 className="animate-spin"
               />
-
             )
-
             :
-
             (
-
               <div
                 className="
                   grid
@@ -637,166 +480,103 @@ const ResourcesAdmin = () => {
                   xl:grid-cols-3
                 "
               >
-
-
-              {
-                resources.map(
-                  (resource)=>(
-
-
-                    <div
-
-                      key={resource.id}
-
-                      className="
-                        rounded-3xl
-                        border
-                        border-slate-800
-                        bg-slate-900
-                        p-6
-                      "
-
-                    >
-
-
-
+                {
+                  resources.map(
+                    (resource) => (
                       <div
+                        key={resource.id}
                         className="
-                          flex
-                          items-center
-                          gap-3
+                          rounded-3xl
+                          border
+                          border-slate-800
+                          bg-slate-900
+                          p-6
                         "
                       >
-
-                        <PlayCircle
-                          className="
-                            text-purple-400
-                          "
-                        />
-
-
-                        <h3
-                          className="
-                            font-bold
-                          "
-                        >
-
-                          {resource.title}
-
-                        </h3>
-
-
-                      </div>
-
-
-
-
-                      <p
-                        className="
-                          mt-3
-                          text-sm
-                          text-slate-400
-                        "
-                      >
-
-                        {resource.description}
-
-                      </p>
-
-
-
-
-                      <div
-                        className="
-                          mt-5
-                          flex
-                          gap-3
-                        "
-                      >
-
-
-                        <a
-
-                          href={
-                            resource.file_url
-                          }
-
-                          target="_blank"
-
-                          rel="noreferrer"
-
+                        <div
                           className="
                             flex
                             items-center
-                            gap-2
-                            rounded-xl
-                            bg-blue-600
-                            px-4
-                            py-2
+                            gap-3
                           "
-
                         >
+                          <PlayCircle
+                            className="
+                              text-purple-400
+                            "
+                          />
 
-                          <ExternalLink size={16}/>
+                          <h3
+                            className="
+                              font-bold
+                            "
+                          >
+                            {resource.title}
+                          </h3>
+                        </div>
 
-                          Watch
-
-                        </a>
-
-
-
-
-
-                        <button
-
-                          onClick={()=>
-                            deleteVideo(resource)
-                          }
-
+                        <p
                           className="
-                            rounded-xl
-                            bg-red-500/20
-                            px-4
-                            text-red-400
+                            mt-3
+                            text-sm
+                            text-slate-400
                           "
-
                         >
+                          {resource.description}
+                        </p>
 
-                          <Trash2 size={18}/>
+                        <div
+                          className="
+                            mt-5
+                            flex
+                            gap-3
+                          "
+                        >
+                          <a
+                            href={
+                              resource.file_url
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            className="
+                              flex
+                              items-center
+                              gap-2
+                              rounded-xl
+                              bg-blue-600
+                              px-4
+                              py-2
+                            "
+                          >
+                            <ExternalLink size={16}/>
+                            Watch
+                          </a>
 
-                        </button>
-
-
+                          <button
+                            onClick={() =>
+                              deleteVideo(resource)
+                            }
+                            className="
+                              rounded-xl
+                              bg-red-500/20
+                              px-4
+                              text-red-400
+                            "
+                          >
+                            <Trash2 size={18}/>
+                          </button>
+                        </div>
                       </div>
-
-
-
-                    </div>
-
-
+                    )
                   )
-                )
-              }
-
-
+                }
               </div>
-
             )
           }
-
-
-
         </div>
-
-
       </div>
-
-
     </div>
-
   );
-
 };
-
 
 export default ResourcesAdmin;

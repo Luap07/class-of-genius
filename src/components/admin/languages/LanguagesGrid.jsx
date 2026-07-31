@@ -1,19 +1,14 @@
 import React from "react";
-
-import { AnimatePresence } from "framer-motion";
-
+import { AnimatePresence, motion } from "framer-motion";
 import LanguageCard from "./LanguageCard";
 
 export default function LanguagesGrid({
   languages = [],
-
   loading = false,
-
   onEdit,
-
   onDelete,
-
   onUpload,
+  onCardClick, // Added prop for clicking the card/explore button
 }) {
   if (loading) {
     return (
@@ -57,13 +52,22 @@ export default function LanguagesGrid({
     >
       <AnimatePresence mode="popLayout">
         {languages.map((language) => (
-          <LanguageCard
+          <motion.div
             key={language.id}
-            language={language}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onUpload={onUpload}
-          />
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.2 }}
+          >
+            <LanguageCard
+              language={language}
+              onClick={() => onCardClick ? onCardClick(language) : onEdit?.(language)}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onUpload={onUpload}
+            />
+          </motion.div>
         ))}
       </AnimatePresence>
     </div>

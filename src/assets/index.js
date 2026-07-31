@@ -41,7 +41,37 @@ import physics_banner from './physics-banner.png'
 import car from './car.png'
 import earth from './earth.png'
 import moon from './moon.png'
-
+// for multilingual
+import englishImg from './englishImg.jpeg';
+import spanishImg from './spanishImg.jpeg';
+import frenchImg from './frenchImg.jpeg';
+import germanImg from './germanImg.jpeg';
+import japaneseImg from './japaneseImg.jpeg';
+import chineseImg from './chineseImg.jpeg';
+import arabicImg from './arabicImg.jpeg';
+import yorubaImg from './yorubaImg.jpeg';
+import portugueseImg from './portugueseImg.jpeg';
+import italianImg from './italianImg.jpeg';
+import koreanImg from './koreanImg.jpeg';
+import russianImg from './russianImg.jpeg';
+import hindiImg from './hindiImg.jpeg';
+import turkishImg from './turkishImg.jpeg';
+import dutchImg from './dutchImg.jpeg';
+import swahiliImg from './swahiliImg.jpeg';
+import hausaImg from './hausaImg.jpeg';
+import igboImg from './igboImg.jpeg';
+import greekImg from './greekImg.jpeg';
+import hebrewImg from './hebrewImg.jpeg';
+import swedishImg from './swedishImg.jpeg';
+import polishImg from './polishImg.jpeg';
+import thaiImg from './thaiImg.jpeg';
+import vietnameseImg from './vietnameseImg.jpeg';
+import indonesianImg from './indonesianImg.jpeg';
+import persianImg from './persianImg.jpeg';
+import danishImg from './danishImg.jpeg';
+import finnishImg from './finnishImg.jpeg';
+import norwegianImg from './norwegianImg.jpeg';
+import czechImg from './czechImg.jpeg';
 export {
     Cog,
     full_cog,
@@ -85,6 +115,36 @@ export {
     physics_banner,
     car,
     moon,
-    earth
+    earth,
+    igboImg,
+    englishImg,
+spanishImg,
+frenchImg,
+germanImg,
+japaneseImg,
+chineseImg,
+arabicImg,
+yorubaImg,
+portugueseImg,
+italianImg,
+koreanImg,
+russianImg,
+hindiImg,
+turkishImg,
+dutchImg,
+swahiliImg,
+hausaImg,
+greekImg,
+hebrewImg,
+swedishImg,
+polishImg,
+thaiImg,
+vietnameseImg,
+indonesianImg,
+persianImg,
+danishImg,
+finnishImg,
+norwegianImg,
+czechImg,
 
 }

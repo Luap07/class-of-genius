@@ -3,7 +3,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import AdminLayout from "./AdminLayout";
 import AdminDashboard from "./AdminDashboard";
+
 import LanguagesAdmin from "../pages/admin/languages/LanguagesAdmin";
+import LanguageLessonsAdmin from "../pages/admin/languages/LanguageLessonsAdmin";
 /* ================= Newsletter ================= */
 import NewsletterAdmin from "../pages/admin/NewsletterAdmin";
         
@@ -137,6 +139,12 @@ const AdminRoutes = () => {
 <Route
   path="languages"
   element={<LanguagesAdmin />}
+/>
+{/* ================= Language Lessons ================= */}
+
+<Route
+  path="languages/lessons"
+  element={<LanguageLessonsAdmin />}
 />
         {/* ================= MONTHLY QUIZZES ================= */}
 

@@ -1,15 +1,6 @@
-import React, {
-  useMemo,
-  useState,
-} from "react";
-
-import {
-  useNavigate,
-  useParams,
-} from "react-router-dom";
-
+import React, { useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-
 import {
   ArrowLeft,
   Globe2,
@@ -20,14 +11,10 @@ import {
   GraduationCap,
   Brain,
   PlayCircle,
-  PenSquare,
   PenTool,
-  Headphones,
-  Star,
   Award,
   ChevronRight,
 } from "lucide-react";
-
 import { languages } from "../../data/language/languages";
 
 const tabs = [
@@ -45,194 +32,68 @@ const tabs = [
 
 const LanguageDetails = () => {
   const navigate = useNavigate();
-  const { slug } = useParams();
+  const { id } = useParams();
   const [activeTab, setActiveTab] = useState("Overview");
 
   const language = useMemo(() => {
     return (
       languages.find(
-        (item) => item.slug === slug
-      ) || languages[0]
+        (item) => String(item.id) === String(id)
+      ) || null
     );
-  }, [slug]);
+  }, [id]);
 
   if (!language) {
     return (
-      <section
-        className="
-        min-h-screen
-        flex
-        items-center
-        justify-center
-        bg-[#020617]
-        text-white
-        "
-      >
+      <section className="min-h-screen flex items-center justify-center bg-[#020617] text-white">
         Language not found.
       </section>
     );
   }
 
   return (
-    <section
-      className="
-      min-h-screen
-      bg-[#020617]
-      text-white
-      "
-    >
+    <section className="min-h-screen bg-[#020617] text-white">
       {/* HERO */}
-      <div
-        className="
-        relative
-        h-[520px]
-        overflow-hidden
-        "
-      >
+      <div className="relative h-[520px] overflow-hidden">
         <img
           src={language.image}
           alt={language.name}
-          className="
-          absolute
-          inset-0
-          h-full
-          w-full
-          object-cover
-          "
+          className="absolute inset-0 h-full w-full object-cover"
         />
+        <div className="absolute inset-0 bg-black/70" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/30 to-transparent" />
 
-        <div
-          className="
-          absolute
-          inset-0
-          bg-black/70
-          "
-        />
-
-        <div
-          className="
-          absolute
-          inset-0
-          bg-gradient-to-t
-          from-[#020617]
-          via-[#020617]/30
-          to-transparent
-          "
-        />
-
-        <div
-          className="
-          relative
-          z-20
-          mx-auto
-          flex
-          h-full
-          max-w-7xl
-          flex-col
-          justify-end
-          px-6
-          pb-16
-          "
-        >
+        <div className="relative z-20 mx-auto flex h-full max-w-7xl flex-col justify-end px-6 pb-16">
           <button
             onClick={() => navigate(-1)}
-            className="
-            mb-8
-            flex
-            w-fit
-            items-center
-            gap-2
-            rounded-full
-            border
-            border-white/10
-            bg-white/10
-            px-5
-            py-3
-            backdrop-blur-xl
-            "
+            className="mb-8 flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/10 px-5 py-3 backdrop-blur-xl hover:bg-white/20 transition"
           >
             <ArrowLeft size={18} />
             Back
           </button>
 
           <motion.h1
-            initial={{
-              opacity: 0,
-              y: 30,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            className="
-            text-6xl
-            font-black
-            "
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-6xl font-black"
           >
             {language.name}
           </motion.h1>
 
-          <p
-            className="
-            mt-3
-            text-2xl
-            text-blue-400
-            "
-          >
-            {language.nativeName}
-          </p>
+          <p className="mt-3 text-2xl text-blue-400">{language.nativeName}</p>
 
-          <p
-            className="
-            mt-6
-            max-w-3xl
-            text-lg
-            leading-8
-            text-slate-300
-            "
-          >
+          <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">
             {language.description}
           </p>
 
-          <div
-            className="
-            mt-10
-            flex
-            flex-wrap
-            gap-4
-            "
-          >
-            <span
-              className="
-              rounded-full
-              bg-blue-600
-              px-6
-              py-3
-              font-semibold
-              "
-            >
+          <div className="mt-10 flex flex-wrap gap-4">
+            <span className="rounded-full bg-blue-600 px-6 py-3 font-semibold">
               {language.level}
             </span>
-
-            <span
-              className="
-              rounded-full
-              bg-slate-800
-              px-6
-              py-3
-              "
-            >
+            <span className="rounded-full bg-slate-800 px-6 py-3">
               {language.continent}
             </span>
-
-            <span
-              className="
-              rounded-full
-              bg-slate-800
-              px-6
-              py-3
-              "
-            >
+            <span className="rounded-full bg-slate-800 px-6 py-3">
               {language.speakers}
             </span>
           </div>
@@ -240,144 +101,39 @@ const LanguageDetails = () => {
       </div>
 
       {/* QUICK STATS */}
-      <div
-        className="
-        mx-auto
-        -mt-14
-        max-w-7xl
-        px-6
-        relative
-        z-30
-        "
-      >
-        <div
-          className="
-          grid
-          gap-6
-          md:grid-cols-2
-          xl:grid-cols-4
-          "
-        >
-          <motion.div
-            whileHover={{ y: -6 }}
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900/90
-            p-7
-            backdrop-blur-xl
-            "
-          >
-            <Globe2
-              size={34}
-              className="text-blue-400"
-            />
-            <h3 className="mt-5 text-lg font-bold">
-              Native Speakers
-            </h3>
-            <p className="mt-2 text-slate-400">
-              {language.speakers}
-            </p>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ y: -6 }}
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900/90
-            p-7
-            backdrop-blur-xl
-            "
-          >
-            <Languages
-              size={34}
-              className="text-violet-400"
-            />
-            <h3 className="mt-5 text-lg font-bold">
-              Difficulty
-            </h3>
-            <p className="mt-2 text-slate-400">
-              {language.level}
-            </p>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ y: -6 }}
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900/90
-            p-7
-            backdrop-blur-xl
-            "
-          >
-            <GraduationCap
-              size={34}
-              className="text-green-400"
-            />
-            <h3 className="mt-5 text-lg font-bold">
-              Lessons
-            </h3>
-            <p className="mt-2 text-slate-400">
-              120+ Interactive Lessons
-            </p>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ y: -6 }}
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900/90
-            p-7
-            backdrop-blur-xl
-            "
-          >
-            <Award
-              size={34}
-              className="text-yellow-400"
-            />
-            <h3 className="mt-5 text-lg font-bold">
-              Certificate
-            </h3>
-            <p className="mt-2 text-slate-400">
-              Earn after completion
-            </p>
-          </motion.div>
+      <div className="mx-auto -mt-14 max-w-7xl px-6 relative z-30">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            { icon: <Globe2 size={34} className="text-blue-400" />, title: "Native Speakers", value: language.speakers },
+            { icon: <Languages size={34} className="text-violet-400" />, title: "Difficulty", value: language.level },
+            { icon: <GraduationCap size={34} className="text-green-400" />, title: "Lessons", value: "120+ Interactive Lessons" },
+            { icon: <Award size={34} className="text-yellow-400" />, title: "Certificate", value: "Earn after completion" },
+          ].map((stat, i) => (
+            <motion.div
+              key={i}
+              whileHover={{ y: -6 }}
+              className="rounded-3xl border border-white/10 bg-slate-900/90 p-7 backdrop-blur-xl"
+            >
+              {stat.icon}
+              <h3 className="mt-5 text-lg font-bold">{stat.title}</h3>
+              <p className="mt-2 text-slate-400">{stat.value}</p>
+            </motion.div>
+          ))}
         </div>
       </div>
 
       {/* TABS */}
-      <div
-        className="
-        mx-auto
-        mt-14
-        max-w-7xl
-        px-6
-        "
-      >
-        <div
-          className="
-          flex
-          gap-3
-          overflow-x-auto
-          pb-4
-          "
-        >
+      <div className="mx-auto mt-14 max-w-7xl px-6">
+        <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-none">
           {tabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={
+              className={`rounded-full px-6 py-3 font-bold whitespace-nowrap transition ${
                 activeTab === tab
-                  ? "rounded-full bg-blue-600 px-6 py-3 font-bold whitespace-nowrap"
-                  : "rounded-full bg-slate-900 px-6 py-3 text-slate-300 whitespace-nowrap hover:bg-slate-800"
-              }
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-900 text-slate-300 hover:bg-slate-800"
+              }`}
             >
               {tab}
             </button>
@@ -387,170 +143,38 @@ const LanguageDetails = () => {
 
       {/* OVERVIEW */}
       {activeTab === "Overview" && (
-        <section
-          className="
-          mx-auto
-          mt-12
-          max-w-7xl
-          px-6
-          "
-        >
-          <div
-            className="
-            grid
-            gap-8
-            xl:grid-cols-3
-            "
-          >
-            <div
-              className="
-              xl:col-span-2
-              rounded-3xl
-              border
-              border-white/10
-              bg-slate-900
-              p-8
-              "
-            >
-              <div
-                className="
-                flex
-                items-center
-                gap-3
-                "
-              >
-                <BookOpen
-                  className="text-blue-400"
-                />
-                <h2
-                  className="
-                  text-3xl
-                  font-black
-                  "
-                >
-                  About {language.name}
-                </h2>
+        <section className="mx-auto mt-12 max-w-7xl px-6">
+          <div className="grid gap-8 xl:grid-cols-3">
+            <div className="xl:col-span-2 rounded-3xl border border-white/10 bg-slate-900 p-8">
+              <div className="flex items-center gap-3">
+                <BookOpen className="text-blue-400" />
+                <h2 className="text-3xl font-black">About {language.name}</h2>
               </div>
-
-              <p
-                className="
-                mt-8
-                leading-9
-                text-slate-300
-                "
-              >
-                {language.description}{" "}
-                Learn real conversations,
-                pronunciation,
-                grammar,
-                culture,
-                writing,
-                listening,
-                reading
-                and vocabulary with
-                interactive lessons,
-                AI explanations
-                and practical exercises.
+              <p className="mt-8 leading-9 text-slate-300">
+                {language.description} Learn real conversations, pronunciation, grammar, culture, writing, listening, reading, and vocabulary with interactive lessons, AI explanations, and practical exercises.
               </p>
             </div>
 
-            <div
-              className="
-              rounded-3xl
-              border
-              border-white/10
-              bg-slate-900
-              p-8
-              "
-            >
-              <h3
-                className="
-                text-2xl
-                font-black
-                "
-              >
-                Quick Actions
-              </h3>
-
-              <div
-                className="
-                mt-8
-                space-y-4
-                "
-              >
-                <button
-                  className="
-                  flex
-                  w-full
-                  items-center
-                  justify-between
-                  rounded-2xl
-                  bg-blue-600
-                  px-5
-                  py-4
-                  font-bold
-                  "
-                >
-                  Start Course
-                  <ChevronRight />
-                </button>
-
-                <button
-                  className="
-                  flex
-                  w-full
-                  items-center
-                  justify-between
-                  rounded-2xl
-                  bg-slate-800
-                  px-5
-                  py-4
-                  "
-                >
-                  <span className="flex items-center gap-2">
-                    <PlayCircle />
-                    Lessons
-                  </span>
-                  <ChevronRight />
-                </button>
-
-                <button
-                  className="
-                  flex
-                  w-full
-                  items-center
-                  justify-between
-                  rounded-2xl
-                  bg-slate-800
-                  px-5
-                  py-4
-                  "
-                >
-                  <span className="flex items-center gap-2">
-                    <Brain />
-                    AI Tutor
-                  </span>
-                  <ChevronRight />
-                </button>
-
-                <button
-                  className="
-                  flex
-                  w-full
-                  items-center
-                  justify-between
-                  rounded-2xl
-                  bg-slate-800
-                  px-5
-                  py-4
-                  "
-                >
-                  <span className="flex items-center gap-2">
-                    <Volume2 />
-                    Pronunciation
-                  </span>
-                  <ChevronRight />
-                </button>
+            <div className="rounded-3xl border border-white/10 bg-slate-900 p-8">
+              <h3 className="text-2xl font-black">Quick Actions</h3>
+              <div className="mt-8 space-y-4">
+                {[
+                  { label: "Start Course", icon: null, bg: "bg-blue-600 text-white" },
+                  { label: "Lessons", icon: <PlayCircle />, bg: "bg-slate-800 text-white" },
+                  { label: "AI Tutor", icon: <Brain />, bg: "bg-slate-800 text-white" },
+                  { label: "Pronunciation", icon: <Volume2 />, bg: "bg-slate-800 text-white" },
+                ].map((action, idx) => (
+                  <button
+                    key={idx}
+                    className={`flex w-full items-center justify-between rounded-2xl px-5 py-4 font-bold hover:opacity-90 transition ${action.bg}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {action.icon}
+                      {action.label}
+                    </span>
+                    <ChevronRight />
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -559,86 +183,23 @@ const LanguageDetails = () => {
 
       {/* ALPHABET */}
       {activeTab === "Alphabet" && (
-        <section
-          className="
-          mx-auto
-          mt-12
-          max-w-7xl
-          px-6
-          "
-        >
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-8
-            "
-          >
-            <h2
-              className="
-              text-3xl
-              font-black
-              "
-            >
-              Alphabet
-            </h2>
-            <p className="mt-3 text-slate-400">
-              Learn every letter with pronunciation and examples.
-            </p>
-
-            <div
-              className="
-              mt-10
-              grid
-              gap-5
-              sm:grid-cols-3
-              md:grid-cols-5
-              xl:grid-cols-7
-              "
-            >
-              {"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                .split("")
-                .map((letter) => (
-                  <motion.div
-                    key={letter}
-                    whileHover={{
-                      y: -8,
-                      scale: 1.05,
-                    }}
-                    className="
-                    rounded-2xl
-                    border
-                    border-white/10
-                    bg-slate-800
-                    p-6
-                    text-center
-                    cursor-pointer
-                    "
-                  >
-                    <h3
-                      className="
-                      text-5xl
-                      font-black
-                      text-blue-400
-                      "
-                    >
-                      {letter}
-                    </h3>
-                    <button
-                      className="
-                      mt-5
-                      rounded-full
-                      bg-blue-600
-                      px-5
-                      py-2
-                      "
-                    >
-                      Listen
-                    </button>
-                  </motion.div>
-                ))}
+        <section className="mx-auto mt-12 max-w-7xl px-6">
+          <div className="rounded-3xl border border-white/10 bg-slate-900 p-8">
+            <h2 className="text-3xl font-black">Alphabet</h2>
+            <p className="mt-3 text-slate-400">Learn every letter with pronunciation and examples.</p>
+            <div className="mt-10 grid gap-5 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-7">
+              {"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letter) => (
+                <motion.div
+                  key={letter}
+                  whileHover={{ y: -8, scale: 1.05 }}
+                  className="rounded-2xl border border-white/10 bg-slate-800 p-6 text-center cursor-pointer"
+                >
+                  <h3 className="text-5xl font-black text-blue-400">{letter}</h3>
+                  <button className="mt-5 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold hover:bg-blue-500 transition">
+                    Listen
+                  </button>
+                </motion.div>
+              ))}
             </div>
           </div>
         </section>
@@ -646,63 +207,21 @@ const LanguageDetails = () => {
 
       {/* GRAMMAR */}
       {activeTab === "Grammar" && (
-        <section
-          className="
-          mx-auto
-          mt-12
-          max-w-7xl
-          px-6
-          "
-        >
-          <div
-            className="
-            grid
-            gap-6
-            md:grid-cols-2
-            "
-          >
+        <section className="mx-auto mt-12 max-w-7xl px-6">
+          <div className="grid gap-6 md:grid-cols-2">
             {[
-              "Nouns",
-              "Pronouns",
-              "Verbs",
-              "Adjectives",
-              "Adverbs",
-              "Sentence Structure",
-              "Past Tense",
-              "Future Tense",
+              "Nouns", "Pronouns", "Verbs", "Adjectives",
+              "Adverbs", "Sentence Structure", "Past Tense", "Future Tense",
             ].map((topic) => (
               <motion.div
                 key={topic}
                 whileHover={{ y: -6 }}
-                className="
-                rounded-3xl
-                border
-                border-white/10
-                bg-slate-900
-                p-8
-                "
+                className="rounded-3xl border border-white/10 bg-slate-900 p-8"
               >
-                <BookOpen
-                  className="text-blue-400"
-                />
-                <h3
-                  className="
-                  mt-5
-                  text-2xl
-                  font-bold
-                  "
-                >
-                  {topic}
-                </h3>
-                <p
-                  className="
-                  mt-4
-                  leading-8
-                  text-slate-400
-                  "
-                >
-                  Learn rules, examples,
-                  exercises and quizzes.
+                <BookOpen className="text-blue-400" />
+                <h3 className="mt-5 text-2xl font-bold">{topic}</h3>
+                <p className="mt-4 leading-8 text-slate-400">
+                  Learn rules, examples, exercises and quizzes.
                 </p>
               </motion.div>
             ))}
@@ -712,67 +231,20 @@ const LanguageDetails = () => {
 
       {/* VOCABULARY */}
       {activeTab === "Vocabulary" && (
-        <section
-          className="
-          mx-auto
-          mt-12
-          max-w-7xl
-          px-6
-          "
-        >
-          <div
-            className="
-            grid
-            gap-6
-            md:grid-cols-2
-            xl:grid-cols-3
-            "
-          >
+        <section className="mx-auto mt-12 max-w-7xl px-6">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {[
-              "Greetings",
-              "Family",
-              "Travel",
-              "Business",
-              "Food",
-              "Shopping",
-              "Hospital",
-              "Airport",
-              "Technology",
+              "Greetings", "Family", "Travel", "Business",
+              "Food", "Shopping", "Hospital", "Airport", "Technology",
             ].map((item) => (
               <motion.div
                 key={item}
-                whileHover={{
-                  scale: 1.03,
-                }}
-                className="
-                rounded-3xl
-                border
-                border-white/10
-                bg-slate-900
-                p-7
-                "
+                whileHover={{ scale: 1.03 }}
+                className="rounded-3xl border border-white/10 bg-slate-900 p-7"
               >
-                <Languages
-                  className="text-cyan-400"
-                />
-                <h3
-                  className="
-                  mt-5
-                  text-xl
-                  font-bold
-                  "
-                >
-                  {item}
-                </h3>
-                <p
-                  className="
-                  mt-4
-                  text-slate-400
-                  "
-                >
-                  Master useful vocabulary,
-                  pronunciation and examples.
-                </p>
+                <Languages className="text-cyan-400" />
+                <h3 className="mt-5 text-xl font-bold">{item}</h3>
+                <p className="mt-4 text-slate-400">Master useful vocabulary, pronunciation and examples.</p>
               </motion.div>
             ))}
           </div>
@@ -781,65 +253,14 @@ const LanguageDetails = () => {
 
       {/* LISTENING */}
       {activeTab === "Listening" && (
-        <section
-          className="
-          mx-auto
-          mt-12
-          max-w-7xl
-          px-6
-          "
-        >
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-10
-            text-center
-            "
-          >
-            <Volume2
-              size={70}
-              className="
-              mx-auto
-              text-blue-400
-              "
-            />
-            <h2
-              className="
-              mt-6
-              text-3xl
-              font-black
-              "
-            >
-              Listening Practice
-            </h2>
-            <p
-              className="
-              mt-5
-              max-w-3xl
-              mx-auto
-              leading-9
-              text-slate-400
-              "
-            >
-              Listen to native speakers,
-              conversations,
-              interviews,
-              podcasts,
-              news and stories.
+        <section className="mx-auto mt-12 max-w-7xl px-6">
+          <div className="rounded-3xl border border-white/10 bg-slate-900 p-10 text-center">
+            <Volume2 size={70} className="mx-auto text-blue-400" />
+            <h2 className="mt-6 text-3xl font-black">Listening Practice</h2>
+            <p className="mt-5 max-w-3xl mx-auto leading-9 text-slate-400">
+              Listen to native speakers, conversations, interviews, podcasts, news and stories.
             </p>
-            <button
-              className="
-              mt-10
-              rounded-full
-              bg-blue-600
-              px-8
-              py-4
-              font-bold
-              "
-            >
+            <button className="mt-10 rounded-full bg-blue-600 px-8 py-4 font-bold hover:bg-blue-500 transition">
               Start Listening
             </button>
           </div>
@@ -848,47 +269,11 @@ const LanguageDetails = () => {
 
       {/* SPEAKING */}
       {activeTab === "Speaking" && (
-        <section
-          className="
-          mx-auto
-          mt-12
-          max-w-7xl
-          px-6
-          "
-        >
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-10
-            text-center
-            "
-          >
-            <Mic
-              size={70}
-              className="
-              mx-auto
-              text-green-400
-              "
-            />
-            <h2
-              className="
-              mt-6
-              text-3xl
-              font-black
-              "
-            >
-              Speaking Practice
-            </h2>
-            <p
-              className="
-              mt-5
-              leading-9
-              text-slate-400
-              "
-            >
+        <section className="mx-auto mt-12 max-w-7xl px-6">
+          <div className="rounded-3xl border border-white/10 bg-slate-900 p-10 text-center">
+            <Mic size={70} className="mx-auto text-green-400" />
+            <h2 className="mt-6 text-3xl font-black">Speaking Practice</h2>
+            <p className="mt-5 leading-9 text-slate-400">
               Record your voice and compare it with native pronunciation.
             </p>
           </div>
@@ -897,63 +282,21 @@ const LanguageDetails = () => {
 
       {/* WRITING */}
       {activeTab === "Writing" && (
-        <section
-          className="
-          mx-auto
-          mt-12
-          max-w-7xl
-          px-6
-          "
-        >
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-10
-            "
-          >
+        <section className="mx-auto mt-12 max-w-7xl px-6">
+          <div className="rounded-3xl border border-white/10 bg-slate-900 p-10">
             <div className="flex items-center gap-4">
-              <PenTool
-                size={42}
-                className="text-yellow-400"
-              />
+              <PenTool size={42} className="text-yellow-400" />
               <div>
-                <h2 className="text-3xl font-black">
-                  Writing Practice
-                </h2>
-                <p className="text-slate-400 mt-2">
-                  Practice writing words, sentences and essays.
-                </p>
+                <h2 className="text-3xl font-black">Writing Practice</h2>
+                <p className="text-slate-400 mt-2">Practice writing words, sentences and essays.</p>
               </div>
             </div>
-
             <textarea
               rows={10}
               placeholder="Write something here..."
-              className="
-              mt-8
-              w-full
-              rounded-3xl
-              border
-              border-white/10
-              bg-slate-800
-              p-6
-              outline-none
-              "
+              className="mt-8 w-full rounded-3xl border border-white/10 bg-slate-800 p-6 outline-none text-white focus:border-blue-500 transition"
             />
-
-            <button
-              className="
-              mt-8
-              rounded-2xl
-              bg-blue-600
-              px-8
-              py-4
-              font-bold
-              "
-            >
+            <button className="mt-8 rounded-2xl bg-blue-600 px-8 py-4 font-bold hover:bg-blue-500 transition">
               Check Writing
             </button>
           </div>
@@ -962,65 +305,20 @@ const LanguageDetails = () => {
 
       {/* CULTURE */}
       {activeTab === "Culture" && (
-        <section
-          className="
-          mx-auto
-          mt-12
-          max-w-7xl
-          px-6
-          "
-        >
-          <div
-            className="
-            grid
-            gap-6
-            md:grid-cols-2
-            xl:grid-cols-4
-            "
-          >
+        <section className="mx-auto mt-12 max-w-7xl px-6">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             {[
-              "Food",
-              "Traditions",
-              "Festivals",
-              "History",
-              "Music",
-              "Movies",
-              "Religion",
-              "Daily Life",
+              "Food", "Traditions", "Festivals", "History",
+              "Music", "Movies", "Religion", "Daily Life",
             ].map((item) => (
               <motion.div
                 key={item}
-                whileHover={{
-                  y: -8,
-                }}
-                className="
-                rounded-3xl
-                border
-                border-white/10
-                bg-slate-900
-                p-8
-                "
+                whileHover={{ y: -8 }}
+                className="rounded-3xl border border-white/10 bg-slate-900 p-8"
               >
-                <Globe2
-                  className="text-cyan-400"
-                />
-                <h3
-                  className="
-                  mt-6
-                  text-xl
-                  font-bold
-                  "
-                >
-                  {item}
-                </h3>
-                <p
-                  className="
-                  mt-3
-                  text-slate-400
-                  "
-                >
-                  Learn authentic cultural experiences.
-                </p>
+                <Globe2 className="text-cyan-400" />
+                <h3 className="mt-6 text-xl font-bold">{item}</h3>
+                <p className="mt-3 text-slate-400">Learn authentic cultural experiences.</p>
               </motion.div>
             ))}
           </div>
@@ -1029,64 +327,39 @@ const LanguageDetails = () => {
 
       {/* LESSONS */}
       {activeTab === "Lessons" && (
-        <section
-          className="
-          mx-auto
-          mt-12
-          max-w-7xl
-          px-6
-          pb-16
-          "
-        >
-          <div
-            className="
-            space-y-5
-            "
-          >
+        <section className="mx-auto mt-12 max-w-7xl px-6 pb-16">
+          <div className="space-y-5">
             {Array.from({ length: 20 }).map((_, index) => (
               <motion.div
                 key={index}
-                whileHover={{
-                  x: 8,
-                }}
-                className="
-                flex
-                items-center
-                justify-between
-                rounded-3xl
-                border
-                border-white/10
-                bg-slate-900
-                p-6
-                "
+                whileHover={{ x: 8 }}
+                className="flex items-center justify-between rounded-3xl border border-white/10 bg-slate-900 p-6"
               >
                 <div>
-                  <h3
-                    className="
-                    text-xl
-                    font-bold
-                    "
-                  >
-                    Lesson {index + 1}
-                  </h3>
-                  <p className="text-slate-400">
-                    Interactive lesson with AI guidance.
-                  </p>
+                  <h3 className="text-xl font-bold">Lesson {index + 1}</h3>
+                  <p className="text-slate-400">Interactive lesson with AI guidance.</p>
                 </div>
-
-                <button
-                  className="
-                  rounded-2xl
-                  bg-blue-600
-                  px-6
-                  py-3
-                  font-bold
-                  "
-                >
+                <button className="rounded-2xl bg-blue-600 px-6 py-3 font-bold hover:bg-blue-500 transition">
                   Start
                 </button>
               </motion.div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* AI TUTOR */}
+      {activeTab === "AI Tutor" && (
+        <section className="mx-auto mt-12 max-w-7xl px-6 pb-16">
+          <div className="rounded-3xl border border-white/10 bg-slate-900 p-10 text-center">
+            <Brain size={70} className="mx-auto text-violet-400" />
+            <h2 className="mt-6 text-3xl font-black">AI Language Assistant</h2>
+            <p className="mt-5 max-w-2xl mx-auto text-slate-400">
+              Chat live, ask grammar questions, and practice scenarios directly with your personal AI mentor tailored to {language.name}.
+            </p>
+            <button className="mt-10 rounded-full bg-violet-600 px-8 py-4 font-bold hover:bg-violet-500 transition">
+              Open AI Chat
+            </button>
           </div>
         </section>
       )}

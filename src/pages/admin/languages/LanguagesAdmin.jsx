@@ -17,7 +17,7 @@ import {
   BookOpen,
   Upload,
 } from "lucide-react";
-
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../../lib/supabaseClient";
 
 import LanguageStats from "../../../components/admin/languages/LanguageStats";
@@ -29,86 +29,51 @@ import DeleteLanguageModal from "../../../components/admin/languages/DeleteLangu
 import EmptyLanguages from "../../../components/admin/languages/EmptyLanguages";
 
 export default function LanguagesAdmin() {
-  /* -----------------------------
-     Data
-  ------------------------------ */
+  const navigate = useNavigate();
 
+  const goToLanguagesFrontend = () => {
+    navigate("/admin/languages/lessons");
+  };
+
+  /* ----------------------------- Data ------------------------------ */
   const [languages, setLanguages] = useState([]);
-
   const [filteredLanguages, setFilteredLanguages] = useState([]);
 
-  /* -----------------------------
-     Loading
-  ------------------------------ */
-
+  /* ----------------------------- Loading ------------------------------ */
   const [loading, setLoading] = useState(true);
-
   const [refreshing, setRefreshing] = useState(false);
 
-  /* -----------------------------
-     Search / Filter
-  ------------------------------ */
-
+  /* ----------------------------- Search / Filter ------------------------------ */
   const [search, setSearch] = useState("");
-
   const [statusFilter, setStatusFilter] = useState("all");
-
   const [regionFilter, setRegionFilter] = useState("all");
 
-  /* -----------------------------
-     Create Form
-  ------------------------------ */
-
+  /* ----------------------------- Create Form ------------------------------ */
   const [showCreateModal, setShowCreateModal] = useState(false);
-
   const [saving, setSaving] = useState(false);
-
   const [languageName, setLanguageName] = useState("");
-
   const [languageCode, setLanguageCode] = useState("");
-
   const [nativeName, setNativeName] = useState("");
-
   const [region, setRegion] = useState("");
-
   const [description, setDescription] = useState("");
-
   const [flagFile, setFlagFile] = useState(null);
-
   const [coverImage, setCoverImage] = useState(null);
 
-  /* -----------------------------
-     Edit
-  ------------------------------ */
-
+  /* ----------------------------- Edit ------------------------------ */
   const [editingLanguage, setEditingLanguage] = useState(null);
-
   const [showEditModal, setShowEditModal] = useState(false);
-
   const [updating, setUpdating] = useState(false);
 
-  /* -----------------------------
-     Delete
-  ------------------------------ */
-
+  /* ----------------------------- Delete ------------------------------ */
   const [deletingLanguage, setDeletingLanguage] = useState(null);
-
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-
   const [deleting, setDeleting] = useState(false);
 
-  /* -----------------------------
-     Upload Learning Material
-  ------------------------------ */
-
+  /* ----------------------------- Upload Learning Material ------------------------------ */
   const [selectedLanguage, setSelectedLanguage] = useState(null);
-
   const [showUploadModal, setShowUploadModal] = useState(false);
 
-  /* -----------------------------
-     Fetch Languages
-  ------------------------------ */
-
+  /* ----------------------------- Fetch Languages ------------------------------ */
   const fetchLanguages = useCallback(async () => {
     try {
       setLoading(true);
@@ -130,36 +95,26 @@ export default function LanguagesAdmin() {
     }
   }, []);
 
-  /* -----------------------------
-     Refresh
-  ------------------------------ */
-
+  /* ----------------------------- Refresh ------------------------------ */
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-
       await fetchLanguages();
     } finally {
       setRefreshing(false);
     }
   };
 
-  /* -----------------------------
-     Initial Load
-  ------------------------------ */
-
+  /* ----------------------------- Initial Load ------------------------------ */
   useEffect(() => {
     fetchLanguages();
   }, [fetchLanguages]);
-    /* -----------------------------
-     Upload File
-  ------------------------------ */
 
+  /* ----------------------------- Upload File ------------------------------ */
   const uploadFile = async (file, bucket) => {
     if (!file) return null;
 
     const fileExt = file.name.split(".").pop();
-
     const fileName = `${Date.now()}-${Math.random()
       .toString(36)
       .substring(2)}.${fileExt}`;
@@ -179,30 +134,21 @@ export default function LanguagesAdmin() {
     return data.publicUrl;
   };
 
-  /* -----------------------------
-     Reset Form
-  ------------------------------ */
-
+  /* ----------------------------- Reset Form ------------------------------ */
   const resetForm = () => {
     setLanguageName("");
     setLanguageCode("");
     setNativeName("");
     setRegion("");
     setDescription("");
-
     setFlagFile(null);
     setCoverImage(null);
-
     setEditingLanguage(null);
-
     setShowCreateModal(false);
     setShowEditModal(false);
   };
 
-  /* -----------------------------
-     Create Language
-  ------------------------------ */
-
+  /* ----------------------------- Create Language ------------------------------ */
   const handleCreateLanguage = async () => {
     try {
       setSaving(true);
@@ -211,17 +157,11 @@ export default function LanguagesAdmin() {
       let coverUrl = "";
 
       if (flagFile) {
-        flagUrl = await uploadFile(
-          flagFile,
-          "language-flags"
-        );
+        flagUrl = await uploadFile(flagFile, "language-flags");
       }
 
       if (coverImage) {
-        coverUrl = await uploadFile(
-          coverImage,
-          "language-covers"
-        );
+        coverUrl = await uploadFile(coverImage, "language-covers");
       }
 
       const { error } = await supabase
@@ -242,7 +182,6 @@ export default function LanguagesAdmin() {
       if (error) throw error;
 
       resetForm();
-
       fetchLanguages();
     } catch (err) {
       console.error(err);
@@ -251,30 +190,18 @@ export default function LanguagesAdmin() {
     }
   };
 
-  /* -----------------------------
-     Open Edit
-  ------------------------------ */
-
+  /* ----------------------------- Open Edit ------------------------------ */
   const handleEdit = (language) => {
     setEditingLanguage(language);
-
     setLanguageName(language.name || "");
-
     setLanguageCode(language.code || "");
-
     setNativeName(language.native_name || "");
-
     setRegion(language.region || "");
-
     setDescription(language.description || "");
-
     setShowEditModal(true);
   };
 
-  /* -----------------------------
-     Save Edit
-  ------------------------------ */
-
+  /* ----------------------------- Save Edit ------------------------------ */
   const handleSaveEdit = async () => {
     if (!editingLanguage) return;
 
@@ -282,21 +209,14 @@ export default function LanguagesAdmin() {
       setUpdating(true);
 
       let flagUrl = editingLanguage.flag_url;
-
       let coverUrl = editingLanguage.cover_url;
 
       if (flagFile) {
-        flagUrl = await uploadFile(
-          flagFile,
-          "language-flags"
-        );
+        flagUrl = await uploadFile(flagFile, "language-flags");
       }
 
       if (coverImage) {
-        coverUrl = await uploadFile(
-          coverImage,
-          "language-covers"
-        );
+        coverUrl = await uploadFile(coverImage, "language-covers");
       }
 
       const { error } = await supabase
@@ -315,7 +235,6 @@ export default function LanguagesAdmin() {
       if (error) throw error;
 
       resetForm();
-
       fetchLanguages();
     } catch (err) {
       console.error(err);
@@ -324,13 +243,9 @@ export default function LanguagesAdmin() {
     }
   };
 
-  /* -----------------------------
-     Delete
-  ------------------------------ */
-
+  /* ----------------------------- Delete ------------------------------ */
   const handleDelete = (language) => {
     setDeletingLanguage(language);
-
     setShowDeleteModal(true);
   };
 
@@ -348,9 +263,7 @@ export default function LanguagesAdmin() {
       if (error) throw error;
 
       setShowDeleteModal(false);
-
       setDeletingLanguage(null);
-
       fetchLanguages();
     } catch (err) {
       console.error(err);
@@ -359,26 +272,18 @@ export default function LanguagesAdmin() {
     }
   };
 
-  /* -----------------------------
-     Upload Learning Material
-  ------------------------------ */
-
+  /* ----------------------------- Upload Learning Material ------------------------------ */
   const handleOpenUpload = (language) => {
     setSelectedLanguage(language);
-
     setShowUploadModal(true);
   };
-    /* -----------------------------
-     Search + Filters
-  ------------------------------ */
 
+  /* ----------------------------- Search + Filters ------------------------------ */
   const filteredData = useMemo(() => {
     let data = [...languages];
 
-    // Search
     if (search.trim()) {
       const keyword = search.toLowerCase();
-
       data = data.filter((language) => {
         return (
           language.name?.toLowerCase().includes(keyword) ||
@@ -389,48 +294,26 @@ export default function LanguagesAdmin() {
       });
     }
 
-    // Status
     if (statusFilter !== "all") {
       data = data.filter((language) => {
-        if (statusFilter === "active") {
-          return language.active === true;
-        }
-
-        if (statusFilter === "inactive") {
-          return language.active === false;
-        }
-
+        if (statusFilter === "active") return language.active === true;
+        if (statusFilter === "inactive") return language.active === false;
         return true;
       });
     }
 
-    // Region
     if (regionFilter !== "all") {
-      data = data.filter(
-        (language) => language.region === regionFilter
-      );
+      data = data.filter((language) => language.region === regionFilter);
     }
 
     return data;
-  }, [
-    languages,
-    search,
-    statusFilter,
-    regionFilter,
-  ]);
-
-  /* -----------------------------
-     Keep filtered state updated
-  ------------------------------ */
+  }, [languages, search, statusFilter, regionFilter]);
 
   useEffect(() => {
     setFilteredLanguages(filteredData);
   }, [filteredData]);
 
-  /* -----------------------------
-     Regions
-  ------------------------------ */
-
+  /* ----------------------------- Regions ------------------------------ */
   const regions = useMemo(() => {
     return [
       "all",
@@ -442,30 +325,15 @@ export default function LanguagesAdmin() {
     ];
   }, [languages]);
 
-  /* -----------------------------
-     Statistics
-  ------------------------------ */
-
+  /* ----------------------------- Statistics ------------------------------ */
   const totalLanguages = languages.length;
-
-  const activeLanguages = languages.filter(
-    (language) => language.active
-  ).length;
-
-  const inactiveLanguages = languages.filter(
-    (language) => !language.active
-  ).length;
-
+  const activeLanguages = languages.filter((language) => language.active).length;
+  const inactiveLanguages = languages.filter((language) => !language.active).length;
   const totalRegions = new Set(
-    languages
-      .map((language) => language.region)
-      .filter(Boolean)
+    languages.map((language) => language.region).filter(Boolean)
   ).size;
 
-  /* -----------------------------
-     Quick Actions
-  ------------------------------ */
-
+  /* ----------------------------- Modals Management ------------------------------ */
   const openCreateModal = () => {
     resetForm();
     setShowCreateModal(true);
@@ -488,79 +356,50 @@ export default function LanguagesAdmin() {
     setDeletingLanguage(null);
     setShowDeleteModal(false);
   };
-    return (
+
+  return (
     <>
-      <div className="min-h-screen bg-[#030712] text-white">
-
+      <div className="min-h-screen bg-[#030712] text-white p-6">
         {/* Header */}
-
         <div className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-
           <div>
-            <h1 className="text-5xl font-black">
-              Languages
-            </h1>
-
+            <h1 className="text-5xl font-black">Languages</h1>
             <p className="mt-3 text-lg text-gray-400">
               Manage all languages available in your LMS.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-4">
+            <button
+              onClick={goToLanguagesFrontend}
+              className="flex items-center gap-3 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 px-6 py-3 font-bold text-indigo-300 transition hover:bg-indigo-500/20"
+            >
+              <Globe className="h-5 w-5" />
+              View Lessons
+            </button>
 
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="
-                flex
-                items-center
-                gap-3
-                rounded-2xl
-                border
-                border-white/10
-                bg-[#111827]
-                px-6
-                py-3
-                font-semibold
-                transition
-                hover:bg-[#1f2937]
-              "
+              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#111827] px-6 py-3 font-semibold transition hover:bg-[#1f2937]"
             >
               <RefreshCw
-                className={`h-5 w-5 ${
-                  refreshing ? "animate-spin" : ""
-                }`}
+                className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`}
               />
-
               Refresh
             </button>
 
             <button
               onClick={openCreateModal}
-              className="
-                flex
-                items-center
-                gap-3
-                rounded-2xl
-                bg-indigo-600
-                px-6
-                py-3
-                font-bold
-                transition
-                hover:bg-indigo-500
-              "
+              className="flex items-center gap-3 rounded-2xl bg-indigo-600 px-6 py-3 font-bold transition hover:bg-indigo-500"
             >
               <Plus className="h-5 w-5" />
-
               Add Language
             </button>
-
           </div>
-
         </div>
 
         {/* Stats */}
-
         <LanguageStats
           totalLanguages={totalLanguages}
           activeLanguages={activeLanguages}
@@ -569,7 +408,6 @@ export default function LanguagesAdmin() {
         />
 
         {/* Filters */}
-
         <LanguageFilters
           search={search}
           setSearch={setSearch}
@@ -586,17 +424,11 @@ export default function LanguagesAdmin() {
         />
 
         {/* Content */}
-
         {loading ? (
-
           <div className="flex justify-center py-24">
-
             <Loader2 className="h-12 w-12 animate-spin text-indigo-500" />
-
           </div>
-
         ) : filteredLanguages.length === 0 ? (
-
           <EmptyLanguages
             searching={
               search !== "" ||
@@ -605,9 +437,7 @@ export default function LanguagesAdmin() {
             }
             onCreate={openCreateModal}
           />
-
         ) : (
-
           <LanguagesGrid
             languages={filteredLanguages}
             loading={loading}
@@ -615,16 +445,12 @@ export default function LanguagesAdmin() {
             onDelete={handleDelete}
             onUpload={handleOpenUpload}
           />
-
         )}
 
         {/* Create Modal */}
-
         <LanguageForm
-  open={showEditModal}
-  editing
-  language={editingLanguage}
-  languageName={languageName}
+          open={showCreateModal}
+          languageName={languageName}
           setLanguageName={setLanguageName}
           nativeName={nativeName}
           setNativeName={setNativeName}
@@ -642,11 +468,12 @@ export default function LanguagesAdmin() {
           onClose={closeCreateModal}
           onSave={handleCreateLanguage}
         />
-                {/* Edit Language */}
 
+        {/* Edit Language Modal */}
         <LanguageForm
           open={showEditModal}
           editing
+          language={editingLanguage}
           languageName={languageName}
           setLanguageName={setLanguageName}
           nativeName={nativeName}
@@ -667,7 +494,6 @@ export default function LanguagesAdmin() {
         />
 
         {/* Upload Learning Material */}
-
         <LanguageMaterialUpload
           open={showUploadModal}
           language={selectedLanguage}
@@ -676,7 +502,6 @@ export default function LanguagesAdmin() {
         />
 
         {/* Delete Language */}
-
         <DeleteLanguageModal
           open={showDeleteModal}
           language={deletingLanguage}

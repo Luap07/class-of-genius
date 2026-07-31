@@ -171,16 +171,10 @@ const Translator = () => {
 
 
             <TranslateInput
-
-              value={text}
-
-              setValue={setText}
-
-              onClear={clear}
-
-            />
-
-
+  value={text}
+  onChange={(e) => setText(e.target.value)}
+  onClear={clear}
+/>
             <div className="mt-5 flex gap-3">
 
 

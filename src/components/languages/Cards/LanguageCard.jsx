@@ -9,7 +9,6 @@ import {
   BookOpen,
 } from "lucide-react";
 
-
 const LanguageCard = ({
   language,
   onClick,
@@ -27,7 +26,6 @@ const LanguageCard = ({
       transition={{
         duration: 0.25,
       }}
-
       className="
         group
         cursor-pointer
@@ -39,16 +37,12 @@ const LanguageCard = ({
       "
     >
 
-
       {/* Cover */}
-
       <div className="relative h-56 overflow-hidden">
 
-
-        {language?.cover_url ? (
-
+        {language?.image ? (
           <img
-            src={language.cover_url}
+            src={language.image}
             alt={language.name}
             className="
               h-full
@@ -59,9 +53,7 @@ const LanguageCard = ({
               group-hover:scale-110
             "
           />
-
         ) : (
-
           <div
             className="
               flex
@@ -78,9 +70,7 @@ const LanguageCard = ({
               className="text-white/90"
             />
           </div>
-
         )}
-
 
         <div
           className="
@@ -92,7 +82,6 @@ const LanguageCard = ({
             to-transparent
           "
         />
-
 
         <div
           className="
@@ -108,38 +97,36 @@ const LanguageCard = ({
             backdrop-blur-xl
           "
         >
-          {language?.native_name || "Language"}
+          {language?.nativeName || "Language"}
         </div>
 
-
-        {language?.flag_url && (
-
-          <img
-            src={language.flag_url}
-            alt="flag"
+        {language?.flag && (
+          <div
             className="
               absolute
               bottom-5
               left-5
+              flex
               h-12
               w-12
+              items-center
+              justify-center
               rounded-full
+              bg-black/40
+              text-2xl
+              backdrop-blur-xl
               border-2
               border-white/30
-              object-cover
             "
-          />
-
+          >
+            {language.flag}
+          </div>
         )}
 
       </div>
 
-
-
       {/* Body */}
-
       <div className="p-6">
-
 
         <h2
           className="
@@ -150,7 +137,6 @@ const LanguageCard = ({
         >
           {language?.name}
         </h2>
-
 
         <p
           className="
@@ -165,8 +151,6 @@ const LanguageCard = ({
           }
         </p>
 
-
-
         <div
           className="
             mt-6
@@ -176,67 +160,46 @@ const LanguageCard = ({
           "
         >
 
-
           <div className="rounded-2xl bg-white/5 p-4 text-center">
-
             <BookOpen
               size={22}
               className="mx-auto text-cyan-400"
             />
-
             <p className="mt-2 text-lg font-black">
               {language?.materials_count ?? 0}
             </p>
-
             <p className="text-xs text-slate-500">
               Materials
             </p>
-
           </div>
 
-
-
           <div className="rounded-2xl bg-white/5 p-4 text-center">
-
             <Users
               size={22}
               className="mx-auto text-green-400"
             />
-
             <p className="mt-2 text-lg font-black">
               {language?.students_count ?? 0}
             </p>
-
             <p className="text-xs text-slate-500">
               Students
             </p>
-
           </div>
 
-
-
-
           <div className="rounded-2xl bg-white/5 p-4 text-center">
-
             <Star
               size={22}
               className="mx-auto text-yellow-400"
             />
-
             <p className="mt-2 text-lg font-black">
               {language?.rating ?? "5.0"}
             </p>
-
             <p className="text-xs text-slate-500">
               Rating
             </p>
-
           </div>
 
-
         </div>
-
-
 
         <button
           onClick={onClick}
@@ -255,22 +218,14 @@ const LanguageCard = ({
             hover:bg-cyan-500
           "
         >
-
           Explore Language
-
-
           <ArrowRight size={18}/>
-
-
         </button>
 
-
       </div>
-
 
     </motion.div>
   );
 };
-
 
 export default LanguageCard;

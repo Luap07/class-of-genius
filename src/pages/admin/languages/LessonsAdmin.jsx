@@ -5,8 +5,6 @@ import React, {
   useState,
 } from "react";
 
-import { motion } from "framer-motion";
-
 import {
   Plus,
   RefreshCw,
@@ -15,372 +13,428 @@ import {
 
 import { supabase } from "../../../lib/supabaseClient";
 
-import LessonStats from "../../components/admin/languages/LessonStats";
-import LessonFilters from "../../components/admin/languages/LessonFilters";
-import LessonsGrid from "../../components/admin/languages/LessonsGrid";
-import LessonForm from "../../components/admin/languages/LessonForm";
-import DeleteLessonModal from "../../components/admin/languages/DeleteLessonModal";
-import LoadingLessons from "../../components/admin/languages/LoadingLessons";
-import EmptyLessons from "../../components/admin/languages/EmptyLessons";
+import LessonStats from "../../../components/admin/languages/lessons/LessonStats";
+import LessonFilters from "../../../components/admin/languages/lessons/LessonFilters";
+import LessonsGrid from "../../../components/admin/languages/lessons/LessonsGrid";
+import LessonForm from "../../../components/admin/languages/lessons/LessonForm";
+import DeleteLessonModal from "../../../components/admin/languages/lessons/DeleteLessonModal";
+import EmptyLessons from "../../../components/admin/languages/lessons/EmptyLessons";
 
 export default function LessonsAdmin() {
-  const [lessons, setLessons] =
-    useState([]);
+  /* ---------------------------------
+     Data States
+  ---------------------------------- */
+  const [lessons, setLessons] = useState([]);
+  const [languages, setLanguages] = useState([]);
+  const [filteredLessons, setFilteredLessons] = useState([]);
 
-  const [languages, setLanguages] =
-    useState([]);
+  /* ---------------------------------
+     Loading States
+  ---------------------------------- */
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [loading, setLoading] =
-    useState(true);
+  /* ---------------------------------
+     Search & Filter States
+  ---------------------------------- */
+  const [search, setSearch] = useState("");
+  const [languageFilter, setLanguageFilter] = useState("all");
 
-  const [saving, setSaving] =
-    useState(false);
+  /* ---------------------------------
+     Create Form States
+  ---------------------------------- */
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [languageId, setLanguageId] = useState("");
+  const [lessonTitle, setLessonTitle] = useState("");
+  const [lessonDescription, setLessonDescription] = useState("");
+  const [lessonOrder, setLessonOrder] = useState("");
+  const [lessonDuration, setLessonDuration] = useState("");
+  const [lessonVideo, setLessonVideo] = useState("");
+  const [lessonThumbnail, setLessonThumbnail] = useState(null);
 
-  const [refreshing, setRefreshing] =
-    useState(false);
+  /* ---------------------------------
+     Edit States
+  ---------------------------------- */
+  const [editingLesson, setEditingLesson] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
-  const [search, setSearch] =
-    useState("");
+  /* ---------------------------------
+     Delete States
+  ---------------------------------- */
+  const [deletingLesson, setDeletingLesson] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  const [language, setLanguage] =
-    useState("All");
+  /* ---------------------------------
+     Fetch Languages
+  ---------------------------------- */
+  const fetchLanguages = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("languages")
+        .select("id, name")
+        .order("name");
 
-  const [level, setLevel] =
-    useState("All");
+      if (error) throw error;
+      setLanguages(data || []);
+    } catch (err) {
+      console.error("Fetch Languages:", err);
+    }
+  }, []);
 
-  const [
-    showForm,
-    setShowForm,
-  ] = useState(false);
+  /* ---------------------------------
+     Fetch Lessons
+  ---------------------------------- */
+  const fetchLessons = useCallback(async () => {
+    try {
+      setLoading(true);
 
-  const [
-    editingLesson,
-    setEditingLesson,
-  ] = useState(null);
+      const { data, error } = await supabase
+        .from("language_lessons")
+        .select(`
+          *,
+          languages (
+            id,
+            name
+          )
+        `)
+        .order("lesson_order", {
+          ascending: true,
+        });
 
-  const [
-    deletingLesson,
-    setDeletingLesson,
-  ] = useState(null);
+      if (error) throw error;
+      setLessons(data || []);
+    } catch (err) {
+      console.error("Fetch Lessons:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const [
-    showDelete,
-    setShowDelete,
-  ] = useState(false);
+  /* ---------------------------------
+     Upload Thumbnail
+  ---------------------------------- */
+  const uploadThumbnail = async (file) => {
+    if (!file) return null;
 
-  const fetchLessons =
-    useCallback(async () => {
-      try {
-        setLoading(true);
+    const extension = file.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2)}.${extension}`;
 
-        const [
-          lessonsResult,
-          languagesResult,
-        ] = await Promise.all([
-          supabase
-            .from("language_lessons")
-            .select("*")
-            .order("created_at", {
-              ascending: false,
-            }),
+    const { error } = await supabase.storage
+      .from("language-lessons")
+      .upload(fileName, file);
 
-          supabase
-            .from("languages")
-            .select("id,name")
-            .order("name"),
+    if (error) throw error;
+
+    const { data } = supabase.storage
+      .from("language-lessons")
+      .getPublicUrl(fileName);
+
+    return data.publicUrl;
+  };
+
+  /* ---------------------------------
+     Initial Load
+  ---------------------------------- */
+  useEffect(() => {
+    fetchLanguages();
+    fetchLessons();
+  }, [fetchLanguages, fetchLessons]);
+
+  /* ---------------------------------
+     Refresh
+  ---------------------------------- */
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await Promise.all([
+        fetchLanguages(),
+        fetchLessons(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  /* ---------------------------------
+     Reset Form
+  ---------------------------------- */
+  const resetForm = () => {
+    setLanguageId("");
+    setLessonTitle("");
+    setLessonDescription("");
+    setLessonOrder("");
+    setLessonDuration("");
+    setLessonVideo("");
+    setLessonThumbnail(null);
+    setEditingLesson(null);
+    setShowCreateModal(false);
+    setShowEditModal(false);
+  };
+
+  /* ---------------------------------
+     Create Lesson
+  ---------------------------------- */
+  const handleCreateLesson = async (lessonData) => {
+    try {
+      setSaving(true);
+      let thumbnailUrl = "";
+
+      if (lessonData.thumbnailFile) {
+        thumbnailUrl = await uploadThumbnail(lessonData.thumbnailFile);
+      }
+
+      const { error } = await supabase
+        .from("language_lessons")
+        .insert([
+          {
+            language_id: lessonData.language_id,
+            title: lessonData.title,
+            slug: lessonData.slug,
+            description: lessonData.description,
+            lesson_order: lessonData.lesson_order,
+            level: lessonData.level,
+            duration: lessonData.duration,
+            video_url: lessonData.video_url,
+            audio_url: lessonData.audio_url,
+            thumbnail_url: thumbnailUrl,
+            published: lessonData.published,
+          },
         ]);
 
-        if (lessonsResult.error)
-          throw lessonsResult.error;
+      if (error) throw error;
 
-        if (languagesResult.error)
-          throw languagesResult.error;
+      resetForm();
+      await fetchLessons();
+    } catch (err) {
+      console.error("Create Lesson:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
-        setLessons(
-          lessonsResult.data || []
-        );
+  /* ---------------------------------
+     Open Edit
+  ---------------------------------- */
+  const handleEdit = (lesson) => {
+    setEditingLesson(lesson);
+    setLanguageId(lesson.language_id || "");
+    setLessonTitle(lesson.title || "");
+    setLessonDescription(lesson.description || "");
+    setLessonOrder(lesson.lesson_order || "");
+    setLessonDuration(lesson.duration || "");
+    setLessonVideo(lesson.video_url || "");
+    setLessonThumbnail(null);
+    setShowEditModal(true);
+  };
 
-        setLanguages(
-          languagesResult.data || []
-        );
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
+  /* ---------------------------------
+     Save Edit
+  ---------------------------------- */
+  const handleSaveEdit = async (lessonData) => {
+    if (!editingLesson) return;
+
+    try {
+      setSaving(true);
+      let thumbnailUrl = editingLesson.thumbnail_url;
+
+      if (lessonData.thumbnailFile) {
+        thumbnailUrl = await uploadThumbnail(lessonData.thumbnailFile);
       }
-    }, []);
+
+      const { error } = await supabase
+        .from("language_lessons")
+        .update({
+          language_id: lessonData.language_id,
+          title: lessonData.title,
+          slug: lessonData.slug,
+          description: lessonData.description,
+          lesson_order: lessonData.lesson_order,
+          level: lessonData.level,
+          duration: lessonData.duration,
+          video_url: lessonData.video_url,
+          audio_url: lessonData.audio_url,
+          thumbnail_url: thumbnailUrl,
+          published: lessonData.published,
+        })
+        .eq("id", editingLesson.id);
+
+      if (error) throw error;
+
+      resetForm();
+      await fetchLessons();
+    } catch (err) {
+      console.error("Update Lesson:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ---------------------------------
+     Delete Handlers
+  ---------------------------------- */
+  const handleDelete = (lesson) => {
+    setDeletingLesson(lesson);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingLesson) return;
+
+    try {
+      setDeleting(true);
+
+      const { error } = await supabase
+        .from("language_lessons")
+        .delete()
+        .eq("id", deletingLesson.id);
+
+      if (error) throw error;
+
+      setDeletingLesson(null);
+      setShowDeleteModal(false);
+      await fetchLessons();
+    } catch (err) {
+      console.error("Delete Lesson:", err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /* ---------------------------------
+     Filter Lessons Memo
+  ---------------------------------- */
+  const filteredData = useMemo(() => {
+    let data = [...lessons];
+
+    if (search.trim()) {
+      const keyword = search.toLowerCase();
+      data = data.filter((lesson) => {
+        return (
+          lesson.title?.toLowerCase().includes(keyword) ||
+          lesson.description?.toLowerCase().includes(keyword) ||
+          lesson.languages?.name?.toLowerCase().includes(keyword)
+        );
+      });
+    }
+
+    if (languageFilter !== "all") {
+      data = data.filter(
+        (lesson) => String(lesson.language_id) === String(languageFilter)
+      );
+    }
+
+    return data;
+  }, [lessons, search, languageFilter]);
 
   useEffect(() => {
-    fetchLessons();
-  }, [fetchLessons]);
+    setFilteredLessons(filteredData);
+  }, [filteredData]);
 
-  const handleRefresh =
-    async () => {
-      setRefreshing(true);
+  /* ---------------------------------
+     Statistics Calculations
+  ---------------------------------- */
+  const totalLessons = lessons.length;
+  const publishedLessons = lessons.filter((lesson) => lesson.published).length;
+  const draftLessons = lessons.filter((lesson) => !lesson.published).length;
+  const totalLanguages = languages.length;
 
-      await fetchLessons();
-
-      setRefreshing(false);
-    };
-
-  const filteredLessons =
-    useMemo(() => {
-      return lessons.filter(
-        (lesson) => {
-          const matchesSearch =
-            lesson.title
-              ?.toLowerCase()
-              .includes(
-                search.toLowerCase()
-              );
-
-          const matchesLanguage =
-            language === "All"
-              ? true
-              : lesson.language_id ===
-                language;
-
-          const matchesLevel =
-            level === "All"
-              ? true
-              : lesson.level ===
-                level;
-
-          return (
-            matchesSearch &&
-            matchesLanguage &&
-            matchesLevel
-          );
-        }
-      );
-    }, [
-      lessons,
-      search,
-      language,
-      level,
-    ]);
-
-  const stats = useMemo(
-    () => ({
-      total: lessons.length,
-
-      beginner:
-        lessons.filter(
-          (lesson) =>
-            lesson.level ===
-            "Beginner"
-        ).length,
-
-      intermediate:
-        lessons.filter(
-          (lesson) =>
-            lesson.level ===
-            "Intermediate"
-        ).length,
-
-      advanced:
-        lessons.filter(
-          (lesson) =>
-            lesson.level ===
-            "Advanced"
-        ).length,
-    }),
-    [lessons]
-  );
-    return (
-    <section className="space-y-8">
-
-      {/* ================= HEADER ================= */}
-
-      <motion.div
-        initial={{
-          opacity: 0,
-          y: 20,
-        }}
-        animate={{
-          opacity: 1,
-          y: 0,
-        }}
-        className="
-          flex
-          flex-col
-          gap-6
-          lg:flex-row
-          lg:items-center
-          lg:justify-between
-        "
-      >
-
+  return (
+    <div className="p-6 space-y-6 bg-[#020617] min-h-screen text-white">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-
-          <h1
-            className="
-              text-4xl
-              font-black
-              text-white
-            "
-          >
-            Lessons
-          </h1>
-
-          <p
-            className="
-              mt-2
-              text-slate-400
-            "
-          >
-            Create and manage lessons for every
-            language on Scholiqen.
-          </p>
-
+          <h1 className="text-3xl font-black">Language Lessons</h1>
+          <p className="text-slate-400 mt-1">Manage interactive learning materials and content modules.</p>
         </div>
 
-        <div
-          className="
-            flex
-            flex-wrap
-            gap-3
-          "
-        >
-
+        <div className="flex items-center gap-3">
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="
-              flex
-              items-center
-              gap-2
-              rounded-2xl
-              border
-              border-slate-700
-              bg-slate-900
-              px-5
-              py-3
-              font-semibold
-              text-white
-              transition
-              hover:border-cyan-500
-            "
+            className="flex items-center gap-2 rounded-2xl bg-slate-800 px-5 py-3 font-semibold hover:bg-slate-700 transition disabled:opacity-50"
           >
-
-            {refreshing ? (
-
-              <Loader2
-                size={18}
-                className="animate-spin"
-              />
-
-            ) : (
-
-              <RefreshCw size={18} />
-
-            )}
-
+            <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
             Refresh
-
           </button>
 
           <button
-            onClick={() => {
-              setEditingLesson(null);
-              setShowForm(true);
-            }}
-            className="
-              flex
-              items-center
-              gap-2
-              rounded-2xl
-              bg-gradient-to-r
-              from-cyan-500
-              to-blue-600
-              px-6
-              py-3
-              font-bold
-              text-white
-            "
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 rounded-2xl bg-blue-600 px-6 py-3 font-semibold hover:bg-blue-500 transition"
           >
-
-            <Plus size={18} />
-
+            <Plus size={20} />
             Add Lesson
-
           </button>
-
         </div>
+      </div>
 
-      </motion.div>
-
-      {/* ================= STATS ================= */}
-
+      {/* Stats Section */}
       <LessonStats
-        stats={stats}
+        total={totalLessons}
+        published={publishedLessons}
+        drafts={draftLessons}
+        languagesCount={totalLanguages}
       />
 
-      {/* ================= FILTERS ================= */}
-
+      {/* Filters Section */}
       <LessonFilters
         search={search}
         setSearch={setSearch}
-        language={language}
-        setLanguage={setLanguage}
+        languageFilter={languageFilter}
+        setLanguageFilter={setLanguageFilter}
         languages={languages}
-        level={level}
-        setLevel={setLevel}
       />
 
-      {/* ================= CONTENT ================= */}
-
+      {/* Content Grid / Loading State */}
       {loading ? (
-
-        <LoadingLessons />
-
+        <div className="flex h-64 items-center justify-center">
+          <Loader2 className="animate-spin text-blue-500" size={40} />
+        </div>
       ) : filteredLessons.length === 0 ? (
-
-        <EmptyLessons />
-
+        <EmptyLessons onAdd={() => setShowCreateModal(true)} />
       ) : (
-
         <LessonsGrid
           lessons={filteredLessons}
-          onEdit={(lesson) => {
-            setEditingLesson(lesson);
-            setShowForm(true);
-          }}
-          onDelete={(lesson) => {
-            setDeletingLesson(lesson);
-            setShowDelete(true);
-          }}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
         />
-
       )}
 
-      {/* ================= FORM ================= */}
+      {/* Create Modal */}
+      {showCreateModal && (
+        <LessonForm
+          title="Create New Lesson"
+          languages={languages}
+          saving={saving}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreateLesson}
+        />
+      )}
 
-      <LessonForm
-        open={showForm}
-        onClose={() => {
-          setShowForm(false);
-          setEditingLesson(null);
-        }}
-        lesson={editingLesson}
-        saving={saving}
-        setSaving={setSaving}
-        languages={languages}
-        refreshLessons={fetchLessons}
-      />
+      {/* Edit Modal */}
+      {showEditModal && editingLesson && (
+        <LessonForm
+          title="Edit Lesson"
+          initialData={editingLesson}
+          languages={languages}
+          saving={saving}
+          onClose={() => setShowEditModal(false)}
+          onSubmit={handleSaveEdit}
+        />
+      )}
 
-      {/* ================= DELETE ================= */}
-
-      <DeleteLessonModal
-        open={showDelete}
-        lesson={deletingLesson}
-        onClose={() => {
-          setShowDelete(false);
-          setDeletingLesson(null);
-        }}
-        refreshLessons={fetchLessons}
-      />
-
-    </section>
+      {/* Delete Modal */}
+      {showDeleteModal && deletingLesson && (
+        <DeleteLessonModal
+          lesson={deletingLesson}
+          deleting={deleting}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={confirmDelete}
+        />
+      )}
+    </div>
   );
 }

@@ -1,657 +1,552 @@
 import React from "react";
-
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Save,
   X,
+  Languages,
+  Globe,
+  Hash,
 } from "lucide-react";
-
-
+import LanguageMaterialUpload from "./LanguageMaterialUpload";
 
 export default function LanguageForm({
+  open,
+  editing = false,
+  language,
 
-  form = {
-    name: "",
-    code: "",
-    description: "",
-    level: "Beginner",
-    status: "Draft",
-    speakers: "",
-    lessons_count: 0,
-  },
+  languageName,
+  setLanguageName,
 
-  setForm,
+  nativeName,
+  setNativeName,
 
-  onSubmit,
+  languageCode,
+  setLanguageCode,
 
-  onCancel,
+  region,
+  setRegion,
+
+  description,
+  setDescription,
+
+  flagFile,
+  setFlagFile,
+
+  coverImage,
+  setCoverImage,
 
   loading = false,
 
-  editMode = false,
-
+  onClose,
+  onSave,
 }) {
 
-const handleChange = (e)=>{
+  return (
+    <AnimatePresence>
+
+      {open && (
+
+        <motion.div
+          initial={{opacity:0}}
+          animate={{opacity:1}}
+          exit={{opacity:0}}
+          className="
+          fixed inset-0 z-[100]
+          overflow-y-auto
+          bg-black/70
+          backdrop-blur-md
+          "
+        >
 
+          <div className="
+          flex min-h-screen
+          items-center
+          justify-center
+          p-4
+          ">
 
-setForm({
 
-...form,
+            <motion.div
 
-[e.target.name]: e.target.value,
+              initial={{
+                opacity:0,
+                scale:0.95,
+                y:20
+              }}
 
-});
+              animate={{
+                opacity:1,
+                scale:1,
+                y:0
+              }}
 
+              exit={{
+                opacity:0,
+                scale:0.95,
+                y:20
+              }}
 
-};
+              className="
+              w-full
+              max-w-3xl
+              max-h-[90vh]
+              overflow-hidden
+              rounded-3xl
+              border
+              border-white/10
+              bg-[#111827]
+              shadow-2xl
+              "
+            >
 
 
+              {/* HEADER */}
 
+              <div className="
+              flex
+              items-center
+              justify-between
+              border-b
+              border-white/10
+              px-8
+              py-6
+              ">
 
 
-return (
+                <div>
 
-<form
+                  <h2 className="
+                  text-3xl
+                  font-black
+                  text-white
+                  ">
 
-onSubmit={onSubmit}
+                    {editing
+                    ? "Edit Language"
+                    : "Add Language"}
 
-className="
-space-y-6
-"
+                  </h2>
 
->
 
+                  <p className="text-gray-400">
 
+                    Manage language information
 
+                  </p>
 
+                </div>
 
 
-<div
+                <button
+                onClick={onClose}
+                className="
+                rounded-xl
+                bg-white/10
+                p-3
+                hover:bg-red-500
+                "
+                >
 
-className="
-grid
-gap-5
-md:grid-cols-2
-"
+                  <X className="text-white"/>
 
->
+                </button>
 
 
+              </div>
 
 
 
-{/* NAME */}
+              {/* BODY */}
 
-<div>
+              <div className="
+              space-y-6
+              overflow-y-auto
+              p-8
+              max-h-[65vh]
+              ">
 
 
-<label
 
-className="
-mb-2
-block
-text-sm
-font-bold
-text-slate-300
-"
+                {/* NAME */}
 
->
+                <div>
 
-Language Name
+                  <label className="text-gray-300">
+                    Language Name
+                  </label>
 
-</label>
 
+                  <div className="relative mt-2">
 
-<input
+                    <Languages
+                    className="
+                    absolute
+                    left-4
+                    top-1/2
+                    -translate-y-1/2
+                    text-indigo-400
+                    "
+                    />
 
 
-name="name"
+                    <input
 
+                    value={languageName}
 
-value={
-form.name || ""
-}
+                    onChange={(e)=>
+                    setLanguageName(e.target.value)
+                    }
 
+                    className="
+                    w-full
+                    rounded-2xl
+                    bg-[#1f2937]
+                    py-3
+                    pl-12
+                    text-white
+                    border
+                    border-white/10
+                    "
+                    />
 
+                  </div>
 
-onChange={handleChange}
+                </div>
 
 
 
-placeholder="
-English
-"
+                {/* NATIVE NAME */}
 
+                <div>
 
+                <label className="text-gray-300">
+                  Native Name
+                </label>
 
-className="
-w-full
-rounded-2xl
-border
-border-slate-700
-bg-slate-900
-px-4
-py-3
-text-white
-outline-none
-"
+                <input
 
+                value={nativeName}
 
+                onChange={(e)=>
+                setNativeName(e.target.value)
+                }
 
+                className="
+                mt-2
+                w-full
+                rounded-2xl
+                bg-[#1f2937]
+                px-4
+                py-3
+                text-white
+                border
+                border-white/10
+                "
 
-/>
+                />
 
+                </div>
 
-</div>
 
 
 
+                <div className="
+                grid
+                md:grid-cols-2
+                gap-6
+                ">
 
 
+                  <div>
 
+                  <label className="text-gray-300">
+                  Code
+                  </label>
 
 
-{/* CODE */}
+                  <div className="relative mt-2">
 
-<div>
+                  <Hash
+                  className="
+                  absolute
+                  left-4
+                  top-1/2
+                  -translate-y-1/2
+                  text-cyan-400
+                  "
+                  />
 
+                  <input
 
-<label
+                  value={languageCode}
 
-className="
-mb-2
-block
-text-sm
-font-bold
-text-slate-300
-"
+                  onChange={(e)=>
+                  setLanguageCode(e.target.value)
+                  }
 
->
+                  className="
+                  w-full
+                  rounded-2xl
+                  bg-[#1f2937]
+                  py-3
+                  pl-12
+                  text-white
+                  border
+                  border-white/10
+                  "
 
-Language Code
+                  />
 
-</label>
+                  </div>
 
+                  </div>
 
-<input
 
 
-name="code"
 
+                  <div>
 
-value={
-form.code || ""
-}
+                  <label className="text-gray-300">
+                  Region
+                  </label>
 
 
+                  <div className="relative mt-2">
 
-onChange={handleChange}
+                  <Globe
+                  className="
+                  absolute
+                  left-4
+                  top-1/2
+                  -translate-y-1/2
+                  text-green-400
+                  "
+                  />
 
 
+                  <input
 
-placeholder="
-EN
-"
+                  value={region}
 
+                  onChange={(e)=>
+                  setRegion(e.target.value)
+                  }
 
+                  className="
+                  w-full
+                  rounded-2xl
+                  bg-[#1f2937]
+                  py-3
+                  pl-12
+                  text-white
+                  border
+                  border-white/10
+                  "
 
-className="
-w-full
-rounded-2xl
-border
-border-slate-700
-bg-slate-900
-px-4
-py-3
-text-white
-outline-none
-"
+                  />
 
-/>
+                  </div>
 
+                  </div>
 
 
-</div>
+                </div>
 
 
 
 
-</div>
+                {/* DESCRIPTION */}
 
+                <textarea
 
+                rows="5"
 
+                value={description}
 
+                onChange={(e)=>
+                setDescription(e.target.value)
+                }
 
+                placeholder="Description"
 
+                className="
+                w-full
+                rounded-2xl
+                bg-[#1f2937]
+                px-4
+                py-3
+                text-white
+                border
+                border-white/10
+                "
 
+                />
 
+{/* LEARNING MATERIALS */}
 
-{/* DESCRIPTION */}
+{editing && language && (
+  <div className="mt-10 border-t border-white/10 pt-8">
 
-<div>
+    <h3 className="
+      mb-5
+      text-2xl
+      font-black
+      text-white
+    ">
+      Learning Materials
+    </h3>
 
+    <LanguageMaterialUpload
+      language={language}
+    />
 
-<label
+  </div>
+)}
 
-className="
-mb-2
-block
-text-sm
-font-bold
-text-slate-300
-"
 
->
+                {/* FILES */}
 
-Description
 
-</label>
+                <div className="
+                grid
+                md:grid-cols-2
+                gap-6
+                ">
 
 
+                <div>
 
-<textarea
+                <label className="text-gray-300">
+                Flag
+                </label>
 
 
-name="description"
+                <input
 
+                type="file"
 
-value={
-form.description || ""
-}
+                accept="image/*"
 
+                onChange={(e)=>
+                setFlagFile(
+                e.target.files?.[0] || null
+                )
+                }
 
+                className="mt-2 text-gray-300"
 
-onChange={handleChange}
+                />
 
+                </div>
 
 
-rows="4"
 
+                <div>
 
-placeholder="
-Describe the language...
-"
+                <label className="text-gray-300">
+                Cover
+                </label>
 
 
+                <input
 
-className="
-w-full
-rounded-2xl
-border
-border-slate-700
-bg-slate-900
-px-4
-py-3
-text-white
-outline-none
-"
+                type="file"
 
-/>
+                accept="image/*"
 
+                onChange={(e)=>
+                setCoverImage(
+                e.target.files?.[0] || null
+                )
+                }
 
-</div>
+                className="mt-2 text-gray-300"
 
+                />
 
+                </div>
 
 
+                </div>
 
 
 
+              </div>
 
 
-<div
 
-className="
-grid
-gap-5
-md:grid-cols-3
-"
 
->
+              {/* FOOTER */}
 
+              <div className="
+              flex
+              justify-end
+              gap-4
+              border-t
+              border-white/10
+              px-8
+              py-6
+              ">
 
 
+              <button
 
+              onClick={onClose}
 
+              className="
+              rounded-2xl
+              px-6
+              py-3
+              text-gray-300
+              border
+              border-white/10
+              "
 
+              >
 
-{/* LEVEL */}
+              Cancel
 
-<select
+              </button>
 
 
-name="level"
 
+              <button
 
-value={
-form.level || "Beginner"
-}
+              onClick={onSave}
 
+              disabled={loading}
 
+              className="
+              rounded-2xl
+              bg-indigo-600
+              px-8
+              py-3
+              font-bold
+              text-white
+              "
 
-onChange={handleChange}
+              >
 
+              {loading
+              ? "Saving..."
+              : editing
+              ? "Update Language"
+              : "Create Language"}
 
+              </button>
 
-className="
-rounded-2xl
-border
-border-slate-700
-bg-slate-900
-px-4
-py-3
-text-white
-"
 
->
+              </div>
 
 
-<option>
-Beginner
-</option>
+            </motion.div>
 
+          </div>
 
-<option>
-Intermediate
-</option>
 
+        </motion.div>
 
-<option>
-Advanced
-</option>
+      )}
 
-
-</select>
-
-
-
-
-
-
-
-
-{/* STATUS */}
-
-<select
-
-
-name="status"
-
-
-value={
-form.status || "Draft"
-}
-
-
-
-onChange={handleChange}
-
-
-
-className="
-rounded-2xl
-border
-border-slate-700
-bg-slate-900
-px-4
-py-3
-text-white
-"
-
->
-
-
-<option>
-Active
-</option>
-
-
-<option>
-Inactive
-</option>
-
-
-<option>
-Draft
-</option>
-
-
-<option>
-Published
-</option>
-
-
-</select>
-
-
-
-
-
-
-
-
-
-{/* SPEAKERS */}
-
-<input
-
-
-name="speakers"
-
-
-value={
-form.speakers || ""
-}
-
-
-
-onChange={handleChange}
-
-
-
-placeholder="
-Speakers
-"
-
-
-
-className="
-rounded-2xl
-border
-border-slate-700
-bg-slate-900
-px-4
-py-3
-text-white
-outline-none
-"
-
-/>
-
-
-
-
-</div>
-
-
-
-
-
-
-
-
-
-<input
-
-
-name="lessons_count"
-
-
-type="number"
-
-
-value={
-form.lessons_count || 0
-}
-
-
-
-onChange={handleChange}
-
-
-
-placeholder="
-Number of lessons
-"
-
-
-
-className="
-w-full
-rounded-2xl
-border
-border-slate-700
-bg-slate-900
-px-4
-py-3
-text-white
-outline-none
-"
-
-/>
-
-
-
-
-
-
-
-
-
-{/* BUTTONS */}
-
-
-<div
-
-className="
-flex
-gap-4
-pt-4
-"
-
->
-
-
-
-<button
-
-
-type="button"
-
-
-onClick={onCancel}
-
-
-
-disabled={loading}
-
-
-
-className="
-flex-1
-flex
-items-center
-justify-center
-gap-2
-rounded-2xl
-border
-border-slate-700
-bg-slate-900
-py-3
-font-bold
-text-slate-300
-"
-
->
-
-
-<X size={18}/>
-
-
-Cancel
-
-
-</button>
-
-
-
-
-
-
-
-<button
-
-
-type="submit"
-
-
-
-disabled={loading}
-
-
-
-className="
-flex-1
-flex
-items-center
-justify-center
-gap-2
-rounded-2xl
-bg-gradient-to-r
-from-cyan-500
-to-blue-600
-py-3
-font-black
-text-white
-disabled:opacity-50
-"
-
->
-
-
-<Save size={18}/>
-
-
-{
-
-loading
-
-?
-
-"Saving..."
-
-:
-
-editMode
-
-?
-
-"Update Language"
-
-:
-
-"Create Language"
-
-}
-
-</button>
-
-</div>
-
-</form>
-
-
-);
-
-
+    </AnimatePresence>
+  );
 }

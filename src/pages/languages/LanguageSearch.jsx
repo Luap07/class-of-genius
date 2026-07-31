@@ -98,26 +98,13 @@ const LanguageSearch = () => {
     ]);
 
 
-
-
-
-
-
-
   return (
 
     <div className="min-h-screen bg-slate-950 px-6 py-10 text-white">
 
-
       <div className="mx-auto max-w-6xl">
 
-
-
-
-
         {/* Header */}
-
-
         <motion.div
 
           initial={{
@@ -176,16 +163,8 @@ const LanguageSearch = () => {
 
         </motion.div>
 
-
-
-
-
-
-
         {/* Search */}
-
-
-        <SearchBar
+       <SearchBar
 
           value={query}
 
@@ -199,15 +178,7 @@ const LanguageSearch = () => {
           placeholder="Search a language..."
 
         />
-
-
-
-
-
-
-
-
-        {/* Filters */}
+       {/* Filters */}
 
 
         <div className="mt-6 flex flex-wrap gap-3">
@@ -216,22 +187,16 @@ const LanguageSearch = () => {
           {categories.map(
             (item)=>(
 
-
               <button
-
-
                 key={item}
-
-
                 onClick={()=>
                   setCategory(
                     item
                   )
                 }
 
-
                 className={`rounded-full px-5 py-2 font-bold transition ${
-                  
+                 
                   category === item
 
                     ? "bg-cyan-600 text-white"
@@ -240,137 +205,58 @@ const LanguageSearch = () => {
 
                 }`}
 
-
               >
 
                 {item}
-
-
-              </button>
-
-
+             </button>
             )
 
           )}
 
-
         </div>
-
-
-
-
-
-
-
-
-
         {/* Stats */}
-
-
-        <div className="mt-10 grid gap-5 md:grid-cols-3">
-
-
+       <div className="mt-10 grid gap-5 md:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-slate-900 p-5">
-
             <Languages
-
               className="text-cyan-400"
-
             />
-
-
             <h3 className="mt-3 text-2xl font-black">
-
               {languages.length}
-
             </h3>
-
-
             <p className="text-slate-400">
-
               Languages Available
-
             </p>
-
-
           </div>
-
-
-
-
-
           <div className="rounded-2xl border border-white/10 bg-slate-900 p-5">
-
             <BookOpen
-
               className="text-purple-400"
 
             />
 
-
-            <h3 className="mt-3 text-2xl font-black">
-
+           <h3 className="mt-3 text-2xl font-black">
               1000+
-
             </h3>
-
-
             <p className="text-slate-400">
-
               Lessons
-
             </p>
-
-
           </div>
-
-
-
-
-
-
           <div className="rounded-2xl border border-white/10 bg-slate-900 p-5">
-
-
-            <GraduationCap
-
+           <GraduationCap
               className="text-green-400"
-
             />
 
-
-            <h3 className="mt-3 text-2xl font-black">
-
+          <h3 className="mt-3 text-2xl font-black">
               2M+
-
             </h3>
-
-
             <p className="text-slate-400">
-
               Learners
-
             </p>
-
-
           </div>
 
-
-        </div>
-
-
-
-
-
-
-
+       </div>
 
         {/* Results */}
-
-
         <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-
-
           {filteredLanguages.map(
             (language)=>(
 
@@ -385,7 +271,6 @@ const LanguageSearch = () => {
                 }
 
               />
-
             )
 
           )}

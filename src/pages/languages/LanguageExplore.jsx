@@ -24,6 +24,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+import { supabase } from "../../lib/supabaseClient";
 import {
   useNavigate,
 } from "react-router-dom";
@@ -89,6 +90,7 @@ const stats = [
 ];
 
 const LanguageExplore = () => {
+  const [languageImages, setLanguageImages] = useState({});
   const navigate = useNavigate();
 
   const [search, setSearch] =
@@ -108,6 +110,50 @@ const LanguageExplore = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  useEffect(() => {
+
+  const fetchLanguageImages = async () => {
+
+    const { data, error } = await supabase
+      .from("languages")
+      .select(`
+        id,
+        cover_url,
+        flag_url
+      `);
+
+
+    if (error) {
+      console.log(
+        "Language image error:",
+        error
+      );
+      return;
+    }
+
+
+    const imageMap = {};
+
+
+    data.forEach((item) => {
+
+      imageMap[item.id] = {
+        cover_url: item.cover_url,
+        flag_url: item.flag_url,
+      };
+
+    });
+
+
+    setLanguageImages(imageMap);
+
+  };
+
+
+  fetchLanguageImages();
+
+}, []);
 
   const filteredLanguages =
     useMemo(() => {
@@ -298,7 +344,6 @@ const LanguageExplore = () => {
                   text-transparent
                 "
               >
-
                 Languages
 
               </span>
@@ -754,9 +799,7 @@ const LanguageExplore = () => {
         </div>
 
       </div>
-            {/* ==========================================
-          LANGUAGE GRID
-      ========================================== */}
+            {/* ==========================================LANGUAGE GRID========================================== */}
 
       <div
         className="
@@ -832,10 +875,12 @@ const LanguageExplore = () => {
                       "
                     >
 
-                      <img
-                        src={language.image}
-                        alt={language.name}
-                        className="
+                     <img
+  src={
+    languageImages[language.id]?.cover_url
+  }
+  alt={language.name}
+         className="
                           h-full
                           w-full
                           object-cover

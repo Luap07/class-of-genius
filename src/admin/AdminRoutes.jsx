@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import AdminLayout from "./AdminLayout";
 import AdminDashboard from "./AdminDashboard";
-
+import LanguagesAdmin from "../pages/admin/languages/LanguagesAdmin";
 /* ================= Newsletter ================= */
 import NewsletterAdmin from "../pages/admin/NewsletterAdmin";
         
@@ -130,6 +130,13 @@ const AdminRoutes = () => {
 <Route
   path="lms/topic/:topicId/tasks/edit/:id"
   element={<EditWeeklyTask />}
+/>
+
+    {/* ================= Languages ================= */}
+
+<Route
+  path="languages"
+  element={<LanguagesAdmin />}
 />
         {/* ================= MONTHLY QUIZZES ================= */}
 

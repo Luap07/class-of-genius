@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import AdminLayout from "./AdminLayout";
 import AdminDashboard from "./AdminDashboard";
 
+import LanguageContentManager from "../components/admin/languages/LanguageContentManager";
 import LanguagesAdmin from "../pages/admin/languages/LanguagesAdmin";
 import LanguageLessonsAdmin from "../pages/admin/languages/LanguageLessonsAdmin";
 /* ================= Newsletter ================= */
@@ -134,14 +135,24 @@ const AdminRoutes = () => {
   element={<EditWeeklyTask />}
 />
 
-    {/* ================= Languages ================= */}
+   {/* ================= Languages ================= */}
 
 <Route
   path="languages"
   element={<LanguagesAdmin />}
 />
-{/* ================= Language Lessons ================= */}
 
+<Route
+  path="languages/cms"
+  element={<LanguageContentManager />}
+/>
+
+<Route
+  path="languages/lessons"
+  element={<LanguageLessonsAdmin />}
+/>
+
+{/* ================= Language Lessons ================= */}
 <Route
   path="languages/lessons"
   element={<LanguageLessonsAdmin />}

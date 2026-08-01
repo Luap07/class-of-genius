@@ -37,7 +37,6 @@ export const languages = [
     flag: "🇬🇧",
     image: englishImg,
     level: "Beginner",
-    description: "Learn English for communication, study, work, and travel.",
     color: "from-blue-500 to-cyan-500",
     categories: ["Grammar", "Vocabulary", "Speaking", "Listening", "Writing"],
     popular: true,

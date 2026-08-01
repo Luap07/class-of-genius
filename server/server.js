@@ -10,146 +10,189 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ================= CHECK KEY =================
 if (!process.env.GROQ_API_KEY) {
-  console.log("❌ GROQ_API_KEY missing in .env file");
+  console.error("❌ GROQ_API_KEY is missing in .env");
+  process.exit(1);
 }
 
-// ================= INIT GROQ =================
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// ================= AI ROUTE =================
+/* ------------------------------------------------------- */
+/* HEALTH                                                  */
+/* ------------------------------------------------------- */
+
+app.get("/", (req, res) => {
+  res.json({
+    status: "running",
+    name: "Scholiqen AI",
+  });
+});
+
+/* ------------------------------------------------------- */
+/* GENERAL AI + LANGUAGE AI                               */
+/* ------------------------------------------------------- */
+
 app.post("/api/tutor", async (req, res) => {
   try {
     const {
       message,
+
+      /* General Tutor */
       subject = "General",
       classLevel = "WAEC",
+
+      /* Language Tutor */
       language = "English",
+      nativeName = "",
+      lesson = "",
+      section = "Overview",
+
+      mode = "general",
     } = req.body;
 
     if (!message) {
       return res.status(400).json({
-        reply: "Message is required",
+        reply: "Message is required.",
       });
     }
 
-    const prompt = `
-You are ScholiqenAI, an intelligent AI tutor similar to ChatGPT.
+    let systemPrompt = "";
 
-STUDENT INFO:
-- Subject: ${subject}
-- Class Level: ${classLevel}
-- Language: ${language}
+    /* ------------------------------------------------------- */
+    /* LANGUAGE MODE                                           */
+    /* ------------------------------------------------------- */
 
-LANGUAGE RULES:
-- Reply ONLY in ${language}.
-- Never switch languages unless asked.
-- Keep explanations natural and student-friendly.
+    if (mode === "language") {
+      systemPrompt = `
+You are Scholiqen Language AI.
 
-TUTOR RULES:
-- Teach like a real teacher.
-- Explain concepts simply.
-- Give examples when useful.
-- Break difficult topics into steps.
-- Be conversational, not robotic.
+You are an expert language teacher.
 
-IMPORTANT MATH RULES:
-- ALL mathematics must be written in LaTeX format.
-- Never use plain text powers like x^2.
-- Use proper superscripts.
+Language:
+${language}
 
-Examples:
+Native Name:
+${nativeName}
 
-x²:
-$$x^2$$
+Current Lesson:
+${lesson}
 
-3x²:
-$$3x^2$$
+Current Section:
+${section}
 
-(x + 1)²:
-$$(x+1)^2$$
+Your responsibilities:
 
-Square root:
-$$\\sqrt{25}$$
+• Teach pronunciation.
 
-Cube root:
-$$\\sqrt[3]{27}$$
+• Teach grammar.
 
-Fraction:
-$$\\frac{3}{4}$$
+• Teach vocabulary.
 
-Equation:
-$$2x+5=15$$
+• Explain alphabet.
 
-Quadratic:
-$$x^2+5x+6=0$$
+• Help students practice speaking.
 
-- Always use \\frac for fractions.
-- Always use superscripts for powers.
-- Always use \\sqrt for roots.
-- Show calculations step-by-step.
-- Put important formulas inside LaTeX blocks.
-- Simplify answers where possible.
+• Help students practice listening.
 
-BEHAVIOR:
-- Friendly
-- Encouraging
-- Clear
-- Educational
-- Similar to ChatGPT
+• Help students practice writing.
 
-QUESTION:
-${message}
+• Translate words.
+
+• Correct grammar mistakes.
+
+• Generate quizzes.
+
+• Be encouraging.
+
+Reply in ${language} unless the user requests English.
+
+If mathematics appears,
+use valid LaTeX.
 `;
+    }
 
-    const response = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+    /* ------------------------------------------------------- */
+    /* GENERAL MODE                                            */
+    /* ------------------------------------------------------- */
 
-      messages: [
-        {
-          role: "system",
-          content: `
-You are EduAI.
+    else {
+      systemPrompt = `
+You are ScholiqenAI.
 
-Always teach clearly.
+Subject:
+${subject}
 
-For mathematics:
-- Output valid LaTeX.
-- Use \\frac for fractions.
-- Use x^2 instead of x² in raw output.
-- Use \\sqrt{} for roots.
-- Show step-by-step solutions.
-- Keep formatting compatible with KaTeX/MathJax rendering.
-`,
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
+Class:
+${classLevel}
 
-      temperature: 0.6,
-      max_tokens: 2048,
-    });
+Language:
+${language}
+
+Teach like ChatGPT.
+
+Explain clearly.
+
+Give examples.
+
+Use markdown.
+
+If mathematics appears:
+
+Use valid LaTeX.
+
+Show every step.
+`;
+    }
+
+    const completion =
+      await groq.chat.completions.create({
+
+        model: "llama-3.1-8b-instant",
+
+        temperature: 0.6,
+
+        max_tokens: 2048,
+
+        messages: [
+
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+
+          {
+            role: "user",
+            content: message,
+          },
+
+        ],
+
+      });
 
     const reply =
-      response.choices?.[0]?.message?.content ||
-      "Sorry, I couldn't generate a response.";
+      completion.choices?.[0]?.message?.content ||
+      "I couldn't generate a response.";
 
-    return res.json({ reply });
-  } catch (error) {
-    console.error("AI ERROR:", error);
+    return res.json({
+      reply,
+    });
+
+  } catch (err) {
+    console.error(err);
 
     return res.status(500).json({
-      reply: "AI is temporarily unavailable. Try again later.",
+      reply:
+        "AI is temporarily unavailable.",
     });
   }
 });
 
-// ================= START SERVER =================
-app.listen(5000, () => {
-  console.log("🚀 Server running on port 5000");
+/* ------------------------------------------------------- */
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Scholiqen AI running on port ${PORT}`);
 });

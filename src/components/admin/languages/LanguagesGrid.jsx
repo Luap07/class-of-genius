@@ -8,9 +8,9 @@ export default function LanguagesGrid({
   onEdit,
   onDelete,
   onUpload,
-  onCardClick, // Added prop for clicking the card/explore button
-}) {
-  if (loading) {
+  onManageContent,
+  onCardClick,
+}) {  if (loading) {
     return (
       <div
         className="
@@ -61,12 +61,17 @@ export default function LanguagesGrid({
             transition={{ duration: 0.2 }}
           >
             <LanguageCard
-              language={language}
-              onClick={() => onCardClick ? onCardClick(language) : onEdit?.(language)}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onUpload={onUpload}
-            />
+  language={language}
+  onClick={() =>
+    onCardClick
+      ? onCardClick(language)
+      : onEdit?.(language)
+  }
+  onEdit={onEdit}
+  onDelete={onDelete}
+  onUpload={onUpload}
+  onManageContent={onManageContent}
+/>
           </motion.div>
         ))}
       </AnimatePresence>

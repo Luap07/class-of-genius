@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { languages } from "../../data/language/languages";
+import { supabase } from "../../lib/supabaseClient";
 
 const tabs = [
   "Overview",
@@ -34,6 +35,8 @@ const LanguageDetails = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [activeTab, setActiveTab] = useState("Overview");
+  const [lessons, setLessons] = useState([]);
+const [loadingLessons, setLoadingLessons] = useState(false);
 
   const language = useMemo(() => {
     return (
@@ -42,7 +45,35 @@ const LanguageDetails = () => {
       ) || null
     );
   }, [id]);
+  useEffect(() => {
+  const fetchLessons = async () => {
+    if (!language?.id) return;
 
+    try {
+      setLoadingLessons(true);
+
+      const { data, error } = await supabase
+        .from("language_materials")
+        .select("*")
+        .eq("language_id", language.id)
+        .order("created_at", {
+          ascending: false,
+        });
+
+      if (error) throw error;
+
+      setLessons(data || []);
+
+    } catch (error) {
+      console.error("Fetch language lessons:", error);
+    } finally {
+      setLoadingLessons(false);
+    }
+  };
+
+  fetchLessons();
+
+}, [language]);
   if (!language) {
     return (
       <section className="min-h-screen flex items-center justify-center bg-[#020617] text-white">
@@ -326,28 +357,83 @@ const LanguageDetails = () => {
       )}
 
       {/* LESSONS */}
-      {activeTab === "Lessons" && (
-        <section className="mx-auto mt-12 max-w-7xl px-6 pb-16">
-          <div className="space-y-5">
-            {Array.from({ length: 20 }).map((_, index) => (
-              <motion.div
-                key={index}
-                whileHover={{ x: 8 }}
-                className="flex items-center justify-between rounded-3xl border border-white/10 bg-slate-900 p-6"
-              >
-                <div>
-                  <h3 className="text-xl font-bold">Lesson {index + 1}</h3>
-                  <p className="text-slate-400">Interactive lesson with AI guidance.</p>
-                </div>
-                <button className="rounded-2xl bg-blue-600 px-6 py-3 font-bold hover:bg-blue-500 transition">
-                  Start
-                </button>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-      )}
+{activeTab === "Lessons" && (
+<section className="mx-auto mt-12 max-w-7xl px-6 pb-16">
 
+<div className="space-y-5">
+
+{loadingLessons ? (
+
+<div className="text-center text-gray-400 py-10">
+Loading lessons...
+</div>
+
+) : lessons.length === 0 ? (
+
+<div className="rounded-3xl border border-white/10 bg-slate-900 p-10 text-center">
+
+<h3 className="text-2xl font-black">
+No lessons available yet
+</h3>
+
+<p className="mt-3 text-slate-400">
+New lessons will appear here when uploaded.
+</p>
+
+</div>
+
+) : (
+
+lessons.map((lesson)=> (
+
+<motion.div
+key={lesson.id}
+whileHover={{x:8}}
+className="flex items-center justify-between rounded-3xl border border-white/10 bg-slate-900 p-6"
+>
+
+<div>
+
+<h3 className="text-xl font-bold">
+{lesson.title}
+</h3>
+
+
+<p className="text-slate-400">
+{lesson.description}
+</p>
+
+
+<span className="inline-block mt-3 rounded-full bg-blue-600/20 px-4 py-1 text-sm text-blue-400">
+{lesson.type}
+</span>
+
+
+</div>
+
+
+<a
+href={lesson.file_url}
+target="_blank"
+rel="noreferrer"
+className="rounded-2xl bg-blue-600 px-6 py-3 font-bold hover:bg-blue-500"
+>
+
+Open
+
+</a>
+
+
+</motion.div>
+
+))
+
+)}
+
+</div>
+
+</section>
+)}
       {/* AI TUTOR */}
       {activeTab === "AI Tutor" && (
         <section className="mx-auto mt-12 max-w-7xl px-6 pb-16">

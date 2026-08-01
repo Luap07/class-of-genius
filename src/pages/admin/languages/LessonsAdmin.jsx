@@ -6,9 +6,15 @@ import React, {
 } from "react";
 
 import {
-  Plus,
-  RefreshCw,
-  Loader2,
+  BookOpen,
+  Languages,
+  SpellCheck,
+  MessageSquare,
+  Headphones,
+  Mic,
+  PenSquare,
+  Globe2,
+  Brain,
 } from "lucide-react";
 
 import { supabase } from "../../../lib/supabaseClient";
@@ -25,6 +31,7 @@ export default function LessonsAdmin() {
      Data States
   ---------------------------------- */
   const [lessons, setLessons] = useState([]);
+  const [activeTab, setActiveTab] = useState("lessons");
   const [languages, setLanguages] = useState([]);
   const [filteredLessons, setFilteredLessons] = useState([]);
 
@@ -304,6 +311,59 @@ export default function LessonsAdmin() {
     }
   };
 
+  const tabs = [
+  {
+    id: "overview",
+    label: "Overview",
+    icon: Globe2,
+  },
+  {
+    id: "alphabet",
+    label: "Alphabet",
+    icon: SpellCheck,
+  },
+  {
+    id: "grammar",
+    label: "Grammar",
+    icon: Languages,
+  },
+  {
+    id: "vocabulary",
+    label: "Vocabulary",
+    icon: BookOpen,
+  },
+  {
+    id: "listening",
+    label: "Listening",
+    icon: Headphones,
+  },
+  {
+    id: "speaking",
+    label: "Speaking",
+    icon: Mic,
+  },
+  {
+    id: "writing",
+    label: "Writing",
+    icon: PenSquare,
+  },
+  {
+    id: "culture",
+    label: "Culture",
+    icon: Globe2,
+  },
+  {
+    id: "lessons",
+    label: "Lessons",
+    icon: BookOpen,
+  },
+  {
+    id: "aitutor",
+    label: "AI Tutor",
+    icon: Brain,
+  },
+];
+
   /* ---------------------------------
      Filter Lessons Memo
   ---------------------------------- */
@@ -371,38 +431,127 @@ export default function LessonsAdmin() {
         </div>
       </div>
 
-      {/* Stats Section */}
-      <LessonStats
-        total={totalLessons}
-        published={publishedLessons}
-        drafts={draftLessons}
-        languagesCount={totalLanguages}
+      <div className="overflow-x-auto">
+  <div className="flex gap-3 min-w-max">
+
+    {tabs.map((tab) => {
+      const Icon = tab.icon;
+
+      return (
+        <button
+          key={tab.id}
+          onClick={() => setActiveTab(tab.id)}
+          className={`
+            flex
+            items-center
+            gap-2
+            rounded-2xl
+            px-5
+            py-3
+            font-semibold
+            transition
+
+            ${
+              activeTab === tab.id
+                ? "bg-blue-600 text-white shadow-lg"
+                : "bg-[#111827] text-gray-400 hover:bg-[#1f2937] hover:text-white"
+            }
+          `}
+        >
+          <Icon size={18} />
+          {tab.label}
+        </button>
+      );
+    })}
+
+  </div>
+</div>
+      {activeTab === "lessons" && (
+  <>
+    <LessonStats
+      total={totalLessons}
+      published={publishedLessons}
+      drafts={draftLessons}
+      languagesCount={totalLanguages}
+    />
+
+    <LessonFilters
+      search={search}
+      setSearch={setSearch}
+      languageFilter={languageFilter}
+      setLanguageFilter={setLanguageFilter}
+      languages={languages}
+    />
+
+    {loading ? (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="animate-spin text-blue-500" size={40} />
+      </div>
+    ) : filteredLessons.length === 0 ? (
+      <EmptyLessons onAdd={() => setShowCreateModal(true)} />
+    ) : (
+      <LessonsGrid
+        lessons={filteredLessons}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
       />
+    )}
+  </>
+)}
 
-      {/* Filters Section */}
-      <LessonFilters
-        search={search}
-        setSearch={setSearch}
-        languageFilter={languageFilter}
-        setLanguageFilter={setLanguageFilter}
-        languages={languages}
-      />
+{activeTab === "overview" && (
+  <div className="rounded-3xl bg-[#111827] p-10 text-center text-gray-400">
+    Overview Panel Coming Soon
+  </div>
+)}
 
-      {/* Content Grid / Loading State */}
-      {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="animate-spin text-blue-500" size={40} />
-        </div>
-      ) : filteredLessons.length === 0 ? (
-        <EmptyLessons onAdd={() => setShowCreateModal(true)} />
-      ) : (
-        <LessonsGrid
-          lessons={filteredLessons}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-      )}
+{activeTab === "alphabet" && (
+  <div className="rounded-3xl bg-[#111827] p-10 text-center text-gray-400">
+    Alphabet Panel Coming Soon
+  </div>
+)}
 
+{activeTab === "grammar" && (
+  <div className="rounded-3xl bg-[#111827] p-10 text-center text-gray-400">
+    Grammar Panel Coming Soon
+  </div>
+)}
+
+{activeTab === "vocabulary" && (
+  <div className="rounded-3xl bg-[#111827] p-10 text-center text-gray-400">
+    Vocabulary Panel Coming Soon
+  </div>
+)}
+
+{activeTab === "listening" && (
+  <div className="rounded-3xl bg-[#111827] p-10 text-center text-gray-400">
+    Listening Panel Coming Soon
+  </div>
+)}
+
+{activeTab === "speaking" && (
+  <div className="rounded-3xl bg-[#111827] p-10 text-center text-gray-400">
+    Speaking Panel Coming Soon
+  </div>
+)}
+
+{activeTab === "writing" && (
+  <div className="rounded-3xl bg-[#111827] p-10 text-center text-gray-400">
+    Writing Panel Coming Soon
+  </div>
+)}
+
+{activeTab === "culture" && (
+  <div className="rounded-3xl bg-[#111827] p-10 text-center text-gray-400">
+    Culture Panel Coming Soon
+  </div>
+)}
+
+{activeTab === "aitutor" && (
+  <div className="rounded-3xl bg-[#111827] p-10 text-center text-gray-400">
+    AI Tutor Panel Coming Soon
+  </div>
+)}
       {/* Create Modal */}
       {showCreateModal && (
         <LessonForm

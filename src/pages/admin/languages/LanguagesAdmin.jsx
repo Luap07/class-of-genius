@@ -398,7 +398,7 @@ const closeContentManager = () => {
 
           <div className="flex flex-wrap items-center gap-4">
             <button
-        onClick={() => navigate("/admin/languages/cms")}
+        onClick={() => navigate("/admin/languages/content")}
               className="flex items-center gap-2 rounded-2xl bg-purple-600 px-6 py-3 font-bold transition hover:bg-purple-500 cursor-pointer"
             >
               <BookOpen size={20} />

@@ -4,9 +4,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import AdminLayout from "./AdminLayout";
 import AdminDashboard from "./AdminDashboard";
 
+import LanguageCMSAdmin from "../pages/admin/languages/LanguageCMSAdmin";
 import LanguageContentManager from "../components/admin/languages/LanguageContentManager";
 import LanguagesAdmin from "../pages/admin/languages/LanguagesAdmin";
-import LanguageLessonsAdmin from "../pages/admin/languages/LanguageLessonsAdmin";
 /* ================= Newsletter ================= */
 import NewsletterAdmin from "../pages/admin/NewsletterAdmin";
         
@@ -142,21 +142,84 @@ const AdminRoutes = () => {
   element={<LanguagesAdmin />}
 />
 
+
 <Route
-  path="languages/cms"
+  path="languages/content"
   element={<LanguageContentManager />}
 />
 
+
 <Route
-  path="languages/lessons"
-  element={<LanguageLessonsAdmin />}
+  path="languages/cms"
+  element={<Navigate to="languages/cms/overview" replace />}
 />
 
-{/* ================= Language Lessons ================= */}
+
 <Route
-  path="languages/lessons"
-  element={<LanguageLessonsAdmin />}
+  path="languages/cms/overview"
+  element={<LanguageCMSAdmin />}
 />
+
+
+<Route
+  path="languages/cms/workspace"
+  element={<LanguageCMSAdmin />}
+/>
+
+
+<Route
+  path="languages/cms/alphabet"
+  element={<LanguageCMSAdmin />}
+/>
+
+
+<Route
+  path="languages/cms/grammar"
+  element={<LanguageCMSAdmin />}
+/>
+
+
+<Route
+  path="languages/cms/vocabulary"
+  element={<LanguageCMSAdmin />}
+/>
+
+
+<Route
+  path="languages/cms/culture"
+  element={<LanguageCMSAdmin />}
+/>
+
+
+<Route
+  path="languages/cms/listening"
+  element={<LanguageCMSAdmin />}
+/>
+
+
+<Route
+  path="languages/cms/speaking"
+  element={<LanguageCMSAdmin />}
+/>
+
+
+<Route
+  path="languages/cms/writing"
+  element={<LanguageCMSAdmin />}
+/>
+
+
+<Route
+  path="languages/cms/lessons"
+  element={<LanguageCMSAdmin />}
+/>
+
+
+<Route
+  path="languages/cms/ai"
+  element={<LanguageCMSAdmin />}
+/>
+
         {/* ================= MONTHLY QUIZZES ================= */}
 
 <Route

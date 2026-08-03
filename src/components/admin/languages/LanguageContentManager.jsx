@@ -10,9 +10,70 @@ import {
   Loader2,
   BookOpen,
 } from "lucide-react";
+import englishImg from "../../../assets/englishImg.jpeg";
+import spanishImg from "../../../assets/spanishImg.jpeg";
+import frenchImg from "../../../assets/frenchImg.jpeg";
+import germanImg from "../../../assets/germanImg.jpeg";
+import japaneseImg from "../../../assets/japaneseImg.jpeg";
+import chineseImg from "../../../assets/chineseImg.jpeg";
+import arabicImg from "../../../assets/arabicImg.jpeg";
+import yorubaImg from "../../../assets/yorubaImg.jpeg";
+import portugueseImg from "../../../assets/portugueseImg.jpeg";
+import italianImg from "../../../assets/italianImg.jpeg";
+import koreanImg from "../../../assets/koreanImg.jpeg";
+import russianImg from "../../../assets/russianImg.jpeg";
+import hindiImg from "../../../assets/hindiImg.jpeg";
+import turkishImg from "../../../assets/turkishImg.jpeg";
+import dutchImg from "../../../assets/dutchImg.jpeg";
+import swahiliImg from "../../../assets/swahiliImg.jpeg";
+import hausaImg from "../../../assets/hausaImg.jpeg";
+import igboImg from "../../../assets/igboImg.jpeg";
+import greekImg from "../../../assets/greekImg.jpeg";
+import hebrewImg from "../../../assets/hebrewImg.jpeg";
+import swedishImg from "../../../assets/swedishImg.jpeg";
+import polishImg from "../../../assets/polishImg.jpeg";
+import thaiImg from "../../../assets/thaiImg.jpeg";
+import vietnameseImg from "../../../assets/vietnameseImg.jpeg";
+import indonesianImg from "../../../assets/indonesianImg.jpeg";
+import persianImg from "../../../assets/persianImg.jpeg";
+import danishImg from "../../../assets/danishImg.jpeg";
+import finnishImg from "../../../assets/finnishImg.jpeg";
+import norwegianImg from "../../../assets/norwegianImg.jpeg";
+import czechImg from "../../../assets/czechImg.jpeg";
 
 import { supabase } from "../../../lib/supabaseClient";
-
+const languageImages = {
+  english: englishImg,
+  spanish: spanishImg,
+  french: frenchImg,
+  german: germanImg,
+  japanese: japaneseImg,
+  chinese: chineseImg,
+  arabic: arabicImg,
+  yoruba: yorubaImg,
+  portuguese: portugueseImg,
+  italian: italianImg,
+  korean: koreanImg,
+  russian: russianImg,
+  hindi: hindiImg,
+  turkish: turkishImg,
+  dutch: dutchImg,
+  swahili: swahiliImg,
+  hausa: hausaImg,
+  igbo: igboImg,
+  greek: greekImg,
+  hebrew: hebrewImg,
+  swedish: swedishImg,
+  polish: polishImg,
+  thai: thaiImg,
+  vietnamese: vietnameseImg,
+  indonesian: indonesianImg,
+  persian: persianImg,
+  danish: danishImg,
+  finnish: finnishImg,
+  norwegian: norwegianImg,
+  czech: czechImg,
+};
 const cardAccents = [
   {
     border: "hover:border-indigo-500/50",
@@ -137,6 +198,10 @@ export default function LanguageContentManager() {
       ) : (
         <div className="grid gap-6 md:grid-cols-3 xl:grid-cols-4">
           {languages.map((language, index) => {
+            const languageImage =
+  languageImages[
+    language.name?.toLowerCase()
+  ];
             const accent = cardAccents[index % cardAccents.length];
 
             return (
@@ -167,20 +232,38 @@ export default function LanguageContentManager() {
                 </div>
 
                 {/* Background Glow */}
-                <div
-                  className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${accent.gradient} opacity-60 transition duration-300 group-hover:opacity-100`}
-                />
+               {/* Background Glow */}
+<div
+  className={`pointer-events-none absolute inset-0 z-0 bg-gradient-to-br ${accent.gradient} opacity-40 transition duration-300 group-hover:opacity-70`}
+/>
 
                 {/* Icon */}
-                <div className="absolute right-0 top-0 p-6 opacity-25 transition-all duration-300 group-hover:scale-110 group-hover:opacity-75">
-                  <BookOpen
-                    size={64}
-                    className="text-white drop-shadow-[0_0_12px_rgba(255,255,255,.4)]"
-                  />
+{/* Language Image */}
+<div className="absolute right-0 top-0 z-20 p-6 opacity-100 transition-all duration-300 group-hover:scale-110">
+                   {languageImage ? (
+  <img
+    src={languageImage}
+    alt={language.name}
+    className="
+      h-24
+      w-24
+      rounded-3xl
+      object-cover
+      border
+      border-white/20
+      shadow-xl
+    "
+  />
+) : (
+  <BookOpen
+    size={64}
+    className="text-white drop-shadow-[0_0_12px_rgba(255,255,255,.4)]"
+  />
+)}
                 </div>
 
                 {/* Card Content */}
-                <div className="relative z-10">
+                <div className="relative z-30">
 
                   <span
                     className={`mb-4 inline-block rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${accent.badge}`}

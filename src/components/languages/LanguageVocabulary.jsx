@@ -63,60 +63,134 @@ export default function LanguageVocabulary({
   return (
     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
 
-      {words.map((word) => (
+     {words.map((word) => (
+  <div
+    key={word.id}
+    className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900 transition hover:border-blue-500"
+  >
 
-        <div
-          key={word.id}
-          className="rounded-3xl border border-white/10 bg-slate-900 p-6 transition hover:border-blue-500"
-        >
+    {word.image_url && (
+      <img
+        src={word.image_url}
+        alt={word.word}
+        className="h-52 w-full object-cover"
+      />
+    )}
 
-          <div className="flex items-center justify-between">
+    <div className="p-6">
 
-            <h2 className="text-2xl font-black text-white">
-              {word.word}
-            </h2>
+      <div className="flex items-start justify-between">
 
-            {word.audio_url && (
-              <button
-                onClick={() => new Audio(word.audio_url).play()}
-                className="rounded-full bg-blue-600 p-3 hover:bg-blue-500"
-              >
-                <Volume2 size={18} />
-              </button>
-            )}
-
-          </div>
+        <div>
+          <h2 className="text-3xl font-black text-white">
+            {word.word}
+          </h2>
 
           {word.translation && (
-            <p className="mt-4 text-lg font-semibold text-blue-400">
+            <p className="mt-2 text-xl font-bold text-blue-400">
               {word.translation}
             </p>
           )}
-
-          {word.pronunciation && (
-            <p className="mt-2 text-slate-300">
-              Pronunciation: {word.pronunciation}
-            </p>
-          )}
-
-          {word.example && (
-            <div className="mt-5 rounded-2xl bg-slate-800 p-4">
-              <p className="text-slate-400">
-                {word.example}
-              </p>
-            </div>
-          )}
-
-          {word.category && (
-            <span className="mt-5 inline-block rounded-full bg-blue-600/20 px-4 py-2 text-sm text-blue-400">
-              {word.category}
-            </span>
-          )}
-
         </div>
 
-      ))}
 
+        {word.audio_url && (
+          <button
+            onClick={() => new Audio(word.audio_url).play()}
+            className="rounded-full bg-blue-600 p-3 hover:bg-blue-500"
+          >
+            <Volume2 size={18}/>
+          </button>
+        )}
+
+      </div>
+
+
+      <div className="mt-5 flex flex-wrap gap-2">
+
+        {word.part_of_speech && (
+          <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-sm text-cyan-300">
+            {word.part_of_speech}
+          </span>
+        )}
+
+        {word.difficulty && (
+          <span className="rounded-full bg-purple-500/20 px-3 py-1 text-sm text-purple-300">
+            {word.difficulty}
+          </span>
+        )}
+
+        {word.featured && (
+          <span className="rounded-full bg-yellow-500/20 px-3 py-1 text-sm text-yellow-300">
+            Featured
+          </span>
+        )}
+
+      </div>
+
+
+      {word.pronunciation && (
+        <p className="mt-5 text-slate-300">
+          Pronunciation: {word.pronunciation}
+        </p>
+      )}
+
+
+      {word.ipa && (
+        <p className="mt-2 text-slate-400">
+          IPA: {word.ipa}
+        </p>
+      )}
+
+
+      {word.definition && (
+        <div className="mt-5 rounded-2xl bg-slate-800 p-4">
+
+          <p className="mb-2 text-xs font-bold uppercase text-slate-500">
+            Definition
+          </p>
+
+          <p className="text-slate-300">
+            {word.definition}
+          </p>
+
+        </div>
+      )}
+
+
+      {word.example_sentence && (
+        <div className="mt-5 rounded-2xl bg-slate-800 p-4">
+
+          <p className="mb-2 text-xs font-bold uppercase text-slate-500">
+            Example
+          </p>
+
+          <p className="text-blue-300">
+            {word.example_sentence}
+          </p>
+
+        </div>
+      )}
+
+
+      {word.example_translation && (
+        <div className="mt-4">
+
+          <p className="text-xs font-bold uppercase text-slate-500">
+            Translation
+          </p>
+
+          <p className="italic text-slate-400">
+            {word.example_translation}
+          </p>
+
+        </div>
+      )}
+
+    </div>
+
+  </div>
+))}
     </div>
   );
 }

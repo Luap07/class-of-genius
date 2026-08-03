@@ -7,7 +7,15 @@ export default function LanguageAlphabet({
 }) {
   const [letters, setLetters] = useState([]);
   const [loading, setLoading] = useState(true);
+   const playAudio = (url) => {
+    if (!url) return;
 
+    const audio = new Audio(url);
+
+    audio.play().catch((err) => {
+      console.error("Audio playback failed:", err);
+    });
+  };
   useEffect(() => {
     if (!language) return;
 
@@ -19,9 +27,9 @@ export default function LanguageAlphabet({
           .from("language_alphabet")
           .select("*")
           .eq("language_id", language.id)
-          .order("position", {
-            ascending: true,
-          });
+          .order("sort_order", {
+  ascending: true,
+});
 
         if (error) throw error;
 
@@ -68,27 +76,47 @@ export default function LanguageAlphabet({
           className="rounded-3xl border border-white/10 bg-slate-900 p-6 transition hover:border-blue-500"
         >
 
-          <h2 className="text-center text-6xl font-black text-blue-400">
-            {letter.character}
-          </h2>
+          {letter.image_url && (
+  <img
+    src={letter.image_url}
+    alt={letter.example_word}
+    className="mb-5 h-40 w-full rounded-2xl object-cover"
+  />
+)}
 
-          {letter.pronunciation && (
-            <p className="mt-4 text-center text-slate-300">
-              {letter.pronunciation}
-            </p>
-          )}
+<h2 className="text-center text-6xl font-black text-blue-400">
+  {letter.letter}
+</h2>
 
-          {letter.example && (
-            <p className="mt-2 text-center text-sm text-slate-500">
-              {letter.example}
-            </p>
-          )}
+{letter.pronunciation && (
+  <p className="mt-4 text-center text-slate-300">
+    {letter.pronunciation}
+  </p>
+)}
+
+{letter.ipa && (
+  <p className="mt-2 text-center font-mono text-sm text-cyan-400">
+    {letter.ipa}
+  </p>
+)}
+
+          <div className="mt-4 text-center space-y-1">
+  {letter.example_word && (
+    <p className="font-semibold text-white">
+      {letter.example_word}
+    </p>
+  )}
+
+  {letter.example_translation && (
+    <p className="text-sm text-slate-400">
+      {letter.example_translation}
+    </p>
+  )}
+</div>
 
           {letter.audio_url && (
             <button
-              onClick={() => {
-                new Audio(letter.audio_url).play();
-              }}
+             onClick={() => playAudio(letter.audio_url)}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3 font-bold transition hover:bg-blue-500"
             >
               <Volume2 size={18} />

@@ -4,7 +4,8 @@ import React, {
   useMemo,
   useState,
 } from "react";
-
+import { supabase } from "../../lib/supabaseClient";
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 
 import {
@@ -21,63 +22,8 @@ import {
   Bot,
 } from "lucide-react";
 
-const grammarLessons = [
-  {
-    id: 1,
-    title: "Present Simple",
-    language: "English",
-    level: "Beginner",
-    completed: true,
-    description:
-      "Learn how to describe habits, routines and general facts.",
-  },
-  {
-    id: 2,
-    title: "Past Tense",
-    language: "English",
-    level: "Beginner",
-    completed: false,
-    description:
-      "Talk about actions that already happened.",
-  },
-  {
-    id: 3,
-    title: "Verb Conjugation",
-    language: "Spanish",
-    level: "Intermediate",
-    completed: false,
-    description:
-      "Master regular and irregular verb forms.",
-  },
-  {
-    id: 4,
-    title: "Sentence Structure",
-    language: "French",
-    level: "Intermediate",
-    completed: false,
-    description:
-      "Arrange words correctly to form natural sentences.",
-  },
-  {
-    id: 5,
-    title: "Particles",
-    language: "Japanese",
-    level: "Advanced",
-    completed: false,
-    description:
-      "Understand は, が, を and other essential particles.",
-  },
-  {
-    id: 6,
-    title: "Cases",
-    language: "German",
-    level: "Advanced",
-    completed: false,
-    description:
-      "Learn nominative, accusative, dative and genitive.",
-  },
-];
-
+const [grammarLessons,setGrammarLessons] = useState([]);
+const [loading,setLoading] = useState(true);
 const grammarRules = [
   {
     id: 1,

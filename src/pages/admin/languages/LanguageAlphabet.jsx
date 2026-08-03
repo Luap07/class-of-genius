@@ -39,7 +39,11 @@ export default function LanguageAlphabet({ language, refresh }) {
   const [exampleWord, setExampleWord] = useState("");
   const [exampleTranslation, setExampleTranslation] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [audioUrl, setAudioUrl] = useState("");
+  const [audioFile, setAudioFile] = useState(null);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
   const [sortOrder, setSortOrder] = useState(0);
   const [featured, setFeatured] = useState(false);
 
@@ -65,29 +69,32 @@ export default function LanguageAlphabet({ language, refresh }) {
     } finally {
       setLoading(false);
     }
-  }, [language]);
+  }, [language?.id]);
 
   useEffect(() => {
     if (language?.id) {
       fetchAlphabet();
     }
-  }, [language, fetchAlphabet]);
+  }, [language?.id, fetchAlphabet]);
 
-  // Synchronize form fields when editingLetter changes or modal opens
-  useEffect(() => {
-    if (editingLetter) {
-      setLetter(editingLetter.letter || "");
-      setUppercase(editingLetter.uppercase || "");
-      setLowercase(editingLetter.lowercase || "");
-      setPronunciation(editingLetter.pronunciation || "");
-      setIpa(editingLetter.ipa || "");
-      setExampleWord(editingLetter.example_word || editingLetter.example || "");
-      setExampleTranslation(editingLetter.example_translation || "");
-      setImageUrl(editingLetter.image_url || "");
-      setAudioUrl(editingLetter.audio_url || "");
-      setSortOrder(editingLetter.sort_order || 0);
-      setFeatured(editingLetter.featured || false);
+  // Open modal helper for Create vs Edit
+  const handleOpenModal = (item = null) => {
+    if (item) {
+      setEditingLetter(item);
+      setLetter(item.letter || "");
+      setUppercase(item.uppercase || "");
+      setLowercase(item.lowercase || "");
+      setPronunciation(item.pronunciation || "");
+      setIpa(item.ipa || "");
+      setExampleWord(item.example_word || "");      setExampleTranslation(item.example_translation || "");
+      setImageUrl(item.image_url || "");
+      setImageFile(null);
+      setAudioUrl(item.audio_url || "");
+      setAudioFile(null);
+      setSortOrder(item.sort_order || 0);
+      setFeatured(item.featured || false);
     } else {
+      setEditingLetter(null);
       setLetter("");
       setUppercase("");
       setLowercase("");
@@ -96,11 +103,14 @@ export default function LanguageAlphabet({ language, refresh }) {
       setExampleWord("");
       setExampleTranslation("");
       setImageUrl("");
+      setImageFile(null);
       setAudioUrl("");
+      setAudioFile(null);
       setSortOrder(letters.length);
       setFeatured(false);
     }
-  }, [editingLetter, letters.length]);
+    setShowModal(true);
+  };
 
   const filteredLetters = useMemo(() => {
     const keyword = search.toLowerCase();
@@ -111,8 +121,7 @@ export default function LanguageAlphabet({ language, refresh }) {
         item.uppercase?.toLowerCase().includes(keyword) ||
         item.lowercase?.toLowerCase().includes(keyword) ||
         item.example_word?.toLowerCase().includes(keyword) ||
-        item.example?.toLowerCase().includes(keyword)
-      );
+        item.example_word?.toLowerCase().includes(keyword)      );
     });
   }, [letters, search]);
 
@@ -130,24 +139,83 @@ export default function LanguageAlphabet({ language, refresh }) {
 
     try {
       setSaving(true);
+      let uploadedImage = imageUrl;
+
+      if (imageFile) {
+        try {
+          setUploadingImage(true);
+
+          const fileExt = imageFile.name.split(".").pop();
+          const fileName = `${language.id}/${Date.now()}_image.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("language-images")
+            .upload(fileName, imageFile, {
+              upsert: true,
+            });
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage
+            .from("language-images")
+            .getPublicUrl(fileName);
+
+          uploadedImage = data.publicUrl;
+        } catch (err) {
+          console.error(err);
+          alert("Image upload failed");
+          return;
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
+      let uploadedAudio = audioUrl;
+
+      if (audioFile) {
+        try {
+          setUploadingAudio(true);
+
+          const fileExt = audioFile.name.split(".").pop();
+          const fileName = `${language.id}/${Date.now()}.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("language-audio")
+            .upload(fileName, audioFile, {
+              upsert: true,
+            });
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage
+            .from("language-audio")
+            .getPublicUrl(fileName);
+
+          uploadedAudio = data.publicUrl;
+        } catch (err) {
+          console.error(err);
+          alert("Audio upload failed");
+          return;
+        } finally {
+          setUploadingAudio(false);
+        }
+      }
 
       const payload = {
-        language_id: language.id,
-        letter,
-        uppercase,
-        lowercase,
-        pronunciation,
-        ipa,
-        example_word: exampleWord,
-        example: exampleWord, // Fallback schema compatibility
-        example_translation: exampleTranslation,
-        image_url: imageUrl,
-        audio_url: audioUrl,
-        sort_order: sortOrder,
-        featured,
-        updated_at: new Date().toISOString(),
-      };
-
+  language_id: language.id,
+  letter,
+  uppercase,
+  lowercase,
+  pronunciation,
+  ipa,
+  example_word: exampleWord,
+  example_translation: exampleTranslation,
+  image_url: uploadedImage,
+  audio_url: uploadedAudio,
+  sort_order: sortOrder,
+  featured,
+  updated_at: new Date().toISOString(),
+};
       let error;
 
       if (editingLetter) {
@@ -232,10 +300,7 @@ export default function LanguageAlphabet({ language, refresh }) {
           </div>
 
           <button
-            onClick={() => {
-              setEditingLetter(null);
-              setShowModal(true);
-            }}
+            onClick={() => handleOpenModal(null)}
             className="flex items-center gap-3 rounded-2xl bg-indigo-500 px-6 py-4 font-bold text-black transition hover:bg-indigo-400"
           >
             <Plus className="h-5 w-5" />
@@ -331,10 +396,7 @@ export default function LanguageAlphabet({ language, refresh }) {
             </button>
 
             <button
-              onClick={() => {
-                setEditingLetter(null);
-                setShowModal(true);
-              }}
+              onClick={() => handleOpenModal(null)}
               className="rounded-2xl bg-indigo-500 px-6 py-3 font-bold text-black transition hover:bg-indigo-400"
             >
               + Add Letter
@@ -352,10 +414,7 @@ export default function LanguageAlphabet({ language, refresh }) {
             Add your first alphabet letter to begin building this language.
           </p>
           <button
-            onClick={() => {
-              setEditingLetter(null);
-              setShowModal(true);
-            }}
+            onClick={() => handleOpenModal(null)}
             className="mt-8 rounded-2xl bg-indigo-500 px-8 py-4 font-bold text-black transition hover:bg-indigo-400"
           >
             Add First Letter
@@ -444,7 +503,29 @@ export default function LanguageAlphabet({ language, refresh }) {
                     <div className="flex flex-wrap gap-2">
                       {item.audio_url && (
                         <button
-                          onClick={() => window.open(item.audio_url, "_blank")}
+                          onClick={async () => {
+                            try {
+                              const response = await fetch("http://localhost:5000/api/pronounce", {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                  text: item.letter,
+                                  language: language.name,
+                                }),
+                              });
+
+                              const blob = await response.blob();
+                              const url = URL.createObjectURL(blob);
+                              const audio = new Audio(url);
+
+                              await audio.play();
+                            } catch (err) {
+                              console.error(err);
+                              alert("Unable to pronounce this letter.");
+                            }
+                          }}
                           className="rounded-xl bg-indigo-500/20 px-4 py-2 text-sm font-semibold text-indigo-300 transition hover:bg-indigo-500/30"
                         >
                           Play Audio
@@ -452,10 +533,7 @@ export default function LanguageAlphabet({ language, refresh }) {
                       )}
 
                       <button
-                        onClick={() => {
-                          setEditingLetter(item);
-                          setShowModal(true);
-                        }}
+                        onClick={() => handleOpenModal(item)}
                         className="rounded-xl bg-indigo-500 px-5 py-2 text-sm font-bold text-black transition hover:bg-indigo-400"
                       >
                         Edit
@@ -503,7 +581,7 @@ export default function LanguageAlphabet({ language, refresh }) {
                 <div className="grid gap-6 md:grid-cols-3">
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-300">
-                      Letter / Symbol *
+                      Letter / Symbol
                     </label>
                     <input
                       type="text"
@@ -596,27 +674,62 @@ export default function LanguageAlphabet({ language, refresh }) {
                 <div className="grid gap-6 md:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-300">
-                      Image URL
+                      Upload Image
                     </label>
                     <input
-                      type="text"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-indigo-500"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        if (e.target.files?.length) {
+                          setImageFile(e.target.files[0]);
+                        }
+                      }}
+                      className="block w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-white file:mr-4 file:rounded-xl file:border-0 file:bg-indigo-500 file:px-4 file:py-2 file:font-bold file:text-black hover:file:bg-indigo-400"
                     />
+
+                    {imageFile && (
+                      <p className="mt-2 text-sm text-emerald-400">
+                        Selected: {imageFile.name}
+                      </p>
+                    )}
+
+                    {!imageFile && imageUrl && (
+                      <img
+                        src={imageUrl}
+                        alt="Preview"
+                        className="mt-4 h-40 w-full rounded-2xl object-cover"
+                      />
+                    )}
                   </div>
+
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-300">
-                      Audio URL
+                      Upload Audio
                     </label>
                     <input
-                      type="text"
-                      value={audioUrl}
-                      onChange={(e) => setAudioUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-indigo-500"
+                      type="file"
+                      accept="audio/*"
+                      onChange={(e) => {
+                        if (e.target.files?.length) {
+                          setAudioFile(e.target.files[0]);
+                        }
+                      }}
+                      className="block w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-white file:mr-4 file:rounded-xl file:border-0 file:bg-indigo-500 file:px-4 file:py-2 file:font-bold file:text-black hover:file:bg-indigo-400"
                     />
+
+                    {audioFile && (
+                      <p className="mt-2 text-sm text-emerald-400">
+                        Selected: {audioFile.name}
+                      </p>
+                    )}
+
+                    {!audioFile && audioUrl && (
+                      <audio
+                        controls
+                        src={audioUrl}
+                        className="mt-4 w-full"
+                      />
+                    )}
                   </div>
                 </div>
 

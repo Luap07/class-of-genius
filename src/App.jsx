@@ -6,7 +6,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-
+import GrammarReader from "./pages/languages/GrammarReader";
 import { AnimatePresence, motion } from "framer-motion";
 
 /* =========================== CONTEXTS =========================== */
@@ -205,6 +205,17 @@ const AnimatedRoutes = () => {
     <PageWrapper>
       <LanguageDetails />
     </PageWrapper>
+  }
+/>
+
+<Route
+  path="/grammar/:id"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <GrammarReader />
+      </PageWrapper>
+    </ProtectedRoute>
   }
 />
         {/* ================= SUPPORT ================= */}

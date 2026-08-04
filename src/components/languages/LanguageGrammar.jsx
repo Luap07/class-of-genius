@@ -1,6 +1,17 @@
-import React, { useEffect, useState } from "react";
-import { BookOpen } from "lucide-react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { supabase } from "../../lib/supabaseClient";
+
+import GrammarHero from "../../components/languages/GrammarHero";
+import GrammarSearch from "../../components/languages/GrammarSearch";
+import GrammarCard from "../../components/languages/GrammarCard";
+import GrammarLoading from "../../components/languages/GrammarLoading";
+import GrammarEmpty from "../../components/languages/GrammarEmpty";
+import GrammarStats from "../../components/languages/GrammarStats";
 
 export default function LanguageGrammar({
   language,
@@ -8,116 +19,133 @@ export default function LanguageGrammar({
   const [grammar, setGrammar] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
+
   useEffect(() => {
     if (!language) return;
-
-    const fetchGrammar = async () => {
-      try {
-        setLoading(true);
-
-        const { data, error } = await supabase
-          .from("language_grammar")
-          .select("*")
-          .eq("language_id", language.id)
-          .order("position", {
-            ascending: true,
-          });
-
-        if (error) throw error;
-
-        setGrammar(data || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
 
     fetchGrammar();
   }, [language]);
 
-  if (loading) {
-    return (
-      <div className="py-20 text-center text-slate-400">
-        Loading grammar...
-      </div>
-    );
+  async function fetchGrammar() {
+    setLoading(true);
+
+    let query = supabase
+      .from("language_grammar")
+      .select("*");
+
+    if (language?.id) {
+      query = query.eq(
+        "language_id",
+        language.id
+      );
+    }
+
+    const { data, error } =
+      await query;
+
+    if (error) {
+      console.error(error);
+    } else {
+      setGrammar(data || []);
+    }
+
+    setLoading(false);
   }
 
-  if (grammar.length === 0) {
+  const categories = useMemo(() => {
+    return [
+      ...new Set(
+        grammar
+          .map((g) => g.category)
+          .filter(Boolean)
+      ),
+    ];
+  }, [grammar]);
+
+  const filteredGrammar =
+    useMemo(() => {
+      return grammar.filter((item) => {
+        const matchSearch =
+          search === ""
+            ? true
+            : (
+                item.title || ""
+              )
+                .toLowerCase()
+                .includes(
+                  search.toLowerCase()
+                );
+
+        const matchCategory =
+          category === "All"
+            ? true
+            : item.category ===
+              category;
+
+        return (
+          matchSearch &&
+          matchCategory
+        );
+      });
+    }, [
+      grammar,
+      search,
+      category,
+    ]);
+
+  if (loading) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-slate-900 p-12 text-center">
-        <BookOpen className="mx-auto h-14 w-14 text-blue-400" />
-
-        <h2 className="mt-6 text-3xl font-black">
-          No Grammar Topics Yet
-        </h2>
-
-        <p className="mt-4 text-slate-400">
-          Upload grammar lessons from the Language CMS.
-        </p>
+      <div className="space-y-10">
+        <GrammarLoading />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
 
-      {grammar.map((item) => (
+      <GrammarHero
+        language={language}
+        totalTopics={
+          grammar.length
+        }
+      />
 
+      <GrammarStats
+        grammar={grammar}
+      />
+
+      <GrammarSearch
+        search={search}
+        setSearch={setSearch}
+        category={category}
+        setCategory={setCategory}
+        categories={categories}
+      />
+
+      {filteredGrammar.length ===
+      0 ? (
+        <GrammarEmpty />
+      ) : (
         <div
-          key={item.id}
-          className="rounded-3xl border border-white/10 bg-slate-900 p-8 transition hover:border-blue-500"
+          className="
+            grid
+            gap-8
+            xl:grid-cols-2
+          "
         >
-
-          <div className="flex items-center gap-4">
-
-            <BookOpen className="text-blue-400" />
-
-            <h2 className="text-2xl font-black">
-              {item.title}
-            </h2>
-
-          </div>
-
-          {item.description && (
-            <p className="mt-5 leading-8 text-slate-300">
-              {item.description}
-            </p>
+          {filteredGrammar.map(
+            (item) => (
+              <GrammarCard
+                key={item.id}
+                item={item}
+              />
+            )
           )}
-
-          {item.example && (
-            <div className="mt-6 rounded-2xl bg-slate-800 p-5">
-
-              <h3 className="mb-2 font-bold text-blue-400">
-                Example
-              </h3>
-
-              <p className="text-slate-300">
-                {item.example}
-              </p>
-
-            </div>
-          )}
-
-          {item.notes && (
-            <div className="mt-5 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-5">
-
-              <h3 className="mb-2 font-bold text-yellow-400">
-                Notes
-              </h3>
-
-              <p className="text-slate-300">
-                {item.notes}
-              </p>
-
-            </div>
-          )}
-
         </div>
-
-      ))}
-
+      )}
     </div>
   );
 }

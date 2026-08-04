@@ -22,73 +22,35 @@ import {
   Bot,
 } from "lucide-react";
 
-const [grammarLessons,setGrammarLessons] = useState([]);
-const [loading,setLoading] = useState(true);
-const grammarRules = [
-  {
-    id: 1,
-    title: "Present Simple",
-    explanation:
-      "Use the present simple to talk about habits, routines, and facts.",
-    example:
-      "I study English every day.",
-  },
-  {
-    id: 2,
-    title: "Past Simple",
-    explanation:
-      "Use the past simple for actions that started and finished in the past.",
-    example:
-      "She visited London last year.",
-  },
-  {
-    id: 3,
-    title: "Future Tense",
-    explanation:
-      "Use future tense to talk about plans, predictions, and upcoming events.",
-    example:
-      "I will learn Spanish tomorrow.",
-  },
-  {
-    id: 4,
-    title: "Articles",
-    explanation:
-      "Articles help identify nouns using a, an, and the.",
-    example:
-      "I bought a book.",
-  },
-  {
-    id: 5,
-    title: "Subject Verb Agreement",
-    explanation:
-      "The subject and verb must match in number.",
-    example:
-      "She plays football.",
-  },
-];
-
-const mistakes = [
-  {
-    id: 1,
-    wrong: "She go to school every day.",
-    correct: "She goes to school every day.",
-  },
-  {
-    id: 2,
-    wrong: "I am agree with you.",
-    correct: "I agree with you.",
-  },
-  {
-    id: 3,
-    wrong: "He doesn't knows the answer.",
-    correct: "He doesn't know the answer.",
-  },
-];
-
 const Grammar = () => {
-  const [search, setSearch] = useState("");
-  const [level, setLevel] = useState("All");
+ const [search, setSearch] = useState("");
+const [level, setLevel] = useState("All");
 
+const [grammarLessons, setGrammarLessons] = useState([]);
+const [loading, setLoading] = useState(true);
+
+useEffect(() => {
+  fetchGrammar();
+}, []);
+
+const fetchGrammar = async () => {
+  setLoading(true);
+
+  const { data, error } = await supabase
+    .from("language_grammar")
+    .select("*")
+    .order("created_at", {
+      ascending: false,
+    });
+
+  if (error) {
+    console.error(error);
+  } else {
+    setGrammarLessons(data || []);
+  }
+
+  setLoading(false);
+};
   const filteredLessons = useMemo(() => {
     return grammarLessons.filter((lesson) => {
       const matchSearch =
@@ -441,8 +403,8 @@ const Grammar = () => {
             "
           >
             {
-              grammarRules.map((rule)=>(
-                <motion.div
+                  grammarLessons.map((rule) => (
+                  <motion.div
                   key={rule.id}
                   whileHover={{
                     scale:1.03
@@ -520,116 +482,78 @@ const Grammar = () => {
         </section>
 
         {/* COMMON MISTAKES */}
-        <section
+<section className="mt-20">
+  <div className="mb-8">
+    <h2 className="text-3xl font-black">
+      Common Grammar Mistakes
+    </h2>
+
+    <p className="mt-3 text-slate-400">
+      Learn mistakes learners usually make and how to fix them.
+    </p>
+  </div>
+
+  <div className="space-y-5">
+    {grammarLessons
+      .filter(
+        (lesson) =>
+          lesson.wrong_sentence ||
+          lesson.correct_sentence
+      )
+      .map((item) => (
+        <motion.div
+          key={item.id}
+          whileHover={{ x: 8 }}
           className="
-            mt-20
+            rounded-2xl
+            border
+            border-red-500/20
+            bg-red-500/10
+            p-6
           "
         >
           <div
             className="
-              mb-8
+              flex
+              flex-col
+              gap-5
+              md:flex-row
+              md:items-center
+              md:justify-between
             "
           >
-            <h2
+            <div>
+              <p className="font-bold text-red-300">
+                Wrong:
+              </p>
+
+              <p className="mt-2 text-white">
+                {item.wrong_sentence}
+              </p>
+            </div>
+
+            <ArrowRight
               className="
-                text-3xl
-                font-black
+                hidden
+                text-cyan-400
+                md:block
               "
-            >
-              Common Grammar Mistakes
-            </h2>
-            <p
-              className="
-                mt-3
-                text-slate-400
-              "
-            >
-              Learn mistakes learners usually make and how to fix them.
-            </p>
+            />
+
+            <div>
+              <p className="font-bold text-green-300">
+                Correct:
+              </p>
+
+              <p className="mt-2 text-white">
+                {item.correct_sentence}
+              </p>
+            </div>
           </div>
-
-          <div
-            className="
-              space-y-5
-            "
-          >
-            {
-              mistakes.map((item)=>(
-                <motion.div
-                  key={item.id}
-                  whileHover={{
-                    x:8
-                  }}
-                  className="
-                    rounded-2xl
-                    border
-                    border-red-500/20
-                    bg-red-500/10
-                    p-6
-                  "
-                >
-                  <div
-                    className="
-                      flex
-                      flex-col
-                      gap-5
-                      md:flex-row
-                      md:items-center
-                      md:justify-between
-                    "
-                  >
-                    <div>
-                      <p
-                        className="
-                          text-red-300
-                          font-bold
-                        "
-                      >
-                        Wrong:
-                      </p>
-                      <p
-                        className="
-                          mt-2
-                          text-white
-                        "
-                      >
-                        {item.wrong}
-                      </p>
-                    </div>
-
-                    <ArrowRight
-                      className="
-                        hidden
-                        text-cyan-400
-                        md:block
-                      "
-                    />
-
-                    <div>
-                      <p
-                        className="
-                          text-green-300
-                          font-bold
-                        "
-                      >
-                        Correct:
-                      </p>
-                      <p
-                        className="
-                          mt-2
-                          text-white
-                        "
-                      >
-                        {item.correct}
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))
-            }
-          </div>
-        </section>
-
+        </motion.div>
+      ))}
+  </div>
+</section>
         {/* SENTENCE BUILDER */}
         <section
           className="

@@ -23,12 +23,8 @@ import LanguageOverview from "../../components/languages/LanguageOverview";
 import LanguageAlphabet from "../../components/languages/LanguageAlphabet";
 import LanguageVocabulary from "../../components/languages/LanguageVocabulary";
 import LanguageGrammar from "../../components/languages/LanguageGrammar";
-import LanguageListening from "../../components/languages/LanguageListening";
-import LanguageSpeaking from "../../components/languages/LanguageSpeaking";
 import LanguageWriting from "../../components/languages/LanguageWriting";
-import LanguageCulture from "../../components/languages/LanguageCulture";
 import LanguageLessons from "../../components/languages/LanguageLessons";
-import LanguageAITutor from "../../components/languages/LanguageAITutor";
 
 
 export default function LanguageDetails() {
@@ -53,12 +49,6 @@ export default function LanguageDetails() {
     useState(false);
 
 
-
-  /*
-  ===============================
-        FETCH LANGUAGE
-  ===============================
-  */
 
   useEffect(() => {
 
@@ -115,19 +105,12 @@ export default function LanguageDetails() {
 
 
 
-  /*
-  ===============================
-        FETCH LESSONS
-  ===============================
-  */
-
   useEffect(() => {
 
     if (!language?.id) return;
 
 
     async function fetchLessons() {
-
 
       try {
 
@@ -176,7 +159,6 @@ export default function LanguageDetails() {
 
       }
 
-
     }
 
 
@@ -189,43 +171,43 @@ export default function LanguageDetails() {
 
 
 
-  /*
-  ===============================
-        LOADING
-  ===============================
-  */
-
   if (loadingLanguage) {
 
     return (
 
-      <section className="
-        min-h-screen
-        flex
-        items-center
-        justify-center
-        bg-[#020617]
-        text-white
-      ">
+      <section
+        className="
+          min-h-screen
+          flex
+          items-center
+          justify-center
+          bg-[#020617]
+          text-white
+        "
+      >
 
         <div className="text-center">
 
-          <div className="
-            mx-auto
-            h-14
-            w-14
-            animate-spin
-            rounded-full
-            border-4
-            border-blue-500
-            border-t-transparent
-          "/>
+          <div
+            className="
+              mx-auto
+              h-14
+              w-14
+              animate-spin
+              rounded-full
+              border-4
+              border-blue-500
+              border-t-transparent
+            "
+          />
 
 
-          <p className="
-            mt-6
-            text-slate-400
-          ">
+          <p
+            className="
+              mt-6
+              text-slate-400
+            "
+          >
             Loading language...
           </p>
 
@@ -246,21 +228,26 @@ export default function LanguageDetails() {
 
     return (
 
-      <section className="
-        min-h-screen
-        flex
-        items-center
-        justify-center
-        bg-[#020617]
-        text-white
-      ">
+      <section
+        className="
+          min-h-screen
+          flex
+          items-center
+          justify-center
+          bg-[#020617]
+          text-white
+        "
+      >
 
-        <h1 className="
-          text-4xl
-          font-black
-        ">
+        <h1
+          className="
+            text-4xl
+            font-black
+          "
+        >
           Language not found
         </h1>
+
 
       </section>
 
@@ -274,22 +261,20 @@ export default function LanguageDetails() {
 
   return (
 
-    <section className="
-      min-h-screen
-      bg-[#020617]
-      text-white
-    ">
+    <section
+      className="
+        min-h-screen
+        bg-[#020617]
+        text-white
+      "
+    >
 
-
-      {/* TOP LANGUAGE BANNER */}
 
       <LanguageOverviewHero
         language={language}
       />
 
 
-
-      {/* NAVIGATION */}
 
       <LanguageTabs
 
@@ -302,16 +287,16 @@ export default function LanguageDetails() {
 
 
 
+      <div
+        className="
+          mx-auto
+          mt-12
+          max-w-7xl
+          px-6
+          pb-20
+        "
+      >
 
-      {/* CONTENT */}
-
-      <div className="
-        mx-auto
-        mt-12
-        max-w-7xl
-        px-6
-        pb-20
-      ">
 
 
         {activeTab === "Overview" && (
@@ -362,45 +347,9 @@ export default function LanguageDetails() {
 
 
 
-        {activeTab === "Listening" && (
-
-          <LanguageListening
-            language={language}
-          />
-
-        )}
-
-
-
-
-
-        {activeTab === "Speaking" && (
-
-          <LanguageSpeaking
-            language={language}
-          />
-
-        )}
-
-
-
-
-
         {activeTab === "Writing" && (
 
           <LanguageWriting
-            language={language}
-          />
-
-        )}
-
-
-
-
-
-        {activeTab === "Culture" && (
-
-          <LanguageCulture
             language={language}
           />
 
@@ -420,18 +369,6 @@ export default function LanguageDetails() {
 
             loading={loadingLessons}
 
-          />
-
-        )}
-
-
-
-
-
-        {activeTab === "AI Tutor" && (
-
-          <LanguageAITutor
-            language={language}
           />
 
         )}

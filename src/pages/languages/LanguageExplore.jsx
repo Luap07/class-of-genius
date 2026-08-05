@@ -426,25 +426,59 @@ export default function LanguageExplore() {
                         </p>
                       </div>
 
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10">
-                        <Languages size={22} className="text-cyan-400" />
-                      </div>
+                      <div className="h-14 w-14 overflow-hidden rounded-full border-2 border-cyan-400 shadow-lg shadow-cyan-500/20">
+  <img
+    src={
+      language.flag_url ||
+      language.cover_image ||
+      language.hero_image ||
+      language.image_url ||
+      languageImages[language.name]
+    }
+    alt={language.name}
+    className="h-full w-full object-cover"
+  />
+</div>
                     </div>
 
                     <p className="mt-5 line-clamp-3 leading-7 text-slate-400">
                       {language.description}
                     </p>
 
-                    <div className="mt-6 flex flex-wrap gap-3">
-                      <span className="rounded-full border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-300">
-                        {language.continent}
-                      </span>
+                   <div className="mt-6 flex flex-wrap gap-3">
 
-                      <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300">
-                        {language.level}
-                      </span>
-                    </div>
+  <span className="rounded-full border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-300">
+    {language.continent}
+  </span>
 
+  <div className="flex items-center gap-3 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2">
+
+    <img
+      src={
+        language.flag_url ||
+        language.cover_image ||
+        language.hero_image ||
+        language.image_url ||
+        languageImages[language.name]
+      }
+      alt={language.name}
+      className="
+        h-8
+        w-8
+        rounded-full
+        object-cover
+        border
+        border-cyan-400
+      "
+    />
+
+    <span className="text-sm font-semibold text-cyan-300">
+      Beginner → Advanced
+    </span>
+
+  </div>
+
+</div>
                     {/* ACTION */}
                     <div className="mt-8">
                       <button

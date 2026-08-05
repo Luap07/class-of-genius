@@ -1,15 +1,12 @@
 import React from "react";
+
 import {
   LayoutDashboard,
-  CaseUpper,
+  Languages,
   BookOpen,
   SpellCheck,
-  Headphones,
-  Mic,
   PenTool,
-  Globe2,
   GraduationCap,
-  Sparkles,
 } from "lucide-react";
 
 const tabs = [
@@ -19,7 +16,7 @@ const tabs = [
   },
   {
     id: "Alphabet",
-    icon: CaseUpper,
+    icon: Languages,
   },
   {
     id: "Grammar",
@@ -30,28 +27,12 @@ const tabs = [
     icon: BookOpen,
   },
   {
-    id: "Listening",
-    icon: Headphones,
-  },
-  {
-    id: "Speaking",
-    icon: Mic,
-  },
-  {
     id: "Writing",
     icon: PenTool,
   },
   {
-    id: "Culture",
-    icon: Globe2,
-  },
-  {
     id: "Lessons",
     icon: GraduationCap,
-  },
-  {
-    id: "AI Tutor",
-    icon: Sparkles,
   },
 ];
 
@@ -60,33 +41,85 @@ export default function LanguageTabs({
   setActiveTab,
 }) {
   return (
-    <div className="sticky top-0 z-40 border-y border-white/10 bg-[#020617]/90 backdrop-blur-xl">
+    <div
+      className="
+        sticky
+        top-0
+        z-40
+        border-y
+        border-white/10
+        bg-[#020617]/90
+        backdrop-blur-xl
+      "
+    >
+      <div
+        className="
+          mx-auto
+          max-w-7xl
+          px-6
+          py-5
+        "
+      >
+        <div
+          className="
+            flex
+            justify-center
+            items-center
+            gap-3
+            overflow-x-auto
+            scrollbar-hide
+            w-full
+          "
+        >
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
 
-      <div className="mx-auto flex max-w-7xl gap-3 overflow-x-auto px-6 py-5 scrollbar-none">
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  flex
+                  shrink-0
+                  items-center
+                  gap-3
+                  rounded-2xl
+                  px-6
+                  py-3
+                  font-bold
+                  whitespace-nowrap
+                  transition-all
+                  duration-300
 
-        {tabs.map((tab) => {
+                  ${
+                    activeTab === tab.id
+                      ? `
+                        bg-gradient-to-r
+                        from-cyan-500
+                        to-blue-600
+                        text-white
+                        shadow-lg
+                        shadow-cyan-500/30
+                        scale-105
+                      `
+                      : `
+                        bg-slate-900
+                        text-slate-300
+                        hover:bg-slate-800
+                        hover:text-white
+                        hover:-translate-y-1
+                      `
+                  }
+                `}
+              >
+                <Icon size={18} />
 
-          const Icon = tab.icon;
-
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-3 rounded-2xl px-6 py-3 font-bold transition-all duration-300 whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
-                  : "bg-slate-900 text-slate-300 hover:bg-slate-800"
-              }`}
-            >
-              <Icon size={18} />
-
-              {tab.id}
-            </button>
-          );
-        })}
-
+                {tab.id}
+              </button>
+            );
+          })}
+        </div>
       </div>
-
     </div>
   );
 }

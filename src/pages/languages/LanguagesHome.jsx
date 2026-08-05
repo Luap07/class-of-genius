@@ -6,9 +6,7 @@ import HeroStats from "../../components/languages/Hero/HeroStats";
 import LanguageExplore from "./LanguageExplore";
 import WordOfTheDay from "./WordOfTheDay";
 import Dictionary from "./Dictionary";
-import Translator from "./Translator";
 import Vocabulary from "./Vocabulary";
-import Grammar from "./Grammar";
 import Phrasebook from "./Phrasebook";
 import Flashcards from "./Flashcards";
 import LanguageChallenges from "./LanguageChallenges";
@@ -75,9 +73,7 @@ export default function LanguagesHome() {
           <LanguageExplore />
           <WordOfTheDay />
           <Dictionary />
-          <Translator />
           <Vocabulary />
-          <Grammar />
           <Phrasebook />
           <Flashcards />
           <Listening />

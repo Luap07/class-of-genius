@@ -1,1531 +1,1266 @@
-import React, {
-  useMemo,
-  useState,
-} from "react";
-
+import React from "react";
 import { motion } from "framer-motion";
-
 import {
-  Search,
-  Mic,
-  Camera,
   BookOpen,
+  BookText,
+  GraduationCap,
   Languages,
-  Volume2,
-  Sparkles,
-  History,
-  TrendingUp,
-  ArrowRight,
-  Star,
   Brain,
-  Globe2,
-  Bookmark,
-  Copy,
-  Share2,
+  Sparkles,
+  Library,
+  PenTool,
+  Lightbulb,
+  Quote,
 } from "lucide-react";
 
-const Dictionary = () => {
-  const [query, setQuery] = useState("");
-  const [selectedLanguage, setSelectedLanguage] = useState("English");
-
-  const [history] = useState([
-    "education",
-    "science",
-    "beautiful",
-    "computer",
-    "knowledge",
-    "physics",
-  ]);
-
-  const [trending] = useState([
-    "Artificial Intelligence",
-    "Quantum",
-    "Democracy",
-    "Sustainability",
-    "Innovation",
-    "Entrepreneur",
-  ]);
-
-  const languages = [
-    "English",
-    "French",
-    "Spanish",
-    "German",
-    "Italian",
-    "Portuguese",
-    "Arabic",
-    "Chinese",
-    "Japanese",
-    "Korean",
-    "Hindi",
-    "Yoruba",
-    "Igbo",
-    "Hausa",
-    "Swahili",
-  ];
-
-  const wordOfDay = useMemo(
-    () => ({
-      word: "Resilience",
-      phonetic: "/rɪˈzɪliəns/",
-      meaning:
-        "The ability to recover quickly from difficulties or adapt to change.",
-      example:
-        "Her resilience helped her succeed despite many challenges.",
-    }),
-    []
-  );
-
+export default function Dictionary() {
   return (
-    <div
-      className="
-      min-h-screen
-      bg-[#050816]
-      text-white
-      "
-    >
-      {/* HERO */}
-      <section
-        className="
-        relative
-        overflow-hidden
-        border-b
-        border-white/10
-        "
-      >
-        <div
-          className="
-          absolute
-          inset-0
-          bg-gradient-to-br
-          from-cyan-500/10
-          via-transparent
-          to-blue-600/10
-          "
-        />
+    <section className="min-h-screen bg-[#020617] px-6 py-12 text-white lg:px-8">
+      <div className="mx-auto max-w-7xl">
 
-        <div
+        {/* ========================================================= */}
+        {/* HERO */}
+        {/* ========================================================= */}
+
+        <motion.div
+          initial={{ opacity: 0, y: 25 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
           className="
-          relative
-          mx-auto
-          max-w-7xl
-          px-6
-          py-24
+            overflow-hidden
+            rounded-[36px]
+            border
+            border-cyan-500/20
+            bg-gradient-to-br
+            from-cyan-500/10
+            via-blue-500/10
+            to-indigo-500/10
+            p-10
+            lg:p-14
           "
         >
-          <motion.div
-            initial={{
-              opacity: 0,
-              y: 40,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            transition={{
-              duration: 0.7,
-            }}
-          >
-            <div
-              className="
-              inline-flex
-              items-center
-              gap-2
-              rounded-full
-              bg-cyan-500/10
-              px-5
-              py-2
-              text-cyan-300
-              "
-            >
-              <BookOpen size={18} />
-              Scholiqen Dictionary
-            </div>
+          <div className="grid items-center gap-12 lg:grid-cols-2">
 
-            <h1
-              className="
-              mt-8
-              max-w-4xl
-              text-6xl
-              font-black
-              leading-tight
-              "
-            >
-              Understand
+            <div>
+
               <span
                 className="
-                bg-gradient-to-r
-                from-cyan-400
-                to-blue-500
-                bg-clip-text
-                text-transparent
-                "
-              >
-                {" "}
-                Every Word
-              </span>
-              In Every Language
-            </h1>
-
-            <p
-              className="
-              mt-8
-              max-w-3xl
-              text-lg
-              leading-9
-              text-slate-400
-              "
-            >
-              Search millions of words, discover meanings, pronunciation,
-              synonyms, antonyms, grammar, examples, AI explanations and
-              translations across 100+ world languages.
-            </p>
-          </motion.div>
-
-          {/* SEARCH */}
-          <div
-            className="
-            mt-14
-            rounded-[32px]
-            border
-            border-white/10
-            bg-slate-900/70
-            p-8
-            backdrop-blur-xl
-            "
-          >
-            <div
-              className="
-              grid
-              gap-6
-              lg:grid-cols-[1fr_220px]
-              "
-            >
-              <div
-                className="
-                flex
-                items-center
-                rounded-2xl
-                border
-                border-white/10
-                bg-slate-800
-                px-5
-                "
-              >
-                <Search
-                  size={22}
-                  className="text-cyan-400"
-                />
-
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search any word..."
-                  className="
-                  h-16
-                  flex-1
-                  bg-transparent
-                  px-5
-                  outline-none
-                  placeholder:text-slate-500
-                  "
-                />
-
-                <button
-                  className="
-                  rounded-xl
-                  bg-cyan-500
-                  px-6
-                  py-3
-                  font-bold
-                  "
-                >
-                  Search
-                </button>
-              </div>
-
-              <select
-                value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
-                className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-slate-800
-                px-5
-                outline-none
-                "
-              >
-                {languages.map((language) => (
-                  <option key={language}>{language}</option>
-                ))}
-              </select>
-            </div>
-
-            <div
-              className="
-              mt-8
-              flex
-              flex-wrap
-              gap-4
-              "
-            >
-              <button
-                className="
-                flex
-                items-center
-                gap-2
-                rounded-xl
-                bg-slate-800
-                px-5
-                py-3
-                "
-              >
-                <Mic size={18} />
-                Voice Search
-              </button>
-
-              <button
-                className="
-                flex
-                items-center
-                gap-2
-                rounded-xl
-                bg-slate-800
-                px-5
-                py-3
-                "
-              >
-                <Camera size={18} />
-                Camera Search
-              </button>
-
-              <button
-                className="
-                flex
-                items-center
-                gap-2
-                rounded-xl
-                bg-slate-800
-                px-5
-                py-3
-                "
-              >
-                <Languages size={18} />
-                Translate
-              </button>
-
-              <button
-                className="
-                flex
-                items-center
-                gap-2
-                rounded-xl
-                bg-slate-800
-                px-5
-                py-3
-                "
-              >
-                <Brain size={18} />
-                Ask AI
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* WORD OF THE DAY */}
-      <section
-        className="
-        mx-auto
-        mt-16
-        max-w-7xl
-        px-6
-        "
-      >
-        <div
-          className="
-          rounded-[32px]
-          border
-          border-cyan-500/20
-          bg-gradient-to-br
-          from-cyan-500/10
-          to-blue-600/10
-          p-10
-          "
-        >
-          <div
-            className="
-            flex
-            flex-wrap
-            items-center
-            justify-between
-            gap-8
-            "
-          >
-            <div>
-              <div
-                className="
-                flex
-                items-center
-                gap-2
-                text-cyan-300
-                "
-              >
-                <Sparkles size={20} />
-                Word of the Day
-              </div>
-
-              <h2
-                className="
-                mt-5
-                text-5xl
-                font-black
-                "
-              >
-                {wordOfDay.word}
-              </h2>
-
-              <p
-                className="
-                mt-3
-                text-cyan-300
-                "
-              >
-                {wordOfDay.phonetic}
-              </p>
-
-              <p
-                className="
-                mt-8
-                max-w-3xl
-                leading-8
-                text-slate-300
-                "
-              >
-                {wordOfDay.meaning}
-              </p>
-
-              <p
-                className="
-                mt-5
-                italic
-                text-slate-400
-                "
-              >
-                "{wordOfDay.example}"
-              </p>
-            </div>
-
-            <button
-              className="
-              rounded-full
-              bg-cyan-500
-              px-8
-              py-4
-              font-bold
-              "
-            >
-              Learn More
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* TRENDING + HISTORY */}
-      <section
-        className="
-        mx-auto
-        mt-14
-        max-w-7xl
-        px-6
-        "
-      >
-        <div
-          className="
-          grid
-          gap-8
-          lg:grid-cols-3
-          "
-        >
-          {/* TRENDING */}
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-8
-            "
-          >
-            <div
-              className="
-              mb-6
-              flex
-              items-center
-              gap-3
-              "
-            >
-              <TrendingUp
-                className="text-cyan-400"
-                size={24}
-              />
-              <h2
-                className="
-                text-2xl
-                font-black
-                "
-              >
-                Trending Words
-              </h2>
-            </div>
-
-            <div className="space-y-4">
-              {trending.map((word, index) => (
-                <motion.button
-                  key={word}
-                  whileHover={{
-                    x: 8,
-                  }}
-                  className="
-                  flex
-                  w-full
+                  inline-flex
                   items-center
-                  justify-between
-                  rounded-2xl
-                  bg-slate-800
-                  px-5
-                  py-4
-                  transition
-                  hover:bg-slate-700
-                  "
-                >
-                  <span
-                    className="
-                    font-semibold
-                    "
-                  >
-                    {index + 1}. {word}
-                  </span>
-                  <ArrowRight size={18} />
-                </motion.button>
-              ))}
-            </div>
-          </div>
-
-          {/* HISTORY */}
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-8
-            "
-          >
-            <div
-              className="
-              mb-6
-              flex
-              items-center
-              gap-3
-              "
-            >
-              <History
-                className="text-blue-400"
-                size={24}
-              />
-              <h2
-                className="
-                text-2xl
-                font-black
-                "
-              >
-                Recent Searches
-              </h2>
-            </div>
-
-            <div
-              className="
-              flex
-              flex-wrap
-              gap-3
-              "
-            >
-              {history.map((item) => (
-                <button
-                  key={item}
-                  className="
+                  gap-2
                   rounded-full
-                  bg-slate-800
+                  bg-cyan-500/10
                   px-5
                   py-2
                   text-sm
-                  transition
-                  hover:bg-cyan-500
-                  "
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* QUICK ACTIONS */}
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-8
-            "
-          >
-            <h2
-              className="
-              mb-6
-              text-2xl
-              font-black
-              "
-            >
-              Quick Actions
-            </h2>
-
-            <div className="space-y-4">
-              <button
-                className="
-                flex
-                w-full
-                items-center
-                gap-3
-                rounded-2xl
-                bg-slate-800
-                px-5
-                py-4
-                transition
-                hover:bg-cyan-500
+                  font-bold
+                  text-cyan-300
                 "
               >
-                <BookOpen />
-                Browse Dictionary
-              </button>
+                <Library size={16} />
+                Language Dictionary
+              </span>
 
-              <button
-                className="
-                flex
-                w-full
-                items-center
-                gap-3
-                rounded-2xl
-                bg-slate-800
-                px-5
-                py-4
-                transition
-                hover:bg-blue-500
-                "
-              >
-                <Languages />
-                Translate Sentence
-              </button>
+              <h1 className="mt-8 text-5xl font-black leading-tight lg:text-7xl">
+                Discover The
+                <span className="block bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
+                  Power Of Words
+                </span>
+              </h1>
 
-              <button
-                className="
-                flex
-                w-full
-                items-center
-                gap-3
-                rounded-2xl
-                bg-slate-800
-                px-5
-                py-4
-                transition
-                hover:bg-purple-500
-                "
-              >
-                <Brain />
-                Ask AI
-              </button>
-
-              <button
-                className="
-                flex
-                w-full
-                items-center
-                gap-3
-                rounded-2xl
-                bg-slate-800
-                px-5
-                py-4
-                transition
-                hover:bg-green-500
-                "
-              >
-                <Volume2 />
-                Pronunciation Practice
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* PLATFORM STATS */}
-      <section
-        className="
-        mx-auto
-        mt-14
-        max-w-7xl
-        px-6
-        "
-      >
-        <div
-          className="
-          grid
-          gap-6
-          md:grid-cols-2
-          xl:grid-cols-4
-          "
-        >
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-8
-            "
-          >
-            <Globe2
-              size={36}
-              className="text-cyan-400"
-            />
-            <h3
-              className="
-              mt-6
-              text-4xl
-              font-black
-              "
-            >
-              100+
-            </h3>
-            <p className="mt-2 text-slate-400">Languages</p>
-          </div>
-
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-8
-            "
-          >
-            <BookOpen
-              size={36}
-              className="text-blue-400"
-            />
-            <h3
-              className="
-              mt-6
-              text-4xl
-              font-black
-              "
-            >
-              2M+
-            </h3>
-            <p className="mt-2 text-slate-400">Dictionary Words</p>
-          </div>
-
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-8
-            "
-          >
-            <Brain
-              size={36}
-              className="text-purple-400"
-            />
-            <h3
-              className="
-              mt-6
-              text-4xl
-              font-black
-              "
-            >
-              AI
-            </h3>
-            <p className="mt-2 text-slate-400">Smart Explanations</p>
-          </div>
-
-          <div
-            className="
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900
-            p-8
-            "
-          >
-            <Star
-              size={36}
-              className="text-yellow-400"
-            />
-            <h3
-              className="
-              mt-6
-              text-4xl
-              font-black
-              "
-            >
-              Daily
-            </h3>
-            <p className="mt-2 text-slate-400">Word Challenges</p>
-          </div>
-        </div>
-      </section>
-
-      {/* DICTIONARY RESULT */}
-      <section
-        className="
-        mx-auto
-        mt-16
-        max-w-7xl
-        px-6
-        "
-      >
-        <div
-          className="
-          overflow-hidden
-          rounded-3xl
-          border
-          border-white/10
-          bg-slate-900
-          "
-        >
-          {/* HEADER */}
-          <div
-            className="
-            border-b
-            border-white/10
-            p-8
-            "
-          >
-            <div
-              className="
-              flex
-              flex-wrap
-              items-center
-              justify-between
-              gap-6
-              "
-            >
-              <div>
-                <h2
-                  className="
-                  text-5xl
-                  font-black
-                  "
-                >
-                  Hello
-                </h2>
-
-                <div
-                  className="
-                  mt-3
-                  flex
-                  flex-wrap
-                  items-center
-                  gap-4
-                  "
-                >
-                  <span
-                    className="
-                    rounded-full
-                    bg-cyan-500/20
-                    px-4
-                    py-2
-                    text-cyan-400
-                    "
-                  >
-                    Interjection
-                  </span>
-                  <span className="text-slate-400">/həˈləʊ/</span>
-                </div>
-              </div>
-
-              <button
-                className="
-                flex
-                items-center
-                gap-3
-                rounded-2xl
-                bg-cyan-600
-                px-6
-                py-4
-                font-bold
-                "
-              >
-                <Volume2 size={20} />
-                Listen
-              </button>
-            </div>
-          </div>
-
-          {/* BODY */}
-          <div
-            className="
-            grid
-            gap-10
-            p-8
-            xl:grid-cols-3
-            "
-          >
-            {/* LEFT */}
-            <div className="xl:col-span-2">
-              <h3
-                className="
-                text-2xl
-                font-black
-                "
-              >
-                Definition
-              </h3>
-
-              <p
-                className="
-                mt-5
-                leading-9
-                text-slate-300
-                "
-              >
-                Used as a greeting or to begin a phone conversation.
+              <p className="mt-8 max-w-2xl text-lg leading-9 text-slate-300">
+                A dictionary is much more than a collection of words.
+                It helps you understand meanings, improve communication,
+                strengthen your vocabulary, and become a more confident
+                language learner every single day.
               </p>
 
-              <div className="mt-10">
-                <h3
-                  className="
-                  text-2xl
-                  font-black
-                  "
-                >
-                  Example Sentences
-                </h3>
-
-                <div className="mt-6 space-y-5">
-                  <div
-                    className="
-                    rounded-2xl
-                    bg-slate-800
-                    p-5
-                    "
-                  >
-                    "Hello, how are you today?"
-                  </div>
-
-                  <div
-                    className="
-                    rounded-2xl
-                    bg-slate-800
-                    p-5
-                    "
-                  >
-                    She smiled and said hello.
-                  </div>
-
-                  <div
-                    className="
-                    rounded-2xl
-                    bg-slate-800
-                    p-5
-                    "
-                  >
-                    Hello everyone, welcome to Scholiqen.
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-10">
-                <h3
-                  className="
-                  text-2xl
-                  font-black
-                  "
-                >
-                  Word Origin
-                </h3>
-
-                <p
-                  className="
-                  mt-5
-                  leading-8
-                  text-slate-400
-                  "
-                >
-                  Originated from Old High German expressions used to attract
-                  attention before becoming the modern English greeting.
-                </p>
-              </div>
             </div>
 
-            {/* RIGHT */}
-            <div className="space-y-8">
-              <div
-                className="
-                rounded-2xl
-                bg-slate-800
-                p-6
-                "
-              >
-                <h4 className="font-bold">Synonyms</h4>
-                <div
-                  className="
-                  mt-5
-                  flex
-                  flex-wrap
-                  gap-3
-                  "
-                >
-                  {["Hi", "Hey", "Greetings", "Welcome"].map((item) => (
-                    <button
-                      key={item}
-                      className="
-                      rounded-full
-                      bg-cyan-500/20
-                      px-4
-                      py-2
-                      "
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <div className="grid gap-5 sm:grid-cols-2">
 
-              <div
-                className="
-                rounded-2xl
-                bg-slate-800
-                p-6
-                "
-              >
-                <h4 className="font-bold">Related Words</h4>
-                <div
-                  className="
-                  mt-5
-                  flex
-                  flex-wrap
-                  gap-3
-                  "
-                >
-                  {[
-                    "Good Morning",
-                    "Welcome",
-                    "Greetings",
-                    "Salutations",
-                  ].map((item) => (
-                    <button
-                      key={item}
-                      className="
-                      rounded-full
-                      bg-blue-500/20
-                      px-4
-                      py-2
-                      "
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div
-                className="
-                rounded-2xl
-                bg-slate-800
-                p-6
-                "
-              >
-                <h4 className="font-bold">Quick Actions</h4>
-                <div className="mt-6 space-y-4">
-                  <button
-                    className="
-                    flex
-                    w-full
-                    items-center
-                    gap-3
-                    rounded-xl
-                    bg-slate-700
-                    px-4
-                    py-3
-                    "
-                  >
-                    <Bookmark size={18} />
-                    Save Word
-                  </button>
-
-                  <button
-                    className="
-                    flex
-                    w-full
-                    items-center
-                    gap-3
-                    rounded-xl
-                    bg-slate-700
-                    px-4
-                    py-3
-                    "
-                  >
-                    <Copy size={18} />
-                    Copy Definition
-                  </button>
-
-                  <button
-                    className="
-                    flex
-                    w-full
-                    items-center
-                    gap-3
-                    rounded-xl
-                    bg-slate-700
-                    px-4
-                    py-3
-                    "
-                  >
-                    <Share2 size={18} />
-                    Share Word
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* AI WORD TEACHER */}
-      <section
-        className="
-        mx-auto
-        mt-16
-        max-w-7xl
-        px-6
-        "
-      >
-        <div
-          className="
-          overflow-hidden
-          rounded-3xl
-          border
-          border-cyan-500/20
-          bg-gradient-to-br
-          from-slate-900
-          via-slate-900
-          to-cyan-950/40
-          p-10
-          "
-        >
-          <div
-            className="
-            flex
-            flex-wrap
-            items-center
-            justify-between
-            gap-8
-            "
-          >
-            <div>
-              <div
-                className="
-                inline-flex
-                items-center
-                gap-2
-                rounded-full
-                bg-cyan-500/20
-                px-4
-                py-2
-                text-cyan-400
-                font-semibold
-                "
-              >
-                <Sparkles size={18} />
-                AI Language Teacher
-              </div>
-
-              <h2
-                className="
-                mt-6
-                text-4xl
-                font-black
-                "
-              >
-                Learn Every Word Like a Teacher is Beside You
-              </h2>
-
-              <p
-                className="
-                mt-5
-                max-w-3xl
-                leading-8
-                text-slate-300
-                "
-              >
-                Scholiqen AI doesn't only translate words. It explains meanings,
-                pronunciation, grammar usage, sentence structure, culture and
-                common mistakes.
-              </p>
-            </div>
-
-            <button
-              className="
-              rounded-2xl
-              bg-cyan-600
-              px-8
-              py-4
-              font-bold
-              hover:bg-cyan-500
-              transition
-              "
-            >
-              Ask AI
-            </button>
-          </div>
-
-          <div
-            className="
-            mt-12
-            grid
-            gap-6
-            md:grid-cols-2
-            xl:grid-cols-3
-            "
-          >
-            {[
-              {
-                title: "Explain Like I'm 10",
-                desc: "Simple explanations anyone can understand.",
-              },
-              {
-                title: "Grammar Breakdown",
-                desc: "Learn why the word is used in a sentence.",
-              },
-              {
-                title: "Conversation Practice",
-                desc: "Generate realistic conversations instantly.",
-              },
-              {
-                title: "Pronunciation Coach",
-                desc: "Practice speaking with AI feedback.",
-              },
-              {
-                title: "Memory Tricks",
-                desc: "AI creates mnemonics to remember words.",
-              },
-              {
-                title: "Word Comparison",
-                desc: "Understand differences between similar words.",
-              },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-slate-800/70
-                p-6
-                "
-              >
-                <Brain
-                  size={30}
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+                <BookOpen
+                  size={34}
                   className="text-cyan-400"
                 />
 
-                <h3
-                  className="
-                  mt-5
-                  text-xl
-                  font-bold
-                  "
-                >
-                  {item.title}
+                <h3 className="mt-5 text-xl font-black">
+                  Learn
                 </h3>
 
-                <p
-                  className="
-                  mt-4
-                  leading-7
-                  text-slate-400
-                  "
-                >
-                  {item.desc}
+                <p className="mt-3 leading-7 text-slate-400">
+                  Discover the meanings of unfamiliar words and expand
+                  your vocabulary naturally.
                 </p>
               </div>
-            ))}
-          </div>
 
-          <div
-            className="
-            mt-12
-            rounded-2xl
-            bg-slate-950
-            p-8
-            "
-          >
-            <h3
-              className="
-              text-2xl
-              font-black
-              "
-            >
-              Example AI Response
-            </h3>
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+                <Languages
+                  size={34}
+                  className="text-purple-400"
+                />
 
-            <div
-              className="
-              mt-6
-              rounded-2xl
-              bg-slate-900
-              p-6
-              leading-8
-              text-slate-300
-              "
-            >
-              <strong className="text-cyan-400">Word:</strong> &nbsp;Hello
-              <br />
-              <br />
-              Hello is a greeting used when meeting someone or starting a
-              conversation. It is friendly, polite and one of the first English
-              words learners usually know.
-              <br />
-              <br />
-              You can use it in formal and informal situations.
-              <br />
-              <br />
-              Example:
-              <div
-                className="
-                mt-4
-                rounded-xl
-                bg-slate-800
-                p-4
-                "
-              >
-                Hello John, welcome to Scholiqen.
+                <h3 className="mt-5 text-xl font-black">
+                  Communicate
+                </h3>
+
+                <p className="mt-3 leading-7 text-slate-400">
+                  Express your ideas clearly using accurate vocabulary
+                  in everyday conversations.
+                </p>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* VOCABULARY BUILDER */}
-      <section
-        className="
-        mx-auto
-        mt-16
-        max-w-7xl
-        px-6
-        pb-16
-        "
-      >
-        <div
-          className="
-          rounded-3xl
-          border
-          border-white/10
-          bg-slate-900
-          p-10
-          "
-        >
-          <div
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+                <Brain
+                  size={34}
+                  className="text-green-400"
+                />
+
+                <h3 className="mt-5 text-xl font-black">
+                  Remember
+                </h3>
+
+                <p className="mt-3 leading-7 text-slate-400">
+                  Build long-term memory through repeated exposure to
+                  useful words and expressions.
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+                <Sparkles
+                  size={34}
+                  className="text-yellow-400"
+                />
+
+                <h3 className="mt-5 text-xl font-black">
+                  Grow
+                </h3>
+
+                <p className="mt-3 leading-7 text-slate-400">
+                  Every new word you learn opens another opportunity to
+                  understand the world around you.
+                </p>
+              </div>
+
+            </div>
+
+          </div>
+        </motion.div>
+
+        {/* ========================================================= */}
+        {/* WHAT IS A DICTIONARY */}
+        {/* ========================================================= */}
+
+        <section className="mt-16">
+
+          <motion.div
+            initial={{ opacity: 0, y: 25 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
             className="
-            flex
-            flex-wrap
-            items-center
-            justify-between
-            gap-6
+              rounded-[32px]
+              border
+              border-white/10
+              bg-slate-900
+              p-10
             "
           >
-            <div>
-              <span
-                className="
-                rounded-full
-                bg-blue-500/20
-                px-4
-                py-2
-                text-blue-400
-                font-semibold
-                "
-              >
-                Vocabulary Builder
-              </span>
 
-              <h2
-                className="
-                mt-5
-                text-4xl
-                font-black
-                "
-              >
-                Learn New Words Every Day
-              </h2>
+            <div className="flex items-center gap-4">
 
-              <p
-                className="
-                mt-4
-                max-w-3xl
-                leading-8
-                text-slate-400
-                "
-              >
-                Build your vocabulary through daily practice, quizzes, AI
-                explanations, flashcards and real-world examples.
+              <div className="rounded-3xl bg-cyan-500/15 p-5">
+
+                <BookText
+                  size={36}
+                  className="text-cyan-400"
+                />
+
+              </div>
+
+              <div>
+
+                <h2 className="text-4xl font-black">
+                  What Is A Dictionary?
+                </h2>
+
+                <p className="mt-2 text-slate-400">
+                  Understanding the purpose of a dictionary.
+                </p>
+
+              </div>
+
+            </div>
+
+            <p className="mt-10 text-lg leading-9 text-slate-300">
+              A dictionary is one of the most valuable learning tools
+              for anyone studying a language. It provides reliable
+              information about words, their meanings, pronunciation,
+              grammar, spelling, and usage in real-life situations.
+            </p>
+
+            <p className="mt-6 text-lg leading-9 text-slate-300">
+              Whether you are reading a book, writing an essay,
+              preparing for an examination, or speaking with others,
+              a dictionary helps you understand unfamiliar vocabulary
+              and use words correctly with confidence.
+            </p>
+
+          </motion.div>
+
+        </section>
+
+        {/* ========================================================= */}
+        {/* WHY VOCABULARY MATTERS */}
+        {/* ========================================================= */}
+
+        <section className="mt-16">
+
+          <div className="mb-10">
+
+            <h2 className="text-4xl font-black">
+              Why Vocabulary Matters
+            </h2>
+
+            <p className="mt-3 text-slate-400">
+              Building your vocabulary improves every language skill.
+            </p>
+
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+
+            <div className="rounded-3xl border border-white/10 bg-slate-900 p-8">
+              <GraduationCap
+                size={34}
+                className="text-cyan-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Academic Success
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Understanding more words makes reading textbooks,
+                examinations, assignments, and research much easier.
               </p>
             </div>
 
-            <button
-              className="
-              rounded-2xl
-              bg-blue-600
-              px-7
-              py-4
-              font-bold
-              "
+            <div className="rounded-3xl border border-white/10 bg-slate-900 p-8">
+              <Languages
+                size={34}
+                className="text-purple-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Better Communication
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                A rich vocabulary allows you to express ideas clearly,
+                confidently, and accurately in conversations.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-slate-900 p-8">
+              <PenTool
+                size={34}
+                className="text-pink-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Stronger Writing
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Choosing the right words helps create clearer,
+                more engaging, and more professional writing.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-slate-900 p-8">
+              <Brain
+                size={34}
+                className="text-green-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Critical Thinking
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Learning new vocabulary improves understanding,
+                reasoning, and the ability to explain complex ideas.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-slate-900 p-8">
+              <Lightbulb
+                size={34}
+                className="text-yellow-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Confidence
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Knowing the correct words makes speaking and writing
+                feel more natural and less intimidating.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-slate-900 p-8">
+              <Quote
+                size={34}
+                className="text-orange-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Self Expression
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Every new word gives you another way to describe
+                your thoughts, emotions, and experiences.
+              </p>
+            </div>
+
+          </div>
+
+        </section>
+                {/* ========================================================= */}
+        {/* DICTIONARY FEATURES */}
+        {/* ========================================================= */}
+
+        <section className="mt-20">
+
+          <div className="mb-10">
+
+            <h2 className="text-4xl font-black">
+              What You Can Learn From A Dictionary
+            </h2>
+
+            <p className="mt-3 text-slate-400">
+              Every dictionary entry contains valuable information that
+              helps you understand and use words correctly.
+            </p>
+
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-white/10 bg-slate-900 p-7"
             >
-              Start Learning
-            </button>
+              <BookOpen
+                size={34}
+                className="text-cyan-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Meaning
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Understand what a word means and when it should be used
+                in everyday communication.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-white/10 bg-slate-900 p-7"
+            >
+              <Languages
+                size={34}
+                className="text-blue-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Pronunciation
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Learn how words are pronounced so you can speak naturally
+                and confidently.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-white/10 bg-slate-900 p-7"
+            >
+              <PenTool
+                size={34}
+                className="text-purple-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Spelling
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Improve your writing by learning the correct spelling of
+                words and common vocabulary.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-white/10 bg-slate-900 p-7"
+            >
+              <Sparkles
+                size={34}
+                className="text-pink-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Examples
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Discover practical examples that show how words are used
+                naturally in real sentences.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-white/10 bg-slate-900 p-7"
+            >
+              <Brain
+                size={34}
+                className="text-green-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Grammar
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Learn the grammatical role of words to improve sentence
+                construction.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-white/10 bg-slate-900 p-7"
+            >
+              <Lightbulb
+                size={34}
+                className="text-yellow-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Usage Tips
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Learn when, where and how particular words should be
+                used correctly.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-white/10 bg-slate-900 p-7"
+            >
+              <Library
+                size={34}
+                className="text-orange-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Word Origins
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Explore where words came from and how their meanings have
+                changed over time.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-white/10 bg-slate-900 p-7"
+            >
+              <Quote
+                size={34}
+                className="text-indigo-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Vocabulary Growth
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-400">
+                Every word you learn expands your ability to read,
+                understand and communicate effectively.
+              </p>
+
+            </motion.div>
+
           </div>
 
-          <div
-            className="
-            mt-12
-            grid
-            gap-6
-            md:grid-cols-2
-            xl:grid-cols-4
-            "
-          >
-            {[
-              {
-                title: "Today's Word",
-                value: "Innovation",
-                color: "text-cyan-400",
-              },
-              {
-                title: "Words Learned",
-                value: "1,245",
-                color: "text-green-400",
-              },
-              {
-                title: "Current Streak",
-                value: "18 Days",
-                color: "text-yellow-400",
-              },
-              {
-                title: "Mastered Words",
-                value: "653",
-                color: "text-pink-400",
-              },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="
-                rounded-2xl
-                bg-slate-800
-                p-7
-                "
-              >
-                <p className="text-slate-400">{item.title}</p>
-                <h2 className={`mt-4 text-3xl font-black ${item.color}`}>
-                  {item.value}
-                </h2>
+        </section>
+
+        {/* ========================================================= */}
+        {/* TYPES OF WORDS */}
+        {/* ========================================================= */}
+
+        <section className="mt-20">
+
+          <div className="mb-10">
+
+            <h2 className="text-4xl font-black">
+              Types Of Words
+            </h2>
+
+            <p className="mt-3 text-slate-400">
+              Every word belongs to a grammatical category that explains
+              its purpose in a sentence.
+            </p>
+
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+
+            <div className="rounded-3xl border border-cyan-500/20 bg-cyan-500/5 p-7">
+              <h3 className="text-2xl font-black text-cyan-300">
+                Nouns
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Name people, places, animals, objects and ideas.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-blue-500/20 bg-blue-500/5 p-7">
+              <h3 className="text-2xl font-black text-blue-300">
+                Verbs
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Describe actions, events or states of being.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-purple-500/20 bg-purple-500/5 p-7">
+              <h3 className="text-2xl font-black text-purple-300">
+                Adjectives
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Give more information by describing nouns.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-pink-500/20 bg-pink-500/5 p-7">
+              <h3 className="text-2xl font-black text-pink-300">
+                Adverbs
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Describe verbs, adjectives or other adverbs.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-green-500/20 bg-green-500/5 p-7">
+              <h3 className="text-2xl font-black text-green-300">
+                Pronouns
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Replace nouns to avoid unnecessary repetition.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-yellow-500/20 bg-yellow-500/5 p-7">
+              <h3 className="text-2xl font-black text-yellow-300">
+                Prepositions
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Show relationships between words such as place, time and
+                direction.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-orange-500/20 bg-orange-500/5 p-7">
+              <h3 className="text-2xl font-black text-orange-300">
+                Conjunctions
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Connect words, phrases and complete sentences together.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-red-500/20 bg-red-500/5 p-7">
+              <h3 className="text-2xl font-black text-red-300">
+                Interjections
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Express strong feelings, surprise, excitement or emotion.
+              </p>
+            </div>
+
+          </div>
+
+        </section>
+                {/* ========================================================= */}
+        {/* HOW TO USE A DICTIONARY */}
+        {/* ========================================================= */}
+
+        <section className="mt-20">
+
+          <div className="mb-10">
+
+            <h2 className="text-4xl font-black">
+              How To Use A Dictionary Effectively
+            </h2>
+
+            <p className="mt-3 max-w-3xl text-slate-400">
+              Using a dictionary is more than simply looking up a word.
+              The more information you explore about each word, the
+              faster your language skills improve.
+            </p>
+
+          </div>
+
+          <div className="space-y-6">
+
+            <motion.div
+              whileHover={{ x: 6 }}
+              className="flex gap-6 rounded-3xl border border-white/10 bg-slate-900 p-8"
+            >
+
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500/10 text-xl font-black text-cyan-300">
+                1
               </div>
-            ))}
-          </div>
 
-          <div
-            className="
-            mt-12
-            grid
-            gap-6
-            md:grid-cols-2
-            xl:grid-cols-3
-            "
-          >
-            {[
-              {
-                word: "Ambitious",
-                meaning: "Having a strong desire to succeed.",
-              },
-              {
-                word: "Brilliant",
-                meaning: "Exceptionally clever or talented.",
-              },
-              {
-                word: "Confident",
-                meaning: "Feeling certain about yourself.",
-              },
-              {
-                word: "Determine",
-                meaning: "To decide or establish.",
-              },
-              {
-                word: "Encourage",
-                meaning: "To inspire confidence.",
-              },
-              {
-                word: "Flexible",
-                meaning: "Able to change easily.",
-              },
-            ].map((item) => (
-              <div
-                key={item.word}
-                className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-slate-800
-                p-6
-                "
-              >
-                <h3
-                  className="
-                  text-2xl
-                  font-black
-                  "
-                >
-                  {item.word}
+              <div>
+
+                <h3 className="text-2xl font-black">
+                  Read The Meaning Carefully
                 </h3>
-                <p
-                  className="
-                  mt-4
-                  leading-7
-                  text-slate-400
-                  "
-                >
-                  {item.meaning}
+
+                <p className="mt-3 leading-8 text-slate-400">
+                  Don't stop at the first definition. Some words have
+                  multiple meanings depending on how they are used.
                 </p>
 
-                <button
-                  className="
-                  mt-6
-                  rounded-xl
-                  bg-cyan-600
-                  px-5
-                  py-3
-                  font-semibold
-                  "
-                >
-                  Learn More
-                </button>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-};
 
-export default Dictionary;
+            </motion.div>
+
+            <motion.div
+              whileHover={{ x: 6 }}
+              className="flex gap-6 rounded-3xl border border-white/10 bg-slate-900 p-8"
+            >
+
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/10 text-xl font-black text-blue-300">
+                2
+              </div>
+
+              <div>
+
+                <h3 className="text-2xl font-black">
+                  Study The Example Sentence
+                </h3>
+
+                <p className="mt-3 leading-8 text-slate-400">
+                  Examples show how native speakers naturally use a word
+                  in everyday conversations and writing.
+                </p>
+
+              </div>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ x: 6 }}
+              className="flex gap-6 rounded-3xl border border-white/10 bg-slate-900 p-8"
+            >
+
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-500/10 text-xl font-black text-purple-300">
+                3
+              </div>
+
+              <div>
+
+                <h3 className="text-2xl font-black">
+                  Learn Related Words
+                </h3>
+
+                <p className="mt-3 leading-8 text-slate-400">
+                  Understanding similar and opposite words helps expand
+                  your vocabulary much faster.
+                </p>
+
+              </div>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ x: 6 }}
+              className="flex gap-6 rounded-3xl border border-white/10 bg-slate-900 p-8"
+            >
+
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-500/10 text-xl font-black text-green-300">
+                4
+              </div>
+
+              <div>
+
+                <h3 className="text-2xl font-black">
+                  Practice The Word
+                </h3>
+
+                <p className="mt-3 leading-8 text-slate-400">
+                  Use newly learned words in conversations, writing and
+                  personal notes to remember them for a long time.
+                </p>
+
+              </div>
+
+            </motion.div>
+
+          </div>
+
+        </section>
+
+        {/* ========================================================= */}
+        {/* VOCABULARY LEARNING TIPS */}
+        {/* ========================================================= */}
+
+        <section className="mt-20">
+
+          <div className="mb-10">
+
+            <h2 className="text-4xl font-black">
+              Vocabulary Learning Tips
+            </h2>
+
+            <p className="mt-3 text-slate-400">
+              Small daily habits can lead to remarkable language
+              improvement over time.
+            </p>
+
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-cyan-500/20 bg-cyan-500/5 p-8"
+            >
+              <Brain
+                size={34}
+                className="text-cyan-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Learn Daily
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Learning just a few words every day builds a strong
+                vocabulary over time.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-green-500/20 bg-green-500/5 p-8"
+            >
+              <BookOpen
+                size={34}
+                className="text-green-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Read More
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Books, newspapers and articles introduce you to useful
+                vocabulary in real contexts.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-purple-500/20 bg-purple-500/5 p-8"
+            >
+              <Languages
+                size={34}
+                className="text-purple-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Speak Often
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Speaking regularly helps move words from memory into
+                natural everyday use.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-yellow-500/20 bg-yellow-500/5 p-8"
+            >
+              <PenTool
+                size={34}
+                className="text-yellow-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Write Frequently
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Keeping a journal or writing short paragraphs reinforces
+                newly learned vocabulary.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-pink-500/20 bg-pink-500/5 p-8"
+            >
+              <Sparkles
+                size={34}
+                className="text-pink-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Review Regularly
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Revisiting familiar words prevents forgetting and
+                strengthens long-term memory.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-orange-500/20 bg-orange-500/5 p-8"
+            >
+              <Lightbulb
+                size={34}
+                className="text-orange-400"
+              />
+
+              <h3 className="mt-6 text-2xl font-black">
+                Stay Curious
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Whenever you encounter a new word, take a moment to learn
+                its meaning, pronunciation and usage.
+              </p>
+
+            </motion.div>
+
+          </div>
+
+        </section>
+                {/* ========================================================= */}
+        {/* DICTIONARY FACTS */}
+        {/* ========================================================= */}
+
+        <section className="mt-20">
+
+          <div className="mb-10">
+
+            <h2 className="text-4xl font-black">
+              Interesting Dictionary Facts
+            </h2>
+
+            <p className="mt-3 max-w-3xl text-slate-400">
+              Dictionaries have evolved for centuries and continue to be
+              one of the most important learning resources in the world.
+            </p>
+
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-cyan-500/20 bg-cyan-500/5 p-8"
+            >
+
+              <h1 className="text-5xl font-black text-cyan-400">
+                100+
+              </h1>
+
+              <h3 className="mt-5 text-2xl font-black">
+                Languages
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Modern dictionaries exist for hundreds of languages
+                spoken across the world.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-purple-500/20 bg-purple-500/5 p-8"
+            >
+
+              <h1 className="text-5xl font-black text-purple-400">
+                Millions
+              </h1>
+
+              <h3 className="mt-5 text-2xl font-black">
+                Of Words
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Languages constantly grow as new words are created every
+                year.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-green-500/20 bg-green-500/5 p-8"
+            >
+
+              <h1 className="text-5xl font-black text-green-400">
+                Daily
+              </h1>
+
+              <h3 className="mt-5 text-2xl font-black">
+                Learning
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Learning one new word every day can greatly improve your
+                vocabulary over time.
+              </p>
+
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -8 }}
+              className="rounded-3xl border border-orange-500/20 bg-orange-500/5 p-8"
+            >
+
+              <h1 className="text-5xl font-black text-orange-400">
+                Forever
+              </h1>
+
+              <h3 className="mt-5 text-2xl font-black">
+                Growing
+              </h3>
+
+              <p className="mt-4 leading-8 text-slate-300">
+                Every language continues to evolve as cultures and
+                technology change.
+              </p>
+
+            </motion.div>
+
+          </div>
+
+        </section>
+
+        {/* ========================================================= */}
+        {/* DID YOU KNOW */}
+        {/* ========================================================= */}
+
+        <section className="mt-20">
+
+          <motion.div
+            whileHover={{ y: -5 }}
+            className="
+              rounded-[32px]
+              border
+              border-indigo-500/20
+              bg-gradient-to-br
+              from-indigo-500/10
+              via-blue-500/10
+              to-cyan-500/10
+              p-10
+            "
+          >
+
+            <div className="flex items-center gap-4">
+
+              <div className="rounded-3xl bg-indigo-500/15 p-5">
+
+                <Sparkles
+                  size={34}
+                  className="text-indigo-300"
+                />
+
+              </div>
+
+              <div>
+
+                <h2 className="text-4xl font-black">
+                  Did You Know?
+                </h2>
+
+                <p className="mt-2 text-slate-400">
+                  Language is constantly changing.
+                </p>
+
+              </div>
+
+            </div>
+
+            <div className="mt-10 grid gap-6 md:grid-cols-2">
+
+              <div className="rounded-3xl bg-black/20 p-7">
+
+                <h3 className="text-2xl font-black text-cyan-300">
+                  New Words
+                </h3>
+
+                <p className="mt-4 leading-8 text-slate-300">
+                  New words are added to dictionaries every year as
+                  technology, science and culture continue to evolve.
+                </p>
+
+              </div>
+
+              <div className="rounded-3xl bg-black/20 p-7">
+
+                <h3 className="text-2xl font-black text-purple-300">
+                  Language Never Stops Growing
+                </h3>
+
+                <p className="mt-4 leading-8 text-slate-300">
+                  Every generation contributes new expressions,
+                  vocabulary and meanings to languages around the world.
+                </p>
+
+              </div>
+
+            </div>
+
+          </motion.div>
+
+        </section>
+
+        {/* ========================================================= */}
+        {/* DAILY MOTIVATION */}
+        {/* ========================================================= */}
+
+       <section className="mt-24">
+
+  <motion.div
+    initial={{
+      opacity: 0,
+      y: 40,
+    }}
+    whileInView={{
+      opacity: 1,
+      y: 0,
+    }}
+    viewport={{
+      once: true,
+    }}
+    transition={{
+      duration: 0.6,
+    }}
+    whileHover={{
+      y: -6,
+    }}
+    className="
+      relative
+      overflow-hidden
+      rounded-[40px]
+      border
+      border-cyan-500/15
+      bg-gradient-to-br
+      from-slate-900
+      via-[#08111f]
+      to-slate-950
+      p-12
+      lg:p-16
+    "
+  >
+
+    {/* Decorative Background */}
+
+    <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
+
+    <div className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
+
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.06),transparent_45%)]" />
+
+    <div className="relative z-10">
+
+      <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-[28px] border border-cyan-500/20 bg-cyan-500/10">
+
+        <Quote
+          size={46}
+          className="text-cyan-400"
+        />
+
+      </div>
+
+      <span
+        className="
+          mt-8
+          inline-flex
+          items-center
+          rounded-full
+          border
+          border-cyan-500/20
+          bg-cyan-500/10
+          px-5
+          py-2
+          text-sm
+          font-bold
+          uppercase
+          tracking-[0.25em]
+          text-cyan-300
+        "
+      >
+        Daily Inspiration
+      </span>
+
+      <h2
+        className="
+          mx-auto
+          mt-8
+          max-w-4xl
+          text-4xl
+          font-black
+          leading-tight
+          text-white
+          md:text-5xl
+          xl:text-6xl
+        "
+      >
+        Every New Word Opens
+        <br />
+        A New Way To Think
+      </h2>
+
+      <p
+        className="
+          mx-auto
+          mt-8
+          max-w-5xl
+          text-lg
+          leading-9
+          text-slate-300
+          lg:text-xl
+        "
+      >
+        Language shapes ideas, conversations and opportunities.
+        Every word you understand expands your ability to express
+        yourself, discover new perspectives and communicate with
+        confidence. Keep exploring, keep learning and let your
+        vocabulary become one of your greatest strengths.
+      </p>
+
+      <div className="mt-14 grid gap-6 md:grid-cols-3">
+
+        <div
+          className="
+            rounded-3xl
+            border
+            border-white/10
+            bg-white/5
+            p-7
+            backdrop-blur-xl
+          "
+        >
+
+          <h3 className="text-4xl font-black text-cyan-400">
+            Learn
+          </h3>
+
+          <p className="mt-4 leading-8 text-slate-300">
+            Discover new words that improve your reading,
+            speaking and writing every day.
+          </p>
+
+        </div>
+
+        <div
+          className="
+            rounded-3xl
+            border
+            border-white/10
+            bg-white/5
+            p-7
+            backdrop-blur-xl
+          "
+        >
+
+          <h3 className="text-4xl font-black text-blue-400">
+            Practice
+          </h3>
+
+          <p className="mt-4 leading-8 text-slate-300">
+            Reinforce your vocabulary by using newly learned
+            words in real conversations and writing.
+          </p>
+
+        </div>
+
+        <div
+          className="
+            rounded-3xl
+            border
+            border-white/10
+            bg-white/5
+            p-7
+            backdrop-blur-xl
+          "
+        >
+
+          <h3 className="text-4xl font-black text-purple-400">
+            Master
+          </h3>
+
+          <p className="mt-4 leading-8 text-slate-300">
+            Build lasting confidence through consistent learning
+            and continuous vocabulary growth.
+          </p>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </motion.div>
+
+</section>
+      </div>
+
+    </section>
+  );
+}

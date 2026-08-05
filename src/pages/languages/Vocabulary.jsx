@@ -1,5 +1,6 @@
 import React, {
-  useState
+  useMemo,
+  useState,
 } from "react";
 
 import {
@@ -7,7 +8,6 @@ import {
   Brain,
   Search,
   Sparkles,
-  Volume2,
   Trophy,
   Layers,
 } from "lucide-react";
@@ -17,79 +17,210 @@ import {
 } from "framer-motion";
 
 
+import wordOfTheDay from "../../data/language/wordOfTheDay";
+
+
+
 const Vocabulary = () => {
 
 
-  const [search,setSearch] = useState("");
+  const [
+    search,
+    setSearch
+  ] = useState("");
+
 
 
 
   const categories = [
 
     {
-      title:"Daily Words",
+      title:
+      "Daily Words",
+
       description:
       "Common words used in everyday conversations.",
-      words:"5000+ Words"
+
+      words:
+      "5000+ Words"
     },
 
+
     {
-      title:"Academic Vocabulary",
+      title:
+      "Academic Vocabulary",
+
       description:
       "Improve vocabulary for school and university.",
-      words:"3000+ Words"
+
+      words:
+      "3000+ Words"
     },
 
+
     {
-      title:"Business Vocabulary",
+      title:
+      "Business Vocabulary",
+
       description:
       "Professional words for workplace communication.",
-      words:"2000+ Words"
+
+      words:
+      "2000+ Words"
     },
 
+
     {
-      title:"Travel Vocabulary",
+      title:
+      "Travel Vocabulary",
+
       description:
       "Useful words for travelling around the world.",
-      words:"1500+ Words"
+
+      words:
+      "1500+ Words"
     },
 
   ];
 
 
 
-  const words = [
-
-    {
-      word:"Beautiful",
-      meaning:
-      "Having qualities that give pleasure to the senses.",
-      example:
-      "The sunset is beautiful.",
-      level:"Beginner"
-    },
 
 
-    {
-      word:"Opportunity",
-      meaning:
-      "A chance or possibility for success.",
-      example:
-      "Education creates opportunity.",
-      level:"Intermediate"
-    },
+
+  // ================= WEEKLY WORD SELECTION =================
 
 
-    {
-      word:"Innovation",
-      meaning:
-      "A new idea, method or technology.",
-      example:
-      "Innovation changes the world.",
-      level:"Advanced"
-    },
+  const words = useMemo(() => {
 
-  ];
+
+    if (
+      !Array.isArray(wordOfTheDay) ||
+      wordOfTheDay.length === 0
+    ) {
+
+      return [];
+
+    }
+
+
+
+
+    const today = new Date();
+
+
+
+    const startOfYear =
+      new Date(
+        today.getFullYear(),
+        0,
+        1
+      );
+
+
+
+
+    const weekNumber =
+      Math.floor(
+
+        (
+
+          (
+            today -
+            startOfYear
+          )
+          /
+          (1000 * 60 * 60 * 24)
+
+          +
+          startOfYear.getDay()
+
+        )
+        /
+        7
+
+      );
+
+
+
+
+
+    const startIndex =
+      (weekNumber * 6)
+      %
+      wordOfTheDay.length;
+
+
+
+
+
+    const selected = [];
+
+
+
+    for (
+      let i = 0;
+      i < 6;
+      i++
+    ) {
+
+
+      selected.push(
+
+        wordOfTheDay[
+          (startIndex + i)
+          %
+          wordOfTheDay.length
+        ]
+
+      );
+
+
+    }
+
+
+
+
+
+    return selected.map(
+      (item)=>({
+
+        word:
+        item.word,
+
+
+        meaning:
+        item.meaning ||
+        "Meaning not available",
+
+
+
+        example:
+        item.example ||
+        "Example not available",
+
+
+
+        level:
+        item.level ||
+        item.difficulty ||
+        "Beginner",
+
+
+
+        language:
+        item.language ||
+        "Vocabulary"
+
+      })
+    );
+
+
+
+  }, []);
+
+
+
 
 
 
@@ -106,9 +237,13 @@ const Vocabulary = () => {
 
 
 
-return (
+
+
+  return (
+
 
 <section
+
 className="
 min-h-screen
 bg-[#020617]
@@ -116,14 +251,18 @@ px-8
 py-12
 text-white
 "
+
 >
 
 
+
 <div
+
 className="
 mx-auto
 max-w-7xl
 "
+
 >
 
 
@@ -131,20 +270,29 @@ max-w-7xl
 {/* ================= HERO ================= */}
 
 
+
 <motion.div
+
 
 initial={{
 opacity:0,
 y:30
 }}
 
+
 animate={{
 opacity:1,
 y:0
 }}
 
+
+transition={{
+duration:0.5
+}}
+
+
 className="
-rounded-3xl
+rounded-[32px]
 border
 border-white/10
 bg-gradient-to-br
@@ -154,42 +302,60 @@ to-purple-600/20
 p-10
 "
 
+
 >
 
 
+
 <div
+
 className="
 flex
 items-center
 gap-5
 "
+
 >
+
 
 
 <div
+
 className="
-rounded-2xl
+rounded-3xl
 bg-blue-500/20
-p-4
+p-5
 "
+
 >
 
+
 <BookOpen
-size={40}
-className="text-blue-400"
+
+size={42}
+
+className="
+text-blue-400
+"
+
 />
+
 
 </div>
 
 
 
+
 <div>
 
+
 <h1
+
 className="
 text-5xl
 font-black
 "
+
 >
 
 Vocabulary Mastery
@@ -197,42 +363,52 @@ Vocabulary Mastery
 </h1>
 
 
+
 <p
+
 className="
-mt-3
+mt-4
 max-w-3xl
-text-slate-300
 leading-8
+text-slate-300
 "
+
 >
 
-Learn thousands of words,
-understand meanings,
-practice usage,
-and build your global language skills.
+Build your vocabulary with
+weekly selected words,
+meanings, examples and
+language practice.
 
 </p>
 
 
+
 </div>
 
 
 </div>
+
 
 
 </motion.div>
+
 {/* ================= SEARCH ================= */}
 
 
 <div
+
 className="
 mt-10
 relative
 "
+
 >
 
 
 <Search
+
+size={22}
 
 className="
 absolute
@@ -245,17 +421,27 @@ text-slate-400
 />
 
 
+
 <input
 
-value={search}
+
+value={
+search
+}
+
 
 onChange={
-e=>setSearch(
+(e)=>
+setSearch(
 e.target.value
 )
 }
 
-placeholder="Search vocabulary..."
+
+placeholder="
+Search vocabulary...
+"
+
 
 className="
 w-full
@@ -263,15 +449,18 @@ rounded-2xl
 border
 border-white/10
 bg-slate-900
-py-4
+py-5
 pl-14
-pr-5
+pr-6
 text-white
 outline-none
+transition
 focus:border-blue-500
 "
 
+
 />
+
 
 
 </div>
@@ -280,43 +469,57 @@ focus:border-blue-500
 
 
 
-{/* ================= WORD LIST ================= */}
+
+
+{/* ================= WEEKLY WORDS ================= */}
+
 
 
 <section
+
 className="
-mt-12
+mt-14
 "
+
 >
 
 
+
 <div
+
 className="
+mb-8
 flex
 items-center
 gap-3
-mb-6
 "
+
 >
 
 
 <Brain
+
 className="
 text-purple-400
 "
+
 />
 
 
+
 <h2
+
 className="
 text-3xl
 font-black
 "
+
 >
 
-Popular Words
+Weekly Vocabulary
 
 </h2>
+
 
 
 </div>
@@ -326,13 +529,16 @@ Popular Words
 
 
 <div
+
 className="
 grid
 gap-6
 md:grid-cols-2
 xl:grid-cols-3
 "
+
 >
+
 
 
 {
@@ -343,37 +549,63 @@ filteredWords.map(
 
 <motion.div
 
-key={item.word}
+
+key={
+item.word
+}
+
+
 
 whileHover={{
 y:-8
 }}
 
+
+
+transition={{
+duration:0.25
+}}
+
+
+
 className="
-rounded-3xl
+rounded-[30px]
 border
 border-white/10
 bg-slate-900
-p-6
+p-7
+shadow-xl
 "
 
+
+
 >
+
 
 
 <div
+
 className="
 flex
-justify-between
 items-start
+justify-between
+gap-4
 "
+
 >
 
 
+
+<div>
+
+
 <h3
+
 className="
 text-3xl
 font-black
 "
+
 >
 
 {item.word}
@@ -382,97 +614,18 @@ font-black
 
 
 
-<button
-
-className="
-rounded-xl
-bg-blue-500/20
-p-3
-"
-
->
-
-<Volume2
-className="
-text-blue-400
-"
-/>
-
-
-</button>
-
-
-</div>
-
-
-
-
-
-<p
-className="
-mt-4
-text-slate-300
-"
->
-
-{item.meaning}
-
-</p>
-
-
-
-
-<div
-className="
-mt-5
-rounded-xl
-bg-black/30
-p-4
-"
->
-
-
-<p
-className="
-text-sm
-text-slate-400
-"
->
-
-Example
-
-</p>
-
-
-<p
-className="
-mt-2
-italic
-"
->
-
-"{item.example}"
-
-</p>
-
-
-</div>
-
-
-
-
-
 <span
 
 className="
-mt-5
-inline-block
+mt-3
+inline-flex
 rounded-full
-bg-purple-500/20
+bg-blue-500/20
 px-4
 py-2
 text-sm
-text-purple-300
+font-bold
+text-blue-300
 "
 
 >
@@ -483,7 +636,125 @@ text-purple-300
 
 
 
+</div>
+
+
+
+</div>
+
+
+
+
+
+
+
+<div
+
+className="
+mt-6
+rounded-2xl
+bg-black/30
+p-5
+"
+
+>
+
+
+<p
+
+className="
+text-sm
+font-bold
+text-cyan-300
+"
+
+>
+
+Meaning
+
+</p>
+
+
+
+<p
+
+className="
+mt-2
+leading-7
+text-slate-300
+"
+
+>
+
+{item.meaning}
+
+</p>
+
+
+
+</div>
+
+
+
+
+
+
+
+<div
+
+className="
+mt-5
+rounded-2xl
+border
+border-white/10
+bg-white/5
+p-5
+"
+
+>
+
+
+<p
+
+className="
+text-sm
+font-bold
+text-purple-300
+"
+
+>
+
+Example
+
+</p>
+
+
+
+<p
+
+className="
+mt-2
+italic
+leading-7
+text-slate-300
+"
+
+>
+
+"{item.example}"
+
+</p>
+
+
+
+</div>
+
+
+
+
+
 </motion.div>
+
 
 
 )
@@ -493,10 +764,13 @@ text-purple-300
 }
 
 
+
 </div>
 
 
+
 </section>
+
 
 
 
@@ -508,34 +782,45 @@ text-purple-300
 
 
 <section
+
 className="
 mt-20
 "
+
 >
 
 
+
+
 <div
+
 className="
+mb-8
 flex
 items-center
 gap-3
-mb-8
 "
+
 >
 
 
 <Layers
+
 className="
 text-cyan-400
 "
+
 />
 
 
+
 <h2
+
 className="
 text-3xl
 font-black
 "
+
 >
 
 Vocabulary Categories
@@ -543,19 +828,18 @@ Vocabulary Categories
 </h2>
 
 
+
 </div>
 
-
-
-
-
 <div
+
 className="
 grid
 gap-6
 md:grid-cols-2
 xl:grid-cols-4
 "
+
 >
 
 
@@ -567,28 +851,75 @@ categories.map(
 
 <motion.div
 
-key={category.title}
+
+key={
+category.title
+}
+
+
 
 whileHover={{
-scale:1.03
+scale:1.04
 }}
 
+
+
 className="
-rounded-3xl
+rounded-[28px]
 border
 border-white/10
 bg-slate-900
-p-6
+p-7
+transition
+"
+
+
+
+>
+
+
+
+<div
+
+className="
+flex
+h-14
+w-14
+items-center
+justify-center
+rounded-2xl
+bg-cyan-500/10
 "
 
 >
 
 
-<h3
+<BookOpen
+
+size={26}
+
 className="
+text-cyan-400
+"
+
+/>
+
+
+
+</div>
+
+
+
+
+
+<h3
+
+className="
+mt-6
 text-xl
 font-black
 "
+
 >
 
 {category.title}
@@ -597,12 +928,16 @@ font-black
 
 
 
+
+
 <p
+
 className="
 mt-3
-text-slate-400
 leading-7
+text-slate-400
 "
+
 >
 
 {category.description}
@@ -612,30 +947,30 @@ leading-7
 
 
 
+
 <div
+
 className="
 mt-5
-flex
-items-center
-gap-2
-text-blue-400
 font-bold
+text-blue-400
 "
+
 >
-
-
-<BookOpen
-size={18}
-/>
 
 
 {category.words}
 
 
+
 </div>
 
 
+
+
+
 </motion.div>
+
 
 
 )
@@ -645,88 +980,112 @@ size={18}
 }
 
 
+
 </div>
 
 
+
+
 </section>
+
+
+
+
+
+
+
+
 {/* ================= DAILY CHALLENGE ================= */}
 
 
+
 <section
+
 className="
 mt-20
 "
+
 >
+
+
 
 
 <motion.div
 
+
 whileHover={{
-scale:1.02
+y:-5
 }}
+
+
+
+className="
+rounded-[32px]
+border
+border-yellow-400/20
+bg-gradient-to-br
+from-yellow-500/10
+to-orange-500/10
+p-10
+"
+
+>
+
+
+
+<div
+
+className="
+flex
+items-center
+gap-6
+"
+
+>
+
+
+
+<div
 
 className="
 rounded-3xl
-border
-border-yellow-400/20
-bg-gradient-to-r
-from-yellow-500/10
-to-orange-500/10
-p-8
-"
-
->
-
-
-<div
-className="
-flex
-flex-wrap
-items-center
-justify-between
-gap-6
-"
->
-
-
-<div
-className="
-flex
-items-center
-gap-5
-"
->
-
-
-<div
-className="
-rounded-2xl
 bg-yellow-500/20
-p-4
+p-5
 "
+
 >
+
 
 
 <Trophy
-size={40}
+
+size={42}
+
 className="
 text-yellow-400
 "
+
 />
 
 
+
 </div>
+
+
 
 
 
 <div>
 
 
+
 <h2
+
 className="
 text-3xl
 font-black
 "
+
 >
 
 Daily Vocabulary Challenge
@@ -734,50 +1093,38 @@ Daily Vocabulary Challenge
 </h2>
 
 
+
+
+
 <p
+
 className="
-mt-2
+mt-3
+leading-7
 text-slate-300
 "
+
 >
 
-Learn 10 new words every day and
-increase your language level.
+Review today's selected words,
+practice their meanings and
+use them in your own sentences.
 
 </p>
 
 
-</div>
-
 
 </div>
 
 
 
-
-<button
-
-className="
-rounded-xl
-bg-yellow-500
-px-6
-py-3
-font-black
-text-black
-"
-
->
-
-Start Challenge
-
-</button>
-
-
-
 </div>
+
+
 
 
 </motion.div>
+
 
 
 </section>
@@ -786,303 +1133,99 @@ Start Challenge
 
 
 
-{/* ================= FLASHCARD PRACTICE ================= */}
+
+
+{/* ================= LEARNING MESSAGE ================= */}
 
 
 
 <section
+
 className="
 mt-16
-grid
-gap-6
-md:grid-cols-2
 "
+
 >
 
 
 
 <motion.div
 
-whileHover={{
-y:-8
-}}
 
+whileHover={{
+y:-5
+}}
 className="
-rounded-3xl
+rounded-[32px]
 border
 border-white/10
-bg-slate-900
-p-8
+bg-gradient-to-br
+from-slate-900
+via-slate-900
+to-slate-800
+p-10
+text-center
 "
-
 >
-
-
 <div
+
 className="
+mx-auto
 flex
+h-16
+w-16
 items-center
-gap-4
-"
->
-
-
-<div
-className="
-rounded-2xl
+justify-center
+rounded-3xl
 bg-purple-500/20
-p-4
 "
 >
 
 <Sparkles
+
+size={34}
+
 className="
 text-purple-400
 "
+
 />
 
 </div>
-
-
-
-<div>
-
-
-<h3
-className="
-text-2xl
-font-black
-"
->
-
-Smart Flashcards
-
-</h3>
-
-
-<p
-className="
-mt-2
-text-slate-400
-"
->
-
-Remember words faster using
-spaced repetition.
-
-</p>
-
-
-</div>
-
-
-</div>
-
-
-
-<button
-
-className="
-mt-6
-rounded-xl
-bg-purple-600
-px-6
-py-3
-font-bold
-"
-
->
-
-Practice Flashcards
-
-</button>
-
-
-
-</motion.div>
-
-
-
-
-
-<motion.div
-
-whileHover={{
-y:-8
-}}
-
-className="
-rounded-3xl
-border
-border-white/10
-bg-slate-900
-p-8
-"
-
->
-
-
-<div
-className="
-flex
-items-center
-gap-4
-"
->
-
-
-<div
-className="
-rounded-2xl
-bg-blue-500/20
-p-4
-"
->
-
-
-<Brain
-className="
-text-blue-400
-"
-/>
-
-
-</div>
-
-
-
-
-<div>
-
-
-<h3
-className="
-text-2xl
-font-black
-"
->
-
-AI Vocabulary Coach
-
-</h3>
-
-
-
-<p
-className="
-mt-2
-text-slate-400
-"
->
-
-Ask AI to explain words,
-examples and usage.
-
-</p>
-
-
-
-</div>
-
-
-</div>
-
-
-
-<button
-
-className="
-mt-6
-rounded-xl
-bg-blue-600
-px-6
-py-3
-font-bold
-"
-
->
-
-Ask AI
-
-</button>
-
-
-
-</motion.div>
-
-
-
-</section>
-
-
-
-
-
-{/* ================= FOOTER MESSAGE ================= */}
-
-
-
-<div
-
-className="
-mt-20
-rounded-3xl
-border
-border-white/10
-bg-black/30
-p-8
-text-center
-"
-
->
-
 
 <h2
+
 className="
+mt-7
 text-3xl
 font-black
 "
 >
 
-Master Words.
-Master Languages.
+Grow Your Word Power
 
 </h2>
-
-
 
 <p
 className="
 mx-auto
 mt-4
 max-w-3xl
-text-slate-400
 leading-8
+text-slate-300
 "
 >
-
-Vocabulary is the foundation of communication.
-Build your word power and unlock the ability
-to learn any language in the world.
-
+A strong vocabulary helps you
+communicate clearly, understand
+new ideas and master any language
+you choose to learn.
 </p>
-
-
-</div>
-
-
-
-
-
-</div>
-
+</motion.div>
 </section>
-
-
-);
+</div>
+</section>
+  );
 
 };
-
-
 
 export default Vocabulary;

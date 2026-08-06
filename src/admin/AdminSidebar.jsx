@@ -20,6 +20,7 @@ import {
   Globe,
   PanelLeftClose,
   PanelLeftOpen,
+  ClipboardList,
 } from "lucide-react";
 
 const menuItems = [
@@ -48,11 +49,29 @@ const menuItems = [
     icon: FlaskConical,
     path: "/admin/labs",
   },
-  {
-    title: "CBT",
-    icon: FileText,
-    path: "/admin/cbt",
-  },
+{
+  title: "CBT",
+  icon: ClipboardList,
+  collapsible: true,
+  children: [
+    {
+      title: "Overview",
+      path: "/admin/cbt",
+    },
+    {
+      title: "Upload Questions",
+      path: "/admin/cbt/questions/upload",
+    },
+    {
+      title: "Manage Questions",
+      path: "/admin/cbt/questions",
+    },
+    {
+      title: "Results",
+      path: "/admin/cbt/results",
+    },
+  ],
+},
   {
     title: "Novels",
     icon: BookOpen,
@@ -109,6 +128,7 @@ const AdminSidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [footerCollapsed, setFooterCollapsed] = useState(false);
   const [languagesOpen, setLanguagesOpen] = useState(true);
+  const [cbtOpen, setCbtOpen] = useState(true);
 
   return (
     <aside
@@ -174,27 +194,37 @@ const AdminSidebar = () => {
             return (
               <div key={item.title} className="space-y-1">
                 <button
-                  onClick={() => setLanguagesOpen(!languagesOpen)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition group ${
-                    languagesOpen
-                      ? "bg-slate-800/60 text-white"
-                      : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
-                  }`}
+onClick={() =>
+  item.title === "Languages"
+    ? setLanguagesOpen(!languagesOpen)
+    : setCbtOpen(!cbtOpen)
+}                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition group ${
+  (item.title === "Languages" ? languagesOpen : cbtOpen)
+    ? "bg-slate-800/60 text-white"
+    : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
+}`}
+
                 >
                   <div className="flex items-center gap-4">
-                    <Icon size={20} className={languagesOpen ? "text-blue-500" : "text-slate-400"} />
+<Icon 
+size={20} 
+className={
+(item.title === "Languages" ? languagesOpen : cbtOpen)
+? "text-blue-500"
+: "text-slate-400"
+}
+/>
                     <span className="font-medium text-sm">{item.title}</span>
                   </div>
-                  {languagesOpen ? (
-                    <ChevronUp size={16} className="text-slate-400" />
-                  ) : (
-                    <ChevronDown size={16} className="text-slate-400" />
-                  )}
+                  {(item.title === "Languages" ? languagesOpen : cbtOpen) ? (
+  <ChevronUp size={16} />
+) : (
+  <ChevronDown size={16} />
+)}
                 </button>
 
                 {/* SUB-MENU ITEMS */}
-                {languagesOpen && (
-                  <div className="mt-1 ml-4 pl-4 border-l border-slate-800 space-y-1">
+{(item.title === "Languages" ? languagesOpen : cbtOpen) && (                  <div className="mt-1 ml-4 pl-4 border-l border-slate-800 space-y-1">
                     {item.children.map((child) => (
                       <NavLink
                         key={child.title}

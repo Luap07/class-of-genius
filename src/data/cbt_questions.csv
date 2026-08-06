@@ -1,0 +1,21 @@
+exam,subject,question,optionA,optionB,optionC,optionD,answer
+WAEC,Mathematics,What is 5 + 7?,10,11,12,13,C
+WAEC,Mathematics,Solve 8 x 6,42,48,54,56,B
+WAEC,Mathematics,What is the square root of 81?,7,8,9,10,C
+WAEC,English,Choose the correct past tense of go,Go,Went,Gone,Going,B
+WAEC,English,Which word is a noun?,Run,Beautiful,School,Quick,C
+WAEC,Physics,What is the unit of force?,Joule,Newton,Watt,Volt,B
+WAEC,Physics,Which instrument measures temperature?,Barometer,Thermometer,Ammeter,Voltmeter,B
+JAMB,Chemistry,What is the symbol for Gold?,G,Go,Au,Ag,C
+JAMB,Biology,The basic unit of life is?,Tissue,Organ,Cell,System,C
+JAMB,Mathematics,What is 20 divided by 4?,4,5,6,8,B
+WAEC,Physics,A car travels 120 km in 3 hours. What is its average speed?,30 km/h,40 km/h,50 km/h,60 km/h,B
+WAEC,Physics,Which of the following is the SI unit of velocity?,m/s,m/s²,N,J,A
+WAEC,Physics,A body starts from rest and accelerates at 5 m/s² for 4 seconds. What is its final velocity?,10 m/s,15 m/s,20 m/s,25 m/s,C
+WAEC,Physics,What is the name given to the rate of change of velocity?,Speed,Acceleration,Distance,Displacement,B
+WAEC,Physics,A straight line graph of distance against time has a constant slope. This represents?,Uniform motion,Acceleration,Rest,Random motion,A
+WAEC,Physics,An object moving with constant velocity has?,Changing speed,Constant speed and direction,Increasing acceleration,Zero distance,B
+WAEC,Physics,What is the acceleration due to gravity near the Earth's surface?,5.8 m/s²,9.8 m/s²,12 m/s²,15 m/s²,B
+WAEC,Physics,A ball is thrown vertically upward. At the highest point its velocity is?,Maximum,Zero,Negative,Constant,B
+WAEC,Physics,The area under a velocity-time graph represents?,Acceleration,Force,Displacement,Mass,C
+WAEC,Physics,Which formula is used to calculate average speed?,Time ÷ Distance,Distance ÷ Time,Mass × Acceleration,Velocity × Time,B

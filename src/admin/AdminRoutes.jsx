@@ -37,11 +37,12 @@ import EditExperiment from "../pages/admin/virtualLabs/EditExperiment";
 /* ================= CBT ================= */
 import CBTDashboard from "../pages/admin/cbt/CBTDashboard";
 import SubjectsAdmin from "../pages/admin/cbt/SubjectsAdmin";
-import QuestionsAdmin from "../pages/admin/cbt/QuestionsAdmin";
 import ExamsAdmin from "../pages/admin/cbt/ExamsAdmin";
 import ResultsAdmin from "../pages/admin/cbt/ResultsAdmin";
 import AnalyticsAdmin from "../pages/admin/cbt/AnalyticsAdmin";
 import CourseCategories from "../pages/admin/lms/CourseCategories";
+import QuestionUpload from "../pages/admin/cbt/QuestionUpload";
+import QuestionsAdmin from "../pages/admin/cbt/QuestionsAdmin";
 
 /* ================= NOVELS ================= */
 import NovelsDashboard from "../pages/admin/novels/NovelsDashboard";
@@ -228,17 +229,8 @@ const AdminRoutes = () => {
 />
 
 
-<Route
-  path="lms/topic/:topicId/quizzes/create"
-  element={<CreateMonthlyQuiz />}
-/>
-
-
-<Route
-  path="lms/topic/:topicId/quizzes/edit/:id"
-  element={<EditMonthlyQuiz />}
-/>
-
+<Route path="lms/topic/:topicId/quizzes/create" element={<CreateMonthlyQuiz />} />
+<Route path="lms/topic/:topicId/quizzes/edit/:id" element={<EditMonthlyQuiz />} />
 
 <Route
   path="lms/topic/:topicId/quizzes/view/:id"
@@ -248,13 +240,15 @@ const AdminRoutes = () => {
         <Route path="lms/course/:courseId/materials" element={<MaterialsAdmin />} />
         <Route path="lms/materials/create" element={<CreateMaterial />} />
 
-        {/* ================= CBT ================= */}
-        <Route path="cbt" element={<CBTDashboard />} />
-        <Route path="cbt/subjects" element={<SubjectsAdmin />} />
-        <Route path="cbt/questions" element={<QuestionsAdmin />} />
-        <Route path="cbt/exams" element={<ExamsAdmin />} />
-        <Route path="cbt/results" element={<ResultsAdmin />} />
-        <Route path="cbt/analytics" element={<AnalyticsAdmin />} />
+        /* ================= CBT ================= */
+
+<Route path="cbt" element={<CBTDashboard />} />
+<Route path="cbt/questions/upload" element={<QuestionUpload />} />
+<Route path="cbt/subjects" element={<SubjectsAdmin />} />
+<Route path="cbt/exams" element={<ExamsAdmin />} />
+<Route path="cbt/results" element={<ResultsAdmin />} />
+<Route path="cbt/analytics" element={<AnalyticsAdmin />} />
+<Route path="cbt/questions" element={<QuestionsAdmin />} />
 
         {/* ================= DOCUMENTS ================= */}
         <Route path="documents" element={<DocumentsAdmin />}/>

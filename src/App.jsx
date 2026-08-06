@@ -448,38 +448,40 @@ const AnimatedRoutes = () => {
 
         {/* ================= CBT ================= */}
 
-        <Route
-          path="/cbt"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-                <CBT />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
+<Route
+  path="/cbt"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <CBT />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
 
-        <Route
-          path="/cbt/exam/:exam"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-                <SubjectSelect />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
 
-        <Route
-          path="/cbt/exam/:exam/:subject"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-                <CBTExam />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
+<Route
+  path="/cbt/exam/:exam"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <SubjectSelect />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+
+<Route
+  path="/cbt/start"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <CBTExam />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
                 {/* ================= LMS ================= */}
 
         <Route

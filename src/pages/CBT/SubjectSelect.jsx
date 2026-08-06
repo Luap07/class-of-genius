@@ -26,13 +26,7 @@ const SubjectSelect = () => {
   const startExam = () => {
     if (selected.length === 0) return;
 
-    navigate("/cbt/start", {
-      state: {
-        exam,
-        subjects: selected,
-      },
-    });
-  };
+    navigate("/cbt/start");  };
 
   return (
     <div className="min-h-screen bg-[#05060a] text-white relative overflow-hidden">

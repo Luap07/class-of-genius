@@ -11,7 +11,6 @@ import Phrasebook from "./Phrasebook";
 import Flashcards from "./Flashcards";
 import LanguageChallenges from "./LanguageChallenges";
 import LanguageGames from "./LanguageGames";
-import Listening from "./Listening";
 import Reading from "./Reading";
 import Writing from "./Writing";
 import Pronunciation from "./Pronunciation";
@@ -76,30 +75,239 @@ export default function LanguagesHome() {
           <Vocabulary />
           <Phrasebook />
           <Flashcards />
-          <Listening />
-          <Reading />
-          <Writing />
-          <Pronunciation />
-          <LanguageChallenges />
-          <LanguageGames />
+          {/* <Pronunciation /> */}
+          {/* <LanguageChallenges /> */}
+          {/* <LanguageGames /> */}
         </div>
       </div>
 
-      {/* =========================
-          FOOTER
-      ========================= */}
-      <footer className="border-t border-white/10 bg-black/20 py-10">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-6 md:flex-row">
-          <div className="flex items-center gap-3">
-            <img src={Cog} alt="Scholiqen" className="h-8 w-8" />
-            <span className="font-black">Scholiqen</span>
+{/* =========================
+    PREMIUM FOOTER
+========================= */}
+
+<footer className="relative overflow-hidden border-t border-white/10 bg-gradient-to-b from-slate-950 via-[#030712] to-black">
+
+  {/* Background Glow */}
+  <div className="absolute inset-0">
+    <div className="absolute -left-32 top-0 h-72 w-72 rounded-full bg-cyan-500/10 blur-[120px]" />
+    <div className="absolute -right-32 bottom-0 h-72 w-72 rounded-full bg-purple-500/10 blur-[120px]" />
+  </div>
+
+  <div className="relative mx-auto max-w-7xl px-6 py-16">
+
+    {/* Top */}
+    <div className="grid gap-12 lg:grid-cols-4">
+
+      {/* Brand */}
+      <div>
+
+        <div className="flex items-center gap-4">
+
+          <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 backdrop-blur-xl">
+            <img
+              src={Cog}
+              alt="Scholiqen"
+              className="h-10 w-10"
+            />
           </div>
 
-          <p className="text-sm text-slate-400">
-            Learn smarter. Build your future.
-          </p>
+          <div>
+
+            <h2 className="text-2xl font-black tracking-wide">
+              Scholiqen
+            </h2>
+
+            <p className="text-sm text-cyan-300">
+              Learn • Build • Achieve
+            </p>
+
+          </div>
+
         </div>
-      </footer>
+
+        <p className="mt-6 leading-8 text-slate-400">
+          An intelligent learning platform designed to help students,
+          professionals and lifelong learners master languages,
+          technology and real-world skills through interactive AI
+          learning experiences.
+        </p>
+
+      </div>
+
+      {/* Platform */}
+      <div>
+
+        <h3 className="mb-6 text-lg font-black">
+          Platform
+        </h3>
+
+        <ul className="space-y-4 text-slate-400">
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            Courses
+          </li>
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            Phrasebook
+          </li>
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            Flashcards
+          </li>
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            Language Challenges
+          </li>
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            AI Tutor
+          </li>
+
+        </ul>
+
+      </div>
+
+      {/* Resources */}
+      <div>
+
+        <h3 className="mb-6 text-lg font-black">
+          Resources
+        </h3>
+
+        <ul className="space-y-4 text-slate-400">
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            Help Center
+          </li>
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            Community
+          </li>
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            Documentation
+          </li>
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            Blog
+          </li>
+
+          <li className="transition hover:text-cyan-300 cursor-pointer">
+            Contact
+          </li>
+
+        </ul>
+
+      </div>
+
+      {/* Stats */}
+      <div>
+
+        <h3 className="mb-6 text-lg font-black">
+          Learning Stats
+        </h3>
+
+        <div className="grid gap-4">
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+
+            <h4 className="text-3xl font-black text-cyan-400">
+              100+
+            </h4>
+
+            <p className="mt-1 text-slate-400">
+              Languages
+            </p>
+
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+
+            <h4 className="text-3xl font-black text-purple-400">
+              5K+
+            </h4>
+
+            <p className="mt-1 text-slate-400">
+              Learning Resources
+            </p>
+
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+
+            <h4 className="text-3xl font-black text-green-400">
+              24/7
+            </h4>
+
+            <p className="mt-1 text-slate-400">
+              AI Learning Support
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    {/* Newsletter */}
+
+    <div className="mt-16 rounded-[32px] border border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-purple-500/10 p-8 backdrop-blur-xl">
+
+      <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+
+        <div>
+
+          <h2 className="text-3xl font-black">
+            Stay Ahead With Scholiqen
+          </h2>
+
+          <p className="mt-3 leading-8 text-slate-300">
+            Receive new language lessons, AI learning tips,
+            productivity strategies and premium educational
+            resources directly in your inbox.
+          </p>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    {/* Bottom */}
+
+    <div className="mt-14 flex flex-col items-center justify-between gap-6 border-t border-white/10 pt-8 md:flex-row">
+
+      <p className="text-slate-500">
+        © {new Date().getFullYear()} Scholiqen. All rights reserved.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-6 text-sm text-slate-400">
+
+        <button className="transition hover:text-cyan-300">
+          Privacy Policy
+        </button>
+
+        <button className="transition hover:text-cyan-300">
+          Terms of Service
+        </button>
+
+        <button className="transition hover:text-cyan-300">
+          Cookie Policy
+        </button>
+
+        <button className="transition hover:text-cyan-300">
+          Support
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</footer>
     </main>
   );
 }

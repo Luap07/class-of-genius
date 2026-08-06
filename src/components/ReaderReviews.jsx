@@ -120,7 +120,7 @@ const ReaderReviews = ({ novelId }) => {
 
         comment: form.comment,
 
-        status:"Pending"
+        status:"Approved"
 
       });
 
@@ -138,8 +138,7 @@ const ReaderReviews = ({ novelId }) => {
     else{
 
       alert(
-        "Review submitted. Waiting for approval."
-      );
+        "Review submitted successfully!"      );
 
 
       setForm({

@@ -143,7 +143,7 @@ export default function Phrasebook() {
 
       {/* HERO */}
       <section>
-        <div className="mx-auto max-w-7xl px-6 pt-24 pb-16">
+        <div className="mx-auto text-center max-w-7xl px-6 pt-24 pb-16">
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
@@ -162,7 +162,7 @@ export default function Phrasebook() {
               </span>
             </h1>
 
-            <p className="mt-8 max-w-3xl text-lg leading-9 text-slate-400">
+            <p className="mt-8  text-lg text-center leading-9 text-slate-400">
               Learn practical phrases for travel, business, school, emergencies
               and daily communication with pronunciation, tips and explanations.
             </p>

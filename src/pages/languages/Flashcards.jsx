@@ -18,6 +18,7 @@ const flashcards = [
     example: "Innovation drives economic growth.",
     pronunciation: "/ˌɪnəˈveɪʃən/",
   },
+
   {
     id: 2,
     word: "Courage",
@@ -25,13 +26,252 @@ const flashcards = [
     example: "She showed courage during the rescue.",
     pronunciation: "/ˈkʌrɪdʒ/",
   },
+
   {
     id: 3,
     word: "Journey",
-    meaning: "Travel from one place to another.",
+    meaning: "Travel from one place to another or a process of personal growth.",
     example: "Learning is a lifelong journey.",
     pronunciation: "/ˈdʒɜːni/",
   },
+
+  {
+    id: 4,
+    word: "Achievement",
+    meaning: "Something successfully completed through effort and skill.",
+    example: "Graduating was a great achievement.",
+    pronunciation: "/əˈtʃiːvmənt/",
+  },
+
+  {
+    id: 5,
+    word: "Opportunity",
+    meaning: "A favorable chance to do something valuable.",
+    example: "This opportunity can change your future.",
+    pronunciation: "/ˌɒpəˈtjuːnəti/",
+  },
+
+  {
+    id: 6,
+    word: "Confidence",
+    meaning: "A feeling of trust in your abilities or decisions.",
+    example: "Practice builds confidence over time.",
+    pronunciation: "/ˈkɒnfɪdəns/",
+  },
+
+  {
+    id: 7,
+    word: "Persistence",
+    meaning: "The ability to continue despite difficulties or challenges.",
+    example: "Persistence leads to success.",
+    pronunciation: "/pəˈsɪstəns/",
+  },
+
+  {
+    id: 8,
+    word: "Knowledge",
+    meaning: "Information and understanding gained through learning.",
+    example: "Knowledge helps people make better decisions.",
+    pronunciation: "/ˈnɒlɪdʒ/",
+  },
+
+  {
+    id: 9,
+    word: "Communication",
+    meaning: "The process of sharing information, ideas and feelings.",
+    example: "Good communication improves teamwork.",
+    pronunciation: "/kəˌmjuːnɪˈkeɪʃən/",
+  },
+
+  {
+    id: 10,
+    word: "Creativity",
+    meaning: "The ability to produce new and original ideas.",
+    example: "Creativity helps solve complex problems.",
+    pronunciation: "/ˌkriːeɪˈtɪvəti/",
+  },
+
+  {
+    id: 11,
+    word: "Strategy",
+    meaning: "A planned approach used to achieve a goal.",
+    example: "The company developed a new strategy.",
+    pronunciation: "/ˈstrætədʒi/",
+  },
+
+  {
+    id: 12,
+    word: "Discipline",
+    meaning: "The ability to control actions and stay focused on goals.",
+    example: "Discipline creates long-term success.",
+    pronunciation: "/ˈdɪsəplɪn/",
+  },
+
+  {
+    id: 13,
+    word: "Wisdom",
+    meaning: "The ability to make good decisions using knowledge and experience.",
+    example: "Wisdom grows through experience.",
+    pronunciation: "/ˈwɪzdəm/",
+  },
+  {
+  id: 14,
+  word: "Adaptability",
+  meaning: "The ability to adjust successfully to new situations or changes.",
+  example: "Adaptability is important in a fast-changing world.",
+  pronunciation: "/əˌdæptəˈbɪləti/",
+},
+
+{
+  id: 15,
+  word: "Responsibility",
+  meaning: "The duty to take care of tasks, decisions or actions.",
+  example: "Taking responsibility builds trust.",
+  pronunciation: "/rɪˌspɒnsəˈbɪləti/",
+},
+
+{
+  id: 16,
+  word: "Opportunity",
+  meaning: "A situation that provides a chance for progress or success.",
+  example: "Every challenge can become an opportunity.",
+  pronunciation: "/ˌɒpəˈtjuːnəti/",
+},
+
+{
+  id: 17,
+  word: "Motivation",
+  meaning: "The reason or desire that encourages someone to take action.",
+  example: "Strong motivation helps people achieve their goals.",
+  pronunciation: "/ˌməʊtɪˈveɪʃən/",
+},
+
+{
+  id: 18,
+  word: "Leadership",
+  meaning: "The ability to guide, influence and inspire others.",
+  example: "Great leadership creates successful teams.",
+  pronunciation: "/ˈliːdəʃɪp/",
+},
+
+{
+  id: 19,
+  word: "Curiosity",
+  meaning: "A strong desire to learn or discover new information.",
+  example: "Curiosity encourages lifelong learning.",
+  pronunciation: "/ˌkjʊəriˈɒsəti/",
+},
+
+{
+  id: 20,
+  word: "Determination",
+  meaning: "A firm decision to achieve something despite difficulties.",
+  example: "Her determination helped her overcome obstacles.",
+  pronunciation: "/dɪˌtɜːmɪˈneɪʃən/",
+},
+
+{
+  id: 21,
+  word: "Collaboration",
+  meaning: "Working together with others to achieve a shared goal.",
+  example: "Collaboration improves creativity and results.",
+  pronunciation: "/kəˌlæbəˈreɪʃən/",
+},
+
+{
+  id: 22,
+  word: "Innovation",
+  meaning: "The process of creating improved ideas, products or solutions.",
+  example: "Technology companies depend on innovation.",
+  pronunciation: "/ˌɪnəˈveɪʃən/",
+},
+
+{
+  id: 23,
+  word: "Excellence",
+  meaning: "The quality of being extremely good or outstanding.",
+  example: "Excellence comes from consistent improvement.",
+  pronunciation: "/ˈeksələns/",
+},
+{
+  id: 24,
+  word: "Perspective",
+  meaning: "A particular way of thinking about or understanding something.",
+  example: "Travel can change your perspective on life.",
+  pronunciation: "/pəˈspektɪv/",
+},
+
+{
+  id: 25,
+  word: "Integrity",
+  meaning: "The quality of being honest and having strong moral principles.",
+  example: "Integrity builds respect and trust.",
+  pronunciation: "/ɪnˈteɡrəti/",
+},
+
+{
+  id: 26,
+  word: "Efficiency",
+  meaning: "The ability to achieve results with minimum waste of time or resources.",
+  example: "The new system improves efficiency.",
+  pronunciation: "/ɪˈfɪʃənsi/",
+},
+
+{
+  id: 27,
+  word: "Resilience",
+  meaning: "The ability to recover quickly from difficulties or challenges.",
+  example: "Resilience helps people handle tough situations.",
+  pronunciation: "/rɪˈzɪliəns/",
+},
+
+{
+  id: 28,
+  word: "Achievement",
+  meaning: "A successful result gained through effort and determination.",
+  example: "Completing the project was a major achievement.",
+  pronunciation: "/əˈtʃiːvmənt/",
+},
+
+{
+  id: 29,
+  word: "Influence",
+  meaning: "The ability to affect the thoughts, actions or decisions of others.",
+  example: "Teachers have a strong influence on students.",
+  pronunciation: "/ˈɪnfluəns/",
+},
+
+{
+  id: 30,
+  word: "Innovation",
+  meaning: "A new idea or method that improves existing solutions.",
+  example: "Innovation transforms industries.",
+  pronunciation: "/ˌɪnəˈveɪʃən/",
+},
+
+{
+  id: 31,
+  word: "Awareness",
+  meaning: "Knowledge or understanding of a situation or fact.",
+  example: "Environmental awareness is growing worldwide.",
+  pronunciation: "/əˈweənəs/",
+},
+
+{
+  id: 32,
+  word: "Confidence",
+  meaning: "Belief in your own abilities and decisions.",
+  example: "Confidence improves communication skills.",
+  pronunciation: "/ˈkɒnfɪdəns/",
+},
+
+{
+  id: 33,
+  word: "Growth",
+  meaning: "The process of developing, improving or becoming stronger.",
+  example: "Personal growth requires continuous learning.",
+  pronunciation: "/ɡrəʊθ/",
+},
 ];
 
 export default function Flashcards() {

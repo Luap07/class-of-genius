@@ -1,6 +1,6 @@
 // src/admin/components/AdminSidebar.jsx
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,13 +15,15 @@ import {
   Mail,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Video,
   Languages,
-  Globe,
   PanelLeftClose,
   PanelLeftOpen,
   ClipboardList,
 } from "lucide-react";
+
+import { supabase } from "../lib/supabaseClient";
 
 const menuItems = [
   {
@@ -49,29 +51,29 @@ const menuItems = [
     icon: FlaskConical,
     path: "/admin/labs",
   },
-{
-  title: "CBT",
-  icon: ClipboardList,
-  collapsible: true,
-  children: [
-    {
-      title: "Overview",
-      path: "/admin/cbt",
-    },
-    {
-      title: "Upload Questions",
-      path: "/admin/cbt/questions/upload",
-    },
-    {
-      title: "Manage Questions",
-      path: "/admin/cbt/questions",
-    },
-    {
-      title: "Results",
-      path: "/admin/cbt/results",
-    },
-  ],
-},
+  {
+    title: "CBT",
+    icon: ClipboardList,
+    collapsible: true,
+    children: [
+      {
+        title: "Overview",
+        path: "/admin/cbt",
+      },
+      {
+        title: "Upload Questions",
+        path: "/admin/cbt/questions/upload",
+      },
+      {
+        title: "Manage Questions",
+        path: "/admin/cbt/questions",
+      },
+      {
+        title: "Results",
+        path: "/admin/cbt/results",
+      },
+    ],
+  },
   {
     title: "Novels",
     icon: BookOpen,
@@ -87,13 +89,7 @@ const menuItems = [
     icon: BarChart3,
     path: "/admin/analytics",
   },
-  {
-    title: "Media",
-    icon: Image,
-    path: "/admin/media",
-  },
-  // LANGUAGES (Collapsible Section)
-  {
+   {
     title: "Languages",
     icon: Languages,
     collapsible: true,
@@ -127,8 +123,47 @@ const menuItems = [
 const AdminSidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [footerCollapsed, setFooterCollapsed] = useState(false);
+
   const [languagesOpen, setLanguagesOpen] = useState(true);
   const [cbtOpen, setCbtOpen] = useState(true);
+
+  // LIVE MEDIA COUNT
+  const [mediaCount, setMediaCount] = useState(0);
+
+  // -------------------------------------------------------
+  // FETCH LIVE MEDIA COUNT
+  // -------------------------------------------------------
+
+  const fetchMediaCount = async () => {
+    const { count, error } = await supabase
+      .from("media")
+      .select("*", {
+        count: "exact",
+        head: true,
+      });
+
+    if (error) {
+      console.error("Error fetching media count:", error);
+      return;
+    }
+
+    setMediaCount(count || 0);
+  };
+
+  // -------------------------------------------------------
+  // INITIAL MEDIA COUNT
+  // -------------------------------------------------------
+
+  useEffect(() => {
+    fetchMediaCount();
+
+    // Refresh count every 30 seconds
+    const interval = setInterval(() => {
+      fetchMediaCount();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <aside
@@ -136,47 +171,74 @@ const AdminSidebar = () => {
         isCollapsed ? "w-20" : "w-72"
       }`}
     >
-      {/* HEADER LOGO & SIDEBAR TOGGLE BUTTON */}
-      <div className="h-20 flex items-center justify-between px-5 border-b border-slate-800">
+      {/* HEADER LOGO & SIDEBAR TOGGLE */}
+
+      <div
+        className={`flex items-center ${
+          isCollapsed
+            ? "justify-center px-3"
+            : "justify-between px-5"
+        } py-5 border-b border-slate-800`}
+      >
         {!isCollapsed && (
-          <div className="flex flex-col overflow-hidden">
-            <h1 className="text-xl font-extrabold text-blue-500 tracking-wider truncate">
+          <div>
+            <h1 className="text-lg font-extrabold tracking-tight text-white">
               SCHOLIQEN
             </h1>
-            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mt-0.5">
+
+            <p className="text-[11px] text-slate-500 mt-0.5">
               Admin Panel
             </p>
           </div>
         )}
 
         {isCollapsed && (
-          <div className="mx-auto">
-            <h1 className="text-lg font-extrabold text-blue-500">SQ</h1>
+          <div>
+            <h1 className="text-lg font-extrabold text-blue-500">
+              SQ
+            </h1>
           </div>
         )}
 
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          title={
+            isCollapsed
+              ? "Expand Sidebar"
+              : "Collapse Sidebar"
+          }
         >
-          {isCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+          {isCollapsed ? (
+            <PanelLeftOpen size={20} />
+          ) : (
+            <PanelLeftClose size={20} />
+          )}
         </button>
       </div>
 
-      {/* NAVIGATION SECTION */}
+      {/* NAVIGATION */}
+
       <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
         {menuItems.map((item) => {
           const Icon = item.icon;
 
-          // RENDER COLLAPSIBLE MENU ITEM (LANGUAGES)
+          // -------------------------------------------------
+          // COLLAPSIBLE ITEMS
+          // -------------------------------------------------
+
           if (item.collapsible) {
-            // When the sidebar is collapsed, show standard link/icon or prevent drop open
+            // Collapsed sidebar
             if (isCollapsed) {
+              const collapsedPath =
+                item.title === "Languages"
+                  ? "/admin/languages"
+                  : "/admin/cbt";
+
               return (
                 <NavLink
                   key={item.title}
-                  to="/admin/languages"
+                  to={collapsedPath}
                   className={({ isActive }) =>
                     `flex items-center justify-center p-3 rounded-xl transition-all duration-200 ${
                       isActive
@@ -191,45 +253,68 @@ const AdminSidebar = () => {
               );
             }
 
-            return (
-              <div key={item.title} className="space-y-1">
-                <button
-onClick={() =>
-  item.title === "Languages"
-    ? setLanguagesOpen(!languagesOpen)
-    : setCbtOpen(!cbtOpen)
-}                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition group ${
-  (item.title === "Languages" ? languagesOpen : cbtOpen)
-    ? "bg-slate-800/60 text-white"
-    : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
-}`}
+            const isOpen =
+              item.title === "Languages"
+                ? languagesOpen
+                : cbtOpen;
 
+            const toggleMenu = () => {
+              if (item.title === "Languages") {
+                setLanguagesOpen((prev) => !prev);
+              } else {
+                setCbtOpen((prev) => !prev);
+              }
+            };
+
+            return (
+              <div
+                key={item.title}
+                className="space-y-1"
+              >
+                {/* COLLAPSIBLE HEADER */}
+
+                <button
+                  onClick={toggleMenu}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition group ${
+                    isOpen
+                      ? "bg-slate-800/60 text-white"
+                      : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
+                  }`}
                 >
                   <div className="flex items-center gap-4">
-<Icon 
-size={20} 
-className={
-(item.title === "Languages" ? languagesOpen : cbtOpen)
-? "text-blue-500"
-: "text-slate-400"
-}
-/>
-                    <span className="font-medium text-sm">{item.title}</span>
+                    <Icon
+                      size={20}
+                      className={
+                        isOpen
+                          ? "text-blue-500"
+                          : "text-slate-400"
+                      }
+                    />
+
+                    <span className="font-medium text-sm">
+                      {item.title}
+                    </span>
                   </div>
-                  {(item.title === "Languages" ? languagesOpen : cbtOpen) ? (
-  <ChevronUp size={16} />
-) : (
-  <ChevronDown size={16} />
-)}
+
+                  {isOpen ? (
+                    <ChevronDown size={16} />
+                  ) : (
+                    <ChevronRight size={16} />
+                  )}
                 </button>
 
-                {/* SUB-MENU ITEMS */}
-{(item.title === "Languages" ? languagesOpen : cbtOpen) && (                  <div className="mt-1 ml-4 pl-4 border-l border-slate-800 space-y-1">
+                {/* SUB MENU */}
+
+                {isOpen && (
+                  <div className="ml-5 pl-3 border-l border-slate-800 space-y-1">
                     {item.children.map((child) => (
                       <NavLink
                         key={child.title}
                         to={child.path}
-                        end={child.path === "/admin/languages"}
+                        end={
+                          child.path === "/admin/languages" ||
+                          child.path === "/admin/cbt"
+                        }
                         className={({ isActive }) =>
                           `flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-200 ${
                             isActive
@@ -238,8 +323,7 @@ className={
                           }`
                         }
                       >
-                        <Globe size={15} className="opacity-70" />
-                        <span>{child.title}</span>
+                        {child.title}
                       </NavLink>
                     ))}
                   </div>
@@ -248,38 +332,83 @@ className={
             );
           }
 
-          // RENDER STANDARD NAVLINK ITEM
+          // -------------------------------------------------
+          // STANDARD NAVIGATION ITEM
+          // -------------------------------------------------
+
           return (
             <NavLink
               key={item.title}
               to={item.path}
               end={item.path === "/admin"}
               className={({ isActive }) =>
-                `flex items-center ${isCollapsed ? "justify-center p-3" : "gap-4 px-4 py-3"} rounded-xl transition-all duration-200 ${
+                `flex items-center ${
+                  isCollapsed
+                    ? "justify-center p-3"
+                    : "gap-4 px-4 py-3"
+                } rounded-xl transition-all duration-200 ${
                   isActive
                     ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20 font-medium"
                     : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
                 }`
               }
-              title={isCollapsed ? item.title : undefined}
+              title={
+                isCollapsed
+                  ? item.title
+                  : undefined
+              }
             >
               <Icon size={20} />
-              {!isCollapsed && <span className="font-medium text-sm">{item.title}</span>}
+
+              {!isCollapsed && (
+                <div className="flex items-center justify-between flex-1">
+                  <span className="font-medium text-sm">
+                    {item.title}
+                  </span>
+
+                  {/* ---------------------------------------
+                      LIVE MEDIA COUNT
+                  --------------------------------------- */}
+
+                  {item.title === "Media" && (
+                    <span
+                      className={`min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-full text-[10px] font-bold ${
+                        mediaCount > 0
+                          ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
+                          : "bg-slate-800 text-slate-500"
+                      }`}
+                    >
+                      {mediaCount}
+                    </span>
+                  )}
+                </div>
+              )}
             </NavLink>
           );
         })}
       </nav>
 
-      {/* FOOTER SECTION */}
+      {/* FOOTER */}
+
       {!isCollapsed && (
         <div className="border-t border-slate-800 p-4">
           <div className="rounded-xl bg-slate-950/50 p-4 relative border border-slate-800/50">
             <button
-              onClick={() => setFooterCollapsed(!footerCollapsed)}
+              onClick={() =>
+                setFooterCollapsed(!footerCollapsed)
+              }
               className="absolute top-2.5 right-2.5 text-slate-500 hover:text-white transition p-1"
-              title={footerCollapsed ? "Expand info" : "Collapse info"}
+              title={
+                footerCollapsed
+                  ? "Expand info"
+                  : "Collapse info"
+              }
             >
-              {footerCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              {footerCollapsed ? (
+                <ChevronUp size={16} />
+              ) : (
+                <ChevronDown size={16} />
+              )}
             </button>
 
             {!footerCollapsed ? (
@@ -287,13 +416,18 @@ className={
                 <p className="text-sm font-semibold text-white tracking-wide">
                   Scholiqen
                 </p>
+
                 <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
                   Learning Management System
                 </p>
               </div>
             ) : (
               <div className="flex items-center gap-2.5 text-slate-400 py-0.5">
-                <GraduationCap size={18} className="text-blue-500" />
+                <GraduationCap
+                  size={18}
+                  className="text-blue-500"
+                />
+
                 <span className="text-xs font-semibold text-slate-300">
                   LMS Info
                 </span>

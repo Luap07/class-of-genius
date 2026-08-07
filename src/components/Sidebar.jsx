@@ -8,7 +8,7 @@ import {
   CloudSun,
   X,
   PanelLeft,
-  Inbox, // ✅ added
+  Inbox,
 } from "lucide-react";
 
 import { StudyContext } from "../context/StudyContext";
@@ -36,8 +36,6 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
       icon: History,
       action: () => setShowHistory(!showHistory),
     },
-
-    // ✅ CONTACT INBOX ADDED HERE
     {
       title: "Contact Inbox",
       icon: Inbox,
@@ -57,8 +55,7 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
     const fetchWeather = async () => {
       try {
         const res = await fetch(
-          `https://api.openweathermap.org/data/2.5/weather?q=Lagos&units=metric&appid=${import.meta.env.VITE_WEATHER_API_KEY}`
-        );
+`https://api.openweathermap.org/data/2.5/weather?q=Lagos&units=metric&appid=${import.meta.env.VITE_OPENWEATHER_API_KEY}`        );
         const data = await res.json();
         if (Number(data.cod) !== 200) {
           setWeatherError("Weather unavailable");
@@ -110,7 +107,7 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
         </div>
 
         {/* TOP */}
-        <div className="flex-1">
+        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
           <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-4 mb-6">
             <h2 className="font-bold text-lg">{userName}</h2>
             <p className="text-xs text-blue-100">Welcome Back</p>
@@ -156,7 +153,7 @@ const Sidebar = ({ open = false, setOpen = () => {} }) => {
         </div>
 
         {/* WEATHER */}
-        <div className="bg-slate-800/50 p-4 rounded-xl">
+        <div className="bg-slate-800/50 p-4 rounded-xl mt-4 shrink-0">
           <div className="flex justify-between items-center">
             <div>
               <p className="text-xs text-gray-400">Lagos Weather</p>

@@ -76,6 +76,7 @@ import AITutorSession from "./pages/AITutorSession";
 import CBT from "./pages/cbt/CBT";
 import SubjectSelect from "./pages/cbt/SubjectSelect";
 import CBTExam from "./pages/cbt/CBTExam";
+import CBTInstruction from "./pages/cbt/CBTInstruction";
 
 /* =========================== VIRTUAL LAB ========================== */
 
@@ -458,7 +459,14 @@ const AnimatedRoutes = () => {
     </ProtectedRoute>
   }
 />
-
+<Route
+  path="/cbt/instruction"
+  element={
+    <ProtectedRoute>
+      <CBTInstruction />
+    </ProtectedRoute>
+  }
+/>
 
 <Route
   path="/cbt/exam/:exam"

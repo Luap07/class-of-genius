@@ -1,0 +1,395 @@
+import React, { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Plus,
+  Search,
+  Edit3,
+  Trash2,
+  Eye,
+  RefreshCw,
+  Building2,
+  X,
+} from "lucide-react";
+import { supabase } from "../../../lib/supabaseClient";
+import CollegeForm from "./CollegeForm";
+
+const CollegesAdmin = () => {
+  const [colleges, setColleges] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingCollege, setEditingCollege] = useState(null);
+  const [selectedCollege, setSelectedCollege] = useState(null);
+
+  const fetchColleges = async () => {
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase
+        .from("colleges")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      setColleges(data || []);
+    } catch (error) {
+      console.error("Fetch Colleges Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchColleges();
+  }, []);
+
+  const handleCreate = () => {
+    setEditingCollege(null);
+    setShowForm(true);
+  };
+
+  const handleEdit = (college) => {
+    setEditingCollege(college);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this college?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase
+        .from("colleges")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setColleges((prev) =>
+        prev.filter((college) => college.id !== id)
+      );
+    } catch (error) {
+      console.error("Delete College Error:", error);
+      alert("Unable to delete college.");
+    }
+  };
+
+  const filteredColleges = colleges.filter((college) => {
+    const query = search.toLowerCase();
+
+    return (
+      college.name?.toLowerCase().includes(query) ||
+      college.location?.toLowerCase().includes(query) ||
+      college.state?.toLowerCase().includes(query) ||
+      college.country?.toLowerCase().includes(query)
+    );
+  });
+
+  return (
+    <div className="min-h-screen bg-slate-950 p-6 text-white lg:p-8">
+      {/* HEADER */}
+      <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10">
+              <Building2 className="text-cyan-400" size={25} />
+            </div>
+
+            <div>
+              <h1 className="text-3xl font-black">
+                Colleges
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Manage colleges and their institutional information.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={fetchColleges}
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            <RefreshCw size={17} />
+            Refresh
+          </button>
+
+          <button
+            onClick={handleCreate}
+            className="flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400"
+          >
+            <Plus size={18} />
+            Add College
+          </button>
+        </div>
+      </div>
+
+      {/* SEARCH */}
+      <div className="mb-7">
+        <div className="relative max-w-xl">
+          <Search
+            size={19}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+          />
+
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search colleges..."
+            className="w-full rounded-2xl border border-white/10 bg-slate-900 py-4 pl-12 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40"
+          />
+        </div>
+      </div>
+
+      {/* STATS */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+          <p className="text-sm text-slate-500">
+            Total Colleges
+          </p>
+
+          <p className="mt-2 text-3xl font-black text-white">
+            {colleges.length}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+          <p className="text-sm text-slate-500">
+            Showing
+          </p>
+
+          <p className="mt-2 text-3xl font-black text-cyan-400">
+            {filteredColleges.length}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+          <p className="text-sm text-slate-500">
+            Status
+          </p>
+
+          <p className="mt-2 text-lg font-black text-emerald-400">
+            Active
+          </p>
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      {loading ? (
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3].map((item) => (
+            <div
+              key={item}
+              className="h-64 animate-pulse rounded-3xl border border-white/10 bg-slate-900"
+            />
+          ))}
+        </div>
+      ) : filteredColleges.length === 0 ? (
+        <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-16 text-center">
+          <Building2
+            size={45}
+            className="mx-auto text-slate-700"
+          />
+
+          <h2 className="mt-5 text-xl font-black">
+            No colleges found
+          </h2>
+
+          <p className="mt-2 text-sm text-slate-500">
+            Add your first college to begin building the directory.
+          </p>
+
+          <button
+            onClick={handleCreate}
+            className="mt-6 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-black text-slate-950"
+          >
+            Add College
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {filteredColleges.map((college) => (
+            <motion.div
+              key={college.id}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="group overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-xl"
+            >
+              {/* IMAGE */}
+              <div className="relative h-48 overflow-hidden bg-slate-800">
+                {college.image_url ? (
+                  <img
+                    src={college.image_url}
+                    alt={college.name}
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <Building2
+                      size={48}
+                      className="text-slate-700"
+                    />
+                  </div>
+                )}
+
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
+
+                <div className="absolute bottom-4 left-4">
+                  <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-400">
+                    College
+                  </span>
+                </div>
+              </div>
+
+              {/* DETAILS */}
+              <div className="p-6">
+                <h2 className="truncate text-xl font-black">
+                  {college.name}
+                </h2>
+
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">
+                  {college.description ||
+                    "College information and academic opportunities."}
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                  {college.location && (
+                    <span className="rounded-lg bg-white/5 px-3 py-1.5 text-slate-400">
+                      {college.location}
+                    </span>
+                  )}
+
+                  {college.state && (
+                    <span className="rounded-lg bg-white/5 px-3 py-1.5 text-slate-400">
+                      {college.state}
+                    </span>
+                  )}
+                </div>
+
+                {/* ACTIONS */}
+                <div className="mt-6 grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setSelectedCollege(college)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <Eye size={15} />
+                    View
+                  </button>
+
+                  <button
+                    onClick={() => handleEdit(college)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-cyan-400/10 bg-cyan-400/5 py-3 text-xs font-bold text-cyan-400 transition hover:bg-cyan-400/10"
+                  >
+                    <Edit3 size={15} />
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={() => handleDelete(college.id)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-red-400/10 bg-red-400/5 py-3 text-xs font-bold text-red-400 transition hover:bg-red-400/10"
+                  >
+                    <Trash2 size={15} />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* FORM MODAL */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 shadow-2xl">
+            <button
+              onClick={() => setShowForm(false)}
+              className="absolute right-5 top-5 z-20 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+
+            <CollegeForm
+              college={editingCollege}
+              onSuccess={() => {
+                setShowForm(false);
+                setEditingCollege(null);
+                fetchColleges();
+              }}
+              onCancel={() => {
+                setShowForm(false);
+                setEditingCollege(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* VIEW MODAL */}
+      {selectedCollege && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-8 shadow-2xl">
+            <button
+              onClick={() => setSelectedCollege(null)}
+              className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="pr-12">
+              <span className="text-sm font-bold uppercase tracking-wider text-cyan-400">
+                College Details
+              </span>
+
+              <h2 className="mt-3 text-3xl font-black">
+                {selectedCollege.name}
+              </h2>
+
+              {selectedCollege.description && (
+                <p className="mt-5 leading-8 text-slate-400">
+                  {selectedCollege.description}
+                </p>
+              )}
+
+              <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                {[
+                  ["Location", selectedCollege.location],
+                  ["State", selectedCollege.state],
+                  ["Country", selectedCollege.country],
+                  ["Website", selectedCollege.website],
+                  ["Email", selectedCollege.email],
+                  ["Phone", selectedCollege.phone],
+                ].map(([label, value]) =>
+                  value ? (
+                    <div
+                      key={label}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                    >
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                        {label}
+                      </p>
+
+                      <p className="mt-2 break-words text-sm font-semibold text-white">
+                        {value}
+                      </p>
+                    </div>
+                  ) : null
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CollegesAdmin;
+

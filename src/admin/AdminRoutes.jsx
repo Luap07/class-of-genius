@@ -10,6 +10,23 @@ import LanguagesAdmin from "../pages/admin/languages/LanguagesAdmin";
 /* ================= Newsletter ================= */
 import NewsletterAdmin from "../pages/admin/NewsletterAdmin";
         
+/* ================= SCHOOLS ================= */
+
+import SchoolsAdmin from "../pages/admin/schools/SchoolsAdmin";
+
+import UniversitiesAdmin from "../pages/admin/schools/UniversitiesAdmin";
+import UniversityForm from "../pages/admin/schools/UniversityForm";
+
+import CollegesAdmin from "../pages/admin/schools/CollegesAdmin";
+import CollegeForm from "../pages/admin/schools/CollegeForm";
+
+import PolytechnicsAdmin from "../pages/admin/schools/PolytechnicsAdmin";
+import PolytechnicForm from "../pages/admin/schools/PolytechnicForm";
+
+import SchoolDetailsAdmin from "../pages/admin/schools/SchoolDetailsAdmin";
+import FacultyManager from "../pages/admin/schools/FacultyManager";
+import ProgramManager from "../pages/admin/schools/ProgramManager";
+
 /* ================= LMS ================= */
 import CoursesAdmin from "../pages/admin/lms/CoursesAdmin";
 import CreateCourse from "../pages/admin/lms/CreateCourse";
@@ -219,6 +236,87 @@ const AdminRoutes = () => {
 <Route
   path="languages/cms/ai"
   element={<LanguageCMSAdmin />}
+/>
+
+{/* =================================================
+    SCHOOLS
+================================================= */}
+
+<Route
+  path="schools"
+  element={<SchoolsAdmin />}
+/>
+
+{/* ================= UNIVERSITIES ================= */}
+
+<Route
+  path="schools/universities"
+  element={<UniversitiesAdmin />}
+/>
+
+<Route
+  path="schools/universities/create"
+  element={<UniversityForm />}
+/>
+
+<Route
+  path="schools/universities/edit/:id"
+  element={<UniversityForm />}
+/>
+
+{/* ================= COLLEGES ================= */}
+
+<Route
+  path="schools/colleges"
+  element={<CollegesAdmin />}
+/>
+
+<Route
+  path="schools/colleges/create"
+  element={<CollegeForm />}
+/>
+
+<Route
+  path="schools/colleges/edit/:id"
+  element={<CollegeForm />}
+/>
+
+{/* ================= POLYTECHNICS ================= */}
+
+<Route
+  path="schools/polytechnics"
+  element={<PolytechnicsAdmin />}
+/>
+
+<Route
+  path="schools/polytechnics/create"
+  element={<PolytechnicForm />}
+/>
+
+<Route
+  path="schools/polytechnics/edit/:id"
+  element={<PolytechnicForm />}
+/>
+
+{/* ================= SCHOOL DETAILS ================= */}
+
+<Route
+  path="schools/:type/:id"
+  element={<SchoolDetailsAdmin />}
+/>
+
+{/* ================= FACULTIES ================= */}
+
+<Route
+  path="schools/:type/:schoolId/faculties"
+  element={<FacultyManager />}
+/>
+
+{/* ================= PROGRAMS ================= */}
+
+<Route
+  path="schools/:type/:schoolId/faculties/:facultyId/programs"
+  element={<ProgramManager />}
 />
 
         {/* ================= MONTHLY QUIZZES ================= */}

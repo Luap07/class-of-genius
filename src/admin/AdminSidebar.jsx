@@ -7,10 +7,10 @@ import {
   GraduationCap,
   FlaskConical,
   FileText,
+  Building2,
   BookOpen,
   Users,
   BarChart3,
-  Image,
   Settings,
   Mail,
   ChevronUp,
@@ -35,6 +35,29 @@ const menuItems = [
     title: "LMS",
     icon: GraduationCap,
     path: "/admin/lms",
+  },
+  {
+    title: "Schools",
+    icon: Building2,
+    collapsible: true,
+    children: [
+      {
+        title: "Overview",
+        path: "/admin/schools",
+      },
+      {
+        title: "Universities",
+        path: "/admin/schools/universities",
+      },
+      {
+        title: "Colleges",
+        path: "/admin/schools/colleges",
+      },
+      {
+        title: "Polytechnics",
+        path: "/admin/schools/polytechnics",
+      },
+    ],
   },
   {
     title: "Documents",
@@ -89,7 +112,7 @@ const menuItems = [
     icon: BarChart3,
     path: "/admin/analytics",
   },
-   {
+  {
     title: "Languages",
     icon: Languages,
     collapsible: true,
@@ -126,7 +149,8 @@ const AdminSidebar = () => {
 
   const [languagesOpen, setLanguagesOpen] = useState(true);
   const [cbtOpen, setCbtOpen] = useState(true);
-
+  const [schoolsOpen, setSchoolsOpen] = useState(true);
+  
   // LIVE MEDIA COUNT
   const [mediaCount, setMediaCount] = useState(0);
 
@@ -233,7 +257,9 @@ const AdminSidebar = () => {
               const collapsedPath =
                 item.title === "Languages"
                   ? "/admin/languages"
-                  : "/admin/cbt";
+                  : item.title === "CBT"
+                  ? "/admin/cbt"
+                  : "/admin/schools";
 
               return (
                 <NavLink
@@ -256,13 +282,17 @@ const AdminSidebar = () => {
             const isOpen =
               item.title === "Languages"
                 ? languagesOpen
-                : cbtOpen;
+                : item.title === "CBT"
+                ? cbtOpen
+                : schoolsOpen;
 
             const toggleMenu = () => {
               if (item.title === "Languages") {
                 setLanguagesOpen((prev) => !prev);
-              } else {
+              } else if (item.title === "CBT") {
                 setCbtOpen((prev) => !prev);
+              } else {
+                setSchoolsOpen((prev) => !prev);
               }
             };
 
@@ -313,7 +343,8 @@ const AdminSidebar = () => {
                         to={child.path}
                         end={
                           child.path === "/admin/languages" ||
-                          child.path === "/admin/cbt"
+                          child.path === "/admin/cbt" ||
+                          child.path === "/admin/schools"
                         }
                         className={({ isActive }) =>
                           `flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-200 ${

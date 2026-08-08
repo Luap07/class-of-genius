@@ -20,6 +20,13 @@ import { DocumentProvider } from "./context/DocumentContext";
 import LanguagesHome from "./pages/languages/LanguagesHome";
 import LanguageDetails from "./pages/languages/LanguageDetails";
 
+/* ===========================SCHOOLS=========================== */
+import Polytechnics from "./pages/Polytechnics/Polytechnics";
+import PolytechnicDetails from "./pages/Polytechnics/PolytechnicDetails"
+import Colleges from "./pages/colleges/Colleges"
+import CollegeDetails from "./pages/colleges/CollegeDetails";
+import Universities from "./pages/universities/Universities";
+import UniversityDetails from "./pages/universities/UniversityDetails";
 /* ===========================ADMIN=========================== */
 
 import AdminRoutes from "./admin/AdminRoutes";
@@ -611,6 +618,16 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* ================= Universities ================= */}
+         <Route path="/universities" element={<Universities />} />
+<Route path="/universities/:id" element={<UniversityDetails />} />
+
+<Route path="/colleges" element={<Colleges />} />
+<Route path="/colleges/:id" element={<CollegeDetails />} />
+
+<Route path="/polytechnics" element={<Polytechnics />} />
+<Route path="/polytechnics/:id" element={<PolytechnicDetails />} />
 
         {/* ================= 404 ================= */}
 

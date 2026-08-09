@@ -1,400 +1,58 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+
 import {
   ArrowLeft,
   ArrowRight,
   MapPin,
-  Globe,
+  Globe2,
   GraduationCap,
   Building2,
-  BookOpen,
   ClipboardCheck,
   Wallet,
   Phone,
   Mail,
   CheckCircle2,
+  Loader2,
+  BookOpen,
+  ExternalLink,
+  Landmark,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Check,
+  ShieldCheck,
+  Layers3,
+  Clock3,
+  Award,
+  Search,
+  X,
 } from "lucide-react";
 
+import { supabase } from "../../lib/supabaseClient";
+
 /* =========================================================
-   UNIVERSITY DATA
+   ANIMATION PRESETS
 ========================================================= */
 
-const universities = {
-  unilag: {
-    id: "unilag",
-    name: "University of Lagos",
-    shortName: "UNILAG",
-    location: "Akoka, Lagos",
-    state: "Lagos",
-    type: "Federal University",
-    website: "https://unilag.edu.ng",
-    image:
-      "https://images.unsplash.com/photo-1564981797816-1043664bf78d?auto=format&fit=crop&w=1800&q=95",
-
-    description:
-      "The University of Lagos is a leading Nigerian university offering a broad range of undergraduate and postgraduate programs across multiple academic disciplines.",
-
-    about:
-      "The University of Lagos provides students with opportunities to pursue academic, professional and research-based education across a wide range of disciplines. Students can explore faculties, departments, degree programs, admission requirements and other important institutional information.",
-
-    faculties: [
-      "Faculty of Arts",
-      "Faculty of Business Administration",
-      "Faculty of Clinical Sciences",
-      "Faculty of Dental Sciences",
-      "Faculty of Education",
-      "Faculty of Engineering",
-      "Faculty of Environmental Sciences",
-      "Faculty of Law",
-      "Faculty of Pharmacy",
-      "Faculty of Science",
-      "Faculty of Social Sciences",
-      "Faculty of Basic Medical Sciences",
-    ],
-
-    programs: [
-      "Accounting",
-      "Computer Science",
-      "Electrical and Electronics Engineering",
-      "Mechanical Engineering",
-      "Business Administration",
-      "Mass Communication",
-      "Law",
-      "Medicine and Surgery",
-      "Pharmacy",
-      "Economics",
-      "Biochemistry",
-      "Microbiology",
-    ],
-
-    requirements: [
-      "Five relevant O'Level credits including English Language and Mathematics where applicable.",
-      "Meet the required UTME subject combination for the selected program.",
-      "Meet the university's minimum admission score for the relevant admission year.",
-      "Satisfy any additional departmental requirements.",
-    ],
-
-    admission:
-      "Admission requirements vary by program. Applicants should check the relevant departmental and university requirements before applying.",
-
-    fees:
-      "Tuition and other charges vary according to program, level and applicable institutional policies.",
-
-    contact: {
-      phone: "+234 1 280 2439",
-      email: "info@unilag.edu.ng",
-      address: "University of Lagos, Akoka, Lagos, Nigeria",
-    },
+const fadeUp = {
+  hidden: {
+    opacity: 0,
+    y: 24,
   },
-
-  ui: {
-    id: "ui",
-    name: "University of Ibadan",
-    shortName: "UI",
-    location: "Ibadan, Oyo",
-    state: "Oyo",
-    type: "Federal University",
-    website: "https://ui.edu.ng",
-    image:
-      "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1800&q=95",
-
-    description:
-      "The University of Ibadan offers academic programs across the sciences, humanities, professional disciplines and other fields of study.",
-
-    about:
-      "The University of Ibadan is a major Nigerian higher education institution with a wide academic structure covering undergraduate, postgraduate and research programs.",
-
-    faculties: [
-      "Faculty of Agriculture",
-      "Faculty of Arts",
-      "Faculty of Education",
-      "Faculty of Law",
-      "Faculty of Science",
-      "Faculty of Social Sciences",
-      "Faculty of Technology",
-      "Faculty of Pharmacy",
-      "Faculty of Public Health",
-    ],
-
-    programs: [
-      "Computer Science",
-      "Economics",
-      "Medicine",
-      "Law",
-      "Agricultural Economics",
-      "Biochemistry",
-      "Physics",
-      "Chemistry",
-      "Political Science",
-      "Psychology",
-      "Engineering",
-      "Statistics",
-    ],
-
-    requirements: [
-      "Meet the relevant O'Level requirements.",
-      "Meet the required UTME subject combination.",
-      "Meet the applicable admission score.",
-      "Satisfy program-specific requirements.",
-    ],
-
-    admission:
-      "Applicants should review the requirements for their chosen program before submitting an application.",
-
-    fees:
-      "Fees depend on the program, academic level and current institutional charges.",
-
-    contact: {
-      phone: "+234 2 810 3411",
-      email: "info@ui.edu.ng",
-      address: "University of Ibadan, Ibadan, Oyo State, Nigeria",
-    },
+  visible: {
+    opacity: 1,
+    y: 0,
   },
+};
 
-  abu: {
-    id: "abu",
-    name: "Ahmadu Bello University",
-    shortName: "ABU",
-    location: "Zaria, Kaduna",
-    state: "Kaduna",
-    type: "Federal University",
-    website: "https://abu.edu.ng",
-    image:
-      "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=1800&q=95",
-
-    description:
-      "Ahmadu Bello University offers diverse academic programs spanning sciences, engineering, medicine, humanities, social sciences and professional fields.",
-
-    about:
-      "Ahmadu Bello University provides a broad academic environment for undergraduate and postgraduate education, research and professional development.",
-
-    faculties: [
-      "Faculty of Engineering",
-      "Faculty of Science",
-      "Faculty of Arts",
-      "Faculty of Social Sciences",
-      "Faculty of Law",
-      "Faculty of Medicine",
-      "Faculty of Education",
-      "Faculty of Agriculture",
-    ],
-
-    programs: [
-      "Computer Science",
-      "Civil Engineering",
-      "Mechanical Engineering",
-      "Medicine",
-      "Law",
-      "Economics",
-      "Accounting",
-      "Biochemistry",
-      "Architecture",
-      "Mass Communication",
-    ],
-
-    requirements: [
-      "Required O'Level credits.",
-      "Relevant UTME subject combination.",
-      "Required admission score.",
-      "Program-specific requirements where applicable.",
-    ],
-
-    admission:
-      "Admission requirements depend on the selected program and current admission cycle.",
-
-    fees:
-      "Current charges vary according to academic program and level.",
-
-    contact: {
-      phone: "+234 69 550 121",
-      email: "info@abu.edu.ng",
-      address: "Ahmadu Bello University, Zaria, Kaduna State, Nigeria",
-    },
-  },
-
-  oau: {
-    id: "oau",
-    name: "Obafemi Awolowo University",
-    shortName: "OAU",
-    location: "Ile-Ife, Osun",
-    state: "Osun",
-    type: "Federal University",
-    website: "https://oauife.edu.ng",
-    image:
-      "https://images.unsplash.com/photo-1592280771190-3e2e4d571952?auto=format&fit=crop&w=1800&q=95",
-
-    description:
-      "Obafemi Awolowo University provides undergraduate and postgraduate education across numerous academic and professional disciplines.",
-
-    about:
-      "Obafemi Awolowo University is a comprehensive institution offering education, research and professional development across many fields.",
-
-    faculties: [
-      "Faculty of Administration",
-      "Faculty of Arts",
-      "Faculty of Education",
-      "Faculty of Engineering",
-      "Faculty of Law",
-      "Faculty of Pharmacy",
-      "Faculty of Science",
-      "Faculty of Social Sciences",
-      "Faculty of Health Sciences",
-    ],
-
-    programs: [
-      "Computer Science",
-      "Engineering",
-      "Medicine",
-      "Law",
-      "Accounting",
-      "Economics",
-      "Architecture",
-      "Pharmacy",
-      "Microbiology",
-      "Political Science",
-    ],
-
-    requirements: [
-      "Required O'Level credits.",
-      "Relevant UTME subjects.",
-      "Applicable admission score.",
-      "Additional departmental requirements where applicable.",
-    ],
-
-    admission:
-      "Applicants should confirm current requirements for their chosen program before applying.",
-
-    fees:
-      "Fees and charges vary according to academic program and level.",
-
-    contact: {
-      phone: "+234 803 123 4567",
-      email: "info@oauife.edu.ng",
-      address: "Obafemi Awolowo University, Ile-Ife, Osun State, Nigeria",
-    },
-  },
-
-  uniben: {
-    id: "uniben",
-    name: "University of Benin",
-    shortName: "UNIBEN",
-    location: "Benin City, Edo",
-    state: "Edo",
-    type: "Federal University",
-    website: "https://uniben.edu",
-    image:
-      "https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?auto=format&fit=crop&w=1800&q=95",
-
-    description:
-      "The University of Benin provides academic programs across science, technology, medicine, humanities, social sciences and professional disciplines.",
-
-    about:
-      "The University of Benin supports undergraduate and postgraduate education as well as research across numerous academic fields.",
-
-    faculties: [
-      "Faculty of Arts",
-      "Faculty of Engineering",
-      "Faculty of Education",
-      "Faculty of Law",
-      "Faculty of Science",
-      "Faculty of Social Sciences",
-      "Faculty of Medicine",
-      "Faculty of Pharmacy",
-    ],
-
-    programs: [
-      "Computer Science",
-      "Medicine",
-      "Law",
-      "Engineering",
-      "Accounting",
-      "Economics",
-      "Microbiology",
-      "Biochemistry",
-      "Political Science",
-      "Education",
-    ],
-
-    requirements: [
-      "Required O'Level credits.",
-      "Relevant UTME combination.",
-      "Required admission score.",
-      "Departmental requirements where applicable.",
-    ],
-
-    admission:
-      "Applicants should verify the current requirements for their chosen program.",
-
-    fees:
-      "Charges vary according to program, level and current university policies.",
-
-    contact: {
-      phone: "+234 52 600 000",
-      email: "info@uniben.edu",
-      address: "University of Benin, Benin City, Edo State, Nigeria",
-    },
-  },
-
-  unn: {
-    id: "unn",
-    name: "University of Nigeria, Nsukka",
-    shortName: "UNN",
-    location: "Nsukka, Enugu",
-    state: "Enugu",
-    type: "Federal University",
-    website: "https://unn.edu.ng",
-    image:
-      "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1800&q=95",
-
-    description:
-      "The University of Nigeria offers a wide range of undergraduate and postgraduate programs across diverse academic disciplines.",
-
-    about:
-      "The University of Nigeria provides academic and research opportunities across a broad range of faculties and departments.",
-
-    faculties: [
-      "Faculty of Agriculture",
-      "Faculty of Arts",
-      "Faculty of Biological Sciences",
-      "Faculty of Business Administration",
-      "Faculty of Engineering",
-      "Faculty of Law",
-      "Faculty of Medical Sciences",
-      "Faculty of Physical Sciences",
-      "Faculty of Social Sciences",
-    ],
-
-    programs: [
-      "Computer Science",
-      "Engineering",
-      "Medicine",
-      "Law",
-      "Accounting",
-      "Architecture",
-      "Biochemistry",
-      "Economics",
-      "Mass Communication",
-      "Pharmacy",
-    ],
-
-    requirements: [
-      "Required O'Level credits.",
-      "Relevant UTME subject combination.",
-      "Applicable admission score.",
-      "Program-specific requirements.",
-    ],
-
-    admission:
-      "Admission requirements depend on the selected program and current admission cycle.",
-
-    fees:
-      "Fees vary according to program and academic level.",
-
-    contact: {
-      phone: "+234 42 770 555",
-      email: "info@unn.edu.ng",
-      address: "University of Nigeria, Nsukka, Enugu State, Nigeria",
+const staggerContainer = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.08,
     },
   },
 };
@@ -406,40 +64,523 @@ const universities = {
 const SectionCard = ({
   icon: Icon,
   title,
+  description,
   children,
+  className = "",
 }) => {
   return (
-    <motion.div
-      initial={{
-        opacity: 0,
-        y: 20,
-      }}
-      whileInView={{
-        opacity: 1,
-        y: 0,
-      }}
+    <motion.section
+      variants={fadeUp}
+      initial="hidden"
+      whileInView="visible"
       viewport={{
         once: true,
+        amount: 0.12,
       }}
       transition={{
-        duration: 0.4,
+        duration: 0.5,
+        ease: "easeOut",
       }}
-      className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl sm:p-8"
+      className={[
+        "group relative overflow-hidden rounded-[2rem]",
+        "border border-white/[0.08]",
+        "bg-slate-900/65",
+        "shadow-[0_20px_80px_rgba(0,0,0,0.22)]",
+        "backdrop-blur-2xl",
+        className,
+      ].join(" ")}
     >
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400/10">
-          <Icon
-            size={21}
+      <div className="relative p-6 sm:p-7 lg:p-8">
+        <div className="mb-7 flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.08] shadow-inner shadow-cyan-400/5">
+            <Icon size={21} className="text-cyan-400" />
+          </div>
+
+          <div className="min-w-0">
+            <h2 className="text-lg font-black tracking-tight text-white sm:text-xl">
+              {title}
+            </h2>
+
+            {description && (
+              <p className="mt-1.5 text-sm leading-6 text-slate-500">
+                {description}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {children}
+      </div>
+    </motion.section>
+  );
+};
+
+/* =========================================================
+   INFO STAT
+========================================================= */
+
+const InfoStat = ({
+  icon: Icon,
+  label,
+  value,
+  accent = "cyan",
+}) => {
+  const accentClasses = {
+    cyan: "bg-cyan-400/10 text-cyan-400 border-cyan-400/10",
+    blue: "bg-blue-400/10 text-blue-400 border-blue-400/10",
+    emerald:
+      "bg-emerald-400/10 text-emerald-400 border-emerald-400/10",
+    violet:
+      "bg-violet-400/10 text-violet-400 border-violet-400/10",
+  };
+
+  return (
+    <motion.div
+      variants={fadeUp}
+      className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-white/[0.12] hover:bg-white/[0.04]"
+    >
+      <div
+        className={[
+          "flex h-10 w-10 items-center justify-center rounded-xl border",
+          accentClasses[accent] || accentClasses.cyan,
+        ].join(" ")}
+      >
+        <Icon size={18} />
+      </div>
+
+      <p className="mt-5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+        {label}
+      </p>
+
+      <p className="mt-1 truncate text-lg font-black text-white">
+        {value}
+      </p>
+    </motion.div>
+  );
+};
+
+/* =========================================================
+   FACULTY CARD
+========================================================= */
+
+const FacultyCard = ({
+  faculty,
+  index,
+  selected,
+  onClick,
+}) => {
+  const isActive =
+    faculty?.active === true ||
+    faculty?.active === "true" ||
+    faculty?.status === "active";
+
+  return (
+    <motion.button
+      type="button"
+      variants={fadeUp}
+      whileHover={{
+        y: -4,
+      }}
+      whileTap={{
+        scale: 0.99,
+      }}
+      onClick={onClick}
+      className={[
+        "group relative w-full overflow-hidden rounded-2xl",
+        "border p-5 text-left",
+        "transition-all duration-300",
+        selected
+          ? "border-cyan-400/30 bg-cyan-400/[0.06] shadow-lg shadow-cyan-500/[0.05]"
+          : "border-white/[0.07] bg-slate-950/55 hover:border-cyan-400/20 hover:bg-slate-950/80",
+      ].join(" ")}
+    >
+      <div className="relative flex items-start gap-4">
+        <div
+          className={[
+            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition-all duration-300",
+            selected
+              ? "border-cyan-400/20 bg-cyan-400/[0.10]"
+              : "border-white/[0.07] bg-white/[0.035] group-hover:border-cyan-400/20 group-hover:bg-cyan-400/[0.08]",
+          ].join(" ")}
+        >
+          <GraduationCap
+            size={20}
             className="text-cyan-400"
           />
         </div>
 
-        <h2 className="text-xl font-black text-white">
-          {title}
-        </h2>
-      </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-700">
+                Faculty {String(index + 1).padStart(2, "0")}
+              </p>
 
-      {children}
+              <h3 className="font-black text-white">
+                {faculty?.name || "Unnamed Faculty"}
+              </h3>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <span
+                className={[
+                  "rounded-full border px-2.5 py-1",
+                  "text-[9px] font-black uppercase tracking-wider",
+                  isActive
+                    ? "border-emerald-400/10 bg-emerald-400/10 text-emerald-400"
+                    : "border-slate-700 bg-slate-800/60 text-slate-500",
+                ].join(" ")}
+              >
+                {isActive ? "Active" : "Inactive"}
+              </span>
+
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.03]">
+                {selected ? (
+                  <ChevronUp
+                    size={15}
+                    className="text-cyan-400"
+                  />
+                ) : (
+                  <ChevronDown
+                    size={15}
+                    className="text-slate-600 transition-colors group-hover:text-cyan-400"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {faculty?.description ? (
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              {faculty.description}
+            </p>
+          ) : (
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              Faculty information is available through the
+              institution.
+            </p>
+          )}
+
+          <div
+            className={[
+              "mt-4 flex items-center gap-2 text-xs font-bold transition-colors",
+              selected
+                ? "text-cyan-400"
+                : "text-slate-600 group-hover:text-cyan-400/70",
+            ].join(" ")}
+          >
+            <span>
+              {selected
+                ? "Viewing faculty courses"
+                : "View faculty courses"}
+            </span>
+
+            <ArrowRight
+              size={14}
+              className="transition-transform group-hover:translate-x-1"
+            />
+          </div>
+        </div>
+      </div>
+    </motion.button>
+  );
+};
+
+/* =========================================================
+   COURSE CARD
+========================================================= */
+
+const CourseCard = ({
+  course,
+  index,
+}) => {
+  const degreeType =
+    course?.degree_type ||
+    course?.degreeType ||
+    course?.qualification ||
+    "";
+
+  const duration =
+    course?.duration ||
+    "";
+
+  const studyMode =
+    course?.study_mode ||
+    course?.studyMode ||
+    "";
+
+  const courseName =
+    course?.name ||
+    course?.title ||
+    course?.course_name ||
+    course?.program_name ||
+    "Unnamed Course";
+
+  return (
+    <motion.div
+      variants={fadeUp}
+      initial="hidden"
+      animate="visible"
+      transition={{
+        duration: 0.35,
+        delay: index * 0.035,
+      }}
+      className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-slate-950/55 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/20 hover:bg-slate-950/80"
+    >
+      <div className="relative">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-400/10 bg-cyan-400/[0.07]">
+              <BookOpen
+                size={19}
+                className="text-cyan-400"
+              />
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.17em] text-slate-700">
+                Course {String(index + 1).padStart(2, "0")}
+              </p>
+
+              <h4 className="mt-1 font-black leading-6 text-white">
+                {courseName}
+              </h4>
+
+              {course?.short_name && (
+                <p className="mt-1 text-xs font-bold text-cyan-400/70">
+                  {course.short_name}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {course?.description && (
+          <p className="mt-4 whitespace-pre-line text-sm leading-7 text-slate-500">
+            {course.description}
+          </p>
+        )}
+
+        {(degreeType || duration || studyMode) && (
+          <div className="mt-5 flex flex-wrap gap-2">
+            {degreeType && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/10 bg-violet-400/[0.06] px-3 py-1.5 text-[10px] font-bold text-violet-300">
+                <Award size={12} />
+                {degreeType}
+              </span>
+            )}
+
+            {duration && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/10 bg-blue-400/[0.06] px-3 py-1.5 text-[10px] font-bold text-blue-300">
+                <Clock3 size={12} />
+                {duration}
+              </span>
+            )}
+
+            {studyMode && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/10 bg-emerald-400/[0.06] px-3 py-1.5 text-[10px] font-bold text-emerald-300">
+                <Layers3 size={12} />
+                {studyMode}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
+/* =========================================================
+   FACULTY COURSE PANEL
+========================================================= */
+
+const FacultyCoursePanel = ({
+  faculty,
+  courses,
+  loading,
+  error,
+  onClose,
+}) => {
+  if (!faculty) {
+    return null;
+  }
+
+  return (
+    <motion.div
+      initial={{
+        opacity: 0,
+        height: 0,
+        y: -10,
+      }}
+      animate={{
+        opacity: 1,
+        height: "auto",
+        y: 0,
+      }}
+      exit={{
+        opacity: 0,
+        height: 0,
+        y: -10,
+      }}
+      transition={{
+        duration: 0.4,
+        ease: "easeOut",
+      }}
+      className="mt-6 overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-slate-950/35"
+    >
+      <div className="relative p-6 sm:p-8">
+
+        {/* FACULTY HEADER */}
+
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.08]">
+              <GraduationCap
+                size={25}
+                className="text-cyan-400"
+              />
+            </div>
+
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-400/70">
+                Selected Faculty
+              </p>
+
+              <h3 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                {faculty.name}
+              </h3>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.03] text-slate-500 transition-all hover:border-white/[0.12] hover:bg-white/[0.06] hover:text-white"
+            title="Close faculty"
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        {/* FACULTY DESCRIPTION */}
+
+        {faculty.description && (
+          <div className="mt-7 rounded-2xl border border-white/[0.06] bg-slate-950/55 p-5 sm:p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+                About this faculty
+              </p>
+            </div>
+
+            <p className="whitespace-pre-line text-sm leading-8 text-slate-400 sm:text-[15px]">
+              {faculty.description}
+            </p>
+          </div>
+        )}
+
+        {/* COURSES */}
+
+        <div className="mt-7">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h4 className="text-lg font-black text-white">
+                Courses
+              </h4>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Courses connected to this faculty are displayed
+                below.
+              </p>
+            </div>
+
+            {!loading && !error && (
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/10 bg-cyan-400/[0.05] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-cyan-300">
+                <BookOpen size={12} />
+
+                {courses.length}{" "}
+                {courses.length === 1
+                  ? "Course"
+                  : "Courses"}
+              </div>
+            )}
+          </div>
+
+          {/* LOADING */}
+
+          {loading ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.06] bg-slate-950/45 py-14">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.06]">
+                <Loader2
+                  size={24}
+                  className="animate-spin text-cyan-400"
+                />
+              </div>
+
+              <p className="mt-4 text-sm font-bold text-slate-500">
+                Loading courses...
+              </p>
+            </div>
+          ) : error ? (
+            /* COURSE ERROR */
+
+            <div className="rounded-2xl border border-red-400/10 bg-red-400/[0.035] px-6 py-12 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-red-400/10 bg-red-400/[0.06]">
+                <BookOpen
+                  size={27}
+                  className="text-red-400"
+                />
+              </div>
+
+              <h4 className="mt-5 font-black text-white">
+                Unable to load courses
+              </h4>
+
+              <p className="mx-auto mt-2 max-w-lg text-sm leading-7 text-slate-500">
+                {error}
+              </p>
+            </div>
+          ) : courses.length === 0 ? (
+            /* NO COURSES */
+
+            <div className="rounded-2xl border border-dashed border-white/[0.08] bg-slate-950/45 px-6 py-14 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.025]">
+                <BookOpen
+                  size={27}
+                  className="text-slate-700"
+                />
+              </div>
+
+              <h4 className="mt-5 font-black text-white">
+                No courses found
+              </h4>
+
+              <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-slate-600">
+                No courses have been connected to this faculty
+                yet.
+              </p>
+            </div>
+          ) : (
+            /* COURSES */
+
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+              className="grid gap-4 sm:grid-cols-2"
+            >
+              {courses.map((course, index) => (
+                <CourseCard
+                  key={course.id || `${faculty.id}-${index}`}
+                  course={course}
+                  index={index}
+                />
+              ))}
+            </motion.div>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 };
@@ -452,60 +593,750 @@ const UniversityDetails = () => {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const university = universities[id];
+  const [university, setUniversity] =
+    useState(null);
+
+  const [faculties, setFaculties] =
+    useState([]);
+
+  const [selectedFaculty, setSelectedFaculty] =
+    useState(null);
+
+  const [facultyCourses, setFacultyCourses] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [facultyLoading, setFacultyLoading] =
+    useState(false);
+
+  const [courseLoading, setCourseLoading] =
+    useState(false);
+
+  const [courseError, setCourseError] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
+
+  const [facultySearch, setFacultySearch] =
+    useState("");
+
+  const [copied, setCopied] =
+    useState(false);
+
+  /* =======================================================
+     FETCH UNIVERSITY
+  ======================================================= */
+
+  useEffect(() => {
+    if (!id) {
+      setError("University ID is missing.");
+      setLoading(false);
+      return;
+    }
+
+    fetchUniversity();
+  }, [id]);
+
+  const fetchUniversity = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      /* ---------------------------------------------------
+         UNIVERSITY
+      --------------------------------------------------- */
+
+      const {
+        data: universityData,
+        error: universityError,
+      } = await supabase
+        .from("universities")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (universityError) {
+        console.error(
+          "Fetch University Error:",
+          universityError
+        );
+
+        setError(
+          universityError.message ||
+            "Unable to load university."
+        );
+
+        setUniversity(null);
+        return;
+      }
+
+      if (!universityData) {
+        setUniversity(null);
+        setError(
+          "The university you're looking for does not exist."
+        );
+        return;
+      }
+
+      setUniversity(universityData);
+
+      /* ---------------------------------------------------
+         FACULTIES
+      --------------------------------------------------- */
+
+      setFacultyLoading(true);
+
+      const {
+        data: facultyData,
+        error: facultyError,
+      } = await supabase
+        .from("school_faculties")
+        .select("*")
+        .eq("school_id", universityData.id)
+        .order("created_at", {
+          ascending: false,
+        });
+
+      if (facultyError) {
+        console.error(
+          "Fetch University Faculties Error:",
+          facultyError
+        );
+
+        setFaculties([]);
+      } else {
+        setFaculties(facultyData || []);
+      }
+    } catch (err) {
+      console.error(
+        "University Details Error:",
+        err
+      );
+
+      setError(
+        err?.message ||
+          "Something went wrong while loading the university."
+      );
+
+      setUniversity(null);
+    } finally {
+      setFacultyLoading(false);
+      setLoading(false);
+    }
+  };
+
+  /* =======================================================
+     FETCH COURSES FOR SELECTED FACULTY
+     
+     IMPORTANT:
+     
+     The previous version used:
+     
+       academic_programs
+     
+     That table does not exist in the current Supabase
+     schema.
+     
+     Courses are now loaded from:
+     
+       courses
+     
+     using:
+     
+       courses.faculty_id = school_faculties.id
+  ======================================================= */
+const fetchFacultyCourses = async (faculty) => {
+  if (!faculty?.id) {
+    setFacultyCourses([]);
+    return;
+  }
+
+  try {
+    setCourseLoading(true);
+    setFacultyCourses([]);
+
+    console.log("Loading courses for faculty:", faculty);
+
+    /*
+     * IMPORTANT
+     * ---------------------------------------------------------
+     * Do NOT use:
+     *
+     * .eq("faculty_id", faculty.id)
+     *
+     * because the current `courses` table does not have a
+     * faculty_id column.
+     *
+     * We first load the course records and then identify the
+     * faculty relationship from the fields actually returned.
+     */
+
+    const {
+      data: courseData,
+      error: courseError,
+    } = await supabase
+      .from("courses")
+      .select("*")
+      .order("created_at", {
+        ascending: true,
+      });
+
+    if (courseError) {
+      console.error(
+        "Fetch Courses Error:",
+        courseError
+      );
+
+      setFacultyCourses([]);
+      return;
+    }
+
+    const allCourses = courseData || [];
+
+    console.log(
+      "All courses returned:",
+      allCourses
+    );
+
+    /*
+     * ---------------------------------------------------------
+     * FIND COURSES BELONGING TO THE SELECTED FACULTY
+     * ---------------------------------------------------------
+     *
+     * We support the common possible field names without
+     * querying nonexistent columns directly.
+     */
+
+    const selectedFacultyId = String(
+      faculty.id
+    );
+
+    const selectedFacultyName = String(
+      faculty.name || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const matchingCourses = allCourses.filter(
+      (course) => {
+        if (!course) {
+          return false;
+        }
+
+        /*
+         * UUID / ID based relationships
+         */
+
+        const possibleFacultyIds = [
+          course.faculty_id,
+          course.facultyId,
+          course.school_faculty_id,
+          course.schoolFacultyId,
+          course.faculty_uuid,
+          course.facultyUuid,
+        ]
+          .filter(
+            (value) =>
+              value !== null &&
+              value !== undefined &&
+              value !== ""
+          )
+          .map((value) => String(value));
+
+        if (
+          possibleFacultyIds.includes(
+            selectedFacultyId
+          )
+        ) {
+          return true;
+        }
+
+        /*
+         * Sometimes the database stores the faculty itself
+         * as a UUID under a generic `faculty` field.
+         */
+
+        if (
+          course.faculty !== null &&
+          course.faculty !== undefined
+        ) {
+          const facultyValue = String(
+            course.faculty
+          )
+            .trim()
+            .toLowerCase();
+
+          if (
+            facultyValue ===
+            selectedFacultyId.toLowerCase()
+          ) {
+            return true;
+          }
+
+          if (
+            selectedFacultyName &&
+            facultyValue === selectedFacultyName
+          ) {
+            return true;
+          }
+        }
+
+        /*
+         * Sometimes the course record stores the faculty
+         * name instead of its UUID.
+         */
+
+        const possibleFacultyNames = [
+          course.faculty_name,
+          course.facultyName,
+          course.faculty_title,
+          course.facultyTitle,
+        ]
+          .filter(
+            (value) =>
+              value !== null &&
+              value !== undefined &&
+              value !== ""
+          )
+          .map((value) =>
+            String(value)
+              .trim()
+              .toLowerCase()
+          );
+
+        if (
+          selectedFacultyName &&
+          possibleFacultyNames.includes(
+            selectedFacultyName
+          )
+        ) {
+          return true;
+        }
+
+        return false;
+      }
+    );
+
+    console.log(
+      `Courses belonging to ${faculty.name}:`,
+      matchingCourses
+    );
+
+    setFacultyCourses(
+      matchingCourses
+    );
+  } catch (err) {
+    console.error(
+      "Faculty Courses Error:",
+      err
+    );
+
+    setFacultyCourses([]);
+  } finally {
+    setCourseLoading(false);
+  }
+};
+  /* =======================================================
+     SELECT FACULTY
+  ======================================================= */
+
+  const handleFacultyClick = async (
+    faculty
+  ) => {
+    if (!faculty?.id) {
+      return;
+    }
+
+    if (
+      selectedFaculty?.id === faculty.id
+    ) {
+      setSelectedFaculty(null);
+      setFacultyCourses([]);
+      setCourseError("");
+      return;
+    }
+
+    setSelectedFaculty(faculty);
+    setFacultyCourses([]);
+    setCourseError("");
+
+    await fetchFacultyCourses(faculty);
+
+    requestAnimationFrame(() => {
+      document
+        .getElementById("selected-faculty")
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    });
+  };
+
+  /* =======================================================
+     DERIVED UNIVERSITY DATA
+  ======================================================= */
+
+  const universityName = useMemo(
+    () =>
+      university?.name ||
+      "Unnamed University",
+    [university]
+  );
+
+  const universityDescription = useMemo(
+    () =>
+      university?.description ||
+      "Explore this institution, its faculties, academic opportunities and available information.",
+    [university]
+  );
+
+  const universityAbout = useMemo(
+    () =>
+      university?.about ||
+      university?.description ||
+      "This institution provides academic opportunities across a range of disciplines.",
+    [university]
+  );
+
+  const universityLocation = useMemo(() => {
+    if (
+      university?.city &&
+      university?.state
+    ) {
+      return `${university.city}, ${university.state}`;
+    }
+
+    return (
+      university?.location ||
+      university?.state ||
+      "Location not specified"
+    );
+  }, [university]);
+
+  const universityState =
+    university?.state ||
+    university?.location ||
+    "Not specified";
+
+  const universityType =
+    university?.type ||
+    university?.school_type ||
+    university?.institution_type ||
+    "University";
+
+  const universityShortName =
+    useMemo(() => {
+      if (
+        university?.short_name ||
+        university?.shortName ||
+        university?.acronym ||
+        university?.code
+      ) {
+        return (
+          university.short_name ||
+          university.shortName ||
+          university.acronym ||
+          university.code
+        );
+      }
+
+      return universityName
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word) => word[0])
+        .join("")
+        .slice(0, 6)
+        .toUpperCase();
+    }, [university, universityName]);
+
+  const universityImage =
+    university?.cover_url ||
+    university?.image_url ||
+    university?.image ||
+    university?.logo_url ||
+    null;
+
+  const universityWebsite =
+    university?.website ||
+    university?.website_url ||
+    university?.official_website ||
+    "";
+
+  const universityPhone =
+    university?.phone ||
+    university?.phone_number ||
+    university?.contact_phone ||
+    "";
+
+  const universityEmail =
+    university?.email ||
+    university?.contact_email ||
+    "";
+
+  const universityAddress =
+    university?.address ||
+    university?.contact_address ||
+    universityLocation;
+
+  const activeFacultyCount =
+    useMemo(
+      () =>
+        faculties.filter(
+          (faculty) =>
+            faculty?.active === true ||
+            faculty?.active === "true" ||
+            faculty?.status === "active"
+        ).length,
+      [faculties]
+    );
+
+  /* =======================================================
+     FILTER FACULTIES
+  ======================================================= */
+
+  const filteredFaculties =
+    useMemo(() => {
+      const query =
+        facultySearch.trim().toLowerCase();
+
+      if (!query) {
+        return faculties;
+      }
+
+      return faculties.filter(
+        (faculty) => {
+          const name =
+            faculty?.name?.toLowerCase() ||
+            "";
+
+          const description =
+            faculty?.description?.toLowerCase() ||
+            "";
+
+          return (
+            name.includes(query) ||
+            description.includes(query)
+          );
+        }
+      );
+    }, [faculties, facultySearch]);
+
+  /* =======================================================
+     WEBSITE URL
+  ======================================================= */
+
+  const websiteUrl = useMemo(() => {
+    if (!universityWebsite) {
+      return "";
+    }
+
+    return universityWebsite.startsWith(
+      "http"
+    )
+      ? universityWebsite
+      : `https://${universityWebsite}`;
+  }, [universityWebsite]);
+
+  /* =======================================================
+     COPY EMAIL
+  ======================================================= */
+
+  const handleCopyEmail = async () => {
+    if (!universityEmail) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        universityEmail
+      );
+
+      setCopied(true);
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 1800);
+    } catch (err) {
+      console.error(
+        "Unable to copy email:",
+        err
+      );
+    }
+  };
+
+  /* =======================================================
+     SCROLL TO FACULTIES
+  ======================================================= */
+
+  const scrollToFaculties = () => {
+    document
+      .getElementById("faculties")
+      ?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+  };
 
   /* =======================================================
      NOT FOUND
   ======================================================= */
 
-  if (!university) {
+  if (!loading && !university) {
     return (
-      <section className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
-        <div className="text-center">
-          <GraduationCap
-            size={55}
-            className="mx-auto text-slate-700"
-          />
-
-          <h1 className="mt-6 text-3xl font-black">
-            University not found
-          </h1>
-
-          <p className="mt-3 text-slate-500">
-            The university you're looking for does not
-            exist.
-          </p>
-
+      <section className="min-h-screen bg-slate-950 px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-4xl">
           <button
+            type="button"
             onClick={() =>
               navigate("/universities")
             }
-            className="mt-7 rounded-xl bg-cyan-500 px-6 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400"
+            className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm font-bold text-slate-400 transition-all hover:border-cyan-400/20 hover:bg-white/[0.06] hover:text-white"
           >
+            <ArrowLeft
+              size={16}
+              className="transition-transform group-hover:-translate-x-1"
+            />
+
             Back to Universities
           </button>
+
+          <div className="mt-8 overflow-hidden rounded-[2rem] border border-white/[0.08] bg-slate-900/70 px-6 py-20 text-center shadow-2xl">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-red-400/10 bg-red-400/[0.07]">
+              <Building2
+                size={34}
+                className="text-red-400"
+              />
+            </div>
+
+            <h1 className="mt-7 text-3xl font-black tracking-tight text-white sm:text-4xl">
+              University not found
+            </h1>
+
+            <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-slate-500">
+              {error ||
+                "The university you're looking for does not exist or is no longer available."}
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/universities")
+              }
+              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-6 py-3.5 text-sm font-black text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-cyan-400"
+            >
+              <ArrowLeft size={17} />
+
+              Browse Universities
+            </button>
+          </div>
         </div>
       </section>
     );
   }
 
-  return (
-    <section className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+  /* =======================================================
+     LOADING
+  ======================================================= */
 
+  if (loading) {
+    return (
+      <section className="min-h-screen bg-slate-950 px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="overflow-hidden rounded-[2rem] border border-white/[0.08] bg-slate-900/70">
+            <div className="space-y-4 p-7">
+              <div className="h-5 w-32 animate-pulse rounded-full bg-white/[0.06]" />
+
+              <div className="h-12 max-w-xl animate-pulse rounded-xl bg-white/[0.06]" />
+
+              <div className="h-5 max-w-2xl animate-pulse rounded-lg bg-white/[0.04]" />
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({
+              length: 4,
+            }).map((_, index) => (
+              <div
+                key={index}
+                className="h-32 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.025]"
+              />
+            ))}
+          </div>
+
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2
+              size={28}
+              className="animate-spin text-cyan-400"
+            />
+
+            <p className="mt-4 text-sm font-bold text-slate-500">
+              Loading university profile...
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  /* =======================================================
+     MAIN
+  ======================================================= */
+
+  return (
+    <section className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      {/* =================================================
+          BACKGROUND
+      ================================================= */}
+
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute left-1/4 top-0 h-[500px] w-[500px] rounded-full bg-cyan-500/[0.025] blur-[140px]" />
+
+        <div className="absolute bottom-0 right-0 h-[500px] w-[500px] rounded-full bg-blue-500/[0.025] blur-[140px]" />
+
+        <div
+          className="absolute inset-0 opacity-[0.025]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, white 1px, transparent 1px)",
+            backgroundSize: "30px 30px",
+          }}
+        />
+      </div>
+
+      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         {/* =================================================
             BACK
         ================================================= */}
 
-        <button
-          onClick={() =>
-            navigate("/universities")
-          }
-          className="mb-8 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+        <motion.div
+          initial={{
+            opacity: 0,
+            x: -10,
+          }}
+          animate={{
+            opacity: 1,
+            x: 0,
+          }}
+          className="mb-7"
         >
-          <ArrowLeft size={18} />
-          Universities
-        </button>
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/universities")
+            }
+            className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-4 py-2.5 text-sm font-bold text-slate-400 backdrop-blur-xl transition-all hover:border-cyan-400/20 hover:bg-white/[0.05] hover:text-white"
+          >
+            <ArrowLeft
+              size={17}
+              className="transition-transform duration-300 group-hover:-translate-x-1"
+            />
+
+            Universities
+          </button>
+        </motion.div>
 
         {/* =================================================
             HERO
@@ -521,264 +1352,452 @@ const UniversityDetails = () => {
             y: 0,
           }}
           transition={{
-            duration: 0.6,
+            duration: 0.65,
+            ease: "easeOut",
           }}
-          className="relative mb-8 overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900"
+          className="relative mb-8 overflow-hidden rounded-[2.25rem] border border-white/[0.09] bg-slate-900 shadow-[0_30px_100px_rgba(0,0,0,0.35)]"
         >
-          {/* HERO IMAGE */}
-
-          <div className="relative h-[420px] sm:h-[500px]">
-            <img
-              src={university.image}
-              alt={university.name}
-              className="h-full w-full object-cover object-center"
-            />
-
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/55 to-slate-950/10" />
-
-            {/* HERO CONTENT */}
-
-            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10">
-              <div className="mb-4 inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-xs font-black text-cyan-300 backdrop-blur-xl">
-                {university.type}
-              </div>
-
-              <h1 className="max-w-4xl text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
-                {university.name}
-              </h1>
-
-              <div className="mt-5 flex flex-wrap gap-4 text-sm font-semibold text-slate-300">
-                <span className="inline-flex items-center gap-2">
-                  <MapPin
-                    size={17}
-                    className="text-cyan-400"
-                  />
-                  {university.location}
-                </span>
-
-                <span className="inline-flex items-center gap-2">
+          <div className="relative h-[480px] sm:h-[540px] lg:h-[580px]">
+            {universityImage ? (
+              <img
+                src={universityImage}
+                alt={universityName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950/40 to-slate-950">
+                <div className="flex h-28 w-28 items-center justify-center rounded-[2rem] border border-white/[0.06] bg-white/[0.025]">
                   <Building2
-                    size={17}
-                    className="text-cyan-400"
+                    size={58}
+                    className="text-slate-700"
                   />
-                  {university.state}
-                </span>
+                </div>
+              </div>
+            )}
+
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/5" />
+
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/70 via-transparent to-transparent" />
+
+            <div className="absolute left-5 top-5 sm:left-8 sm:top-8">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/60 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300 backdrop-blur-xl">
+                <Sparkles size={13} />
+
+                {universityType}
+              </div>
+            </div>
+
+            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-9 lg:p-11">
+              <div className="max-w-5xl">
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                  <span className="rounded-full border border-cyan-400/15 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-cyan-300">
+                    {universityShortName}
+                  </span>
+
+                  {activeFacultyCount > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/10 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-emerald-400">
+                      <CheckCircle2 size={12} />
+
+                      Institution Listed
+                    </span>
+                  )}
+                </div>
+
+                <h1 className="max-w-5xl text-4xl font-black leading-[1.05] tracking-[-0.04em] text-white sm:text-5xl lg:text-7xl">
+                  {universityName}
+                </h1>
+
+                <p className="mt-5 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
+                  {universityDescription}
+                </p>
+
+                <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-slate-300">
+                  <span className="inline-flex items-center gap-2">
+                    <MapPin
+                      size={16}
+                      className="text-cyan-400"
+                    />
+
+                    {universityLocation}
+                  </span>
+
+                  <span className="inline-flex items-center gap-2">
+                    <Landmark
+                      size={16}
+                      className="text-cyan-400"
+                    />
+
+                    {universityState}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
           {/* HERO ACTIONS */}
 
-          <div className="flex flex-wrap gap-3 border-t border-white/10 bg-slate-950/70 p-5 sm:p-6">
-            <a
-              href={university.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400"
-            >
-              <Globe size={17} />
-              Official Website
-            </a>
+          <div className="flex flex-col gap-3 border-t border-white/[0.07] bg-slate-950/80 p-5 backdrop-blur-xl sm:flex-row sm:flex-wrap sm:p-6">
+            {websiteUrl && (
+              <a
+                href={websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3.5 text-sm font-black text-slate-950 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-400 hover:shadow-lg hover:shadow-cyan-500/10"
+              >
+                <Globe2 size={17} />
+
+                Official Website
+
+                <ExternalLink
+                  size={14}
+                  className="transition-transform group-hover:translate-x-0.5"
+                />
+              </a>
+            )}
 
             <button
-              onClick={() =>
-                document
-                  .getElementById("programs")
-                  ?.scrollIntoView({
-                    behavior: "smooth",
-                  })
-              }
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+              type="button"
+              onClick={scrollToFaculties}
+              className="group inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.035] px-5 py-3.5 text-sm font-black text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-400/20 hover:bg-white/[0.06]"
             >
-              Explore Programs
-              <ArrowRight size={17} />
+              Explore Faculties
+
+              <ArrowRight
+                size={17}
+                className="transition-transform group-hover:translate-x-1"
+              />
             </button>
           </div>
         </motion.div>
 
         {/* =================================================
-            QUICK INFO
+            QUICK STATS
         ================================================= */}
 
-        <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        >
+          <InfoStat
+            icon={GraduationCap}
+            label="Institution"
+            value={universityShortName}
+            accent="cyan"
+          />
 
-          <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
-            <GraduationCap
-              size={22}
-              className="text-cyan-400"
-            />
+          <InfoStat
+            icon={MapPin}
+            label="Location"
+            value={universityState}
+            accent="blue"
+          />
 
-            <p className="mt-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-              Institution
-            </p>
+          <InfoStat
+            icon={Building2}
+            label="Faculties"
+            value={faculties.length}
+            accent="emerald"
+          />
 
-            <p className="mt-1 font-black text-white">
-              {university.shortName}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
-            <MapPin
-              size={22}
-              className="text-cyan-400"
-            />
-
-            <p className="mt-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-              Location
-            </p>
-
-            <p className="mt-1 font-black text-white">
-              {university.state}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
-            <Building2
-              size={22}
-              className="text-cyan-400"
-            />
-
-            <p className="mt-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-              Faculties
-            </p>
-
-            <p className="mt-1 font-black text-white">
-              {university.faculties.length}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
-            <BookOpen
-              size={22}
-              className="text-cyan-400"
-            />
-
-            <p className="mt-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-              Featured Programs
-            </p>
-
-            <p className="mt-1 font-black text-white">
-              {university.programs.length}+
-            </p>
-          </div>
-        </div>
+          <InfoStat
+            icon={BookOpen}
+            label="Courses"
+            value={
+              selectedFaculty
+                ? facultyCourses.length
+                : "Select a faculty"
+            }
+            accent="violet"
+          />
+        </motion.div>
 
         {/* =================================================
-            MAIN CONTENT
+            MAIN GRID
         ================================================= */}
 
-        <div className="grid gap-8 lg:grid-cols-[1.4fr_0.8fr]">
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)]"
+        >
+          {/* =================================================
+              LEFT COLUMN
+          ================================================= */}
 
-          {/* LEFT */}
-
-          <div className="space-y-8">
-
+          <div className="min-w-0 space-y-8">
             {/* ABOUT */}
 
             <SectionCard
               icon={Building2}
               title="About the University"
+              description="An overview of the institution and its academic identity."
             >
-              <p className="leading-8 text-slate-400">
-                {university.about}
-              </p>
+              <div className="relative rounded-2xl border border-white/[0.06] bg-slate-950/45 p-5 sm:p-6">
+                <div className="absolute left-0 top-6 h-12 w-1 rounded-r-full bg-cyan-400/50" />
+
+                <p className="whitespace-pre-line pl-4 text-sm leading-8 text-slate-400 sm:text-[15px]">
+                  {universityAbout}
+                </p>
+              </div>
             </SectionCard>
 
             {/* FACULTIES */}
 
-            <SectionCard
-              icon={GraduationCap}
-              title="Faculties"
-            >
-              <div className="grid gap-3 sm:grid-cols-2">
-                {university.faculties.map(
-                  (faculty) => (
-                    <div
-                      key={faculty}
-                      className="flex items-center gap-3 rounded-2xl border border-white/5 bg-slate-950/50 p-4"
-                    >
-                      <CheckCircle2
+            <div id="faculties">
+              <SectionCard
+                icon={GraduationCap}
+                title="Faculties"
+                description={
+                  facultyLoading
+                    ? "Loading academic faculties..."
+                    : `${faculties.length} ${
+                        faculties.length === 1
+                          ? "faculty"
+                          : "faculties"
+                      } currently listed. Select a faculty to view its complete description and courses.`
+                }
+              >
+                {/* FACULTY SEARCH */}
+
+                {faculties.length > 0 && (
+                  <div className="mb-6">
+                    <div className="relative">
+                      <Search
                         size={17}
-                        className="shrink-0 text-cyan-400"
+                        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"
                       />
 
-                      <span className="text-sm font-semibold text-slate-300">
-                        {faculty}
-                      </span>
+                      <input
+                        type="text"
+                        value={facultySearch}
+                        onChange={(event) =>
+                          setFacultySearch(
+                            event.target.value
+                          )
+                        }
+                        placeholder="Search faculties..."
+                        className="w-full rounded-2xl border border-white/[0.07] bg-slate-950/60 py-3.5 pl-11 pr-11 text-sm font-semibold text-white outline-none placeholder:text-slate-700 transition-all focus:border-cyan-400/20 focus:bg-slate-950/80"
+                      />
+
+                      {facultySearch && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFacultySearch("")
+                          }
+                          className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white/[0.05] hover:text-white"
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
                     </div>
-                  )
+                  </div>
                 )}
-              </div>
-            </SectionCard>
 
-            {/* PROGRAMS */}
+                <AnimatePresence mode="wait">
+                  {/* FACULTY LOADING */}
 
-            <div id="programs">
-              <SectionCard
-                icon={BookOpen}
-                title="Programs"
-              >
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {university.programs.map(
-                    (program) => (
-                      <div
-                        key={program}
-                        className="rounded-2xl border border-white/5 bg-slate-950/50 p-4 text-sm font-semibold text-slate-300 transition hover:border-cyan-400/20 hover:text-cyan-300"
-                      >
-                        {program}
+                  {facultyLoading ? (
+                    <motion.div
+                      key="faculty-loading"
+                      initial={{
+                        opacity: 0,
+                      }}
+                      animate={{
+                        opacity: 1,
+                      }}
+                      exit={{
+                        opacity: 0,
+                      }}
+                      className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.06] bg-slate-950/45 py-14"
+                    >
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.06]">
+                        <Loader2
+                          size={24}
+                          className="animate-spin text-cyan-400"
+                        />
                       </div>
-                    )
+
+                      <p className="mt-4 text-sm font-bold text-slate-500">
+                        Loading faculties...
+                      </p>
+                    </motion.div>
+                  ) : faculties.length === 0 ? (
+                    /* NO FACULTIES */
+
+                    <motion.div
+                      key="faculty-empty"
+                      initial={{
+                        opacity: 0,
+                      }}
+                      animate={{
+                        opacity: 1,
+                      }}
+                      exit={{
+                        opacity: 0,
+                      }}
+                      className="rounded-2xl border border-dashed border-white/[0.08] bg-slate-950/45 px-6 py-14 text-center"
+                    >
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.025]">
+                        <GraduationCap
+                          size={28}
+                          className="text-slate-700"
+                        />
+                      </div>
+
+                      <h3 className="mt-5 font-black text-white">
+                        No faculties listed yet
+                      </h3>
+
+                      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">
+                        Faculty information for this
+                        institution has not been added yet.
+                      </p>
+                    </motion.div>
+                  ) : filteredFaculties.length === 0 ? (
+                    /* SEARCH EMPTY */
+
+                    <motion.div
+                      key="faculty-no-search"
+                      initial={{
+                        opacity: 0,
+                      }}
+                      animate={{
+                        opacity: 1,
+                      }}
+                      exit={{
+                        opacity: 0,
+                      }}
+                      className="rounded-2xl border border-dashed border-white/[0.08] bg-slate-950/45 px-6 py-12 text-center"
+                    >
+                      <Search
+                        size={26}
+                        className="mx-auto text-slate-700"
+                      />
+
+                      <h3 className="mt-4 font-black text-white">
+                        No faculty found
+                      </h3>
+
+                      <p className="mt-2 text-sm text-slate-600">
+                        Try a different faculty name.
+                      </p>
+                    </motion.div>
+                  ) : (
+                    /* FACULTY LIST */
+
+                    <motion.div
+                      key="faculty-list"
+                      variants={staggerContainer}
+                      initial="hidden"
+                      animate="visible"
+                      className="grid gap-4 sm:grid-cols-2"
+                    >
+                      {filteredFaculties.map(
+                        (
+                          faculty,
+                          index
+                        ) => (
+                          <FacultyCard
+                            key={faculty.id}
+                            faculty={faculty}
+                            index={index}
+                            selected={
+                              selectedFaculty?.id ===
+                              faculty.id
+                            }
+                            onClick={() =>
+                              handleFacultyClick(
+                                faculty
+                              )
+                            }
+                          />
+                        )
+                      )}
+                    </motion.div>
                   )}
+                </AnimatePresence>
+
+                {/* =================================================
+                    SELECTED FACULTY + COURSES
+                ================================================= */}
+
+                <div
+                  id="selected-faculty"
+                  className="scroll-mt-24"
+                >
+                  <AnimatePresence>
+                    {selectedFaculty && (
+                      <FacultyCoursePanel
+                        faculty={
+                          selectedFaculty
+                        }
+                        courses={
+                          facultyCourses
+                        }
+                        loading={
+                          courseLoading
+                        }
+                        error={
+                          courseError
+                        }
+                        onClose={() => {
+                          setSelectedFaculty(
+                            null
+                          );
+                          setFacultyCourses(
+                            []
+                          );
+                          setCourseError("");
+                        }}
+                      />
+                    )}
+                  </AnimatePresence>
                 </div>
               </SectionCard>
             </div>
-
-            {/* REQUIREMENTS */}
-
-            <SectionCard
-              icon={ClipboardCheck}
-              title="Entry Requirements"
-            >
-              <div className="space-y-4">
-                {university.requirements.map(
-                  (requirement, index) => (
-                    <div
-                      key={index}
-                      className="flex gap-3 rounded-2xl border border-white/5 bg-slate-950/50 p-4"
-                    >
-                      <CheckCircle2
-                        size={19}
-                        className="mt-0.5 shrink-0 text-cyan-400"
-                      />
-
-                      <p className="text-sm leading-7 text-slate-400">
-                        {requirement}
-                      </p>
-                    </div>
-                  )
-                )}
-              </div>
-            </SectionCard>
           </div>
 
-          {/* RIGHT */}
+          {/* =================================================
+              RIGHT COLUMN
+          ================================================= */}
 
-          <div className="space-y-8">
-
+          <aside className="min-w-0 space-y-8">
             {/* ADMISSION */}
 
             <SectionCard
               icon={ClipboardCheck}
               title="Admission"
+              description="Important information before applying."
             >
-              <p className="leading-7 text-slate-400">
-                {university.admission}
-              </p>
+              {university?.admission ? (
+                <p className="whitespace-pre-line text-sm leading-7 text-slate-400">
+                  {university.admission}
+                </p>
+              ) : (
+                <p className="text-sm leading-7 text-slate-500">
+                  Admission information for this institution
+                  has not been added yet.
+                </p>
+              )}
 
-              <button className="mt-6 flex w-full items-center justify-between rounded-2xl border border-cyan-400/20 bg-cyan-400/5 px-4 py-4 text-sm font-bold text-cyan-300 transition hover:bg-cyan-400/10">
-                Admission Information
-                <ArrowRight size={17} />
-              </button>
+              <div className="mt-6 rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.05] p-4">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck
+                    size={19}
+                    className="mt-0.5 shrink-0 text-cyan-400"
+                  />
+
+                  <p className="text-xs leading-6 text-cyan-300">
+                    Always verify current admission
+                    requirements directly with the institution
+                    before applying.
+                  </p>
+                </div>
+              </div>
             </SectionCard>
 
             {/* FEES */}
@@ -786,17 +1805,32 @@ const UniversityDetails = () => {
             <SectionCard
               icon={Wallet}
               title="Fees"
+              description="Tuition and related financial information."
             >
-              <p className="leading-7 text-slate-400">
-                {university.fees}
-              </p>
-
-              <div className="mt-5 rounded-2xl border border-amber-400/10 bg-amber-400/5 p-4">
-                <p className="text-xs leading-6 text-amber-300">
-                  Fees can change. Always verify current
-                  charges with the institution before making
-                  payment.
+              {university?.fees ? (
+                <p className="whitespace-pre-line text-sm leading-7 text-slate-400">
+                  {university.fees}
                 </p>
+              ) : (
+                <p className="text-sm leading-7 text-slate-500">
+                  Fee information for this institution has not
+                  been added yet.
+                </p>
+              )}
+
+              <div className="mt-6 rounded-2xl border border-amber-400/10 bg-amber-400/[0.04] p-4">
+                <div className="flex items-start gap-3">
+                  <Wallet
+                    size={18}
+                    className="mt-0.5 shrink-0 text-amber-400"
+                  />
+
+                  <p className="text-xs leading-6 text-amber-300/80">
+                    Fees may change between academic sessions.
+                    Confirm current charges before making any
+                    payment.
+                  </p>
+                </div>
               </div>
             </SectionCard>
 
@@ -805,65 +1839,234 @@ const UniversityDetails = () => {
             <SectionCard
               icon={Phone}
               title="Contact"
+              description="Available institutional contact details."
             >
-              <div className="space-y-4">
+              <div className="space-y-5">
+                {/* ADDRESS */}
 
-                <div className="flex gap-3">
-                  <MapPin
-                    size={18}
-                    className="mt-1 shrink-0 text-cyan-400"
-                  />
+                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/45 p-4">
+                  <div className="flex gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/[0.07]">
+                      <MapPin
+                        size={17}
+                        className="text-cyan-400"
+                      />
+                    </div>
 
-                  <p className="text-sm leading-6 text-slate-400">
-                    {university.contact.address}
-                  </p>
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.17em] text-slate-700">
+                        Address
+                      </p>
+
+                      <p className="mt-1.5 text-sm leading-6 text-slate-400">
+                        {universityAddress}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <Phone
-                    size={18}
-                    className="shrink-0 text-cyan-400"
-                  />
+                {/* PHONE */}
 
-                  <p className="text-sm text-slate-400">
-                    {university.contact.phone}
-                  </p>
-                </div>
+                {universityPhone && (
+                  <a
+                    href={`tel:${universityPhone}`}
+                    className="group flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-slate-950/45 p-4 transition-all hover:border-cyan-400/15 hover:bg-white/[0.025]"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/[0.07]">
+                      <Phone
+                        size={17}
+                        className="text-cyan-400"
+                      />
+                    </div>
 
-                <div className="flex gap-3">
-                  <Mail
-                    size={18}
-                    className="shrink-0 text-cyan-400"
-                  />
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.17em] text-slate-700">
+                        Phone
+                      </p>
 
-                  <p className="break-all text-sm text-slate-400">
-                    {university.contact.email}
-                  </p>
-                </div>
+                      <p className="mt-1.5 truncate text-sm font-semibold text-slate-400 transition-colors group-hover:text-white">
+                        {universityPhone}
+                      </p>
+                    </div>
+                  </a>
+                )}
+
+                {/* EMAIL */}
+
+                {universityEmail && (
+                  <div className="rounded-2xl border border-white/[0.06] bg-slate-950/45 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/[0.07]">
+                        <Mail
+                          size={17}
+                          className="text-cyan-400"
+                        />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-[9px] font-black uppercase tracking-[0.17em] text-slate-700">
+                            Email
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={
+                              handleCopyEmail
+                            }
+                            className="rounded-lg p-1.5 text-slate-600 transition hover:bg-white/[0.05] hover:text-cyan-400"
+                            title="Copy email"
+                          >
+                            {copied ? (
+                              <Check size={14} />
+                            ) : (
+                              <Copy size={14} />
+                            )}
+                          </button>
+                        </div>
+
+                        <a
+                          href={`mailto:${universityEmail}`}
+                          className="mt-1.5 block break-all text-sm font-semibold text-slate-400 transition-colors hover:text-cyan-400"
+                        >
+                          {universityEmail}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!universityPhone &&
+                  !universityEmail && (
+                    <div className="rounded-2xl border border-dashed border-white/[0.07] bg-slate-950/45 p-6 text-center">
+                      <Phone
+                        size={23}
+                        className="mx-auto text-slate-700"
+                      />
+
+                      <p className="mt-3 text-sm text-slate-600">
+                        Contact information has not been added
+                        yet.
+                      </p>
+                    </div>
+                  )}
               </div>
             </SectionCard>
-          </div>
-        </div>
+
+            {/* OFFICIAL WEBSITE */}
+
+            {websiteUrl && (
+              <motion.a
+                variants={fadeUp}
+                href={websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group relative block overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-gradient-to-br from-cyan-400/[0.08] to-blue-500/[0.03] p-6 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/20"
+              >
+                <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-cyan-400/[0.06] blur-3xl" />
+
+                <div className="relative">
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/10 bg-cyan-400/[0.07]">
+                      <Globe2
+                        size={20}
+                        className="text-cyan-400"
+                      />
+                    </div>
+
+                    <ExternalLink
+                      size={17}
+                      className="text-slate-600 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-cyan-400"
+                    />
+                  </div>
+
+                  <p className="mt-5 text-[10px] font-black uppercase tracking-[0.17em] text-cyan-400/70">
+                    Official Institution
+                  </p>
+
+                  <h3 className="mt-1 font-black text-white">
+                    Visit official website
+                  </h3>
+
+                  <p className="mt-2 text-xs leading-6 text-slate-500">
+                    Get the latest information directly from the
+                    institution.
+                  </p>
+                </div>
+              </motion.a>
+            )}
+          </aside>
+        </motion.div>
 
         {/* =================================================
-            BOTTOM
+            TRUST NOTICE
         ================================================= */}
 
-        <div className="mt-12 flex justify-center">
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          whileInView={{
+            opacity: 1,
+            y: 0,
+          }}
+          viewport={{
+            once: true,
+          }}
+          className="mt-10 overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/[0.06]">
+              <ShieldCheck
+                size={19}
+                className="text-cyan-400"
+              />
+            </div>
+
+            <div className="flex-1">
+              <p className="text-sm font-black text-white">
+                University information
+              </p>
+
+              <p className="mt-1 text-xs leading-6 text-slate-600">
+                Information displayed on this profile is loaded
+                from the institution records available in the
+                platform. Confirm important admission, fee and
+                application details with the institution.
+              </p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* =================================================
+            BOTTOM NAVIGATION
+        ================================================= */}
+
+        <div className="flex justify-center py-12">
           <button
+            type="button"
             onClick={() =>
               navigate("/universities")
             }
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+            className="group inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-6 py-3.5 text-sm font-black text-slate-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-400/20 hover:bg-white/[0.05] hover:text-white"
           >
-            <ArrowLeft size={17} />
+            <ArrowLeft
+              size={17}
+              className="transition-transform group-hover:-translate-x-1"
+            />
+
             Back to All Universities
           </button>
         </div>
 
-        <footer className="mt-16 border-t border-white/10 py-10 text-center">
-          <p className="text-sm text-slate-500">
-            University information on Scholiqen.
+        {/* =================================================
+            FOOTER
+        ================================================= */}
+
+        <footer className="border-t border-white/[0.06] py-8 text-center">
+          <p className="text-xs font-semibold text-slate-700">
+            University information powered by Scholiqen.
           </p>
         </footer>
       </div>
@@ -872,4 +2075,3 @@ const UniversityDetails = () => {
 };
 
 export default UniversityDetails;
-

@@ -1,603 +1,870 @@
+// src/admin/pages/schools/universities/ProgramForm.jsx
+
 import React, { useEffect, useState } from "react";
-import { supabase } from "../../../lib/supabaseClient";
+import { motion } from "framer-motion";
 import {
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  Save,
   BookOpen,
-  Search,
+  GraduationCap,
+  Building2,
+  Clock,
+  FileText,
+  Save,
+  X,
   Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ChevronRight,
 } from "lucide-react";
 
-/* =========================================================
-   PROGRAM MANAGER
-   Manages programs belonging to a faculty
-========================================================= */
+import { supabase } from "../../../lib/supabaseClient";
 
-const ProgramManager = ({ facultyId, schoolId }) => {
-  const [programs, setPrograms] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+const ProgramForm = ({
+  university,
+  faculty,
+  program = null,
+  onSuccess,
+  onCancel,
+}) => {
+  const isEditing = Boolean(program?.id);
 
-  const [search, setSearch] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [editingProgram, setEditingProgram] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [universityData, setUniversityData] = useState(
+    university || null
+  );
+
+  const [facultyData, setFacultyData] = useState(
+    faculty || null
+  );
+
+  /* =========================================================
+     FORM STATE
+  ========================================================= */
 
   const [form, setForm] = useState({
     name: "",
-    code: "",
-    degree_type: "",
+    degree: "",
     duration: "",
     description: "",
-    requirements: "",
-    active: true,
   });
 
   /* =========================================================
-     FETCH PROGRAMS
+     LOAD PROGRAM WHEN EDITING
   ========================================================= */
 
-  const fetchPrograms = async () => {
-    if (!facultyId) {
-      setPrograms([]);
-      setLoading(false);
+  useEffect(() => {
+    if (program) {
+      setForm({
+        name: program.name || "",
+        degree: program.degree || "",
+        duration: program.duration || "",
+        description: program.description || "",
+      });
+    } else {
+      setForm({
+        name: "",
+        degree: "",
+        duration: "",
+        description: "",
+      });
+    }
+  }, [program]);
+
+  /* =========================================================
+     LOAD UNIVERSITY
+  ========================================================= */
+
+  useEffect(() => {
+    const loadUniversity = async () => {
+      if (university) {
+        setUniversityData(university);
+        return;
+      }
+
+      if (!program?.university_id) {
+        return;
+      }
+
+      try {
+        setLoadingData(true);
+
+        const { data, error } = await supabase
+          .from("universities")
+          .select("*")
+          .eq("id", program.university_id)
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setUniversityData(data);
+      } catch (err) {
+        console.error(
+          "Load University Error:",
+          err
+        );
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    loadUniversity();
+  }, [university, program]);
+
+  /* =========================================================
+     LOAD FACULTY
+  ========================================================= */
+
+  useEffect(() => {
+    const loadFaculty = async () => {
+      if (faculty) {
+        setFacultyData(faculty);
+        return;
+      }
+
+      if (!program?.faculty_id) {
+        return;
+      }
+
+      try {
+        setLoadingData(true);
+
+        const { data, error } = await supabase
+          .from("school_faculties")
+          .select("*")
+          .eq("id", program.faculty_id)
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setFacultyData(data);
+      } catch (err) {
+        console.error(
+          "Load Faculty Error:",
+          err
+        );
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    loadFaculty();
+  }, [faculty, program]);
+
+  /* =========================================================
+     INPUT HANDLER
+  ========================================================= */
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+
+    if (error) {
+      setError("");
+    }
+
+    if (success) {
+      setSuccess("");
+    }
+  };
+
+  /* =========================================================
+     VALIDATION
+  ========================================================= */
+
+  const validateForm = () => {
+    if (!universityData?.id) {
+      return "University information is missing.";
+    }
+
+    if (!facultyData?.id) {
+      return "Faculty information is missing.";
+    }
+
+    if (!form.name.trim()) {
+      return "Program name is required.";
+    }
+
+    if (!form.degree.trim()) {
+      return "Degree is required.";
+    }
+
+    if (!form.duration.trim()) {
+      return "Program duration is required.";
+    }
+
+    return null;
+  };
+
+  /* =========================================================
+     SUBMIT
+  ========================================================= */
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    setError("");
+    setSuccess("");
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("school_programs")
-        .select("*")
-        .eq("faculty_id", facultyId)
-        .order("created_at", {
-          ascending: false,
-        });
+      /*
+       * IMPORTANT
+       *
+       * Only use columns that exist in school_programs.
+       *
+       * We intentionally DO NOT send:
+       * - code
+       * - requirements
+       *
+       * because those columns do not exist in your current
+       * Supabase schema.
+       */
 
-      if (error) {
-        console.error("Fetch Programs Error:", error);
-        setPrograms([]);
+      const payload = {
+        university_id: universityData.id,
+        faculty_id: facultyData.id,
+
+        name: form.name.trim(),
+
+        degree: form.degree.trim(),
+
+        duration: form.duration.trim(),
+
+        description:
+          form.description.trim() || null,
+      };
+
+      /* =====================================================
+         UPDATE
+      ===================================================== */
+
+      if (isEditing) {
+        const { data, error } = await supabase
+          .from("school_programs")
+          .update(payload)
+          .eq("id", program.id)
+          .select()
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        console.log(
+          "Program Updated:",
+          data
+        );
+
+        setSuccess(
+          "Program updated successfully."
+        );
+
+        setTimeout(() => {
+          if (onSuccess) {
+            onSuccess(data);
+          }
+        }, 500);
+
         return;
       }
 
-      setPrograms(data || []);
-    } catch (error) {
-      console.error("Program Error:", error);
-      setPrograms([]);
+      /* =====================================================
+         CREATE
+      ===================================================== */
+
+      const { data, error } = await supabase
+        .from("school_programs")
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      console.log(
+        "Program Created:",
+        data
+      );
+
+      setSuccess(
+        "Program created successfully."
+      );
+
+      setForm({
+        name: "",
+        degree: "",
+        duration: "",
+        description: "",
+      });
+
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess(data);
+        }
+      }, 500);
+    } catch (err) {
+      console.error(
+        "Save Program Error:",
+        err
+      );
+
+      setError(
+        err?.message ||
+          "Unable to save program."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchPrograms();
-  }, [facultyId]);
-
   /* =========================================================
-     OPEN CREATE FORM
+     CANCEL
   ========================================================= */
 
-  const openCreate = () => {
-    setEditingProgram(null);
-
-    setForm({
-      name: "",
-      code: "",
-      degree_type: "",
-      duration: "",
-      description: "",
-      requirements: "",
-      active: true,
-    });
-
-    setShowForm(true);
-  };
-
-  /* =========================================================
-     OPEN EDIT FORM
-  ========================================================= */
-
-  const openEdit = (program) => {
-    setEditingProgram(program);
-
-    setForm({
-      name: program.name || "",
-      code: program.code || "",
-      degree_type: program.degree_type || "",
-      duration: program.duration || "",
-      description: program.description || "",
-      requirements: program.requirements || "",
-      active: program.active ?? true,
-    });
-
-    setShowForm(true);
-  };
-
-  /* =========================================================
-     HANDLE INPUT
-  ========================================================= */
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-
-    setForm((previous) => ({
-      ...previous,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  /* =========================================================
-     SAVE PROGRAM
-  ========================================================= */
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!form.name.trim()) {
-      alert("Program name is required.");
+  const handleCancel = () => {
+    if (loading) {
       return;
     }
 
-    if (!facultyId) {
-      alert("Faculty ID is missing.");
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      const payload = {
-        faculty_id: facultyId,
-        school_id: schoolId || null,
-        name: form.name.trim(),
-        code: form.code.trim() || null,
-        degree_type: form.degree_type.trim() || null,
-        duration: form.duration.trim() || null,
-        description: form.description.trim() || null,
-        requirements: form.requirements.trim() || null,
-        active: form.active,
-      };
-
-      let error;
-
-      if (editingProgram) {
-        ({ error } = await supabase
-          .from("school_programs")
-          .update(payload)
-          .eq("id", editingProgram.id));
-      } else {
-        ({ error } = await supabase
-          .from("school_programs")
-          .insert([payload]));
-      }
-
-      if (error) {
-        console.error("Save Program Error:", error);
-        alert(error.message || "Failed to save program.");
-        return;
-      }
-
-      setShowForm(false);
-      setEditingProgram(null);
-
-      await fetchPrograms();
-    } catch (error) {
-      console.error("Program Save Error:", error);
-      alert("Something went wrong while saving the program.");
-    } finally {
-      setSaving(false);
+    if (onCancel) {
+      onCancel();
     }
   };
 
   /* =========================================================
-     DELETE PROGRAM
+     LOADING DATA
   ========================================================= */
 
-  const handleDelete = async (program) => {
-    const confirmed = window.confirm(
-      `Delete "${program.name}"?\n\nThis action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    try {
-      const { error } = await supabase
-        .from("school_programs")
-        .delete()
-        .eq("id", program.id);
-
-      if (error) {
-        console.error("Delete Program Error:", error);
-        alert(error.message || "Failed to delete program.");
-        return;
-      }
-
-      await fetchPrograms();
-    } catch (error) {
-      console.error("Delete Error:", error);
-      alert("Failed to delete program.");
-    }
-  };
-
-  /* =========================================================
-     FILTER
-  ========================================================= */
-
-  const filteredPrograms = programs.filter((program) => {
-    const query = search.toLowerCase();
-
+  if (loadingData) {
     return (
-      program.name?.toLowerCase().includes(query) ||
-      program.code?.toLowerCase().includes(query) ||
-      program.degree_type?.toLowerCase().includes(query)
+      <div className="flex min-h-[500px] items-center justify-center bg-slate-950 p-8 text-white">
+        <div className="text-center">
+          <Loader2
+            size={35}
+            className="mx-auto animate-spin text-cyan-400"
+          />
+
+          <p className="mt-4 text-sm text-slate-500">
+            Loading program information...
+          </p>
+        </div>
+      </div>
     );
-  });
+  }
 
   /* =========================================================
      RENDER
   ========================================================= */
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-2xl">
-      {/* HEADER */}
-
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10">
-            <BookOpen
-              size={23}
-              className="text-cyan-400"
-            />
-          </div>
-
-          <div>
-            <h2 className="text-xl font-black text-white">
-              Programs
-            </h2>
-
-            <p className="text-sm text-slate-400">
-              Manage programs offered by this faculty.
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
-        >
-          <Plus size={18} />
-          Add Program
-        </button>
-      </div>
-
-      {/* SEARCH */}
-
-      <div className="relative mb-6">
-        <Search
-          size={18}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
-        />
-
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search programs..."
-          className="w-full rounded-xl border border-white/10 bg-slate-900 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
-        />
-      </div>
-
-      {/* LOADING */}
-
-      {loading && (
-        <div className="flex min-h-40 items-center justify-center">
-          <Loader2
-            size={28}
-            className="animate-spin text-cyan-400"
-          />
-        </div>
-      )}
-
-      {/* EMPTY */}
-
-      {!loading && filteredPrograms.length === 0 && (
-        <div className="rounded-2xl border border-white/5 bg-slate-900/50 px-6 py-12 text-center">
-          <BookOpen
-            size={38}
-            className="mx-auto text-slate-700"
-          />
-
-          <h3 className="mt-4 font-bold text-white">
-            No programs found
-          </h3>
-
-          <p className="mt-2 text-sm text-slate-500">
-            Add the first program for this faculty.
-          </p>
-        </div>
-      )}
-
-      {/* PROGRAMS */}
-
-      {!loading && filteredPrograms.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {filteredPrograms.map((program) => (
-            <div
-              key={program.id}
-              className="group rounded-2xl border border-white/10 bg-slate-900/70 p-5 transition hover:border-cyan-400/20"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h3 className="truncate text-lg font-black text-white">
-                    {program.name}
-                  </h3>
-
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {program.code && (
-                      <span className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-400">
-                        {program.code}
-                      </span>
-                    )}
-
-                    {program.degree_type && (
-                      <span className="rounded-lg bg-cyan-400/10 px-2.5 py-1 text-xs font-semibold text-cyan-400">
-                        {program.degree_type}
-                      </span>
-                    )}
-
-                    {program.duration && (
-                      <span className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-400">
-                        {program.duration}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <span
-                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
-                    program.active
-                      ? "bg-emerald-400/10 text-emerald-400"
-                      : "bg-red-400/10 text-red-400"
-                  }`}
-                >
-                  {program.active ? "Active" : "Inactive"}
-                </span>
-              </div>
-
-              {program.description && (
-                <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-400">
-                  {program.description}
-                </p>
-              )}
-
-              <div className="mt-5 flex items-center gap-2 border-t border-white/5 pt-4">
-                <button
-                  onClick={() => openEdit(program)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs font-bold text-slate-300 transition hover:bg-cyan-400/10 hover:text-cyan-400"
-                >
-                  <Pencil size={15} />
-                  Edit
-                </button>
-
-                <button
-                  onClick={() => handleDelete(program)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs font-bold text-slate-300 transition hover:bg-red-400/10 hover:text-red-400"
-                >
-                  <Trash2 size={15} />
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
+    <div className="bg-slate-950 text-white">
       {/* =====================================================
-          PROGRAM FORM MODAL
+          HEADER
       ===================================================== */}
 
-      {showForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
+      <div className="border-b border-white/10 bg-slate-900/70 p-6 lg:p-8">
+        <div className="flex items-start justify-between gap-5">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-400">
+              <BookOpen size={27} />
+            </div>
+
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-400">
+                {isEditing
+                  ? "Edit Program"
+                  : "Create Program"}
+              </p>
+
+              <h1 className="mt-1 text-2xl font-black lg:text-3xl">
+                {isEditing
+                  ? "Edit Academic Program"
+                  : "Add Academic Program"}
+              </h1>
+
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                Create a program under the selected
+                faculty and university.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={loading}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+          >
+            <X size={19} />
+          </button>
+        </div>
+      </div>
+
+      {/* =====================================================
+          FLOW
+      ===================================================== */}
+
+      <div className="border-b border-white/10 bg-slate-950 p-5 lg:p-6">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/70">
+          <div className="flex flex-col md:flex-row">
+
+            {/* UNIVERSITY */}
+
+            <div className="flex flex-1 items-center gap-3 border-b border-white/10 p-4 md:border-b-0 md:border-r">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10">
+                <GraduationCap
+                  size={18}
+                  className="text-cyan-400"
+                />
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wider text-cyan-400">
+                  Step 1
+                </p>
+
+                <p className="truncate text-sm font-bold text-white">
+                  {universityData?.name ||
+                    "University"}
+                </p>
+              </div>
+            </div>
+
+            <div className="hidden items-center justify-center px-2 md:flex">
+              <ChevronRight
+                size={18}
+                className="text-slate-700"
+              />
+            </div>
+
+            {/* FACULTY */}
+
+            <div className="flex flex-1 items-center gap-3 border-b border-white/10 p-4 md:border-b-0 md:border-r">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-400/10">
+                <Building2
+                  size={18}
+                  className="text-blue-400"
+                />
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wider text-blue-400">
+                  Step 2
+                </p>
+
+                <p className="truncate text-sm font-bold text-white">
+                  {facultyData?.name ||
+                    "Faculty"}
+                </p>
+              </div>
+            </div>
+
+            <div className="hidden items-center justify-center px-2 md:flex">
+              <ChevronRight
+                size={18}
+                className="text-slate-700"
+              />
+            </div>
+
+            {/* PROGRAM */}
+
+            <div className="flex flex-1 items-center gap-3 p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-400/10">
+                <BookOpen
+                  size={18}
+                  className="text-violet-400"
+                />
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-violet-400">
+                  Step 3
+                </p>
+
+                <p className="text-sm font-bold text-white">
+                  Program
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* =====================================================
+          FORM
+      ===================================================== */}
+
+      <form
+        onSubmit={handleSubmit}
+        className="p-6 lg:p-8"
+      >
+        {/* ===================================================
+            ERROR
+        =================================================== */}
+
+        {error && (
           <motion.div
             initial={{
               opacity: 0,
-              scale: 0.96,
-              y: 20,
+              y: -10,
             }}
             animate={{
               opacity: 1,
-              scale: 1,
               y: 0,
             }}
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-6 shadow-2xl"
+            className="mb-6 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-400/5 p-4"
           >
-            {/* MODAL HEADER */}
+            <AlertCircle
+              size={20}
+              className="mt-0.5 shrink-0 text-red-400"
+            />
 
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-black text-white">
-                  {editingProgram
-                    ? "Edit Program"
-                    : "Add Program"}
-                </h2>
+            <div>
+              <p className="text-sm font-bold text-red-400">
+                Unable to save program
+              </p>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  Add the academic details for this program.
-                </p>
+              <p className="mt-1 text-sm leading-6 text-red-400/70">
+                {error}
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ===================================================
+            SUCCESS
+        =================================================== */}
+
+        {success && (
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: -10,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4"
+          >
+            <CheckCircle2
+              size={20}
+              className="mt-0.5 shrink-0 text-emerald-400"
+            />
+
+            <div>
+              <p className="text-sm font-bold text-emerald-400">
+                Success
+              </p>
+
+              <p className="mt-1 text-sm text-emerald-400/70">
+                {success}
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ===================================================
+            PARENT INFORMATION
+        =================================================== */}
+
+        <div className="mb-7">
+          <div className="mb-4">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-600">
+              Academic Structure
+            </p>
+
+            <h2 className="mt-1 text-xl font-black text-white">
+              Program belongs to
+            </h2>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+
+            {/* UNIVERSITY */}
+
+            <div className="rounded-2xl border border-cyan-400/10 bg-cyan-400/5 p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10">
+                  <GraduationCap
+                    size={19}
+                    className="text-cyan-400"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-cyan-400">
+                    University
+                  </p>
+
+                  <p className="mt-1 truncate text-sm font-bold text-white">
+                    {universityData?.name ||
+                      "Not selected"}
+                  </p>
+                </div>
               </div>
-
-              <button
-                onClick={() => setShowForm(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
-              >
-                <X size={20} />
-              </button>
             </div>
 
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-5"
-            >
-              {/* NAME */}
+            {/* FACULTY */}
 
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
-                  Program Name
-                </label>
+            <div className="rounded-2xl border border-blue-400/10 bg-blue-400/5 p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-400/10">
+                  <Building2
+                    size={19}
+                    className="text-blue-400"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-blue-400">
+                    Faculty
+                  </p>
+
+                  <p className="mt-1 truncate text-sm font-bold text-white">
+                    {facultyData?.name ||
+                      "Not selected"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ===================================================
+            PROGRAM DETAILS
+        =================================================== */}
+
+        <div>
+          <div className="mb-5">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-600">
+              Program Information
+            </p>
+
+            <h2 className="mt-1 text-xl font-black text-white">
+              Program Details
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Enter the academic program offered by
+              this faculty.
+            </p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+
+            {/* PROGRAM NAME */}
+
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-bold text-slate-300">
+                Program Name
+                <span className="ml-1 text-red-400">
+                  *
+                </span>
+              </label>
+
+              <div className="relative">
+                <BookOpen
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"
+                />
 
                 <input
+                  type="text"
                   name="name"
                   value={form.name}
                   onChange={handleChange}
                   placeholder="e.g. Computer Science"
-                  className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
-                  required
+                  className="w-full rounded-xl border border-white/10 bg-slate-900 py-3.5 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-violet-400/40 focus:bg-slate-900"
+                />
+              </div>
+            </div>
+
+            {/* DEGREE */}
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-slate-300">
+                Degree
+                <span className="ml-1 text-red-400">
+                  *
+                </span>
+              </label>
+
+              <div className="relative">
+                <GraduationCap
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"
+                />
+
+                <input
+                  type="text"
+                  name="degree"
+                  value={form.degree}
+                  onChange={handleChange}
+                  placeholder="e.g. B.Sc."
+                  className="w-full rounded-xl border border-white/10 bg-slate-900 py-3.5 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-violet-400/40"
                 />
               </div>
 
-              {/* CODE + DEGREE */}
+              <p className="mt-2 text-xs text-slate-600">
+                Examples: B.Sc., B.A., B.Eng.,
+                HND, ND, M.Sc.
+              </p>
+            </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-300">
-                    Program Code
-                  </label>
+            {/* DURATION */}
 
-                  <input
-                    name="code"
-                    value={form.code}
-                    onChange={handleChange}
-                    placeholder="e.g. CSC"
-                    className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
-                  />
-                </div>
+            <div>
+              <label className="mb-2 block text-sm font-bold text-slate-300">
+                Duration
+                <span className="ml-1 text-red-400">
+                  *
+                </span>
+              </label>
 
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-300">
-                    Degree Type
-                  </label>
-
-                  <input
-                    name="degree_type"
-                    value={form.degree_type}
-                    onChange={handleChange}
-                    placeholder="e.g. B.Sc."
-                    className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
-                  />
-                </div>
-              </div>
-
-              {/* DURATION */}
-
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
-                  Duration
-                </label>
+              <div className="relative">
+                <Clock
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600"
+                />
 
                 <input
+                  type="text"
                   name="duration"
                   value={form.duration}
                   onChange={handleChange}
                   placeholder="e.g. 4 Years"
-                  className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
+                  className="w-full rounded-xl border border-white/10 bg-slate-900 py-3.5 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-violet-400/40"
                 />
               </div>
+            </div>
 
-              {/* DESCRIPTION */}
+            {/* DESCRIPTION */}
 
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
-                  Description
-                </label>
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-bold text-slate-300">
+                Description
+              </label>
+
+              <div className="relative">
+                <FileText
+                  size={18}
+                  className="absolute left-4 top-4 text-slate-600"
+                />
 
                 <textarea
                   name="description"
                   value={form.description}
                   onChange={handleChange}
-                  rows={4}
-                  placeholder="Describe the program..."
-                  className="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
+                  rows={6}
+                  placeholder="Describe what students learn in this program, the academic focus, and career opportunities..."
+                  className="w-full resize-none rounded-xl border border-white/10 bg-slate-900 py-3.5 pl-11 pr-4 text-sm leading-7 text-white outline-none transition placeholder:text-slate-600 focus:border-violet-400/40"
                 />
               </div>
+            </div>
 
-              {/* REQUIREMENTS */}
-
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
-                  Admission Requirements
-                </label>
-
-                <textarea
-                  name="requirements"
-                  value={form.requirements}
-                  onChange={handleChange}
-                  rows={4}
-                  placeholder="Enter admission requirements..."
-                  className="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
-                />
-              </div>
-
-              {/* ACTIVE */}
-
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-slate-900 p-4">
-                <input
-                  type="checkbox"
-                  name="active"
-                  checked={form.active}
-                  onChange={handleChange}
-                  className="h-4 w-4 accent-cyan-400"
-                />
-
-                <div>
-                  <p className="text-sm font-bold text-white">
-                    Active Program
-                  </p>
-
-                  <p className="text-xs text-slate-500">
-                    Make this program visible to students.
-                  </p>
-                </div>
-              </label>
-
-              {/* ACTIONS */}
-
-              <div className="flex justify-end gap-3 border-t border-white/10 pt-5">
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="rounded-xl bg-white/5 px-5 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/10"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-6 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving ? (
-                    <Loader2
-                      size={17}
-                      className="animate-spin"
-                    />
-                  ) : (
-                    <Save size={17} />
-                  )}
-
-                  {editingProgram
-                    ? "Save Changes"
-                    : "Create Program"}
-                </button>
-              </div>
-            </form>
-          </motion.div>
+          </div>
         </div>
-      )}
+
+        {/* ===================================================
+            INFO
+        =================================================== */}
+
+        <div className="mt-7 rounded-2xl border border-violet-400/10 bg-violet-400/5 p-5">
+          <div className="flex items-start gap-3">
+            <BookOpen
+              size={20}
+              className="mt-0.5 shrink-0 text-violet-400"
+            />
+
+            <div>
+              <p className="text-sm font-black text-white">
+                Program hierarchy
+              </p>
+
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                This program will be stored under{" "}
+                <span className="font-semibold text-cyan-400">
+                  {universityData?.name ||
+                    "the selected university"}
+                </span>{" "}
+                →{" "}
+                <span className="font-semibold text-blue-400">
+                  {facultyData?.name ||
+                    "the selected faculty"}
+                </span>
+                .
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ===================================================
+            ACTIONS
+        =================================================== */}
+
+        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-white/10 pt-6 sm:flex-row sm:justify-end">
+
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={loading}
+            className="rounded-xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-500 px-7 py-3 text-sm font-black text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? (
+              <>
+                <Loader2
+                  size={18}
+                  className="animate-spin"
+                />
+                {isEditing
+                  ? "Updating..."
+                  : "Creating..."}
+              </>
+            ) : (
+              <>
+                <Save size={18} />
+                {isEditing
+                  ? "Update Program"
+                  : "Create Program"}
+              </>
+            )}
+          </button>
+
+        </div>
+      </form>
     </div>
   );
 };
 
-export default ProgramManager;
+export default ProgramForm;

@@ -1,27 +1,32 @@
-// src/admin/pages/schools/universities/UniversitiesAdmin.jsx
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+
 import {
-  ArrowLeft,
   Plus,
   Search,
-  GraduationCap,
-  MapPin,
-  Globe,
   Pencil,
   Trash2,
   Eye,
   RefreshCw,
-  CheckCircle2,
-  XCircle,
-  MoreVertical,
+  GraduationCap,
+  MapPin,
+  Globe,
   Mail,
   Phone,
+  X,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
+import { useNavigate } from "react-router-dom";
+
 import { supabase } from "../../../lib/supabaseClient";
+import UniversityForm from "./UniversityForm";
 
 /* =========================================================
    UNIVERSITY CARD
@@ -32,13 +37,11 @@ const UniversityCard = ({
   onEdit,
   onDelete,
   onView,
+  onFaculty,
 }) => {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const logo =
-    university.logo_url ||
-    university.image_url ||
-    university.cover_url;
+  const isActive = university.status
+    ? university.status === "active"
+    : university.active !== false;
 
   const location = [
     university.city,
@@ -47,8 +50,6 @@ const UniversityCard = ({
   ]
     .filter(Boolean)
     .join(", ");
-
-  const isActive = university.active !== false;
 
   return (
     <motion.div
@@ -68,13 +69,13 @@ const UniversityCard = ({
       whileHover={{
         y: -5,
       }}
-      className="group relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-xl"
+      className="group overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-xl"
     >
-      {/* =================================================
+      {/* =====================================================
           COVER
-      ================================================= */}
+      ===================================================== */}
 
-      <div className="relative h-40 overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950">
+      <div className="relative h-44 overflow-hidden bg-slate-800">
         {university.cover_url ? (
           <img
             src={university.cover_url}
@@ -82,7 +83,7 @@ const UniversityCard = ({
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center">
+          <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950">
             <GraduationCap
               size={52}
               className="text-slate-700"
@@ -90,7 +91,7 @@ const UniversityCard = ({
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent" />
 
         {/* STATUS */}
 
@@ -111,92 +112,19 @@ const UniversityCard = ({
             {isActive ? "Active" : "Inactive"}
           </span>
         </div>
-
-        {/* MENU */}
-
-        <div className="absolute right-4 top-4">
-          <button
-            type="button"
-            onClick={() =>
-              setMenuOpen((value) => !value)
-            }
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-950/60 text-slate-300 backdrop-blur-md transition hover:bg-slate-900 hover:text-white"
-          >
-            <MoreVertical size={18} />
-          </button>
-
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div
-                initial={{
-                  opacity: 0,
-                  scale: 0.95,
-                  y: -5,
-                }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                  y: 0,
-                }}
-                exit={{
-                  opacity: 0,
-                  scale: 0.95,
-                  y: -5,
-                }}
-                className="absolute right-0 z-30 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl"
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onView(university);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
-                >
-                  <Eye size={16} />
-                  View
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onEdit(university);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
-                >
-                  <Pencil size={16} />
-                  Edit
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDelete(university);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-red-400 transition hover:bg-red-500/5"
-                >
-                  <Trash2 size={16} />
-                  Delete
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </div>
 
-      {/* =================================================
+      {/* =====================================================
           LOGO
-      ================================================= */}
+      ===================================================== */}
 
       <div className="relative px-6">
         <div className="-mt-10 flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-slate-900 bg-slate-800 shadow-xl">
-          {logo ? (
+          {university.logo_url ? (
             <img
-              src={logo}
+              src={university.logo_url}
               alt={`${university.name} logo`}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
             />
           ) : (
             <GraduationCap
@@ -207,20 +135,22 @@ const UniversityCard = ({
         </div>
       </div>
 
-      {/* =================================================
+      {/* =====================================================
           CONTENT
-      ================================================= */}
+      ===================================================== */}
 
       <div className="p-6 pt-4">
-        <h3 className="line-clamp-2 text-xl font-black text-white">
+        <h2 className="line-clamp-2 text-xl font-black text-white">
           {university.name || "Unnamed University"}
-        </h3>
+        </h2>
 
         {university.short_name && (
-          <p className="mt-1 text-sm font-semibold text-cyan-400">
+          <p className="mt-1 text-sm font-bold text-cyan-400">
             {university.short_name}
           </p>
         )}
+
+        {/* LOCATION */}
 
         {location && (
           <div className="mt-4 flex items-start gap-2 text-sm text-slate-400">
@@ -233,6 +163,8 @@ const UniversityCard = ({
           </div>
         )}
 
+        {/* WEBSITE */}
+
         {university.website && (
           <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
             <Globe size={15} />
@@ -242,6 +174,8 @@ const UniversityCard = ({
             </span>
           </div>
         )}
+
+        {/* EMAIL */}
 
         {university.email && (
           <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
@@ -253,6 +187,8 @@ const UniversityCard = ({
           </div>
         )}
 
+        {/* PHONE */}
+
         {university.phone && (
           <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
             <Phone size={15} />
@@ -263,19 +199,23 @@ const UniversityCard = ({
           </div>
         )}
 
+        {/* DESCRIPTION */}
+
         {university.description && (
-          <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-500">
+          <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-500">
             {university.description}
           </p>
         )}
 
-        {/* ACTIONS */}
+        {/* ===================================================
+            ACTIONS
+        =================================================== */}
 
-        <div className="mt-6 grid grid-cols-3 gap-2">
+        <div className="mt-6 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => onView(university)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <Eye size={15} />
             View
@@ -284,16 +224,27 @@ const UniversityCard = ({
           <button
             type="button"
             onClick={() => onEdit(university)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-cyan-400/10 bg-cyan-400/5 px-3 py-2.5 text-xs font-bold text-cyan-400 transition hover:bg-cyan-400/10"
+            className="flex items-center justify-center gap-2 rounded-xl border border-cyan-400/10 bg-cyan-400/5 px-3 py-3 text-xs font-bold text-cyan-400 transition hover:bg-cyan-400/10"
           >
             <Pencil size={15} />
             Edit
           </button>
 
+          {/* FACULTY BUTTON */}
+
+          <button
+            type="button"
+            onClick={() => onFaculty(university)}
+            className="flex items-center justify-center gap-2 rounded-xl border border-violet-400/10 bg-violet-400/5 px-3 py-3 text-xs font-bold text-violet-400 transition hover:bg-violet-400/10"
+          >
+            <GraduationCap size={15} />
+            Faculty
+          </button>
+
           <button
             type="button"
             onClick={() => onDelete(university)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-red-400/10 bg-red-400/5 px-3 py-2.5 text-xs font-bold text-red-400 transition hover:bg-red-400/10"
+            className="flex items-center justify-center gap-2 rounded-xl border border-red-400/10 bg-red-400/5 px-3 py-3 text-xs font-bold text-red-400 transition hover:bg-red-400/10"
           >
             <Trash2 size={15} />
             Delete
@@ -301,6 +252,145 @@ const UniversityCard = ({
         </div>
       </div>
     </motion.div>
+  );
+};
+
+/* =========================================================
+   VIEW MODAL
+========================================================= */
+
+const ViewUniversityModal = ({
+  university,
+  onClose,
+  onEdit,
+}) => {
+  if (!university) {
+    return null;
+  }
+
+  const fields = [
+    ["City", university.city],
+    ["State", university.state],
+    ["Country", university.country],
+    ["Website", university.website],
+    ["Email", university.email],
+    ["Phone", university.phone],
+    ["Status", university.status],
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <motion.div
+        initial={{
+          opacity: 0,
+          scale: 0.95,
+          y: 15,
+        }}
+        animate={{
+          opacity: 1,
+          scale: 1,
+          y: 0,
+        }}
+        className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-7 shadow-2xl sm:p-8"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+        >
+          <X size={19} />
+        </button>
+
+        <div className="pr-12">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
+            University
+          </p>
+
+          <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
+              {university.logo_url ? (
+                <img
+                  src={university.logo_url}
+                  alt={university.name}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <GraduationCap
+                  size={38}
+                  className="text-cyan-400"
+                />
+              )}
+            </div>
+
+            <div>
+              <h2 className="text-3xl font-black text-white">
+                {university.name}
+              </h2>
+
+              {university.short_name && (
+                <p className="mt-1 font-bold text-cyan-400">
+                  {university.short_name}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {university.description && (
+            <p className="mt-7 text-sm leading-8 text-slate-400">
+              {university.description}
+            </p>
+          )}
+
+          <div className="mt-7 grid gap-4 sm:grid-cols-2">
+            {fields.map(([label, value]) =>
+              value ? (
+                <div
+                  key={label}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                >
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-600">
+                    {label}
+                  </p>
+
+                  <p className="mt-2 break-words text-sm font-semibold text-white">
+                    {value}
+                  </p>
+                </div>
+              ) : null
+            )}
+          </div>
+
+          {university.cover_url && (
+            <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
+              <img
+                src={university.cover_url}
+                alt={`${university.name} cover`}
+                className="max-h-64 w-full object-cover"
+              />
+            </div>
+          )}
+
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+            >
+              Close
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onEdit(university)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400"
+            >
+              <Pencil size={16} />
+              Edit University
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
   );
 };
 
@@ -324,17 +414,15 @@ const DeleteModal = ({
         initial={{
           opacity: 0,
           scale: 0.95,
-          y: 15,
         }}
         animate={{
           opacity: 1,
           scale: 1,
-          y: 0,
         }}
         className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-7 shadow-2xl"
       >
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-400">
-          <Trash2 size={25} />
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-400/10 text-red-400">
+          <Trash2 size={22} />
         </div>
 
         <h2 className="mt-6 text-2xl font-black text-white">
@@ -346,7 +434,11 @@ const DeleteModal = ({
           <strong className="text-white">
             {university.name}
           </strong>
-          . This action cannot be undone.
+          .
+        </p>
+
+        <p className="mt-2 text-sm leading-7 text-red-400">
+          This action cannot be undone.
         </p>
 
         <div className="mt-7 flex gap-3">
@@ -380,13 +472,29 @@ const DeleteModal = ({
 const UniversitiesAdmin = () => {
   const navigate = useNavigate();
 
-  const [universities, setUniversities] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [universities, setUniversities] =
+    useState([]);
 
-  const [search, setSearch] = useState("");
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [search, setSearch] =
+    useState("");
+
   const [statusFilter, setStatusFilter] =
     useState("all");
+
+  const [showForm, setShowForm] =
+    useState(false);
+
+  const [editingUniversity, setEditingUniversity] =
+    useState(null);
+
+  const [selectedUniversity, setSelectedUniversity] =
+    useState(null);
 
   const [deleteTarget, setDeleteTarget] =
     useState(null);
@@ -394,17 +502,18 @@ const UniversitiesAdmin = () => {
   const [deleteLoading, setDeleteLoading] =
     useState(false);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
-  /* =======================================================
+  /* =========================================================
      FETCH UNIVERSITIES
-  ======================================================= */
+  ========================================================= */
 
   const fetchUniversities = async (
-    showRefresh = false
+    refresh = false
   ) => {
     try {
-      if (showRefresh) {
+      if (refresh) {
         setRefreshing(true);
       } else {
         setLoading(true);
@@ -412,13 +521,15 @@ const UniversitiesAdmin = () => {
 
       setError("");
 
-      const { data, error: fetchError } =
-        await supabase
-          .from("universities")
-          .select("*")
-          .order("created_at", {
-            ascending: false,
-          });
+      const {
+        data,
+        error: fetchError,
+      } = await supabase
+        .from("universities")
+        .select("*")
+        .order("created_at", {
+          ascending: false,
+        });
 
       if (fetchError) {
         throw fetchError;
@@ -447,9 +558,9 @@ const UniversitiesAdmin = () => {
     fetchUniversities();
   }, []);
 
-  /* =======================================================
+  /* =========================================================
      FILTER
-  ======================================================= */
+  ========================================================= */
 
   const filteredUniversities = useMemo(() => {
     const query = search
@@ -458,35 +569,24 @@ const UniversitiesAdmin = () => {
 
     return universities.filter(
       (university) => {
-        const name =
-          university.name || "";
+        const searchable = [
+          university.name,
+          university.short_name,
+          university.city,
+          university.state,
+          university.country,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-        const shortName =
-          university.short_name || "";
-
-        const city =
-          university.city || "";
-
-        const state =
-          university.state || "";
-
-        const country =
-          university.country || "";
+        const active = university.status
+          ? university.status === "active"
+          : university.active !== false;
 
         const matchesSearch =
           !query ||
-          name.toLowerCase().includes(query) ||
-          shortName
-            .toLowerCase()
-            .includes(query) ||
-          city.toLowerCase().includes(query) ||
-          state.toLowerCase().includes(query) ||
-          country
-            .toLowerCase()
-            .includes(query);
-
-        const active =
-          university.active !== false;
+          searchable.includes(query);
 
         const matchesStatus =
           statusFilter === "all" ||
@@ -507,47 +607,73 @@ const UniversitiesAdmin = () => {
     statusFilter,
   ]);
 
-  /* =======================================================
+  /* =========================================================
      COUNTS
-  ======================================================= */
+  ========================================================= */
 
-  const activeCount = universities.filter(
-    (university) =>
-      university.active !== false
-  ).length;
+  const activeCount =
+    universities.filter(
+      (university) =>
+        university.status
+          ? university.status === "active"
+          : university.active !== false
+    ).length;
 
   const inactiveCount =
-    universities.length - activeCount;
+    universities.length -
+    activeCount;
 
-  /* =======================================================
-     ACTIONS
-  ======================================================= */
+  /* =========================================================
+     CREATE
+  ========================================================= */
 
-  const handleAdd = () => {
-    navigate(
-      "/admin/schools/universities/new"
-    );
+  const handleCreate = () => {
+    setEditingUniversity(null);
+    setShowForm(true);
   };
+
+  /* =========================================================
+     EDIT
+  ========================================================= */
 
   const handleEdit = (university) => {
     if (!university?.id) {
       return;
     }
 
-    navigate(
-      `/admin/schools/universities/${university.id}/edit`
-    );
+    setSelectedUniversity(null);
+    setEditingUniversity(university);
+    setShowForm(true);
   };
 
+  /* =========================================================
+     VIEW
+  ========================================================= */
+
   const handleView = (university) => {
+    setSelectedUniversity(university);
+  };
+
+  /* =========================================================
+     FACULTY
+  ========================================================= */
+
+  const handleFaculty = (university) => {
     if (!university?.id) {
+      console.error(
+        "Cannot open faculty page: university ID is missing."
+      );
       return;
     }
 
     navigate(
-      `/admin/schools/universities/${university.id}`
+      `/admin/schools/university/${university.id}/faculties`
     );
   };
+
+  /* =========================================================
+     DELETE
+  ========================================================= */
 
   const handleDelete = async () => {
     if (!deleteTarget?.id) {
@@ -558,11 +684,12 @@ const UniversitiesAdmin = () => {
       setDeleteLoading(true);
       setError("");
 
-      const { error: deleteError } =
-        await supabase
-          .from("universities")
-          .delete()
-          .eq("id", deleteTarget.id);
+      const {
+        error: deleteError,
+      } = await supabase
+        .from("universities")
+        .delete()
+        .eq("id", deleteTarget.id);
 
       if (deleteError) {
         throw deleteError;
@@ -571,7 +698,8 @@ const UniversitiesAdmin = () => {
       setUniversities((current) =>
         current.filter(
           (item) =>
-            item.id !== deleteTarget.id
+            item.id !==
+            deleteTarget.id
         )
       );
 
@@ -591,22 +719,58 @@ const UniversitiesAdmin = () => {
     }
   };
 
-  /* =======================================================
+  /* =========================================================
+     FORM SUCCESS
+  ========================================================= */
+
+  const handleFormSuccess = (
+    savedUniversity
+  ) => {
+    setShowForm(false);
+    setEditingUniversity(null);
+
+    if (savedUniversity?.id) {
+      setUniversities((current) => {
+        const exists = current.some(
+          (item) =>
+            item.id ===
+            savedUniversity.id
+        );
+
+        if (exists) {
+          return current.map(
+            (item) =>
+              item.id ===
+              savedUniversity.id
+                ? savedUniversity
+                : item
+          );
+        }
+
+        return [
+          savedUniversity,
+          ...current,
+        ];
+      });
+    } else {
+      fetchUniversities();
+    }
+  };
+
+  /* =========================================================
      LOADING
-  ======================================================= */
+  ========================================================= */
 
   if (loading) {
     return (
-      <section className="min-h-screen bg-slate-950 p-6 text-white lg:p-8">
+      <section className="min-h-screen bg-slate-950 p-6">
         <div className="mx-auto max-w-7xl">
-          <div className="mb-8 h-20 animate-pulse rounded-2xl bg-slate-900" />
-
           <div className="grid gap-7 md:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3, 4, 5, 6].map(
               (item) => (
                 <div
                   key={item}
-                  className="h-[450px] animate-pulse rounded-3xl bg-slate-900"
+                  className="h-[520px] animate-pulse rounded-3xl bg-slate-900"
                 />
               )
             )}
@@ -616,64 +780,74 @@ const UniversitiesAdmin = () => {
     );
   }
 
-  /* =======================================================
+  /* =========================================================
      RENDER
-  ======================================================= */
+  ========================================================= */
 
   return (
-    <section className="min-h-screen bg-slate-950 p-6 text-white lg:p-8">
+    <section className="min-h-screen bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        {/* =================================================
+
+        {/* ===================================================
             HEADER
-        ================================================= */}
+        =================================================== */}
 
         <motion.div
           initial={{
             opacity: 0,
-            y: 20,
+            y: 15,
           }}
           animate={{
             opacity: 1,
             y: 0,
           }}
-          className="mb-8"
+          className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
         >
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/admin/schools")
-            }
-            className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-white"
-          >
-            <ArrowLeft size={17} />
-            Schools
-          </button>
-
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-400">
-                <GraduationCap size={29} />
-              </div>
-
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">
-                  School Management
-                </p>
-
-                <h1 className="mt-1 text-3xl font-black text-white">
-                  Universities
-                </h1>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Manage universities in the Scholiqen directory.
-                </p>
-              </div>
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-400">
+              <GraduationCap size={29} />
             </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">
+                School Management
+              </p>
+
+              <h1 className="mt-1 text-3xl font-black text-white">
+                Universities
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Manage the universities in your directory.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                fetchUniversities(true)
+              }
+              disabled={refreshing}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+            >
+              <RefreshCw
+                size={17}
+                className={
+                  refreshing
+                    ? "animate-spin"
+                    : ""
+                }
+              />
+
+              Refresh
+            </button>
 
             <button
               type="button"
-              onClick={handleAdd}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400"
+              onClick={handleCreate}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400"
             >
               <Plus size={18} />
               Add University
@@ -681,9 +855,9 @@ const UniversitiesAdmin = () => {
           </div>
         </motion.div>
 
-        {/* =================================================
+        {/* ===================================================
             STATS
-        ================================================= */}
+        =================================================== */}
 
         <div className="mb-8 grid gap-4 sm:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-5">
@@ -717,9 +891,9 @@ const UniversitiesAdmin = () => {
           </div>
         </div>
 
-        {/* =================================================
-            FILTER BAR
-        ================================================= */}
+        {/* ===================================================
+            SEARCH
+        =================================================== */}
 
         <div className="mb-8 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
           <div className="flex flex-col gap-4 lg:flex-row">
@@ -742,7 +916,7 @@ const UniversitiesAdmin = () => {
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2">
               {[
                 ["all", "All"],
                 ["active", "Active"],
@@ -753,7 +927,9 @@ const UniversitiesAdmin = () => {
                     type="button"
                     key={value}
                     onClick={() =>
-                      setStatusFilter(value)
+                      setStatusFilter(
+                        value
+                      )
                     }
                     className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
                       statusFilter === value
@@ -765,32 +941,13 @@ const UniversitiesAdmin = () => {
                   </button>
                 )
               )}
-
-              <button
-                type="button"
-                onClick={() =>
-                  fetchUniversities(true)
-                }
-                disabled={refreshing}
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition hover:text-white disabled:opacity-50"
-                title="Refresh"
-              >
-                <RefreshCw
-                  size={17}
-                  className={
-                    refreshing
-                      ? "animate-spin"
-                      : ""
-                  }
-                />
-              </button>
             </div>
           </div>
         </div>
 
-        {/* =================================================
+        {/* ===================================================
             ERROR
-        ================================================= */}
+        =================================================== */}
 
         {error && (
           <div className="mb-8 flex items-start justify-between gap-4 rounded-2xl border border-red-400/10 bg-red-400/5 p-5 text-sm text-red-400">
@@ -798,19 +955,22 @@ const UniversitiesAdmin = () => {
 
             <button
               type="button"
-              onClick={() => setError("")}
-              className="text-red-400/60 transition hover:text-red-300"
+              onClick={() =>
+                setError("")
+              }
+              className="text-red-400/60 hover:text-red-300"
             >
-              ✕
+              <X size={18} />
             </button>
           </div>
         )}
 
-        {/* =================================================
-            EMPTY STATE
-        ================================================= */}
+        {/* ===================================================
+            EMPTY
+        =================================================== */}
 
-        {filteredUniversities.length === 0 && (
+        {filteredUniversities.length ===
+          0 && (
           <div className="rounded-3xl border border-white/10 bg-slate-900/60 px-6 py-20 text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-400">
               <GraduationCap size={32} />
@@ -824,14 +984,15 @@ const UniversitiesAdmin = () => {
 
             <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-slate-500">
               {universities.length === 0
-                ? "Start building your school directory by adding your first university."
+                ? "Add your first university to begin building your directory."
                 : "Try changing your search or status filter."}
             </p>
 
-            {universities.length === 0 && (
+            {universities.length ===
+              0 && (
               <button
                 type="button"
-                onClick={handleAdd}
+                onClick={handleCreate}
                 className="mt-7 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400"
               >
                 <Plus size={18} />
@@ -841,11 +1002,12 @@ const UniversitiesAdmin = () => {
           </div>
         )}
 
-        {/* =================================================
+        {/* ===================================================
             UNIVERSITY GRID
-        ================================================= */}
+        =================================================== */}
 
-        {filteredUniversities.length > 0 && (
+        {filteredUniversities.length >
+          0 && (
           <motion.div
             layout
             className="grid gap-7 md:grid-cols-2 xl:grid-cols-3"
@@ -858,6 +1020,7 @@ const UniversitiesAdmin = () => {
                     university={university}
                     onView={handleView}
                     onEdit={handleEdit}
+                    onFaculty={handleFaculty}
                     onDelete={(item) =>
                       setDeleteTarget(item)
                     }
@@ -868,9 +1031,59 @@ const UniversitiesAdmin = () => {
           </motion.div>
         )}
 
-        {/* =================================================
+        {/* ===================================================
+            CREATE / EDIT FORM
+        =================================================== */}
+
+        {showForm && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+            <div className="relative max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 shadow-2xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingUniversity(null);
+                }}
+                className="absolute right-5 top-5 z-20 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+
+              <UniversityForm
+                university={
+                  editingUniversity
+                }
+                onSuccess={
+                  handleFormSuccess
+                }
+                onCancel={() => {
+                  setShowForm(false);
+                  setEditingUniversity(
+                    null
+                  );
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ===================================================
+            VIEW MODAL
+        =================================================== */}
+
+        <ViewUniversityModal
+          university={
+            selectedUniversity
+          }
+          onClose={() =>
+            setSelectedUniversity(null)
+          }
+          onEdit={handleEdit}
+        />
+
+        {/* ===================================================
             DELETE MODAL
-        ================================================= */}
+        =================================================== */}
 
         <DeleteModal
           university={deleteTarget}

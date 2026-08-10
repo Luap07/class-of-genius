@@ -9,7 +9,7 @@ import WeeklyTasks from "../../pages/lms/WeeklyTasks";
 import Resources from "../../pages/lms/Resources";
 import Progress from "../../pages/lms/Progress";
 import Certificates from "../../pages/lms/Certificates";
-import Profile from "../../pages/lms/Profile";
+import Profile from "../../pages/Profile";
 
 const pageAnimation = {
   hidden: {

@@ -28,7 +28,7 @@ const ContactCard = () => {
 
     {
       title: "Phone Support",
-      value: "+234 800 000 0000",
+      value: "+2348104264197 ",
       icon: Phone,
       action: "Call Now",
     },

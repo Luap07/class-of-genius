@@ -13,14 +13,17 @@ import { AnimatePresence, motion } from "framer-motion";
 import Terms from "./pages/Terms";
 import Help from "./pages/Help";
 import Privacy from "./pages/Privacy";
-
+import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
+import LearningStats from "./pages/LearningStats";
 /* =========================== CONTEXTS =========================== */
 
 import { AuthContext } from "./context/AuthContext";
 import { CourseProvider } from "./context/LMSContext/CourseContext";
 import { SearchProvider } from "./context/SearchContext";
 import { DocumentProvider } from "./context/DocumentContext";
-
+import ResetPassword from "./pages/ResetPassword";
 /* ===========================LANGUAGE=========================== */
 import LanguagesHome from "./pages/languages/LanguagesHome";
 import LanguageDetails from "./pages/languages/LanguageDetails";
@@ -181,6 +184,27 @@ const AnimatedRoutes = () => {
         />
 
         <Route
+  path="/profile"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <Profile />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/profile/edit"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <EditProfile />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
+
+        <Route
           path="/contact"
           element={
             <PageWrapper>
@@ -188,6 +212,15 @@ const AnimatedRoutes = () => {
             </PageWrapper>
           }
         />
+        <Route
+  path="/learning-stats"
+  element={
+    <ProtectedRoute>
+      <LearningStats />
+    </ProtectedRoute>
+  }
+/>
+<Route path="/reset-password" element={<ResetPassword />} />
   <Route path="/terms" element={<Terms />} />
         <Route
           path="/about"
@@ -249,6 +282,8 @@ const AnimatedRoutes = () => {
           path="/support/faq"
           element={<FAQ />}
         />
+
+        <Route path="/settings" element={<Settings />} />
 
         {/* ================= AI ================= */}
 

@@ -13,7 +13,6 @@ import SupportHero from "../../components/support/SupportHero";
 import ContactCard from "../../components/support/ContactCard";
 import FAQAccordion from "../../components/support/FAQAccordion";
 import FeedbackCard from "../../components/support/FeedbackCard";
-import TicketStatus from "../../components/support/TicketStatus";
 import FAQ from "../../pages/support/FAQ";
 
 
@@ -152,15 +151,6 @@ const SupportHome = () => {
 
 </section>
 
-
-        {/* TICKET STATUS */}
-
-        <section className="mt-16">
-
-          <TicketStatus />
-
-        </section>
-
         {/* FAQ */}
 
         <section className="mt-16">
@@ -273,7 +263,7 @@ const SupportHome = () => {
 
 
             <a
-              href="/support/contact"
+              href="/contact"
               className="
                 mt-7
                 inline-block

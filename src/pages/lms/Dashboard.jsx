@@ -3,1040 +3,1367 @@
 import React from "react";
 import { motion } from "framer-motion";
 import {
-  BookOpen,
-  CheckCircle2,
-  Clock3,
-  Trophy,
-  Flame,
-  TrendingUp,
-  CalendarDays,
-  PlayCircle,
   ArrowRight,
-  Target,
-  Brain,
-  Sparkles,
-  BarChart3,
   Award,
+  BookOpen,
+  Brain,
+  CheckCircle2,
+  GraduationCap,
+  Layers3,
+  Lightbulb,
+  PlayCircle,
+  Rocket,
+  Sparkles,
+  Target,
+  Trophy,
+  Users,
 } from "lucide-react";
 
-import { Link } from "react-router-dom";
-
-/* ========================= CONTEXTS========================= */
-
-import { useCourses } from "../../context/LMSContext/CourseContext";
-import { useProgress } from "../../context/LMSContext/ProgressContext";
-import { useWeeklyTasks } from "../../context/LMSContext/WeeklyTaskContext";
-import { useCertificates } from "../../context/LMSContext/CertificateContext";
-import { useAchievements } from "../../context/LMSContext/AchievementContext";
 import { useProfile } from "../../context/LMSContext/ProfileContext";
 
 import Footer from "../../components/lms/Footer";
 
-/* =========================
-   GLASS CARD
-========================= */
+/* =========================================================
+   HELPERS
+========================================================= */
 
-const GlassCard = ({ children, className = "" }) => (
-  <motion.div
-    whileHover={{ y: -4 }}
-    transition={{ duration: 0.25 }}
-    className={`relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/55 backdrop-blur-xl p-6 ${className}`}
-  >
-    <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] via-transparent to-cyan-500/[0.03]" />
-    <div className="relative z-10">{children}</div>
-  </motion.div>
-);
+const getGreeting = () => {
+  const hour = new Date().getHours();
 
-/* =========================
-   PREMIUM STAT CARD
-========================= */
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
 
-const StatCard = ({
-  title,
-  value,
+  return "Good evening";
+};
+
+const formatDate = () =>
+  new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date());
+
+/* =========================================================
+   SECTION WRAPPER
+========================================================= */
+
+const Section = ({ children, className = "" }) => {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.12 }}
+      transition={{ duration: 0.5 }}
+      className={className}
+    >
+      {children}
+    </motion.section>
+  );
+};
+
+/* =========================================================
+   LEARNING CARD
+========================================================= */
+
+const LearningCard = ({
   icon: Icon,
-  color,
-  subtitle,
-}) => (
-  <motion.div
-    whileHover={{
-      y: -8,
-      scale: 1.02,
-    }}
-    transition={{
-      duration: 0.25,
-    }}
-    className="group relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/70 p-6"
-  >
-    <div
-      className={`absolute inset-0 opacity-0 transition duration-500 group-hover:opacity-100 ${color}`}
-    />
+  number,
+  title,
+  description,
+  topics,
+  iconClass,
+}) => {
+  return (
+    <motion.div
+      whileHover={{
+        y: -6,
+      }}
+      transition={{
+        duration: 0.25,
+      }}
+      className="
+        group
+        relative
+        overflow-hidden
+        rounded-[28px]
+        border border-white/[0.07]
+        bg-[#0b1220]
+        p-6
+        shadow-[0_20px_70px_rgba(0,0,0,0.16)]
+      "
+    >
+      <div
+        className="
+          pointer-events-none
+          absolute
+          -right-20
+          -top-20
+          h-48
+          w-48
+          rounded-full
+          bg-cyan-500/[0.04]
+          blur-3xl
+          transition
+          duration-500
+          group-hover:bg-cyan-500/[0.08]
+        "
+      />
 
-    <div className="relative z-10">
-      <div className="flex items-center justify-between">
-        <div className="rounded-2xl bg-white/10 p-4">
-          <Icon size={28} />
+      <div className="relative z-10">
+        <div className="flex items-start justify-between">
+          <div
+            className={`
+              flex
+              h-14
+              w-14
+              items-center
+              justify-center
+              rounded-2xl
+              ${iconClass}
+            `}
+          >
+            <Icon size={25} />
+          </div>
+
+          <span
+            className="
+              text-4xl
+              font-black
+              tracking-tight
+              text-white/[0.05]
+            "
+          >
+            {number}
+          </span>
         </div>
 
-        <ArrowRight
-          size={18}
-          className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100"
-        />
+        <h3
+          className="
+            mt-7
+            text-xl
+            font-bold
+            tracking-tight
+            text-white
+          "
+        >
+          {title}
+        </h3>
+
+        <p
+          className="
+            mt-3
+            text-sm
+            leading-7
+            text-slate-500
+          "
+        >
+          {description}
+        </p>
+
+        <div className="mt-6 space-y-3">
+          {topics.map((topic) => (
+            <div
+              key={topic}
+              className="
+                flex
+                items-start
+                gap-3
+                text-sm
+                text-slate-400
+              "
+            >
+              <CheckCircle2
+                size={17}
+                className="
+                  mt-0.5
+                  shrink-0
+                  text-cyan-400
+                "
+              />
+
+              <span>{topic}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+/* =========================================================
+   OUTCOME CARD
+========================================================= */
+
+const OutcomeCard = ({
+  icon: Icon,
+  title,
+  description,
+}) => {
+  return (
+    <motion.div
+      whileHover={{
+        y: -4,
+      }}
+      transition={{
+        duration: 0.25,
+      }}
+      className="
+        rounded-[24px]
+        border border-white/[0.07]
+        bg-[#0b1220]
+        p-6
+      "
+    >
+      <div
+        className="
+          flex
+          h-12
+          w-12
+          items-center
+          justify-center
+          rounded-2xl
+          bg-cyan-500/10
+          text-cyan-400
+        "
+      >
+        <Icon size={22} />
       </div>
 
-      <h2 className="mt-6 text-4xl font-black">
-        {value}
-      </h2>
-
-      <p className="mt-2 text-slate-300 font-semibold">
+      <h3
+        className="
+          mt-5
+          text-lg
+          font-bold
+          text-white
+        "
+      >
         {title}
-      </p>
+      </h3>
 
-      <p className="mt-1 text-sm text-slate-500">
-        {subtitle}
+      <p
+        className="
+          mt-2
+          text-sm
+          leading-6
+          text-slate-500
+        "
+      >
+        {description}
       </p>
-    </div>
-  </motion.div>
-);
+    </motion.div>
+  );
+};
 
-/* =========================
+/* =========================================================
    DASHBOARD
-========================= */
+========================================================= */
 
 const Dashboard = () => {
-
-  const {
-    totalCourses = 0,
-  } = useCourses() || {};
+  const profileContext = useProfile() || {};
 
   const {
     profile,
-  } = useProfile() || {};
+  } = profileContext;
 
-  const {
-    currentLearning = [],
-    weeklyProgress = [],
-    totalCompletedLessons = 0,
-    studyHours = 0,
-    completeLesson = () => {},
-  } = useProgress() || {};
+  /* =======================================================
+     USER
+  ======================================================= */
 
-  const {
-    tasks = [],
-  } = useWeeklyTasks() || {};
+  const displayName =
+    profile?.username ||
+    profile?.full_name ||
+    profile?.fullName ||
+    profile?.name ||
+    "Student";
 
-  const {
-    totalCertificates = 0,
-  } = useCertificates() || {};
+  const firstName =
+    String(displayName)
+      .trim()
+      .split(/\s+/)[0] || "Student";
 
-  const {
-    badges = [],
-  } = useAchievements() || {};
+  /* =======================================================
+     LEARNING CONTENT
+  ======================================================= */
 
-  /* =========================
-     SAFE DATA
-  ========================= */
-
-  const username =
-    profile?.username
-      ? profile.username.charAt(0).toUpperCase() +
-        profile.username.slice(1)
-      : "Student";
-
-  const firstName = username.split(" ")[0];
-
-  const greeting = (() => {
-    const hour = new Date().getHours();
-
-    if (hour < 12) return "Good Morning";
-
-    if (hour < 17) return "Good Afternoon";
-
-    return "Ready to learn today?";
-  })();
-
-  const today = new Date().toLocaleDateString(
-    "en-US",
+  const learningAreas = [
     {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    }
-  );
-
-  const courses = Array.isArray(currentLearning)
-    ? currentLearning
-    : [];
-
-  const progress = Array.isArray(weeklyProgress)
-    ? weeklyProgress
-    : [];
-
-  const weeklyTasks = Array.isArray(tasks)
-    ? tasks
-    : [];
-
-  const achievements = Array.isArray(badges)
-    ? badges
-    : [];
-
-  const streak = 28;
-
-  const xp =
-    totalCompletedLessons * 15;
-
-  const level =
-    Math.floor(xp / 100) + 1;
-
-  const stats = [
-    {
-      title: "Courses",
-      value: totalCourses,
+      number: "01",
       icon: BookOpen,
-      subtitle: "Available Courses",
-      color:
-        "bg-gradient-to-br from-cyan-500/10 to-transparent",
+      title: "Core Knowledge",
+      description:
+        "Build a strong understanding of the fundamental concepts that form the foundation of your chosen area of study.",
+      topics: [
+        "Understand important concepts and principles",
+        "Build a strong academic foundation",
+        "Connect theory with practical examples",
+      ],
+      iconClass:
+        "bg-cyan-500/10 text-cyan-400",
     },
     {
-      title: "Lessons",
-      value: totalCompletedLessons,
-      icon: CheckCircle2,
-      subtitle: "Completed Lessons",
-      color:
-        "bg-gradient-to-br from-emerald-500/10 to-transparent",
+      number: "02",
+      icon: Brain,
+      title: "Critical Thinking",
+      description:
+        "Develop the ability to understand problems, analyse information and make informed decisions using what you learn.",
+      topics: [
+        "Analyse information effectively",
+        "Solve academic and practical problems",
+        "Develop independent thinking skills",
+      ],
+      iconClass:
+        "bg-violet-500/10 text-violet-400",
     },
     {
-      title: "Study Hours",
-      value: `${studyHours}h`,
-      icon: Clock3,
-      subtitle: "Learning Time",
-      color:
-        "bg-gradient-to-br from-orange-500/10 to-transparent",
+      number: "03",
+      icon: Layers3,
+      title: "Practical Application",
+      description:
+        "Move beyond memorising information by learning how knowledge can be applied to realistic situations and challenges.",
+      topics: [
+        "Apply concepts to practical situations",
+        "Work through real-world examples",
+        "Build useful problem-solving abilities",
+      ],
+      iconClass:
+        "bg-emerald-500/10 text-emerald-400",
     },
     {
-      title: "Certificates",
-      value: totalCertificates,
-      icon: Trophy,
-      subtitle: "Achievements",
-      color:
-        "bg-gradient-to-br from-violet-500/10 to-transparent",
+      number: "04",
+      icon: Lightbulb,
+      title: "Skills Development",
+      description:
+        "Strengthen the skills needed to learn effectively, communicate ideas clearly and approach new challenges with confidence.",
+      topics: [
+        "Improve learning and study skills",
+        "Communicate ideas more effectively",
+        "Build confidence through practice",
+      ],
+      iconClass:
+        "bg-amber-500/10 text-amber-400",
+    },
+    {
+      number: "05",
+      icon: Target,
+      title: "Assessment & Practice",
+      description:
+        "Use exercises, questions and practical activities to test your understanding and identify areas that need more attention.",
+      topics: [
+        "Test your understanding",
+        "Identify areas for improvement",
+        "Strengthen knowledge through repetition",
+      ],
+      iconClass:
+        "bg-blue-500/10 text-blue-400",
+    },
+    {
+      number: "06",
+      icon: Rocket,
+      title: "Continuous Growth",
+      description:
+        "Develop a learning mindset that encourages you to keep improving as you progress through your educational journey.",
+      topics: [
+        "Build consistent learning habits",
+        "Track your development",
+        "Prepare for more advanced learning",
+      ],
+      iconClass:
+        "bg-orange-500/10 text-orange-400",
     },
   ];
+
+  const outcomes = [
+    {
+      icon: GraduationCap,
+      title: "Stronger Understanding",
+      description:
+        "You will develop a clearer and deeper understanding of the subjects and concepts you study.",
+    },
+    {
+      icon: Brain,
+      title: "Better Thinking",
+      description:
+        "You will learn to approach questions, problems and unfamiliar situations more logically.",
+    },
+    {
+      icon: Lightbulb,
+      title: "Practical Skills",
+      description:
+        "You will learn how to move from simply knowing something to understanding how to use it.",
+    },
+    {
+      icon: Award,
+      title: "Academic Confidence",
+      description:
+        "Consistent learning and practice will help you become more confident in your academic abilities.",
+    },
+    {
+      icon: Users,
+      title: "Communication",
+      description:
+        "You will develop the ability to understand, organise and communicate what you have learned.",
+    },
+    {
+      icon: Trophy,
+      title: "Long-Term Growth",
+      description:
+        "The knowledge and skills you develop here provide a foundation for continued learning.",
+    },
+  ];
+
   return (
-  <div className="space-y-8">
-
-    {/* =========================
-        HERO
-    ========================= */}
-
-    <motion.section
-      initial={{ opacity: 0, y: 25 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="relative overflow-hidden rounded-[36px] border border-slate-800 bg-gradient-to-br from-[#08111f] via-[#0d1628] to-[#050913]"
-    >
-
-      <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-cyan-500/10 blur-[120px]" />
-
-      <div className="absolute right-0 bottom-0 h-80 w-80 rounded-full bg-blue-600/10 blur-[120px]" />
-
-      <div className="absolute inset-0 opacity-[0.04] [background-image:linear-gradient(rgba(255,255,255,.15)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.15)_1px,transparent_1px)] [background-size:40px_40px]" />
-
-      <div className="relative z-10 p-10 lg:p-14">
-
-        <div className="flex flex-col gap-10 lg:flex-row lg:items-center lg:justify-between">
-
-          {/* LEFT */}
-
-          <div className="max-w-3xl">
-
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-5 py-2 text-cyan-300">
-
-              <Sparkles size={18} />
-
-              Welcome Back
-
-            </div>
-
-            <h1 className="mt-8 text-5xl font-black leading-tight lg:text-6xl">
-
-              {greeting},
-
-              <span className="text-cyan-400">
-
-                {" "}
-                {firstName}
-
-              </span>
-
-            </h1>
-
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-400">
-
-              {today}
-
-              <br />
-
-              Continue your learning journey, complete weekly
-              tasks, earn certificates and build your future.
-
-            </p>
-
-            <div className="mt-10 flex flex-wrap gap-4">
-
-              <Link
-                to="/subjects"
-                className="flex items-center gap-3 rounded-2xl bg-cyan-500 px-8 py-4 font-semibold text-slate-950 transition hover:bg-cyan-400"
-              >
-                <BookOpen size={20} />
-
-                Browse Courses
-
-              </Link>
-
-              <Link
-                to="/lms/profile"
-                className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900/60 px-8 py-4 font-semibold transition hover:border-cyan-500"
-              >
-                <Brain size={20} />
-
-                My Profile
-
-              </Link>
-
-            </div>
-
-          </div>
-
-          {/* RIGHT */}
-
-          <div className="grid gap-5 sm:grid-cols-2">
-
-            <GlassCard className="min-w-[220px]">
-
-              <div className="flex items-center gap-4">
-
-                <div className="rounded-2xl bg-orange-500/20 p-4">
-
-                  <Flame
-                    className="text-orange-400"
-                    size={28}
-                  />
-
-                </div>
-
-                <div>
-
-                  <h2 className="text-4xl font-black">
-
-                    {streak}
-
-                  </h2>
-
-                  <p className="text-slate-400">
-
-                    Day Streak
-
-                  </p>
-
-                </div>
-
-              </div>
-
-            </GlassCard>
-
-            <GlassCard>
-
-              <div className="flex items-center gap-4">
-
-                <div className="rounded-2xl bg-blue-500/20 p-4">
-
-                  <Award
-                    className="text-blue-400"
-                    size={28}
-                  />
-
-                </div>
-
-                <div>
-
-                  <h2 className="text-4xl font-black">
-
-                    Lv {level}
-
-                  </h2>
-
-                  <p className="text-slate-400">
-
-                    Learning Level
-
-                  </p>
-
-                </div>
-
-              </div>
-
-            </GlassCard>
-
-            <GlassCard>
-
-              <div className="flex items-center gap-4">
-
-                <div className="rounded-2xl bg-emerald-500/20 p-4">
-
-                  <Target
-                    className="text-emerald-400"
-                    size={28}
-                  />
-
-                </div>
-
-                <div>
-
-                  <h2 className="text-4xl font-black">
-
-                    {xp}
-
-                  </h2>
-
-                  <p className="text-slate-400">
-
-                    XP Earned
-
-                  </p>
-
-                </div>
-
-              </div>
-
-            </GlassCard>
-
-            <GlassCard>
-
-              <div className="flex items-center gap-4">
-
-                <div className="rounded-2xl bg-violet-500/20 p-4">
-
-                  <BarChart3
-                    className="text-violet-400"
-                    size={28}
-                  />
-
-                </div>
-
-                <div>
-
-                  <h2 className="text-4xl font-black">
-
-                    {weeklyTasks.length}
-
-                  </h2>
-
-                  <p className="text-slate-400">
-
-                    Active Tasks
-
-                  </p>
-
-                </div>
-
-              </div>
-
-            </GlassCard>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </motion.section>
-
-    {/* =========================
-        LIVE STATS
-    ========================= */}
-
-    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-
-      {stats.map((item) => (
-        <StatCard
-          key={item.title}
-          {...item}
-        />
-      ))}
-
-    </div>
-        {/* =========================
-        MAIN GRID
-    ========================= */}
-
-    <div className="grid gap-8 xl:grid-cols-3">
-
-      {/* =========================
-          CONTINUE LEARNING
-      ========================= */}
-
-      <GlassCard className="xl:col-span-2">
-
-        <div className="mb-8 flex items-center justify-between">
-
-          <div>
-
-            <h2 className="text-3xl font-bold">
-              Continue Learning
-            </h2>
-
-            <p className="mt-2 text-slate-400">
-              Resume exactly where you stopped.
-            </p>
-
-          </div>
-
-          <Link
-            to="/lms/courses"
-            className="rounded-xl border border-slate-700 px-5 py-3 transition hover:border-cyan-500"
+    <div className="min-h-screen bg-[#050912] text-white">
+      <main
+        className="
+          mx-auto
+          w-full
+          max-w-[1600px]
+          px-4
+          py-6
+          sm:px-6
+          lg:px-8
+          lg:py-8
+        "
+      >
+
+        {/* =================================================
+            HERO
+        ================================================= */}
+
+        <motion.section
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            duration: 0.5,
+          }}
+          className="
+            relative
+            overflow-hidden
+            rounded-[32px]
+            border
+            border-white/[0.07]
+            bg-[#0a1220]
+            shadow-[0_30px_100px_rgba(0,0,0,0.25)]
+          "
+        >
+          {/* BACKGROUND */}
+
+          <div
+            className="
+              pointer-events-none
+              absolute
+              inset-0
+            "
           >
-            View All
-          </Link>
-
-        </div>
-
-        {courses.length === 0 ? (
-
-          <div className="rounded-3xl border border-dashed border-slate-700 py-16 text-center">
-
-            <BookOpen
-              size={60}
-              className="mx-auto text-slate-600"
+            <div
+              className="
+                absolute
+                -left-32
+                -top-32
+                h-96
+                w-96
+                rounded-full
+                bg-cyan-500/[0.08]
+                blur-[100px]
+              "
             />
 
-            <h3 className="mt-6 text-2xl font-bold">
-              No Active Course
-            </h3>
+            <div
+              className="
+                absolute
+                -bottom-40
+                right-0
+                h-[500px]
+                w-[500px]
+                rounded-full
+                bg-blue-600/[0.06]
+                blur-[120px]
+              "
+            />
 
-            <p className="mt-3 text-slate-500">
-              Enroll in a course to begin learning.
-            </p>
+            <div
+              className="
+                absolute
+                inset-0
+                opacity-[0.035]
+                [background-image:linear-gradient(rgba(255,255,255,.2)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.2)_1px,transparent_1px)]
+                [background-size:36px_36px]
+              "
+            />
+          </div>
 
-            <Link
-              to="/lms/courses"
-              className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-cyan-500 px-8 py-4 font-semibold text-slate-950"
+          <div
+            className="
+              relative
+              z-10
+              p-7
+              sm:p-9
+              lg:p-12
+            "
+          >
+            <div
+              className="
+                grid
+                gap-10
+                lg:grid-cols-[1fr_auto]
+                lg:items-center
+              "
             >
-              Browse Courses
-            </Link>
 
-          </div>
+              {/* HERO CONTENT */}
 
-        ) : (
-
-          <div className="space-y-6">
-
-            {courses.map((course) => (
-
-              <motion.div
-                key={course.id}
-                whileHover={{
-                  y: -5,
-                }}
-                className="rounded-3xl border border-slate-800 bg-slate-950 p-6"
-              >
-
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-
-                  <div className="flex items-center gap-5">
-
-                    <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-slate-800">
-
-                      {course.thumbnail ? (
-
-                        <img
-                          src={course.thumbnail}
-                          alt={course.title}
-                          className="h-full w-full object-cover"
-                        />
-
-                      ) : (
-
-                        <BookOpen
-                          size={34}
-                          className="text-cyan-400"
-                        />
-
-                      )}
-
-                    </div>
-
-                    <div>
-
-                      <h3 className="text-2xl font-bold">
-
-                        {course.title}
-
-                      </h3>
-
-                      <p className="mt-2 text-slate-400">
-
-                        {course.currentLesson ||
-                          "Continue your next lesson"}
-
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap gap-3">
-
-                        <span className="rounded-full bg-blue-500/10 px-3 py-1 text-sm text-blue-300">
-
-                          {course.level || "Beginner"}
-
-                        </span>
-
-                        <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">
-
-                          {course.lessonsCompleted || 0}/
-                          {course.totalLessons ||
-                            course.lessons ||
-                            0} Lessons
-
-                        </span>
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                  <div className="w-full lg:w-72">
-
-                    <div className="mb-2 flex justify-between text-sm">
-
-                      <span className="text-slate-400">
-
-                        Progress
-
-                      </span>
-
-                      <span className="font-bold text-cyan-400">
-
-                        {course.progress || 0}%
-
-                      </span>
-
-                    </div>
-
-                    <div className="h-3 overflow-hidden rounded-full bg-slate-800">
-
-                      <motion.div
-                        initial={{
-                          width: 0,
-                        }}
-                        animate={{
-                          width: `${course.progress || 0}%`,
-                        }}
-                        transition={{
-                          duration: 1,
-                        }}
-                        className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500"
-                      />
-
-                    </div>
-
-                    <button
-                      onClick={() =>
-                        completeLesson(course.id)
-                      }
-                      className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-cyan-500 py-4 font-bold text-slate-950 transition hover:bg-cyan-400"
-                    >
-
-                      <PlayCircle size={20} />
-
-                      Continue Learning
-
-                    </button>
-
-                  </div>
-
-                </div>
-
-              </motion.div>
-
-            ))}
-
-          </div>
-
-        )}
-
-      </GlassCard>
-            {/* =========================
-          RIGHT SIDEBAR
-      ========================= */}
-
-      <div className="space-y-8">
-
-        {/* =========================
-            WEEKLY PROGRESS
-        ========================= */}
-
-        <GlassCard>
-
-          <div className="flex items-center justify-between">
-
-            <div>
-
-              <h2 className="text-2xl font-bold">
-                Weekly Progress
-              </h2>
-
-              <p className="mt-2 text-slate-400">
-                Your learning activity this week.
-              </p>
-
-            </div>
-
-            <TrendingUp
-              size={28}
-              className="text-cyan-400"
-            />
-
-          </div>
-
-          <div className="mt-8 flex h-56 items-end gap-3">
-
-            {progress.length === 0 ? (
-
-              <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-slate-700 text-slate-500">
-
-                No progress available.
-
-              </div>
-
-            ) : (
-
-              progress.map((day) => (
+              <div className="max-w-3xl">
 
                 <div
-                  key={day.day}
-                  className="flex flex-1 flex-col items-center"
+                  className="
+                    inline-flex
+                    items-center
+                    gap-2
+                    rounded-full
+                    border
+                    border-cyan-400/15
+                    bg-cyan-400/[0.07]
+                    px-4
+                    py-2
+                    text-sm
+                    font-semibold
+                    text-cyan-300
+                  "
                 >
+                  <Sparkles size={16} />
 
-                  <div className="flex h-44 w-full items-end">
-
-                    <motion.div
-                      initial={{
-                        height: 0,
-                      }}
-                      animate={{
-                        height: `${day.value || 0}%`,
-                      }}
-                      transition={{
-                        duration: 1,
-                      }}
-                      className="w-full rounded-t-xl bg-gradient-to-t from-cyan-500 to-blue-500"
-                    />
-
-                  </div>
-
-                  <span className="mt-3 text-sm text-slate-400">
-
-                    {day.day}
-
-                  </span>
-
+                  Your Learning Dashboard
                 </div>
 
-              ))
+                <h1
+                  className="
+                    mt-6
+                    text-4xl
+                    font-black
+                    leading-[1.05]
+                    tracking-tight
+                    sm:text-5xl
+                    lg:text-6xl
+                  "
+                >
+                  {getGreeting()},
 
-            )}
+                  <span className="text-cyan-400">
+                    {" "}
+                    {firstName}
+                  </span>
+                </h1>
 
-          </div>
-
-        </GlassCard>
-
-        {/* =========================
-            UPCOMING TASKS
-        ========================= */}
-
-        <GlassCard>
-
-          <div className="flex items-center justify-between">
-
-            <div>
-
-              <h2 className="text-2xl font-bold">
-                Weekly Tasks
-              </h2>
-
-              <p className="mt-2 text-slate-400">
-                Don't miss your deadlines.
-              </p>
-
-            </div>
-
-            <CalendarDays
-              size={28}
-              className="text-blue-400"
-            />
-
-          </div>
-
-          <div className="mt-8 space-y-5">
-
-            {weeklyTasks.length === 0 ? (
-
-              <div className="rounded-2xl border border-dashed border-slate-700 py-10 text-center text-slate-500">
-
-                No weekly task available.
+                <p
+                  className="
+                    mt-5
+                    max-w-2xl
+                    text-base
+                    leading-7
+                    text-slate-400
+                    sm:text-lg
+                  "
+                >
+                  {formatDate()}
+                  <br />
+                  <span className="mt-2 block">
+                    Your learning journey starts here.
+                    Explore the knowledge, skills and
+                    practical understanding you will
+                    develop throughout your learning
+                    experience.
+                  </span>
+                </p>
 
               </div>
 
-            ) : (
+              {/* HERO SUMMARY */}
 
-              weeklyTasks.map((task) => (
+              <div
+                className="
+                  grid
+                  grid-cols-2
+                  gap-3
+                  lg:w-[340px]
+                "
+              >
 
-                <motion.div
-                  key={task.id}
-                  whileHover={{
-                    x: 6,
-                  }}
-                  className="rounded-2xl border border-slate-800 bg-slate-950 p-5"
+                <div
+                  className="
+                    rounded-[22px]
+                    border
+                    border-white/[0.07]
+                    bg-black/20
+                    p-5
+                  "
                 >
+                  <div
+                    className="
+                      flex
+                      h-10
+                      w-10
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-cyan-500/10
+                      text-cyan-400
+                    "
+                  >
+                    <BookOpen size={20} />
+                  </div>
 
-                  <div className="flex items-start justify-between gap-4">
+                  <p
+                    className="
+                      mt-5
+                      text-3xl
+                      font-black
+                    "
+                  >
+                    01
+                  </p>
+
+                  <p
+                    className="
+                      mt-1
+                      text-sm
+                      text-slate-500
+                    "
+                  >
+                    Learn
+                  </p>
+                </div>
+
+                <div
+                  className="
+                    rounded-[22px]
+                    border
+                    border-white/[0.07]
+                    bg-black/20
+                    p-5
+                  "
+                >
+                  <div
+                    className="
+                      flex
+                      h-10
+                      w-10
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-violet-500/10
+                      text-violet-400
+                    "
+                  >
+                    <Brain size={20} />
+                  </div>
+
+                  <p
+                    className="
+                      mt-5
+                      text-3xl
+                      font-black
+                    "
+                  >
+                    02
+                  </p>
+
+                  <p
+                    className="
+                      mt-1
+                      text-sm
+                      text-slate-500
+                    "
+                  >
+                    Understand
+                  </p>
+                </div>
+
+                <div
+                  className="
+                    col-span-2
+                    rounded-[22px]
+                    border
+                    border-white/[0.07]
+                    bg-black/20
+                    p-5
+                  "
+                >
+                  <div className="flex items-center justify-between">
 
                     <div>
-
-                      <h3 className="font-bold">
-
-                        {task.title}
-
-                      </h3>
-
-                      <p className="mt-2 text-sm text-slate-400">
-
-                        {task.course || "General Course"}
-
+                      <p
+                        className="
+                          text-sm
+                          font-semibold
+                          text-slate-300
+                        "
+                      >
+                        Your learning journey
                       </p>
 
+                      <p
+                        className="
+                          mt-1
+                          text-xs
+                          text-slate-500
+                        "
+                      >
+                        Learn • Practise • Apply • Grow
+                      </p>
                     </div>
 
-                    <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs text-cyan-300">
-
-                      {task.dueDate || "No Date"}
-
-                    </span>
+                    <div
+                      className="
+                        flex
+                        h-10
+                        w-10
+                        items-center
+                        justify-center
+                        rounded-xl
+                        bg-emerald-500/10
+                        text-emerald-400
+                      "
+                    >
+                      <Rocket size={20} />
+                    </div>
 
                   </div>
 
-                </motion.div>
+                  <div className="mt-5 flex gap-1.5">
+                    <div className="h-1.5 flex-1 rounded-full bg-cyan-400" />
+                    <div className="h-1.5 flex-1 rounded-full bg-blue-400" />
+                    <div className="h-1.5 flex-1 rounded-full bg-violet-400" />
+                    <div className="h-1.5 flex-1 rounded-full bg-emerald-400" />
+                  </div>
 
-              ))
+                </div>
 
-            )}
-
+              </div>
+            </div>
           </div>
+        </motion.section>
 
-        </GlassCard>
+        {/* =================================================
+            INTRODUCTION
+        ================================================= */}
 
-      </div>
+        <Section className="mt-16">
+          <div className="max-w-3xl">
 
-    </div>
-          {/* =========================
-          ACHIEVEMENTS
-      ========================= */}
+            <div
+              className="
+                inline-flex
+                items-center
+                gap-2
+                rounded-full
+                bg-cyan-500/10
+                px-4
+                py-2
+                text-sm
+                font-semibold
+                text-cyan-400
+              "
+            >
+              <BookOpen size={16} />
+              What You'll Learn
+            </div>
 
-      <GlassCard>
-
-        <div className="flex items-center justify-between mb-8">
-
-          <div>
-
-            <h2 className="text-3xl font-bold">
-              Achievements
+            <h2
+              className="
+                mt-5
+                text-3xl
+                font-black
+                tracking-tight
+                sm:text-4xl
+              "
+            >
+              Build knowledge that goes
+              <span className="text-cyan-400">
+                {" "}
+                beyond the classroom.
+              </span>
             </h2>
 
-            <p className="text-slate-400 mt-2">
-              Rewards you've unlocked through learning.
+            <p
+              className="
+                mt-5
+                text-base
+                leading-8
+                text-slate-500
+                sm:text-lg
+              "
+            >
+              This learning experience is designed to
+              help you understand concepts, develop useful
+              skills, practise what you learn and become
+              confident applying your knowledge.
             </p>
 
           </div>
+        </Section>
 
-          <Trophy
-            size={30}
-            className="text-yellow-400"
-          />
+        {/* =================================================
+            LEARNING AREAS
+        ================================================= */}
 
-        </div>
+        <Section className="mt-10">
 
-        {achievements.length === 0 ? (
+          <div
+            className="
+              grid
+              gap-5
+              md:grid-cols-2
+              xl:grid-cols-3
+            "
+          >
+            {learningAreas.map((area) => (
+              <LearningCard
+                key={area.number}
+                {...area}
+              />
+            ))}
+          </div>
 
-          <div className="rounded-3xl border border-dashed border-slate-700 py-14 text-center">
+        </Section>
 
-            <Trophy
-              size={60}
-              className="mx-auto text-slate-600"
+        {/* =================================================
+            LEARNING PROCESS
+        ================================================= */}
+
+        <Section className="mt-16">
+
+          <div
+            className="
+              relative
+              overflow-hidden
+              rounded-[32px]
+              border
+              border-white/[0.07]
+              bg-[#0a1220]
+              p-7
+              sm:p-9
+              lg:p-12
+            "
+          >
+
+            <div
+              className="
+                pointer-events-none
+                absolute
+                right-0
+                top-0
+                h-72
+                w-72
+                rounded-full
+                bg-cyan-500/[0.05]
+                blur-[100px]
+              "
             />
 
-            <h3 className="mt-6 text-2xl font-bold">
-              No Achievements Yet
-            </h3>
+            <div className="relative z-10">
 
-            <p className="mt-3 text-slate-500">
-              Complete courses, quizzes and weekly tasks to unlock badges.
-            </p>
+              <div className="max-w-2xl">
 
-          </div>
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-3
+                  "
+                >
+                  <div
+                    className="
+                      flex
+                      h-11
+                      w-11
+                      items-center
+                      justify-center
+                      rounded-xl
+                      bg-violet-500/10
+                      text-violet-400
+                    "
+                  >
+                    <PlayCircle size={21} />
+                  </div>
 
-        ) : (
-
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-
-            {achievements.map((badge) => (
-
-              <motion.div
-                key={badge.id}
-                whileHover={{
-                  y: -6,
-                  scale: 1.02,
-                }}
-                className="rounded-3xl border border-slate-800 bg-slate-950 p-6"
-              >
-
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-yellow-500">
-
-                  <Trophy size={30} />
-
+                  <span
+                    className="
+                      text-sm
+                      font-bold
+                      uppercase
+                      tracking-[0.2em]
+                      text-violet-400
+                    "
+                  >
+                    How You'll Learn
+                  </span>
                 </div>
 
-                <h3 className="mt-6 text-xl font-bold">
+                <h2
+                  className="
+                    mt-5
+                    text-3xl
+                    font-black
+                    tracking-tight
+                    sm:text-4xl
+                  "
+                >
+                  Learn at your own pace,
+                  <span className="text-violet-400">
+                    {" "}
+                    one concept at a time.
+                  </span>
+                </h2>
 
-                  {badge.title || "Achievement"}
-
-                </h3>
-
-                <p className="mt-3 text-slate-400">
-
-                  {badge.description || "Achievement unlocked."}
-
+                <p
+                  className="
+                    mt-4
+                    text-base
+                    leading-7
+                    text-slate-500
+                  "
+                >
+                  Your learning experience combines
+                  explanations, examples, practice and
+                  continuous reinforcement so that each
+                  concept becomes easier to understand
+                  and remember.
                 </p>
 
-                <div className="mt-6 flex items-center gap-2 text-emerald-400">
+              </div>
 
-                  <CheckCircle2 size={18} />
+              <div
+                className="
+                  mt-10
+                  grid
+                  gap-4
+                  md:grid-cols-4
+                "
+              >
 
-                  <span>Unlocked</span>
+                <div
+                  className="
+                    rounded-2xl
+                    border
+                    border-white/[0.06]
+                    bg-black/20
+                    p-5
+                  "
+                >
+                  <span
+                    className="
+                      text-xs
+                      font-black
+                      text-cyan-400
+                    "
+                  >
+                    01
+                  </span>
 
+                  <h3
+                    className="
+                      mt-4
+                      font-bold
+                    "
+                  >
+                    Learn
+                  </h3>
+
+                  <p
+                    className="
+                      mt-2
+                      text-sm
+                      leading-6
+                      text-slate-500
+                    "
+                  >
+                    Understand the concept and its
+                    important principles.
+                  </p>
                 </div>
 
-              </motion.div>
+                <div
+                  className="
+                    rounded-2xl
+                    border
+                    border-white/[0.06]
+                    bg-black/20
+                    p-5
+                  "
+                >
+                  <span
+                    className="
+                      text-xs
+                      font-black
+                      text-blue-400
+                    "
+                  >
+                    02
+                  </span>
 
-            ))}
+                  <h3
+                    className="
+                      mt-4
+                      font-bold
+                    "
+                  >
+                    Practise
+                  </h3>
+
+                  <p
+                    className="
+                      mt-2
+                      text-sm
+                      leading-6
+                      text-slate-500
+                    "
+                  >
+                    Reinforce your understanding through
+                    questions and activities.
+                  </p>
+                </div>
+
+                <div
+                  className="
+                    rounded-2xl
+                    border
+                    border-white/[0.06]
+                    bg-black/20
+                    p-5
+                  "
+                >
+                  <span
+                    className="
+                      text-xs
+                      font-black
+                      text-violet-400
+                    "
+                  >
+                    03
+                  </span>
+
+                  <h3
+                    className="
+                      mt-4
+                      font-bold
+                    "
+                  >
+                    Apply
+                  </h3>
+
+                  <p
+                    className="
+                      mt-2
+                      text-sm
+                      leading-6
+                      text-slate-500
+                    "
+                  >
+                    Use what you know to solve practical
+                    problems and situations.
+                  </p>
+                </div>
+
+                <div
+                  className="
+                    rounded-2xl
+                    border
+                    border-white/[0.06]
+                    bg-black/20
+                    p-5
+                  "
+                >
+                  <span
+                    className="
+                      text-xs
+                      font-black
+                      text-emerald-400
+                    "
+                  >
+                    04
+                  </span>
+
+                  <h3
+                    className="
+                      mt-4
+                      font-bold
+                    "
+                  >
+                    Grow
+                  </h3>
+
+                  <p
+                    className="
+                      mt-2
+                      text-sm
+                      leading-6
+                      text-slate-500
+                    "
+                  >
+                    Build confidence and prepare for
+                    more advanced learning.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+        </Section>
+
+        {/* =================================================
+            WHAT YOU WILL GAIN
+        ================================================= */}
+
+        <Section className="mt-16">
+
+          <div className="max-w-2xl">
+
+            <div
+              className="
+                flex
+                items-center
+                gap-3
+              "
+            >
+              <div
+                className="
+                  flex
+                  h-11
+                  w-11
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-emerald-500/10
+                  text-emerald-400
+                "
+              >
+                <Award size={21} />
+              </div>
+
+              <span
+                className="
+                  text-sm
+                  font-bold
+                  uppercase
+                  tracking-[0.2em]
+                  text-emerald-400
+                "
+              >
+                Learning Outcomes
+              </span>
+            </div>
+
+            <h2
+              className="
+                mt-5
+                text-3xl
+                font-black
+                tracking-tight
+                sm:text-4xl
+              "
+            >
+              What you'll be able to
+              <span className="text-emerald-400">
+                {" "}
+                do.
+              </span>
+            </h2>
+
+            <p
+              className="
+                mt-4
+                text-base
+                leading-7
+                text-slate-500
+              "
+            >
+              The goal is not simply to finish lessons.
+              It is to leave each learning experience with
+              knowledge and skills you can actually use.
+            </p>
 
           </div>
 
-        )}
+          <div
+            className="
+              mt-8
+              grid
+              gap-4
+              sm:grid-cols-2
+              xl:grid-cols-3
+            "
+          >
+            {outcomes.map((outcome) => (
+              <OutcomeCard
+                key={outcome.title}
+                {...outcome}
+              />
+            ))}
+          </div>
 
-      </GlassCard>
+        </Section>
 
-      {/* =========================
-          QUICK ACTIONS
-      ========================= */}
+        {/* =================================================
+            FINAL LEARNING MESSAGE
+        ================================================= */}
 
-      <GlassCard>
+        <Section className="mt-16">
 
-        <div className="mb-8">
+          <div
+            className="
+              relative
+              overflow-hidden
+              rounded-[32px]
+              border
+              border-cyan-400/[0.10]
+              bg-gradient-to-br
+              from-cyan-500/[0.08]
+              via-[#0a1220]
+              to-[#0a1220]
+              p-8
+              text-center
+              sm:p-12
+              lg:p-16
+            "
+          >
 
-          <h2 className="text-3xl font-bold">
-            Quick Actions
-          </h2>
+            <div
+              className="
+                pointer-events-none
+                absolute
+                left-1/2
+                top-0
+                h-64
+                w-64
+                -translate-x-1/2
+                rounded-full
+                bg-cyan-500/[0.07]
+                blur-[100px]
+              "
+            />
 
-          <p className="mt-2 text-slate-400">
-            Jump straight into your learning.
-          </p>
+            <div className="relative z-10 mx-auto max-w-3xl">
 
+              <div
+                className="
+                  mx-auto
+                  flex
+                  h-16
+                  w-16
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-cyan-500/10
+                  text-cyan-400
+                "
+              >
+                <Sparkles size={28} />
+              </div>
+
+              <h2
+                className="
+                  mt-7
+                  text-3xl
+                  font-black
+                  tracking-tight
+                  sm:text-4xl
+                  lg:text-5xl
+                "
+              >
+                Your learning journey is
+                <span className="text-cyan-400">
+                  {" "}
+                  just beginning.
+                </span>
+              </h2>
+
+              <p
+                className="
+                  mx-auto
+                  mt-5
+                  max-w-2xl
+                  text-base
+                  leading-8
+                  text-slate-500
+                  sm:text-lg
+                "
+              >
+                Every lesson is an opportunity to
+                understand something new, practise a
+                valuable skill and become better than you
+                were yesterday.
+              </p>
+
+              <div
+                className="
+                  mt-8
+                  flex
+                  flex-wrap
+                  items-center
+                  justify-center
+                  gap-3
+                  text-sm
+                  font-semibold
+                  text-slate-400
+                "
+              >
+                <span className="flex items-center gap-2">
+                  <CheckCircle2
+                    size={17}
+                    className="text-cyan-400"
+                  />
+                  Learn with purpose
+                </span>
+
+                <span className="text-slate-700">
+                  •
+                </span>
+
+                <span className="flex items-center gap-2">
+                  <CheckCircle2
+                    size={17}
+                    className="text-cyan-400"
+                  />
+                  Practise consistently
+                </span>
+
+                <span className="text-slate-700">
+                  •
+                </span>
+
+                <span className="flex items-center gap-2">
+                  <CheckCircle2
+                    size={17}
+                    className="text-cyan-400"
+                  />
+                  Keep growing
+                </span>
+              </div>
+
+            </div>
+          </div>
+
+        </Section>
+
+        {/* =================================================
+            FOOTER
+        ================================================= */}
+
+        <div className="mt-12">
+          <Footer />
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            className="rounded-3xl bg-gradient-to-br from-cyan-500 to-blue-600 p-6 text-left"
-          >
-
-            <BookOpen size={34} />
-
-            <h3 className="mt-5 text-xl font-bold">
-              Courses
-            </h3>
-
-            <p className="mt-2 text-white/80">
-              Browse all available courses.
-            </p>
-
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            className="rounded-3xl bg-gradient-to-br from-purple-600 to-violet-700 p-6 text-left"
-          >
-
-            <CheckCircle2 size={34} />
-
-            <h3 className="mt-5 text-xl font-bold">
-              Weekly Tasks
-            </h3>
-
-            <p className="mt-2 text-white/80">
-              Finish your assignments.
-            </p>
-
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            className="rounded-3xl bg-gradient-to-br from-emerald-500 to-green-600 p-6 text-left"
-          >
-
-            <TrendingUp size={34} />
-
-            <h3 className="mt-5 text-xl font-bold">
-              Progress
-            </h3>
-
-            <p className="mt-2 text-white/80">
-              Track your learning journey.
-            </p>
-
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            className="rounded-3xl bg-gradient-to-br from-orange-500 to-red-500 p-6 text-left"
-          >
-
-            <CalendarDays size={34} />
-
-            <h3 className="mt-5 text-xl font-bold">
-              Calendar
-            </h3>
-
-            <p className="mt-2 text-white/80">
-              View upcoming events.
-            </p>
-
-          </motion.button>
-
-        </div>
-
-      </GlassCard>
-
-      {/* =========================
-          FOOTER
-      ========================= */}
-
-      <Footer />
-
+      </main>
     </div>
-
   );
-
 };
 
 export default Dashboard;

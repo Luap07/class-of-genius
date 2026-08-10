@@ -10,11 +10,7 @@ import React, {
 import { useNavigate, useLocation } from "react-router-dom";
 
 import { useCourses } from "../../context/LMSContext/CourseContext";
-
 import CourseHero from "../../components/courses/CourseHero";
-import CourseSearch from "../../components/courses/CourseSearch";
-import FeaturedCourses from "../../components/courses/FeaturedCourses";
-import CourseGrid from "../../components/courses/CourseGrid";
 import ExploreHub from "../../components/courses/ExploreHub";
 
 // Premium Sections
@@ -150,35 +146,11 @@ useEffect(() => {
           scrollToDisciplines
         }
       />
-
-      {/* Search */}
-
-      <CourseSearch
-        value={search}
-        onChange={setSearch}
-      />
      
-      {/* Featured */}
-
-      {featuredCourses.length > 0 && (
-        <FeaturedCourses
-          courses={featuredCourses}
-        />
-
-      )}
+    
             {/* =============================== ALL COURSES =============================== */}
 
       <div ref={coursesRef}>
-
-  {filteredCourses.length > 0 && (
-    <CourseGrid
-      courses={filteredCourses}
-      onCourseOpen={(course) =>
-        navigate(`/courses/${course.id}`)
-      }
-    />
-  )}
-
   <ExploreHub
   
   />

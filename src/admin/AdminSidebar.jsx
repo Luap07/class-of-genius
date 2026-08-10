@@ -1,7 +1,6 @@
-// src/admin/components/AdminSidebar.jsx
-
 import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
+
 import {
   LayoutDashboard,
   GraduationCap,
@@ -13,6 +12,7 @@ import {
   BarChart3,
   Settings,
   Mail,
+  MessageSquareText,
   ChevronUp,
   ChevronDown,
   ChevronRight,
@@ -31,11 +31,13 @@ const menuItems = [
     icon: LayoutDashboard,
     path: "/admin",
   },
+
   {
     title: "LMS",
     icon: GraduationCap,
     path: "/admin/lms",
   },
+
   {
     title: "Schools",
     icon: Building2,
@@ -59,21 +61,25 @@ const menuItems = [
       },
     ],
   },
+
   {
     title: "Documents",
     icon: FileText,
     path: "/admin/documents",
   },
+
   {
     title: "Resources",
     icon: Video,
     path: "/admin/resources",
   },
+
   {
     title: "Virtual Labs",
     icon: FlaskConical,
     path: "/admin/labs",
   },
+
   {
     title: "CBT",
     icon: ClipboardList,
@@ -97,21 +103,25 @@ const menuItems = [
       },
     ],
   },
+
   {
     title: "Novels",
     icon: BookOpen,
     path: "/admin/novels",
   },
+
   {
     title: "Users",
     icon: Users,
     path: "/admin/users",
   },
+
   {
     title: "Analytics",
     icon: BarChart3,
     path: "/admin/analytics",
   },
+
   {
     title: "Languages",
     icon: Languages,
@@ -131,11 +141,19 @@ const menuItems = [
       },
     ],
   },
+
+  {
+    title: "Messages",
+    icon: MessageSquareText,
+    path: "/admin/messages",
+  },
+
   {
     title: "Settings",
     icon: Settings,
     path: "/admin/settings",
   },
+
   {
     title: "Newsletter",
     icon: Mail,
@@ -144,30 +162,42 @@ const menuItems = [
 ];
 
 const AdminSidebar = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [footerCollapsed, setFooterCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] =
+    useState(false);
 
-  const [languagesOpen, setLanguagesOpen] = useState(true);
-  const [cbtOpen, setCbtOpen] = useState(true);
-  const [schoolsOpen, setSchoolsOpen] = useState(true);
-  
-  // LIVE MEDIA COUNT
-  const [mediaCount, setMediaCount] = useState(0);
+  const [footerCollapsed, setFooterCollapsed] =
+    useState(false);
+
+  const [languagesOpen, setLanguagesOpen] =
+    useState(false);
+
+  const [cbtOpen, setCbtOpen] =
+    useState(false);
+
+  const [schoolsOpen, setSchoolsOpen] =
+    useState(false);
+
+  const [mediaCount, setMediaCount] =
+    useState(0);
 
   // -------------------------------------------------------
   // FETCH LIVE MEDIA COUNT
   // -------------------------------------------------------
 
   const fetchMediaCount = async () => {
-    const { count, error } = await supabase
-      .from("media")
-      .select("*", {
-        count: "exact",
-        head: true,
-      });
+    const { count, error } =
+      await supabase
+        .from("media")
+        .select("*", {
+          count: "exact",
+          head: true,
+        });
 
     if (error) {
-      console.error("Error fetching media count:", error);
+      console.error(
+        "Error fetching media count:",
+        error
+      );
       return;
     }
 
@@ -181,7 +211,6 @@ const AdminSidebar = () => {
   useEffect(() => {
     fetchMediaCount();
 
-    // Refresh count every 30 seconds
     const interval = setInterval(() => {
       fetchMediaCount();
     }, 30000);
@@ -192,10 +221,14 @@ const AdminSidebar = () => {
   return (
     <aside
       className={`bg-slate-900 border-r border-slate-800 flex flex-col h-screen select-none transition-all duration-300 relative ${
-        isCollapsed ? "w-20" : "w-72"
+        isCollapsed
+          ? "w-20"
+          : "w-72"
       }`}
     >
-      {/* HEADER LOGO & SIDEBAR TOGGLE */}
+      {/* =================================================
+          HEADER
+      ================================================= */}
 
       <div
         className={`flex items-center ${
@@ -225,7 +258,10 @@ const AdminSidebar = () => {
         )}
 
         <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          type="button"
+          onClick={() =>
+            setIsCollapsed((prev) => !prev)
+          }
           className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
           title={
             isCollapsed
@@ -241,18 +277,23 @@ const AdminSidebar = () => {
         </button>
       </div>
 
-      {/* NAVIGATION */}
+      {/* =================================================
+          NAVIGATION
+      ================================================= */}
 
       <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
         {menuItems.map((item) => {
           const Icon = item.icon;
 
-          // -------------------------------------------------
-          // COLLAPSIBLE ITEMS
-          // -------------------------------------------------
+          /* =================================================
+              COLLAPSIBLE ITEMS
+          ================================================= */
 
           if (item.collapsible) {
-            // Collapsed sidebar
+            /* -------------------------------------------------
+                COLLAPSED SIDEBAR
+            ------------------------------------------------- */
+
             if (isCollapsed) {
               const collapsedPath =
                 item.title === "Languages"
@@ -279,6 +320,10 @@ const AdminSidebar = () => {
               );
             }
 
+            /* -------------------------------------------------
+                OPEN/CLOSED STATE
+            ------------------------------------------------- */
+
             const isOpen =
               item.title === "Languages"
                 ? languagesOpen
@@ -286,13 +331,27 @@ const AdminSidebar = () => {
                 ? cbtOpen
                 : schoolsOpen;
 
+            /* -------------------------------------------------
+                TOGGLE
+            ------------------------------------------------- */
+
             const toggleMenu = () => {
-              if (item.title === "Languages") {
-                setLanguagesOpen((prev) => !prev);
-              } else if (item.title === "CBT") {
-                setCbtOpen((prev) => !prev);
+              if (
+                item.title === "Languages"
+              ) {
+                setLanguagesOpen(
+                  (prev) => !prev
+                );
+              } else if (
+                item.title === "CBT"
+              ) {
+                setCbtOpen(
+                  (prev) => !prev
+                );
               } else {
-                setSchoolsOpen((prev) => !prev);
+                setSchoolsOpen(
+                  (prev) => !prev
+                );
               }
             };
 
@@ -301,9 +360,10 @@ const AdminSidebar = () => {
                 key={item.title}
                 className="space-y-1"
               >
-                {/* COLLAPSIBLE HEADER */}
+                {/* HEADER */}
 
                 <button
+                  type="button"
                   onClick={toggleMenu}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition group ${
                     isOpen
@@ -337,41 +397,50 @@ const AdminSidebar = () => {
 
                 {isOpen && (
                   <div className="ml-5 pl-3 border-l border-slate-800 space-y-1">
-                    {item.children.map((child) => (
-                      <NavLink
-                        key={child.title}
-                        to={child.path}
-                        end={
-                          child.path === "/admin/languages" ||
-                          child.path === "/admin/cbt" ||
-                          child.path === "/admin/schools"
-                        }
-                        className={({ isActive }) =>
-                          `flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-200 ${
-                            isActive
-                              ? "bg-blue-600 text-white font-medium shadow-md shadow-blue-900/20"
-                              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                          }`
-                        }
-                      >
-                        {child.title}
-                      </NavLink>
-                    ))}
+                    {item.children.map(
+                      (child) => (
+                        <NavLink
+                          key={child.title}
+                          to={child.path}
+                          end={
+                            child.path ===
+                              "/admin/languages" ||
+                            child.path ===
+                              "/admin/cbt" ||
+                            child.path ===
+                              "/admin/schools"
+                          }
+                          className={({
+                            isActive,
+                          }) =>
+                            `flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-200 ${
+                              isActive
+                                ? "bg-blue-600 text-white font-medium shadow-md shadow-blue-900/20"
+                                : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                            }`
+                          }
+                        >
+                          {child.title}
+                        </NavLink>
+                      )
+                    )}
                   </div>
                 )}
               </div>
             );
           }
 
-          // -------------------------------------------------
-          // STANDARD NAVIGATION ITEM
-          // -------------------------------------------------
+          /* =================================================
+              STANDARD NAVIGATION ITEM
+          ================================================= */
 
           return (
             <NavLink
               key={item.title}
               to={item.path}
-              end={item.path === "/admin"}
+              end={
+                item.path === "/admin"
+              }
               className={({ isActive }) =>
                 `flex items-center ${
                   isCollapsed
@@ -397,11 +466,10 @@ const AdminSidebar = () => {
                     {item.title}
                   </span>
 
-                  {/* ---------------------------------------
-                      LIVE MEDIA COUNT
-                  --------------------------------------- */}
+                  {/* LIVE MEDIA COUNT */}
 
-                  {item.title === "Media" && (
+                  {item.title ===
+                    "Media" && (
                     <span
                       className={`min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-full text-[10px] font-bold ${
                         mediaCount > 0
@@ -419,14 +487,19 @@ const AdminSidebar = () => {
         })}
       </nav>
 
-      {/* FOOTER */}
+      {/* =================================================
+          FOOTER
+      ================================================= */}
 
       {!isCollapsed && (
         <div className="border-t border-slate-800 p-4">
           <div className="rounded-xl bg-slate-950/50 p-4 relative border border-slate-800/50">
             <button
+              type="button"
               onClick={() =>
-                setFooterCollapsed(!footerCollapsed)
+                setFooterCollapsed(
+                  (prev) => !prev
+                )
               }
               className="absolute top-2.5 right-2.5 text-slate-500 hover:text-white transition p-1"
               title={
@@ -449,7 +522,8 @@ const AdminSidebar = () => {
                 </p>
 
                 <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
-                  Learning Management System
+                  Learning Management
+                  System
                 </p>
               </div>
             ) : (

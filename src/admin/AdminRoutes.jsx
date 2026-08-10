@@ -14,6 +14,10 @@ import LanguagesAdmin from "../pages/admin/languages/LanguagesAdmin";
 
 import NewsletterAdmin from "../pages/admin/NewsletterAdmin";
 
+/* ================= MESSAGES ================= */
+
+import MessagesAdmin from "../pages/admin/contacts/ContactMessagesAdmin";
+
 /* ================= SCHOOLS ================= */
 
 import SchoolsAdmin from "../pages/admin/schools/SchoolsAdmin";
@@ -146,7 +150,10 @@ const AdminRoutes = () => {
             DASHBOARD
         ================================================= */}
 
-        <Route index element={<AdminDashboard />} />
+        <Route
+          index
+          element={<AdminDashboard />}
+        />
 
         {/* =================================================
             LMS
@@ -348,39 +355,29 @@ const AdminRoutes = () => {
           element={<SchoolsAdmin />}
         />
 
-        {/* =================================================
-            UNIVERSITIES
-        ================================================= */}
+        {/* UNIVERSITIES */}
 
         <Route
           path="schools/universities"
           element={<UniversitiesAdmin />}
         />
 
-        {/* ADD UNIVERSITY */}
-
         <Route
           path="schools/universities/new"
           element={<UniversityForm />}
         />
-
-        {/* EDIT UNIVERSITY */}
 
         <Route
           path="schools/universities/:id/edit"
           element={<UniversityForm />}
         />
 
-        {/* VIEW UNIVERSITY */}
-
         <Route
           path="schools/universities/:id"
           element={<SchoolDetailsAdmin />}
         />
 
-        {/* =================================================
-            COLLEGES
-        ================================================= */}
+        {/* COLLEGES */}
 
         <Route
           path="schools/colleges"
@@ -402,9 +399,7 @@ const AdminRoutes = () => {
           element={<SchoolDetailsAdmin />}
         />
 
-        {/* =================================================
-            POLYTECHNICS
-        ================================================= */}
+        {/* POLYTECHNICS */}
 
         <Route
           path="schools/polytechnics"
@@ -426,30 +421,19 @@ const AdminRoutes = () => {
           element={<SchoolDetailsAdmin />}
         />
 
-        {/* =================================================
-            SCHOOL DETAILS
-        ================================================= */}
+        {/* SCHOOL DETAILS */}
 
         <Route
           path="schools/:type/:id"
           element={<SchoolDetailsAdmin />}
         />
 
-        {/* =================================================
-            FACULTIES
-            The schoolId comes directly from the URL.
-            FacultyManager uses useParams() to read it.
-        ================================================= */}
+        {/* FACULTIES */}
 
         <Route
           path="schools/:type/:schoolId/faculties"
           element={<FacultyManager />}
         />
-
-        {/* =================================================
-            IMPORTANT:
-            NO PROGRAM MANAGER ROUTE
-        ================================================= */}
 
         {/* =================================================
             CBT
@@ -550,6 +534,15 @@ const AdminRoutes = () => {
         <Route
           path="newsletter"
           element={<NewsletterAdmin />}
+        />
+
+        {/* =================================================
+            CONTACT MESSAGES
+        ================================================= */}
+
+        <Route
+          path="messages"
+          element={<MessagesAdmin />}
         />
 
         {/* =================================================
@@ -691,12 +684,16 @@ const AdminRoutes = () => {
 
       {/* =====================================================
           UNKNOWN ADMIN ROUTES
-          MUST BE LAST
       ===================================================== */}
 
       <Route
         path="*"
-        element={<Navigate to="/admin" replace />}
+        element={
+          <Navigate
+            to="/admin"
+            replace
+          />
+        }
       />
     </Routes>
   );

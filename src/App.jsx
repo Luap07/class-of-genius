@@ -9,6 +9,11 @@ import {
 import GrammarReader from "./pages/languages/GrammarReader";
 import { AnimatePresence, motion } from "framer-motion";
 
+/* =========================== CONDITION$ =========================== */
+import Terms from "./pages/Terms";
+import Help from "./pages/Help";
+import Privacy from "./pages/Privacy";
+
 /* =========================== CONTEXTS =========================== */
 
 import { AuthContext } from "./context/AuthContext";
@@ -183,7 +188,7 @@ const AnimatedRoutes = () => {
             </PageWrapper>
           }
         />
-
+  <Route path="/terms" element={<Terms />} />
         <Route
           path="/about"
           element={
@@ -192,7 +197,7 @@ const AnimatedRoutes = () => {
             </PageWrapper>
           }
         />
-
+    <Route path="/help" element={<Help />} />
         <Route
           path="/services"
           element={
@@ -238,6 +243,8 @@ const AnimatedRoutes = () => {
           element={<ChatSupport />}
         />
 
+          <Route path="/privacy" element={<Privacy />} />
+          
         <Route
           path="/support/faq"
           element={<FAQ />}

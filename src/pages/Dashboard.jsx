@@ -530,23 +530,34 @@ const Dashboard = () => {
         </p>
 
         <div className="mt-10 flex flex-wrap justify-center gap-8 text-slate-400">
-          <button className="transition hover:text-white">
-            Help
-          </button>
+  <button
+    onClick={() => navigate("/help")}
+    className="transition hover:text-white"
+  >
+    Help
+  </button>
 
-          <button className="transition hover:text-white">
-            Contact
-          </button>
+  <button
+    onClick={() => navigate("/contact")}
+    className="transition hover:text-white"
+  >
+    Contact
+  </button>
 
-          <button className="transition hover:text-white">
-            Privacy
-          </button>
+  <button
+    onClick={() => navigate("/privacy")}
+    className="transition hover:text-white"
+  >
+    Privacy
+  </button>
 
-          <button className="transition hover:text-white">
-            Terms
-          </button>
-        </div>
-
+  <button
+    onClick={() => navigate("/terms")}
+    className="transition hover:text-white"
+  >
+    Terms
+  </button>
+</div>
         <p className="mt-12 text-sm text-slate-500">
           © 2026 Scholiqen. Empowering learners worldwide.
         </p>

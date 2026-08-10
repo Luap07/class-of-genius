@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../../lib/supabaseClient";
@@ -16,27 +15,28 @@ import {
   Image as ImageIcon,
   Upload,
   Trash2,
-  ArrowRight,
-  GraduationCap,
-  CheckCircle2,
-  BookOpen,
 } from "lucide-react";
 
 /* =========================================================
-   CONSTANTS
+   SUPABASE STORAGE
 ========================================================= */
 
 const COLLEGE_LOGO_BUCKET = "college-logos";
+const COLLEGE_IMAGE_BUCKET = "college-images";
+
+/* =========================================================
+   EMPTY FORM
+========================================================= */
 
 const emptyForm = {
   name: "",
   description: "",
-  location: "",
   state: "",
   country: "Nigeria",
   website: "",
   email: "",
   phone: "",
+  logo_url: "",
   image_url: "",
 };
 
@@ -51,56 +51,70 @@ const CollegeForm = ({
 }) => {
   const navigate = useNavigate();
 
+  const logoInputRef = useRef(null);
+  const imageInputRef = useRef(null);
+
   const [form, setForm] = useState(emptyForm);
 
   const [saving, setSaving] = useState(false);
+
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   const [error, setError] = useState("");
 
+  const [logoPreview, setLogoPreview] = useState("");
   const [imagePreview, setImagePreview] = useState("");
-
-  /*
-   * After saving, keep the saved college available so the
-   * administrator can continue to faculties/programs.
-   */
-  const [savedCollege, setSavedCollege] = useState(null);
-
-  const fileInputRef = useRef(null);
 
   /* =========================================================
      LOAD COLLEGE
   ========================================================= */
 
   useEffect(() => {
-    if (college) {
-      setForm({
-        name: college.name || "",
-        description: college.description || "",
-        location: college.location || "",
-        state: college.state || "",
-        country: college.country || "Nigeria",
-        website: college.website || "",
-        email: college.email || "",
-        phone: college.phone || "",
-        image_url: college.image_url || "",
-      });
-
-      setImagePreview(college.image_url || "");
-      setSavedCollege(null);
-    } else {
+    if (!college) {
       setForm(emptyForm);
+      setLogoPreview("");
       setImagePreview("");
-      setSavedCollege(null);
+      setError("");
+      return;
     }
+
+    const logoUrl =
+      college.logo_url ||
+      college.logo ||
+      "";
+
+    const imageUrl =
+      college.image_url ||
+      college.image ||
+      "";
+
+    setForm({
+      name: college.name || "",
+      description: college.description || "",
+      state: college.state || "",
+      country: college.country || "Nigeria",
+      website: college.website || "",
+      email: college.email || "",
+      phone: college.phone || "",
+      logo_url: logoUrl,
+      image_url: imageUrl,
+    });
+
+    setLogoPreview(logoUrl);
+    setImagePreview(imageUrl);
+    setError("");
   }, [college]);
 
   /* =========================================================
      HANDLE CHANGE
   ========================================================= */
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const handleChange = (event) => {
+    const {
+      name,
+      value,
+    } = event.target;
 
     setForm((previous) => ({
       ...previous,
@@ -109,11 +123,108 @@ const CollegeForm = ({
   };
 
   /* =========================================================
-     UPLOAD COLLEGE IMAGE
+     GET STORAGE PATH
   ========================================================= */
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
+  const getStoragePath = (
+    url,
+    bucket
+  ) => {
+    if (!url) {
+      return null;
+    }
+
+    const marker =
+      `/storage/v1/object/public/${bucket}/`;
+
+    const index =
+      url.indexOf(marker);
+
+    if (index === -1) {
+      return null;
+    }
+
+    return decodeURIComponent(
+      url.substring(
+        index + marker.length
+      )
+    );
+  };
+
+  /* =========================================================
+     DELETE STORAGE FILE
+  ========================================================= */
+
+  const deleteStorageFile = async (
+    url,
+    bucket
+  ) => {
+    if (!url) {
+      return;
+    }
+
+    try {
+      const filePath =
+        getStoragePath(
+          url,
+          bucket
+        );
+
+      if (!filePath) {
+        return;
+      }
+
+      const {
+        error: removeError,
+      } = await supabase.storage
+        .from(bucket)
+        .remove([filePath]);
+
+      if (removeError) {
+        console.warn(
+          "Storage delete warning:",
+          removeError
+        );
+      }
+    } catch (storageError) {
+      console.warn(
+        "Storage delete error:",
+        storageError
+      );
+    }
+  };
+
+  /* =========================================================
+     GENERATE FILE PATH
+  ========================================================= */
+
+  const createFilePath = (
+    file,
+    folder
+  ) => {
+    const extension =
+      file.name
+        .split(".")
+        .pop()
+        ?.toLowerCase() || "jpg";
+
+    const randomPart =
+      Math.random()
+        .toString(36)
+        .substring(2, 12);
+
+    return `${folder}/${Date.now()}-${randomPart}.${extension}`;
+  };
+
+  /* =========================================================
+     UPLOAD LOGO
+  ========================================================= */
+
+  const handleLogoUpload = async (
+    event
+  ) => {
+    const file =
+      event.target.files?.[0];
 
     if (!file) {
       return;
@@ -121,87 +232,203 @@ const CollegeForm = ({
 
     setError("");
 
-    /*
-     * Validate image type
-     */
+    if (
+      !file.type.startsWith(
+        "image/"
+      )
+    ) {
+      setError(
+        "Please select a valid logo image."
+      );
 
-    if (!file.type.startsWith("image/")) {
-      setError("Please select a valid image file.");
-      e.target.value = "";
+      event.target.value = "";
       return;
     }
 
-    /*
-     * Validate image size
-     */
+    if (
+      file.size >
+      5 * 1024 * 1024
+    ) {
+      setError(
+        "Logo must be smaller than 5MB."
+      );
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Image must be smaller than 5MB.");
-      e.target.value = "";
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      setUploadingLogo(true);
+
+      const filePath =
+        createFilePath(
+          file,
+          "colleges"
+        );
+
+      const {
+        error: uploadError,
+      } = await supabase.storage
+        .from(
+          COLLEGE_LOGO_BUCKET
+        )
+        .upload(
+          filePath,
+          file,
+          {
+            cacheControl: "3600",
+            upsert: false,
+            contentType:
+              file.type,
+          }
+        );
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const {
+        data: publicData,
+      } = supabase.storage
+        .from(
+          COLLEGE_LOGO_BUCKET
+        )
+        .getPublicUrl(filePath);
+
+      const publicUrl =
+        publicData?.publicUrl;
+
+      if (!publicUrl) {
+        throw new Error(
+          "Unable to generate the logo URL."
+        );
+      }
+
+      const previousLogo =
+        form.logo_url;
+
+      setForm((previous) => ({
+        ...previous,
+        logo_url: publicUrl,
+      }));
+
+      setLogoPreview(publicUrl);
+
+      if (
+        previousLogo &&
+        previousLogo !== publicUrl
+      ) {
+        await deleteStorageFile(
+          previousLogo,
+          COLLEGE_LOGO_BUCKET
+        );
+      }
+    } catch (uploadError) {
+      console.error(
+        "College Logo Upload Error:",
+        uploadError
+      );
+
+      setError(
+        uploadError?.message ||
+          "Unable to upload college logo."
+      );
+    } finally {
+      setUploadingLogo(false);
+      event.target.value = "";
+    }
+  };
+
+  /* =========================================================
+     UPLOAD COLLEGE IMAGE
+  ========================================================= */
+
+  const handleImageUpload = async (
+    event
+  ) => {
+    const file =
+      event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setError("");
+
+    if (
+      !file.type.startsWith(
+        "image/"
+      )
+    ) {
+      setError(
+        "Please select a valid college image."
+      );
+
+      event.target.value = "";
+      return;
+    }
+
+    if (
+      file.size >
+      5 * 1024 * 1024
+    ) {
+      setError(
+        "College image must be smaller than 5MB."
+      );
+
+      event.target.value = "";
       return;
     }
 
     try {
       setUploadingImage(true);
 
-      /*
-       * Generate unique file name.
-       */
+      const filePath =
+        createFilePath(
+          file,
+          "colleges"
+        );
 
-      const fileExt =
-        file.name.split(".").pop()?.toLowerCase() || "jpg";
-
-      const uniqueName = `${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2, 10)}.${fileExt}`;
-
-      const filePath = `colleges/${uniqueName}`;
-
-      /*
-       * Upload to Supabase Storage.
-       */
-
-      const { error: uploadError } = await supabase.storage
-        .from(COLLEGE_LOGO_BUCKET)
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: file.type,
-        });
+      const {
+        error: uploadError,
+      } = await supabase.storage
+        .from(
+          COLLEGE_IMAGE_BUCKET
+        )
+        .upload(
+          filePath,
+          file,
+          {
+            cacheControl: "3600",
+            upsert: false,
+            contentType:
+              file.type,
+          }
+        );
 
       if (uploadError) {
         throw uploadError;
       }
 
-      /*
-       * Get public URL.
-       */
-
       const {
-        data: publicUrlData,
+        data: publicData,
       } = supabase.storage
-        .from(COLLEGE_LOGO_BUCKET)
+        .from(
+          COLLEGE_IMAGE_BUCKET
+        )
         .getPublicUrl(filePath);
 
-      const publicUrl = publicUrlData?.publicUrl;
+      const publicUrl =
+        publicData?.publicUrl;
 
       if (!publicUrl) {
         throw new Error(
-          "Unable to generate image URL."
+          "Unable to generate the college image URL."
         );
       }
 
-      /*
-       * Delete previous image if one exists.
-       */
-
-      if (form.image_url) {
-        await deleteStorageImage(form.image_url);
-      }
-
-      /*
-       * Save URL into form state.
-       */
+      const previousImage =
+        form.image_url;
 
       setForm((previous) => ({
         ...previous,
@@ -209,71 +436,68 @@ const CollegeForm = ({
       }));
 
       setImagePreview(publicUrl);
-    } catch (err) {
+
+      if (
+        previousImage &&
+        previousImage !== publicUrl
+      ) {
+        await deleteStorageFile(
+          previousImage,
+          COLLEGE_IMAGE_BUCKET
+        );
+      }
+    } catch (uploadError) {
       console.error(
         "College Image Upload Error:",
-        err
+        uploadError
       );
 
       setError(
-        err?.message ||
+        uploadError?.message ||
           "Unable to upload college image."
       );
     } finally {
       setUploadingImage(false);
-
-      /*
-       * Allow selecting the same file again.
-       */
-
-      e.target.value = "";
+      event.target.value = "";
     }
   };
 
   /* =========================================================
-     DELETE STORAGE IMAGE
+     REMOVE LOGO
   ========================================================= */
 
-  const deleteStorageImage = async (imageUrl) => {
-    if (!imageUrl) {
+  const handleRemoveLogo = async () => {
+    if (!form.logo_url) {
       return;
     }
 
     try {
-      const marker =
-        `/storage/v1/object/public/${COLLEGE_LOGO_BUCKET}/`;
+      setUploadingLogo(true);
+      setError("");
 
-      const markerIndex =
-        imageUrl.indexOf(marker);
-
-      if (markerIndex === -1) {
-        return;
-      }
-
-      const filePath = imageUrl.substring(
-        markerIndex + marker.length
+      await deleteStorageFile(
+        form.logo_url,
+        COLLEGE_LOGO_BUCKET
       );
 
-      if (!filePath) {
-        return;
-      }
+      setForm((previous) => ({
+        ...previous,
+        logo_url: "",
+      }));
 
-      const { error: removeError } =
-        await supabase.storage
-          .from(COLLEGE_LOGO_BUCKET)
-          .remove([filePath]);
-
-      if (removeError) {
-        console.warn(
-          "Could not delete old college image:",
-          removeError
-        );
-      }
-    } catch (err) {
-      console.warn(
-        "Delete Storage Image Error:",
-        err
+      setLogoPreview("");
+    } catch (removeError) {
+      console.error(
+        "Remove College Logo Error:",
+        removeError
       );
+
+      setError(
+        removeError?.message ||
+          "Unable to remove college logo."
+      );
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -290,7 +514,10 @@ const CollegeForm = ({
       setUploadingImage(true);
       setError("");
 
-      await deleteStorageImage(form.image_url);
+      await deleteStorageFile(
+        form.image_url,
+        COLLEGE_IMAGE_BUCKET
+      );
 
       setForm((previous) => ({
         ...previous,
@@ -298,15 +525,15 @@ const CollegeForm = ({
       }));
 
       setImagePreview("");
-    } catch (err) {
+    } catch (removeError) {
       console.error(
         "Remove College Image Error:",
-        err
+        removeError
       );
 
       setError(
-        err?.message ||
-          "Unable to remove image."
+        removeError?.message ||
+          "Unable to remove college image."
       );
     } finally {
       setUploadingImage(false);
@@ -314,73 +541,112 @@ const CollegeForm = ({
   };
 
   /* =========================================================
-     SAVE COLLEGE
+     SAVE / UPDATE COLLEGE
   ========================================================= */
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (
+    event
+  ) => {
+    event.preventDefault();
 
     setError("");
 
-    if (!form.name.trim()) {
-      setError("College name is required.");
+    const collegeName =
+      String(
+        form.name || ""
+      ).trim();
+
+    if (!collegeName) {
+      setError(
+        "College name is required."
+      );
       return;
     }
 
     try {
       setSaving(true);
 
+      /*
+       * IMPORTANT:
+       * This payload contains ONLY the fields
+       * used by this form.
+       *
+       * There is NO `location` field here.
+       */
+
       const payload = {
-        name: form.name.trim(),
+        name: collegeName,
 
         description:
-          form.description.trim() || null,
-
-        location:
-          form.location.trim() || null,
+          String(
+            form.description || ""
+          ).trim() || null,
 
         state:
-          form.state.trim() || null,
+          String(
+            form.state || ""
+          ).trim() || null,
 
         country:
-          form.country.trim() || "Nigeria",
+          String(
+            form.country || ""
+          ).trim() || "Nigeria",
 
         website:
-          form.website.trim() || null,
+          String(
+            form.website || ""
+          ).trim() || null,
 
         email:
-          form.email.trim() || null,
+          String(
+            form.email || ""
+          ).trim() || null,
 
         phone:
-          form.phone.trim() || null,
+          String(
+            form.phone || ""
+          ).trim() || null,
+
+        logo_url:
+          form.logo_url || null,
 
         image_url:
           form.image_url || null,
       };
 
+      console.log(
+        "College payload:",
+        payload
+      );
+
       let result;
 
       /* =====================================================
-         UPDATE EXISTING COLLEGE
+         UPDATE
       ===================================================== */
 
       if (college?.id) {
         result = await supabase
           .from("colleges")
           .update(payload)
-          .eq("id", college.id)
+          .eq(
+            "id",
+            college.id
+          )
           .select()
           .single();
       }
 
       /* =====================================================
-         CREATE NEW COLLEGE
+         CREATE
       ===================================================== */
 
       else {
         result = await supabase
           .from("colleges")
-          .insert([payload])
+          .insert([
+            payload,
+          ])
           .select()
           .single();
       }
@@ -389,36 +655,43 @@ const CollegeForm = ({
         throw result.error;
       }
 
-      if (!result.data?.id) {
+      if (!result.data) {
         throw new Error(
-          "College was saved, but no college ID was returned."
+          "The college was saved but no data was returned."
+        );
+      }
+
+      console.log(
+        college?.id
+          ? "College updated:"
+          : "College created:",
+        result.data
+      );
+
+      if (onSuccess) {
+        onSuccess(
+          result.data
         );
       }
 
       /*
-       * Keep the saved college.
-       *
-       * This is important because the next step
-       * needs this exact college ID.
+       * If this is a new college, return
+       * to the college list after saving.
        */
 
-      setSavedCollege(result.data);
-
-      /*
-       * Notify parent if supplied.
-       */
-
-      if (onSuccess) {
-        onSuccess(result.data);
+      if (!college?.id) {
+        navigate(
+          "/admin/schools/colleges"
+        );
       }
-    } catch (err) {
+    } catch (saveError) {
       console.error(
         "Save College Error:",
-        err
+        saveError
       );
 
       setError(
-        err?.message ||
+        saveError?.message ||
           "Unable to save college. Please try again."
       );
     } finally {
@@ -427,38 +700,7 @@ const CollegeForm = ({
   };
 
   /* =========================================================
-     GO TO FACULTIES
-  ========================================================= */
-
-  const handleManageFaculties = () => {
-    const collegeId =
-      savedCollege?.id || college?.id;
-
-    if (!collegeId) {
-      setError(
-        "College ID is missing. Save the college first."
-      );
-
-      return;
-    }
-
-    /*
-     * This is the next stage of the hierarchy:
-     *
-     * College
-     *   ↓
-     * Faculties / Departments
-     *   ↓
-     * Programs / Courses
-     */
-
-    navigate(
-      `/admin/schools/colleges/${collegeId}/faculties`
-    );
-  };
-
-  /* =========================================================
-     GO BACK TO COLLEGES
+     CANCEL
   ========================================================= */
 
   const handleCancel = () => {
@@ -467,7 +709,9 @@ const CollegeForm = ({
       return;
     }
 
-    navigate("/admin/schools/colleges");
+    navigate(
+      "/admin/schools/colleges"
+    );
   };
 
   /* =========================================================
@@ -491,106 +735,22 @@ const CollegeForm = ({
         </div>
 
         <div className="min-w-0">
+
           <h1 className="text-2xl font-black sm:text-3xl">
             {college
-              ? "Edit College"
+              ? "Update College"
               : "Add College"}
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
             {college
-              ? "Update the institutional information for this college."
-              : "Add a college to the Scholiqen school directory, then continue to its faculties and programs."}
+              ? "Update the information, logo and image for this college."
+              : "Add a college to the school directory."}
           </p>
+
         </div>
 
       </div>
-
-      {/* =====================================================
-          SUCCESS / NEXT STEP
-      ===================================================== */}
-
-      {savedCollege && (
-        <div className="mb-8 overflow-hidden rounded-3xl border border-emerald-400/20 bg-emerald-400/5">
-
-          <div className="p-6">
-
-            <div className="flex items-start gap-4">
-
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/10">
-                <CheckCircle2
-                  size={25}
-                  className="text-emerald-400"
-                />
-              </div>
-
-              <div className="min-w-0 flex-1">
-
-                <h2 className="text-lg font-black text-white">
-                  College Saved Successfully
-                </h2>
-
-                <p className="mt-1 text-sm leading-6 text-slate-400">
-                  <span className="font-bold text-white">
-                    {savedCollege.name}
-                  </span>{" "}
-                  has been saved. The next step is to add
-                  the faculties/departments and the programs
-                  or courses they offer.
-                </p>
-
-              </div>
-
-            </div>
-
-            {/* NEXT STEP */}
-
-            <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/70 p-5">
-
-              <div className="flex items-start gap-4">
-
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10">
-                  <GraduationCap
-                    size={22}
-                    className="text-cyan-400"
-                  />
-                </div>
-
-                <div className="min-w-0 flex-1">
-
-                  <p className="text-xs font-black uppercase tracking-wider text-cyan-400">
-                    Next Step
-                  </p>
-
-                  <h3 className="mt-1 text-base font-black text-white">
-                    Manage Faculties & Courses
-                  </h3>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Create the faculties or departments
-                    belonging to this college and add the
-                    programs/courses they offer.
-                  </p>
-
-                </div>
-
-              </div>
-
-              <button
-                type="button"
-                onClick={handleManageFaculties}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3.5 text-sm font-black text-slate-950 transition hover:bg-cyan-400"
-              >
-                <BookOpen size={18} />
-                Manage Faculties & Courses
-                <ArrowRight size={18} />
-              </button>
-
-            </div>
-
-          </div>
-        </div>
-      )}
 
       {/* =====================================================
           ERROR
@@ -606,15 +766,19 @@ const CollegeForm = ({
           FORM
       ===================================================== */}
 
-      <form onSubmit={handleSubmit}>
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-8"
+      >
 
-        {/* =================================================
+        {/* ===================================================
             BASIC INFORMATION
-        ================================================= */}
+        =================================================== */}
 
-        <div className="mb-8">
+        <section>
 
           <div className="mb-5 flex items-center gap-2">
+
             <FileText
               size={18}
               className="text-cyan-400"
@@ -623,44 +787,53 @@ const CollegeForm = ({
             <h2 className="font-black">
               Basic Information
             </h2>
+
           </div>
 
-          <div className="grid gap-5">
+          <div className="space-y-5">
 
             <Field
               label="College Name"
               name="name"
               value={form.name}
               onChange={handleChange}
-              placeholder="e.g. Federal College of Education"
+              placeholder="e.g. Federal College of Education Iwo"
               required
             />
 
             <div>
+
               <label className="mb-2 block text-sm font-bold text-slate-300">
                 Description
               </label>
 
               <textarea
                 name="description"
-                value={form.description}
-                onChange={handleChange}
-                rows={5}
-                placeholder="Describe the college, its academic focus and opportunities..."
-                className="w-full resize-none rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/50"
+                value={
+                  form.description
+                }
+                onChange={
+                  handleChange
+                }
+                rows={6}
+                placeholder="Describe the college, its academic focus and educational opportunities..."
+                className="w-full resize-none rounded-2xl border border-white/10 bg-slate-900 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/50"
               />
+
             </div>
 
           </div>
-        </div>
 
-        {/* =================================================
+        </section>
+
+        {/* ===================================================
             LOCATION
-        ================================================= */}
+        =================================================== */}
 
-        <div className="mb-8">
+        <section>
 
           <div className="mb-5 flex items-center gap-2">
+
             <MapPin
               size={18}
               className="text-cyan-400"
@@ -669,24 +842,17 @@ const CollegeForm = ({
             <h2 className="font-black">
               Location
             </h2>
+
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
-
-            <Field
-              label="Location / City"
-              name="location"
-              value={form.location}
-              onChange={handleChange}
-              placeholder="e.g. Lagos"
-            />
 
             <Field
               label="State"
               name="state"
               value={form.state}
               onChange={handleChange}
-              placeholder="e.g. Lagos State"
+              placeholder="e.g. Osun State"
             />
 
             <Field
@@ -698,15 +864,17 @@ const CollegeForm = ({
             />
 
           </div>
-        </div>
 
-        {/* =================================================
+        </section>
+
+        {/* ===================================================
             CONTACT
-        ================================================= */}
+        =================================================== */}
 
-        <div className="mb-8">
+        <section>
 
           <div className="mb-5 flex items-center gap-2">
+
             <Globe
               size={18}
               className="text-cyan-400"
@@ -715,6 +883,7 @@ const CollegeForm = ({
             <h2 className="font-black">
               Contact & Website
             </h2>
+
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
@@ -725,7 +894,9 @@ const CollegeForm = ({
               value={form.website}
               onChange={handleChange}
               placeholder="https://example.edu.ng"
-              icon={<Globe size={16} />}
+              icon={
+                <Globe size={16} />
+              }
             />
 
             <Field
@@ -734,7 +905,9 @@ const CollegeForm = ({
               value={form.email}
               onChange={handleChange}
               placeholder="info@example.edu.ng"
-              icon={<Mail size={16} />}
+              icon={
+                <Mail size={16} />
+              }
             />
 
             <Field
@@ -743,19 +916,170 @@ const CollegeForm = ({
               value={form.phone}
               onChange={handleChange}
               placeholder="+234..."
-              icon={<Phone size={16} />}
+              icon={
+                <Phone size={16} />
+              }
             />
 
           </div>
-        </div>
 
-        {/* =================================================
-            COLLEGE IMAGE
-        ================================================= */}
+        </section>
 
-        <div className="mb-8">
+        {/* ===================================================
+            COLLEGE LOGO
+        =================================================== */}
+
+        <section>
 
           <div className="mb-5 flex items-center gap-2">
+
+            <ImageIcon
+              size={18}
+              className="text-cyan-400"
+            />
+
+            <h2 className="font-black">
+              College Logo
+            </h2>
+
+          </div>
+
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            onChange={
+              handleLogoUpload
+            }
+            className="hidden"
+          />
+
+          {!logoPreview ? (
+
+            <button
+              type="button"
+              onClick={() =>
+                logoInputRef.current?.click()
+              }
+              disabled={
+                uploadingLogo
+              }
+              className="flex min-h-52 w-full flex-col items-center justify-center rounded-3xl border-2 border-dashed border-white/10 bg-slate-900 px-6 py-10 text-center transition hover:border-cyan-400/40 hover:bg-cyan-400/5 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+
+              {uploadingLogo ? (
+                <>
+                  <Loader2
+                    size={30}
+                    className="animate-spin text-cyan-400"
+                  />
+
+                  <p className="mt-4 text-sm font-bold text-white">
+                    Uploading logo...
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-400/10">
+                    <Upload
+                      size={25}
+                      className="text-cyan-400"
+                    />
+                  </div>
+
+                  <p className="mt-4 text-sm font-black text-white">
+                    Upload College Logo
+                  </p>
+
+                  <p className="mt-2 text-xs text-slate-500">
+                    PNG, JPG, JPEG or WEBP
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-600">
+                    Maximum size: 5MB
+                  </p>
+                </>
+              )}
+
+            </button>
+
+          ) : (
+
+            <div className="rounded-3xl border border-white/10 bg-slate-900 p-6">
+
+              <div className="flex flex-col items-center justify-center">
+
+                <div className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-4">
+
+                  <img
+                    src={logoPreview}
+                    alt="College logo"
+                    className="h-full w-full object-contain"
+                  />
+
+                </div>
+
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      logoInputRef.current?.click()
+                    }
+                    disabled={
+                      uploadingLogo
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10 disabled:opacity-50"
+                  >
+                    {uploadingLogo ? (
+                      <Loader2
+                        size={15}
+                        className="animate-spin"
+                      />
+                    ) : (
+                      <Upload
+                        size={15}
+                      />
+                    )}
+
+                    Change Logo
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={
+                      handleRemoveLogo
+                    }
+                    disabled={
+                      uploadingLogo
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2.5 text-xs font-bold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+                  >
+                    <Trash2
+                      size={15}
+                    />
+
+                    Remove
+                  </button>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          )}
+
+        </section>
+
+        {/* ===================================================
+            COLLEGE IMAGE
+        =================================================== */}
+
+        <section>
+
+          <div className="mb-5 flex items-center gap-2">
+
             <ImageIcon
               size={18}
               className="text-cyan-400"
@@ -764,143 +1088,176 @@ const CollegeForm = ({
             <h2 className="font-black">
               College Image
             </h2>
+
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-slate-900 p-5">
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            onChange={
+              handleImageUpload
+            }
+            className="hidden"
+          />
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
+          {!imagePreview ? (
 
-            {!imagePreview ? (
+            <button
+              type="button"
+              onClick={() =>
+                imageInputRef.current?.click()
+              }
+              disabled={
+                uploadingImage
+              }
+              className="flex min-h-64 w-full flex-col items-center justify-center rounded-3xl border-2 border-dashed border-white/10 bg-slate-900 px-6 py-10 text-center transition hover:border-cyan-400/40 hover:bg-cyan-400/5 disabled:cursor-not-allowed disabled:opacity-60"
+            >
 
-              <button
-                type="button"
-                onClick={() =>
-                  fileInputRef.current?.click()
-                }
-                disabled={uploadingImage}
-                className="flex min-h-52 w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/10 bg-slate-950 px-6 py-10 text-center transition hover:border-cyan-400/40 hover:bg-cyan-400/5 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-
-                {uploadingImage ? (
-                  <>
-                    <Loader2
-                      size={30}
-                      className="animate-spin text-cyan-400"
-                    />
-
-                    <p className="mt-4 text-sm font-bold text-white">
-                      Uploading image...
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-400/10">
-                      <Upload
-                        size={25}
-                        className="text-cyan-400"
-                      />
-                    </div>
-
-                    <p className="mt-4 text-sm font-black text-white">
-                      Upload College Image
-                    </p>
-
-                    <p className="mt-2 text-xs text-slate-500">
-                      PNG, JPG, JPEG or WEBP
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-600">
-                      Maximum size: 5MB
-                    </p>
-                  </>
-                )}
-
-              </button>
-
-            ) : (
-
-              <div className="overflow-hidden rounded-2xl border border-white/10">
-
-                <div className="relative">
-
-                  <img
-                    src={imagePreview}
-                    alt="College preview"
-                    className="h-64 w-full object-cover"
+              {uploadingImage ? (
+                <>
+                  <Loader2
+                    size={30}
+                    className="animate-spin text-cyan-400"
                   />
 
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-14">
+                  <p className="mt-4 text-sm font-bold text-white">
+                    Uploading image...
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-400/10">
+                    <Upload
+                      size={25}
+                      className="text-cyan-400"
+                    />
+                  </div>
 
-                    <div className="flex justify-end gap-2">
+                  <p className="mt-4 text-sm font-black text-white">
+                    Upload College Image
+                  </p>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          fileInputRef.current?.click()
-                        }
-                        disabled={uploadingImage}
-                        className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/80 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-slate-900 disabled:opacity-50"
-                      >
-                        {uploadingImage ? (
-                          <Loader2
-                            size={15}
-                            className="animate-spin"
-                          />
-                        ) : (
-                          <Upload size={15} />
-                        )}
+                  <p className="mt-2 text-xs text-slate-500">
+                    PNG, JPG, JPEG or WEBP
+                  </p>
 
-                        Change Image
-                      </button>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Maximum size: 5MB
+                  </p>
+                </>
+              )}
 
-                      <button
-                        type="button"
-                        onClick={handleRemoveImage}
-                        disabled={uploadingImage}
-                        className="inline-flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/20 px-4 py-2.5 text-xs font-bold text-red-300 backdrop-blur-md transition hover:bg-red-500/30 disabled:opacity-50"
-                      >
-                        <Trash2 size={15} />
-                        Remove
-                      </button>
+            </button>
 
-                    </div>
+          ) : (
+
+            <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900">
+
+              <div className="relative">
+
+                <img
+                  src={imagePreview}
+                  alt="College"
+                  className="h-72 w-full object-cover"
+                />
+
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-5 pt-20">
+
+                  <div className="flex justify-end gap-2">
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        imageInputRef.current?.click()
+                      }
+                      disabled={
+                        uploadingImage
+                      }
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/80 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-slate-900 disabled:opacity-50"
+                    >
+
+                      {uploadingImage ? (
+                        <Loader2
+                          size={15}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <Upload
+                          size={15}
+                        />
+                      )}
+
+                      Change Image
+
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={
+                        handleRemoveImage
+                      }
+                      disabled={
+                        uploadingImage
+                      }
+                      className="inline-flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/20 px-4 py-2.5 text-xs font-bold text-red-300 backdrop-blur-md transition hover:bg-red-500/30 disabled:opacity-50"
+                    >
+
+                      <Trash2
+                        size={15}
+                      />
+
+                      Remove
+
+                    </button>
 
                   </div>
+
                 </div>
 
               </div>
-            )}
 
-          </div>
-        </div>
+            </div>
 
-        {/* =================================================
+          )}
+
+        </section>
+
+        {/* ===================================================
             ACTIONS
-        ================================================= */}
+        =================================================== */}
 
         <div className="flex flex-col-reverse gap-3 border-t border-white/10 pt-7 sm:flex-row sm:justify-end">
 
           <button
             type="button"
-            onClick={handleCancel}
-            disabled={saving || uploadingImage}
+            onClick={
+              handleCancel
+            }
+            disabled={
+              saving ||
+              uploadingLogo ||
+              uploadingImage
+            }
             className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
           >
+
             <X size={17} />
+
             Cancel
+
           </button>
 
           <button
             type="submit"
-            disabled={saving || uploadingImage}
+            disabled={
+              saving ||
+              uploadingLogo ||
+              uploadingImage
+            }
             className="flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-7 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
+
             {saving ? (
               <>
                 <Loader2
@@ -908,7 +1265,9 @@ const CollegeForm = ({
                   className="animate-spin"
                 />
 
-                Saving...
+                {college
+                  ? "Updating..."
+                  : "Saving..."}
               </>
             ) : (
               <>
@@ -919,59 +1278,12 @@ const CollegeForm = ({
                   : "Save College"}
               </>
             )}
+
           </button>
 
         </div>
 
       </form>
-
-      {/* =====================================================
-          EXISTING COLLEGE — QUICK CONTINUE
-      ===================================================== */}
-
-      {!savedCollege && college?.id && (
-        <div className="mt-8 border-t border-white/10 pt-7">
-
-          <div className="rounded-2xl border border-cyan-400/10 bg-cyan-400/5 p-5">
-
-            <div className="flex items-start gap-4">
-
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10">
-                <BookOpen
-                  size={19}
-                  className="text-cyan-400"
-                />
-              </div>
-
-              <div className="flex-1">
-
-                <h3 className="text-sm font-black text-white">
-                  Manage Academic Structure
-                </h3>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Continue to this college's faculties,
-                  departments and programs/courses.
-                </p>
-
-              </div>
-
-            </div>
-
-            <button
-              type="button"
-              onClick={handleManageFaculties}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-400 transition hover:bg-cyan-400/20"
-            >
-              <GraduationCap size={17} />
-              Manage Faculties & Courses
-              <ArrowRight size={17} />
-            </button>
-
-          </div>
-
-        </div>
-      )}
 
     </div>
   );
@@ -994,6 +1306,7 @@ const Field = ({
     <div>
 
       <label className="mb-2 block text-sm font-bold text-slate-300">
+
         {label}
 
         {required && (
@@ -1001,6 +1314,7 @@ const Field = ({
             *
           </span>
         )}
+
       </label>
 
       <div className="relative">
@@ -1026,6 +1340,7 @@ const Field = ({
         />
 
       </div>
+
     </div>
   );
 };

@@ -63,7 +63,7 @@ const CollegeCard = ({
       className="group overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-xl"
     >
       {/* =====================================================
-          IMAGE
+          COVER IMAGE
       ===================================================== */}
 
       <div className="relative h-48 overflow-hidden bg-gradient-to-br from-slate-800 to-slate-950">
@@ -84,21 +84,50 @@ const CollegeCard = ({
 
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
 
-        {/* TYPE */}
+        {/* =================================================
+            LOGO
+        ================================================= */}
 
-        <div className="absolute bottom-4 left-4">
-          <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-bold text-cyan-400 backdrop-blur-md">
+        <div className="absolute bottom-4 left-5">
+          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-slate-950 bg-white shadow-2xl">
+            {college.logo_url ? (
+              <img
+                src={college.logo_url}
+                alt={`${college.name || "College"} logo`}
+                className="h-full w-full object-contain p-2"
+                onError={(event) => {
+                  event.currentTarget.style.display =
+                    "none";
+                }}
+              />
+            ) : (
+              <Building2
+                size={30}
+                className="text-slate-400"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* =================================================
+            TYPE
+        ================================================= */}
+
+        <div className="absolute right-4 top-4">
+          <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-slate-950/70 px-3 py-1.5 text-xs font-bold text-cyan-400 backdrop-blur-md">
             <GraduationCap size={13} />
             Institution
           </span>
         </div>
 
-        {/* FACULTY SHORTCUT */}
+        {/* =================================================
+            FACULTY SHORTCUT
+        ================================================= */}
 
         <button
           type="button"
           onClick={() => onFaculties(college)}
-          className="absolute right-4 top-4 flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-xs font-bold text-white opacity-0 backdrop-blur-md transition group-hover:opacity-100 hover:bg-cyan-500 hover:text-slate-950"
+          className="absolute right-4 bottom-4 flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs font-bold text-white opacity-0 backdrop-blur-md transition group-hover:opacity-100 hover:bg-cyan-500 hover:text-slate-950"
         >
           <Users size={14} />
           Faculties
@@ -110,20 +139,27 @@ const CollegeCard = ({
       ===================================================== */}
 
       <div className="p-6">
-        <h2 className="line-clamp-2 text-xl font-black text-white">
-          {college.name || "Unnamed Institution"}
-        </h2>
+        <div className="flex items-start gap-4">
+          {/* Small logo fallback/display beside title on
+              cards where the cover is missing */}
 
-        {location && (
-          <div className="mt-3 flex items-start gap-2 text-sm text-slate-500">
-            <MapPin
-              size={16}
-              className="mt-0.5 shrink-0"
-            />
+          <div className="min-w-0 flex-1">
+            <h2 className="line-clamp-2 text-xl font-black text-white">
+              {college.name || "Unnamed Institution"}
+            </h2>
 
-            <span>{location}</span>
+            {location && (
+              <div className="mt-3 flex items-start gap-2 text-sm text-slate-500">
+                <MapPin
+                  size={16}
+                  className="mt-0.5 shrink-0"
+                />
+
+                <span>{location}</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-400">
           {college.description ||

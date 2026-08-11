@@ -4,7 +4,22 @@ import dotenv from "dotenv";
 import OpenAI from "openai";
 import { Resend } from "resend";
 
+import universityImportRoutes from "./routes/universityImportRoutes.js";
+
+import {
+  importUniversityAcademics,
+} from "./services/universityAcademicImporter.js";
+
+import {
+  discoverUniversities,
+  discoverUniversityPage,
+} from "./services/universityDiscovery.js";
+
 dotenv.config();
+
+/* =========================================================
+   APP
+========================================================= */
 
 const app = express();
 
@@ -15,19 +30,36 @@ const app = express();
 app.use(
   cors({
     origin: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
   })
 );
 
-app.use(express.json({ limit: "2mb" }));
+app.use(
+  express.json({
+    limit: "2mb",
+  })
+);
 
 /* =========================================================
-   OPENAI SETUP
+   OPENAI
 ========================================================= */
 
 if (!process.env.OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY is missing in .env");
+  console.error(
+    "❌ OPENAI_API_KEY is missing in .env"
+  );
+
   process.exit(1);
 }
 
@@ -36,7 +68,7 @@ const openai = new OpenAI({
 });
 
 /* =========================================================
-   RESEND SETUP
+   RESEND
 ========================================================= */
 
 if (!process.env.RESEND_API_KEY) {
@@ -49,22 +81,13 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-/*
-  CONTACT_EMAIL is the email address that receives
-  messages from the website contact form.
-
-  Example .env:
-
-  CONTACT_EMAIL=scholiqen@gmail.com
-*/
+/* =========================================================
+   EMAIL CONFIGURATION
+========================================================= */
 
 const contactEmail =
   process.env.CONTACT_EMAIL ||
   "scholiqen@gmail.com";
-
-/*
-  Instructor application recipient.
-*/
 
 const instructorApplicationEmail =
   process.env.INSTRUCTOR_APPLICATION_EMAIL;
@@ -78,15 +101,23 @@ const resendFromEmail =
 ========================================================= */
 
 app.get("/", (req, res) => {
-  res.json({
+  return res.json({
     status: "running",
+
     name: "Scholiqen AI",
 
-    contactForm: Boolean(resend && contactEmail),
+    contactForm: Boolean(
+      resend && contactEmail
+    ),
 
     instructorApplications: Boolean(
-      resend && instructorApplicationEmail
+      resend &&
+        instructorApplicationEmail
     ),
+
+    universityDiscovery: true,
+
+    universityAcademicImport: true,
   });
 });
 
@@ -95,89 +126,77 @@ app.get("/", (req, res) => {
    POST /notify-admin
 ========================================================= */
 
-app.post("/notify-admin", async (req, res) => {
-  try {
-    console.log("📩 Contact message received");
+app.post(
+  "/notify-admin",
+  async (req, res) => {
+    try {
+      console.log(
+        "📩 Contact message received"
+      );
 
-    /* -----------------------------------------------------
-       EMAIL SERVICE CHECK
-    ----------------------------------------------------- */
+      if (!resend) {
+        return res.status(500).json({
+          success: false,
 
-    if (!resend) {
-      return res.status(500).json({
-        success: false,
-        error:
-          "Email service is not configured. RESEND_API_KEY is missing.",
-      });
-    }
+          error:
+            "Email service is not configured. RESEND_API_KEY is missing.",
+        });
+      }
 
-    if (!contactEmail) {
-      return res.status(500).json({
-        success: false,
-        error:
-          "CONTACT_EMAIL is missing from .env",
-      });
-    }
+      if (!contactEmail) {
+        return res.status(500).json({
+          success: false,
 
-    /* -----------------------------------------------------
-       FORM DATA
-    ----------------------------------------------------- */
+          error:
+            "CONTACT_EMAIL is missing from .env",
+        });
+      }
 
-    const {
-      name,
-      email,
-      message,
-    } = req.body;
+      const {
+        name,
+        email,
+        message,
+      } = req.body;
 
-    /* -----------------------------------------------------
-       REQUIRED FIELDS
-    ----------------------------------------------------- */
+      if (
+        !name ||
+        !email ||
+        !message
+      ) {
+        return res.status(400).json({
+          success: false,
 
-    if (
-      !name ||
-      !email ||
-      !message
-    ) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Name, email and message are required.",
-      });
-    }
+          error:
+            "Name, email and message are required.",
+        });
+      }
 
-    /* -----------------------------------------------------
-       CLEAN DATA
-    ----------------------------------------------------- */
+      const cleanName =
+        String(name).trim();
 
-    const cleanName =
-      String(name).trim();
+      const cleanEmail =
+        String(email).trim();
 
-    const cleanEmail =
-      String(email).trim();
+      const cleanMessage =
+        String(message).trim();
 
-    const cleanMessage =
-      String(message).trim();
+      const emailPattern =
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    /* -----------------------------------------------------
-       EMAIL VALIDATION
-    ----------------------------------------------------- */
+      if (
+        !emailPattern.test(
+          cleanEmail
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
 
-    const emailPattern =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          error:
+            "Please provide a valid email address.",
+        });
+      }
 
-    if (!emailPattern.test(cleanEmail)) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Please provide a valid email address.",
-      });
-    }
-
-    /* =====================================================
-       EMAIL HTML
-    ===================================================== */
-
-    const emailHtml = `
+      const emailHtml = `
 <!DOCTYPE html>
 <html lang="en">
 
@@ -189,7 +208,9 @@ app.post("/notify-admin", async (req, res) => {
     content="width=device-width, initial-scale=1.0"
   />
 
-  <title>New Scholiqen Contact Message</title>
+  <title>
+    New Scholiqen Contact Message
+  </title>
 
   <style>
 
@@ -202,7 +223,6 @@ app.post("/notify-admin", async (req, res) => {
       padding: 0;
 
       background: #020617;
-
       color: #e2e8f0;
 
       font-family:
@@ -221,7 +241,6 @@ app.post("/notify-admin", async (req, res) => {
 
     .container {
       width: 100%;
-
       max-width: 700px;
 
       margin: 0 auto;
@@ -257,7 +276,6 @@ app.post("/notify-admin", async (req, res) => {
       color: #ffffff;
 
       font-size: 28px;
-
       font-weight: 900;
 
       letter-spacing: -0.5px;
@@ -298,7 +316,6 @@ app.post("/notify-admin", async (req, res) => {
       color: #22d3ee;
 
       font-size: 11px;
-
       font-weight: 800;
 
       text-transform: uppercase;
@@ -316,7 +333,6 @@ app.post("/notify-admin", async (req, res) => {
       color: #ffffff;
 
       font-size: 28px;
-
       line-height: 1.25;
 
       font-weight: 900;
@@ -328,7 +344,6 @@ app.post("/notify-admin", async (req, res) => {
       color: #94a3b8;
 
       font-size: 15px;
-
       line-height: 1.8;
     }
 
@@ -341,7 +356,6 @@ app.post("/notify-admin", async (req, res) => {
       color: #38bdf8;
 
       font-size: 16px;
-
       font-weight: 800;
     }
 
@@ -365,7 +379,6 @@ app.post("/notify-admin", async (req, res) => {
       color: #64748b;
 
       font-size: 10px;
-
       font-weight: 800;
 
       text-transform: uppercase;
@@ -377,7 +390,6 @@ app.post("/notify-admin", async (req, res) => {
       color: #f8fafc;
 
       font-size: 14px;
-
       line-height: 1.7;
 
       word-break: break-word;
@@ -397,7 +409,6 @@ app.post("/notify-admin", async (req, res) => {
       color: #cbd5e1;
 
       font-size: 15px;
-
       line-height: 1.8;
 
       white-space: pre-wrap;
@@ -423,7 +434,6 @@ app.post("/notify-admin", async (req, res) => {
       text-decoration: none;
 
       font-size: 13px;
-
       font-weight: 800;
     }
 
@@ -439,7 +449,6 @@ app.post("/notify-admin", async (req, res) => {
       color: #64748b;
 
       font-size: 12px;
-
       line-height: 1.7;
     }
 
@@ -463,7 +472,6 @@ app.post("/notify-admin", async (req, res) => {
     }
 
   </style>
-
 </head>
 
 <body>
@@ -471,8 +479,6 @@ app.post("/notify-admin", async (req, res) => {
   <div class="wrapper">
 
     <div class="container">
-
-      <!-- HEADER -->
 
       <div class="header">
 
@@ -488,8 +494,6 @@ app.post("/notify-admin", async (req, res) => {
 
       </div>
 
-      <!-- CONTENT -->
-
       <div class="content">
 
         <h1 class="title">
@@ -500,8 +504,6 @@ app.post("/notify-admin", async (req, res) => {
           Someone has contacted Scholiqen
           through the website contact form.
         </p>
-
-        <!-- SENDER -->
 
         <h2 class="section-title">
           Sender Information
@@ -531,8 +533,6 @@ app.post("/notify-admin", async (req, res) => {
 
         </div>
 
-        <!-- MESSAGE -->
-
         <h2 class="section-title">
           Message
         </h2>
@@ -542,15 +542,16 @@ app.post("/notify-admin", async (req, res) => {
         </div>
 
         <a
-          href="mailto:${escapeHtml(cleanEmail)}"
+          href="mailto:${escapeHtml(
+            cleanEmail
+          )}"
           class="reply"
         >
-          Reply to ${escapeHtml(cleanName)}
+          Reply to
+          ${escapeHtml(cleanName)}
         </a>
 
       </div>
-
-      <!-- FOOTER -->
 
       <div class="footer">
 
@@ -573,37 +574,61 @@ app.post("/notify-admin", async (req, res) => {
 </html>
 `;
 
-    /* =====================================================
-       SEND EMAIL
-    ===================================================== */
+      const {
+        data,
+        error,
+      } =
+        await resend.emails.send({
+          from: resendFromEmail,
 
-    const {
-      data,
-      error,
-    } = await resend.emails.send({
+          to: [
+            contactEmail,
+          ],
 
-      from: resendFromEmail,
+          replyTo: cleanEmail,
 
-      to: [
-        contactEmail,
-      ],
+          subject:
+            `New Scholiqen Contact Message — ${cleanName}`,
 
-      replyTo: cleanEmail,
+          html: emailHtml,
+        });
 
-      subject:
-        `New Scholiqen Contact Message — ${cleanName}`,
+      if (error) {
+        console.error(
+          "❌ Resend contact email error:",
+          error
+        );
 
-      html: emailHtml,
-    });
+        return res.status(500).json({
+          success: false,
 
-    /* -----------------------------------------------------
-       RESEND ERROR
-    ----------------------------------------------------- */
+          error:
+            "Failed to send your message.",
 
-    if (error) {
+          details:
+            error?.message ||
+            String(error),
+        });
+      }
 
+      console.log(
+        "✅ Contact email sent:",
+        data?.id
+      );
+
+      return res.status(200).json({
+        success: true,
+
+        message:
+          "Your message has been sent successfully.",
+
+        emailId:
+          data?.id || null,
+      });
+
+    } catch (error) {
       console.error(
-        "❌ Resend contact email error:",
+        "❌ Contact route error:",
         error
       );
 
@@ -611,88 +636,49 @@ app.post("/notify-admin", async (req, res) => {
         success: false,
 
         error:
-          "Failed to send your message.",
+          "Something went wrong while sending your message.",
 
         details:
-          error?.message ||
-          String(error),
+          process.env.NODE_ENV ===
+          "development"
+            ? error?.message
+            : undefined,
       });
     }
-
-    /* -----------------------------------------------------
-       SUCCESS
-    ----------------------------------------------------- */
-
-    console.log(
-      "✅ Contact email sent:",
-      data?.id
-    );
-
-    return res.status(200).json({
-
-      success: true,
-
-      message:
-        "Your message has been sent successfully.",
-
-      emailId:
-        data?.id || null,
-    });
-
-  } catch (error) {
-
-    console.error(
-      "❌ Contact route error:",
-      error
-    );
-
-    return res.status(500).json({
-
-      success: false,
-
-      error:
-        "Something went wrong while sending your message.",
-
-      details:
-        process.env.NODE_ENV === "development"
-          ? error?.message
-          : undefined,
-    });
   }
-});
+);
 
 /* =========================================================
    INSTRUCTOR APPLICATION
+   POST /instructor-application
 ========================================================= */
 
 app.post(
   "/instructor-application",
   async (req, res) => {
-
     try {
-
       console.log(
         "📩 Instructor application received"
       );
 
       if (!resend) {
-
         return res.status(500).json({
           success: false,
+
           error:
             "Email service is not configured. RESEND_API_KEY is missing.",
         });
-
       }
 
-      if (!instructorApplicationEmail) {
-
+      if (
+        !instructorApplicationEmail
+      ) {
         return res.status(500).json({
           success: false,
+
           error:
             "INSTRUCTOR_APPLICATION_EMAIL is missing from .env",
         });
-
       }
 
       const {
@@ -741,7 +727,9 @@ app.post(
       };
 
       const missingFields =
-        Object.entries(requiredFields)
+        Object.entries(
+          requiredFields
+        )
           .filter(
             ([, value]) =>
               value === undefined ||
@@ -755,9 +743,7 @@ app.post(
       if (
         missingFields.length > 0
       ) {
-
         return res.status(400).json({
-
           success: false,
 
           error:
@@ -771,11 +757,11 @@ app.post(
         /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
       if (
-        !emailPattern.test(email)
+        !emailPattern.test(
+          String(email).trim()
+        )
       ) {
-
         return res.status(400).json({
-
           success: false,
 
           error:
@@ -789,9 +775,7 @@ app.post(
         qualityStandards !== true ||
         terms !== true
       ) {
-
         return res.status(400).json({
-
           success: false,
 
           error:
@@ -806,17 +790,27 @@ app.post(
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+>
 
 <style>
 
 body {
   margin: 0;
   padding: 0;
+
   background: #020617;
   color: #e2e8f0;
-  font-family: Arial, Helvetica, sans-serif;
+
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
 }
 
 .wrapper {
@@ -828,20 +822,28 @@ body {
 .container {
   max-width: 760px;
   margin: auto;
+
   background: #0f172a;
-  border: 1px solid #1e293b;
+
+  border:
+    1px solid
+    #1e293b;
+
   border-radius: 24px;
+
   overflow: hidden;
 }
 
 .header {
   padding: 32px;
-  background: linear-gradient(
-    135deg,
-    #0f172a,
-    #172554,
-    #0c4a6e
-  );
+
+  background:
+    linear-gradient(
+      135deg,
+      #0f172a,
+      #172554,
+      #0c4a6e
+    );
 }
 
 .brand {
@@ -876,29 +878,45 @@ body {
 .field {
   margin-top: 10px;
   padding: 16px;
+
   background: #020617;
-  border: 1px solid #1e293b;
+
+  border:
+    1px solid
+    #1e293b;
+
   border-radius: 14px;
 }
 
 .label {
   color: #64748b;
+
   font-size: 10px;
   font-weight: 800;
+
   text-transform: uppercase;
 }
 
 .value {
   margin-top: 6px;
+
   color: #f8fafc;
+
   font-size: 14px;
   line-height: 1.7;
 }
 
 .footer {
-  padding: 24px 32px;
-  border-top: 1px solid #1e293b;
+  padding:
+    24px
+    32px;
+
+  border-top:
+    1px solid
+    #1e293b;
+
   color: #64748b;
+
   font-size: 12px;
 }
 
@@ -930,31 +948,45 @@ New Instructor Application
 
 <div class="section">
 
-<h2>Personal Information</h2>
+<h2>
+Personal Information
+</h2>
 
 <div class="field">
-<div class="label">Full Name</div>
+<div class="label">
+Full Name
+</div>
+
 <div class="value">
 ${escapeHtml(fullName)}
 </div>
 </div>
 
 <div class="field">
-<div class="label">Email</div>
+<div class="label">
+Email
+</div>
+
 <div class="value">
 ${escapeHtml(email)}
 </div>
 </div>
 
 <div class="field">
-<div class="label">Phone</div>
+<div class="label">
+Phone
+</div>
+
 <div class="value">
 ${escapeHtml(completePhone)}
 </div>
 </div>
 
 <div class="field">
-<div class="label">Country</div>
+<div class="label">
+Country
+</div>
+
 <div class="value">
 ${escapeHtml(country)}
 </div>
@@ -964,31 +996,45 @@ ${escapeHtml(country)}
 
 <div class="section">
 
-<h2>Professional Background</h2>
+<h2>
+Professional Background
+</h2>
 
 <div class="field">
-<div class="label">Expertise</div>
+<div class="label">
+Expertise
+</div>
+
 <div class="value">
 ${escapeHtml(expertise)}
 </div>
 </div>
 
 <div class="field">
-<div class="label">Experience</div>
+<div class="label">
+Experience
+</div>
+
 <div class="value">
 ${escapeHtml(experience)}
 </div>
 </div>
 
 <div class="field">
-<div class="label">Education</div>
+<div class="label">
+Education
+</div>
+
 <div class="value">
 ${escapeHtml(education)}
 </div>
 </div>
 
 <div class="field">
-<div class="label">Occupation</div>
+<div class="label">
+Occupation
+</div>
+
 <div class="value">
 ${escapeHtml(occupation)}
 </div>
@@ -998,24 +1044,35 @@ ${escapeHtml(occupation)}
 
 <div class="section">
 
-<h2>Proposed Course</h2>
+<h2>
+Proposed Course
+</h2>
 
 <div class="field">
-<div class="label">Course Title</div>
+<div class="label">
+Course Title
+</div>
+
 <div class="value">
 ${escapeHtml(courseTitle)}
 </div>
 </div>
 
 <div class="field">
-<div class="label">Course Level</div>
+<div class="label">
+Course Level
+</div>
+
 <div class="value">
 ${escapeHtml(courseLevel)}
 </div>
 </div>
 
 <div class="field">
-<div class="label">Description</div>
+<div class="label">
+Description
+</div>
+
 <div class="value">
 ${escapeHtml(courseDescription)}
 </div>
@@ -1025,10 +1082,15 @@ ${escapeHtml(courseDescription)}
 
 <div class="section">
 
-<h2>Online Presence</h2>
+<h2>
+Online Presence
+</h2>
 
 <div class="field">
-<div class="label">Website</div>
+<div class="label">
+Website
+</div>
+
 <div class="value">
 ${escapeHtml(
   website || "Not provided"
@@ -1037,7 +1099,10 @@ ${escapeHtml(
 </div>
 
 <div class="field">
-<div class="label">LinkedIn</div>
+<div class="label">
+LinkedIn
+</div>
+
 <div class="value">
 ${escapeHtml(
   linkedin || "Not provided"
@@ -1046,7 +1111,10 @@ ${escapeHtml(
 </div>
 
 <div class="field">
-<div class="label">YouTube</div>
+<div class="label">
+YouTube
+</div>
+
 <div class="value">
 ${escapeHtml(
   youtube || "Not provided"
@@ -1058,19 +1126,31 @@ ${escapeHtml(
 
 <div class="section">
 
-<h2>Teaching</h2>
+<h2>
+Teaching
+</h2>
 
 <div class="field">
-<div class="label">Teaching Experience</div>
+<div class="label">
+Teaching Experience
+</div>
+
 <div class="value">
-${escapeHtml(teachingExperience)}
+${escapeHtml(
+  teachingExperience
+)}
 </div>
 </div>
 
 <div class="field">
-<div class="label">Availability</div>
+<div class="label">
+Availability
+</div>
+
 <div class="value">
-${escapeHtml(availability)}
+${escapeHtml(
+  availability
+)}
 </div>
 </div>
 
@@ -1078,12 +1158,16 @@ ${escapeHtml(availability)}
 
 <div class="section">
 
-<h2>Agreements</h2>
+<h2>
+Agreements
+</h2>
 
 <div class="field">
+
 <div class="value">
 ✓ All instructor agreements accepted
 </div>
+
 </div>
 
 </div>
@@ -1112,31 +1196,29 @@ ${escapeHtml(email)}
       const {
         data,
         error,
-      } = await resend.emails.send({
+      } =
+        await resend.emails.send({
+          from: resendFromEmail,
 
-        from: resendFromEmail,
+          to: [
+            instructorApplicationEmail,
+          ],
 
-        to: [
-          instructorApplicationEmail,
-        ],
+          replyTo: email,
 
-        replyTo: email,
+          subject:
+            `New Instructor Application — ${fullName}`,
 
-        subject:
-          `New Instructor Application — ${fullName}`,
-
-        html: emailHtml,
-      });
+          html: emailHtml,
+        });
 
       if (error) {
-
         console.error(
           "❌ Resend instructor application error:",
           error
         );
 
         return res.status(500).json({
-
           success: false,
 
           error:
@@ -1154,7 +1236,6 @@ ${escapeHtml(email)}
       );
 
       return res.status(200).json({
-
         success: true,
 
         message:
@@ -1165,21 +1246,20 @@ ${escapeHtml(email)}
       });
 
     } catch (error) {
-
       console.error(
         "❌ Instructor application route error:",
         error
       );
 
       return res.status(500).json({
-
         success: false,
 
         error:
           "Something went wrong while submitting the instructor application.",
 
         details:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV ===
+          "development"
             ? error?.message
             : undefined,
       });
@@ -1189,14 +1269,13 @@ ${escapeHtml(email)}
 
 /* =========================================================
    AI TUTOR
+   POST /api/tutor
 ========================================================= */
 
 app.post(
   "/api/tutor",
   async (req, res) => {
-
     try {
-
       const {
         message,
 
@@ -1216,7 +1295,6 @@ app.post(
       } = req.body;
 
       if (!message) {
-
         return res.status(400).json({
           reply:
             "Message is required.",
@@ -1228,7 +1306,6 @@ app.post(
       if (
         mode === "language"
       ) {
-
         systemPrompt = `
 You are Scholiqen Language AI.
 
@@ -1265,9 +1342,7 @@ Reply in ${language} unless the user requests English.
 If mathematics appears,
 use valid LaTeX.
 `;
-
       } else {
-
         systemPrompt = `
 You are Scholiqen AI Tutor.
 
@@ -1298,7 +1373,6 @@ Show every step.
 
       const completion =
         await openai.chat.completions.create({
-
           model:
             "gpt-4o-mini",
 
@@ -1307,19 +1381,19 @@ Show every step.
           max_tokens: 2048,
 
           messages: [
-
             {
               role: "system",
+
               content:
                 systemPrompt,
             },
 
             {
               role: "user",
+
               content:
                 message,
             },
-
           ],
         });
 
@@ -1335,14 +1409,12 @@ Show every step.
       });
 
     } catch (error) {
-
       console.error(
         "❌ Tutor Error:",
         error
       );
 
       return res.status(500).json({
-
         reply:
           "AI is temporarily unavailable.",
       });
@@ -1352,14 +1424,13 @@ Show every step.
 
 /* =========================================================
    TEXT TO SPEECH
+   POST /api/pronounce
 ========================================================= */
 
 app.post(
   "/api/pronounce",
   async (req, res) => {
-
     try {
-
       const {
         text,
 
@@ -1367,7 +1438,6 @@ app.post(
       } = req.body;
 
       if (!text) {
-
         return res.status(400).json({
           error:
             "Text is required",
@@ -1376,7 +1446,6 @@ app.post(
 
       const speech =
         await openai.audio.speech.create({
-
           model:
             "gpt-4o-mini-tts",
 
@@ -1403,16 +1472,475 @@ app.post(
       return res.send(buffer);
 
     } catch (error) {
-
       console.error(
         "❌ TTS Error:",
         error
       );
 
       return res.status(500).json({
-
         error:
           "Failed to generate speech",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   UNIVERSITY IMPORT ROUTES
+========================================================= */
+
+app.use(
+  "/api/universities/import",
+  universityImportRoutes
+);
+
+/* =========================================================
+   IMPORT ACADEMICS FOR ONE UNIVERSITY
+   POST /api/universities/:id/import-academics
+========================================================= */
+
+app.post(
+  "/api/universities/:id/import-academics",
+  async (req, res) => {
+    try {
+      const {
+        id,
+      } = req.params;
+
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+
+          error:
+            "University ID is required.",
+        });
+      }
+
+      console.log(
+        `🎓 Starting academic import for university: ${id}`
+      );
+
+      const result =
+        await importUniversityAcademics(
+          id
+        );
+
+      console.log(
+        "✅ University academic import completed:",
+        result.statistics
+      );
+
+      return res.status(200).json({
+        success: true,
+
+        message:
+          "University academic structure imported successfully.",
+
+        data: result,
+      });
+
+    } catch (error) {
+      console.error(
+        "❌ University academic import error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+
+        error:
+          "Failed to import university academic structure.",
+
+        details:
+          process.env.NODE_ENV ===
+          "development"
+            ? error?.message
+            : undefined,
+      });
+    }
+  }
+);
+
+/* =========================================================
+   UNIVERSITY DISCOVERY — ONE PAGE
+   POST /api/universities/discover-page
+========================================================= */
+
+app.post(
+  "/api/universities/discover-page",
+  async (req, res) => {
+    try {
+      const pages =
+        Math.min(
+          Math.max(
+            Number(
+              req.body?.pages || 1
+            ),
+            1
+          ),
+          100
+        );
+
+      const perPage =
+        Math.min(
+          Math.max(
+            Number(
+              req.body?.perPage || 100
+            ),
+            1
+          ),
+          100
+        );
+
+      console.log(
+        `🌍 Discovering university page — ${perPage} universities`
+      );
+
+      const result =
+        await discoverUniversityPage({
+          cursor:
+            req.body?.cursor || "*",
+
+          perPage,
+        });
+
+      console.log(
+        "✅ University page discovery completed:",
+        result.statistics
+      );
+
+      return res.json(result);
+
+    } catch (error) {
+      console.error(
+        "❌ University page discovery error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+
+        error:
+          "Failed to discover university page.",
+
+        details:
+          process.env.NODE_ENV ===
+          "development"
+            ? error?.message
+            : undefined,
+      });
+    }
+  }
+);
+
+/* =========================================================
+   WORLDWIDE UNIVERSITY DISCOVERY
+   POST /api/universities/discover
+========================================================= */
+
+app.post(
+  "/api/universities/discover",
+  async (req, res) => {
+    try {
+      const pages =
+        Math.min(
+          Math.max(
+            Number(
+              req.body?.pages || 1
+            ),
+            1
+          ),
+          100
+        );
+
+      const perPage =
+        Math.min(
+          Math.max(
+            Number(
+              req.body?.perPage || 100
+            ),
+            1
+          ),
+          100
+        );
+
+      console.log("");
+
+      console.log(
+        "=============================================="
+      );
+
+      console.log(
+        "🌍 WORLDWIDE UNIVERSITY DISCOVERY"
+      );
+
+      console.log(
+        `📄 Pages: ${pages}`
+      );
+
+      console.log(
+        `🎓 Per page: ${perPage}`
+      );
+
+      console.log(
+        "=============================================="
+      );
+
+      const result =
+        await discoverUniversities({
+          pages,
+          perPage,
+        });
+
+      console.log(
+        "✅ University discovery completed:"
+      );
+
+      console.log(
+        result.statistics
+      );
+
+      return res.json(result);
+
+    } catch (error) {
+      console.error(
+        "❌ University discovery error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+
+        error:
+          "Failed to discover universities.",
+
+        details:
+          process.env.NODE_ENV ===
+          "development"
+            ? error?.message
+            : undefined,
+      });
+    }
+  }
+);
+
+/* =========================================================
+   DISCOVER + IMPORT ACADEMICS
+   POST /api/universities/discover-and-import
+========================================================= */
+
+app.post(
+  "/api/universities/discover-and-import",
+  async (req, res) => {
+    try {
+      const pages =
+        Math.min(
+          Math.max(
+            Number(
+              req.body?.pages || 1
+            ),
+            1
+          ),
+          100
+        );
+
+      const perPage =
+        Math.min(
+          Math.max(
+            Number(
+              req.body?.perPage || 10
+            ),
+            1
+          ),
+          25
+        );
+
+      console.log("");
+
+      console.log(
+        "=============================================="
+      );
+
+      console.log(
+        "🌍 UNIVERSITY DISCOVERY + ACADEMIC IMPORT"
+      );
+
+      console.log(
+        `📄 Pages: ${pages}`
+      );
+
+      console.log(
+        `🎓 Per page: ${perPage}`
+      );
+
+      console.log(
+        "=============================================="
+      );
+
+      /*
+        First discover universities.
+      */
+
+      const discovery =
+        await discoverUniversities({
+          pages,
+          perPage,
+        });
+
+      const academicResults = [];
+
+      /*
+        Only newly created universities
+        are automatically sent to the
+        academic importer.
+      */
+
+      for (
+        const university
+        of discovery.created || []
+      ) {
+        try {
+          console.log(
+            `🎓 Importing academics for: ${university.name}`
+          );
+
+          const academicResult =
+            await importUniversityAcademics(
+              university.id
+            );
+
+          academicResults.push({
+            universityId:
+              university.id,
+
+            universityName:
+              university.name,
+
+            success: true,
+
+            statistics:
+              academicResult?.statistics ||
+              null,
+          });
+
+        } catch (error) {
+          console.error(
+            `❌ Academic import failed for ${university.name}:`,
+            error
+          );
+
+          academicResults.push({
+            universityId:
+              university.id,
+
+            universityName:
+              university.name,
+
+            success: false,
+
+            error:
+              error?.message ||
+              String(error),
+          });
+        }
+      }
+
+      const academicSuccess =
+        academicResults.filter(
+          (item) =>
+            item.success
+        ).length;
+
+      const academicFailed =
+        academicResults.filter(
+          (item) =>
+            !item.success
+        ).length;
+
+      console.log("");
+
+      console.log(
+        "=============================================="
+      );
+
+      console.log(
+        "🎓 UNIVERSITY IMPORT COMPLETE"
+      );
+
+      console.log(
+        "=============================================="
+      );
+
+      console.log(
+        "Discovery:",
+        discovery.statistics
+      );
+
+      console.log(
+        `Academic imports successful: ${academicSuccess}`
+      );
+
+      console.log(
+        `Academic imports failed: ${academicFailed}`
+      );
+
+      console.log(
+        "=============================================="
+      );
+
+      return res.json({
+        success: true,
+
+        discovery,
+
+        academicImport: {
+          total:
+            academicResults.length,
+
+          successful:
+            academicSuccess,
+
+          failed:
+            academicFailed,
+
+          results:
+            academicResults,
+        },
+
+        statistics: {
+          discovery:
+            discovery.statistics,
+
+          academic: {
+            total:
+              academicResults.length,
+
+            successful:
+              academicSuccess,
+
+            failed:
+              academicFailed,
+          },
+        },
+      });
+
+    } catch (error) {
+      console.error(
+        "❌ Discovery/import error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+
+        error:
+          "Failed to discover and import universities.",
+
+        details:
+          process.env.NODE_ENV ===
+          "development"
+            ? error?.message
+            : undefined,
       });
     }
   }
@@ -1424,9 +1952,7 @@ app.post(
 
 app.use(
   (req, res) => {
-
-    res.status(404).json({
-
+    return res.status(404).json({
       error:
         "API route not found.",
 
@@ -1447,14 +1973,12 @@ app.use(
     res,
     next
   ) => {
-
     console.error(
       "❌ Unhandled server error:",
       error
     );
 
-    res.status(500).json({
-
+    return res.status(500).json({
       error:
         "Internal server error.",
     });
@@ -1471,7 +1995,6 @@ const PORT =
 app.listen(
   PORT,
   () => {
-
     console.log("");
 
     console.log(
@@ -1538,6 +2061,14 @@ app.listen(
     );
 
     console.log(
+      "🎓 University Discovery: ENABLED"
+    );
+
+    console.log(
+      "🏫 University Academic Import: ENABLED"
+    );
+
+    console.log(
       "=============================================="
     );
 
@@ -1550,31 +2081,25 @@ app.listen(
 ========================================================= */
 
 function escapeHtml(value) {
-
   return String(
     value ?? ""
   )
-
     .replace(
       /&/g,
       "&amp;"
     )
-
     .replace(
       /</g,
       "&lt;"
     )
-
     .replace(
       />/g,
       "&gt;"
     )
-
     .replace(
       /"/g,
       "&quot;"
     )
-
     .replace(
       /'/g,
       "&#039;"

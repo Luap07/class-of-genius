@@ -8,11 +8,13 @@
     "dev": "node server.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@supabase/supabase-js": "^2.57.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "groq-sdk": "^1.2.1",
-    "resend": "^6.12.4",
-    "@google/generative-ai": "^0.21.0"
+    "openai": "^5.12.2",
+    "resend": "^6.12.4"
   }
 }

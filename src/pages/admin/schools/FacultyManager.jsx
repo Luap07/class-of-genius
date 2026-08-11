@@ -251,7 +251,7 @@ const FacultyManager = () => {
 
       const facultyPayload = {
         school_id: schoolId,
-school_type: "college",        name: facultyName,
+        school_type: "college",        name: facultyName,
         description:
           facultyDescription || null,
         active:

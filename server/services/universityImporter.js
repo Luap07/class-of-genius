@@ -1,30 +1,97 @@
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 
 /* =========================================================
-   SUPABASE
+   LOAD ROOT .ENV
+   server/services/universityImporter.js
+   -> ../../.env
 ========================================================= */
 
-const supabaseUrl =
-  process.env.SUPABASE_URL;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const supabaseServiceRoleKey =
+const ROOT_ENV = path.resolve(__dirname, "../../.env");
+
+dotenv.config({
+  path: ROOT_ENV,
+  override: true,
+});
+
+/* =========================================================
+   ENVIRONMENT
+========================================================= */
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+
+const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl) {
-  throw new Error(
-    "SUPABASE_URL is missing from .env"
+console.log("==============================================");
+console.log("🔐 UNIVERSITY IMPORTER");
+console.log("==============================================");
+console.log("ENV FILE:", ROOT_ENV);
+console.log("URL loaded:", Boolean(SUPABASE_URL));
+console.log(
+  "Service role loaded:",
+  Boolean(SUPABASE_SERVICE_ROLE_KEY)
+);
+
+if (SUPABASE_SERVICE_ROLE_KEY) {
+  console.log(
+    "Key type:",
+    SUPABASE_SERVICE_ROLE_KEY.startsWith("sb_secret_")
+      ? "SECRET"
+      : SUPABASE_SERVICE_ROLE_KEY.startsWith(
+          "sb_publishable_"
+        )
+      ? "PUBLISHABLE ❌"
+      : "UNKNOWN"
   );
 }
 
-if (!supabaseServiceRoleKey) {
+console.log("==============================================");
+
+/* =========================================================
+   VALIDATE ENVIRONMENT
+========================================================= */
+
+if (!SUPABASE_URL) {
   throw new Error(
-    "SUPABASE_SERVICE_ROLE_KEY is missing from .env"
+    `SUPABASE_URL is missing.
+
+Expected in:
+${ROOT_ENV}`
   );
 }
+
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error(
+    `SUPABASE_SERVICE_ROLE_KEY is missing.
+
+Expected in:
+${ROOT_ENV}`
+  );
+}
+
+if (
+  SUPABASE_SERVICE_ROLE_KEY.startsWith(
+    "sb_publishable_"
+  )
+) {
+  throw new Error(
+    "SUPABASE_SERVICE_ROLE_KEY is using a publishable key. Use the Supabase secret key (sb_secret_...) in the server .env."
+  );
+}
+
+/* =========================================================
+   SUPABASE SERVER CLIENT
+========================================================= */
 
 const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey,
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
   {
     auth: {
       autoRefreshToken: false,
@@ -41,27 +108,39 @@ const OPENALEX_API =
   "https://api.openalex.org/institutions";
 
 /* =========================================================
+   UNIVERSITIES TO SKIP
+========================================================= */
+
+const SKIPPED_UNIVERSITIES = new Set([
+  "university of michigan",
+]);
+
+function shouldSkipUniversity(name) {
+  if (!name) {
+    return false;
+  }
+
+  const normalized = String(name)
+    .trim()
+    .toLowerCase();
+
+  return SKIPPED_UNIVERSITIES.has(normalized);
+}
+
+/* =========================================================
    HELPERS
 ========================================================= */
 
 function cleanText(value) {
-  if (
-    value === undefined ||
-    value === null
-  ) {
+  if (value === undefined || value === null) {
     return null;
   }
 
-  const cleaned =
-    String(value)
-      .trim()
-      .replace(/\s+/g, " ");
+  const result = String(value)
+    .replace(/\s+/g, " ")
+    .trim();
 
-  return cleaned || null;
-}
-
-function normalizeName(value) {
-  return cleanText(value);
+  return result || null;
 }
 
 function normalizeUrl(value) {
@@ -70,8 +149,7 @@ function normalizeUrl(value) {
   }
 
   try {
-    const url =
-      new URL(String(value).trim());
+    const url = new URL(String(value).trim());
 
     return url.origin;
   } catch {
@@ -80,43 +158,43 @@ function normalizeUrl(value) {
 }
 
 /* =========================================================
-   OPENALEX REQUEST
+   FETCH OPENALEX
 ========================================================= */
 
 async function fetchOpenAlex({
   cursor = "*",
   perPage = 100,
-}) {
-  const params =
-    new URLSearchParams();
+  countryCode = null,
+} = {}) {
+  const params = new URLSearchParams();
 
-  params.set(
-    "per-page",
-    String(perPage)
-  );
+  let filter = "type:education";
 
-  params.set(
-    "cursor",
-    cursor
-  );
+  if (countryCode) {
+    filter += `,country_code:${String(
+      countryCode
+    )
+      .trim()
+      .toLowerCase()}`;
+  }
 
-  if (
-    process.env.OPENALEX_MAILTO
-  ) {
+  params.set("filter", filter);
+  params.set("per-page", String(perPage));
+  params.set("cursor", cursor);
+
+  if (process.env.OPENALEX_MAILTO) {
     params.set(
       "mailto",
       process.env.OPENALEX_MAILTO
     );
   }
 
-  const response =
-    await fetch(
-      `${OPENALEX_API}?${params.toString()}`
-    );
+  const response = await fetch(
+    `${OPENALEX_API}?${params.toString()}`
+  );
 
   if (!response.ok) {
-    const body =
-      await response.text();
+    const body = await response.text();
 
     throw new Error(
       `OpenAlex request failed: ${response.status} ${body}`
@@ -127,68 +205,36 @@ async function fetchOpenAlex({
 }
 
 /* =========================================================
-   CONVERT OPENALEX UNIVERSITY
+   MAP OPENALEX INSTITUTION
 ========================================================= */
 
-function mapInstitution(
-  institution
-) {
-  const name =
-    normalizeName(
-      institution.display_name
-    );
-
-  const website =
-    normalizeUrl(
-      institution.homepage_url
-    );
-
-  const country =
-    cleanText(
-      institution.country
-        ?.display_name
-    );
-
-  const countryCode =
-    cleanText(
-      institution.country?.code
-    )?.toUpperCase() ||
-    null;
-
-  const city =
-    cleanText(
-      institution.geo?.city
-    );
-
-  const state =
-    cleanText(
-      institution.geo?.region
-    );
-
+function mapInstitution(institution) {
   return {
-    name,
+    name: cleanText(
+      institution?.display_name
+    ),
 
-    short_name:
-      cleanText(
-        institution.display_name_acronyms
-          ?.join(" / ")
-      ),
+    short_name: cleanText(
+      institution?.display_name_acronyms?.join(
+        " / "
+      )
+    ),
 
     description: null,
 
-    logo_url:
-      cleanText(
-        institution.image_url
-      ),
+    logo_url: cleanText(
+      institution?.image_url
+    ),
 
     cover_url: null,
 
-    image_url:
-      cleanText(
-        institution.image_url
-      ),
+    image_url: cleanText(
+      institution?.image_url
+    ),
 
-    website,
+    website: normalizeUrl(
+      institution?.homepage_url
+    ),
 
     email: null,
 
@@ -196,11 +242,17 @@ function mapInstitution(
 
     address: null,
 
-    city,
+    city: cleanText(
+      institution?.geo?.city
+    ),
 
-    state,
+    state: cleanText(
+      institution?.geo?.region
+    ),
 
-    country,
+    country: cleanText(
+      institution?.country?.display_name
+    ),
 
     established_year: null,
 
@@ -212,21 +264,18 @@ function mapInstitution(
 
     active: true,
 
-    external_source:
-      "openalex",
+    external_id: cleanText(
+      institution?.id
+    ),
 
-    external_id:
-      cleanText(
-        institution.id
-      ),
-
-    external_ror:
-      cleanText(
-        institution.ids?.ror
-      ),
+    external_ror: cleanText(
+      institution?.ids?.ror
+    ),
 
     country_code:
-      countryCode,
+      cleanText(
+        institution?.country?.code
+      )?.toUpperCase() || null,
   };
 }
 
@@ -234,28 +283,25 @@ function mapInstitution(
    FIND EXISTING UNIVERSITY
 ========================================================= */
 
-async function findUniversity(
-  university
-) {
-  /*
-    We first try the external identifier.
-  */
+async function findUniversity(university) {
+  /* -------------------------------------------------------
+     FIND BY WEBSITE
+  ------------------------------------------------------- */
 
-  if (
-    university.external_id
-  ) {
+  if (university.website) {
     const {
       data,
       error,
-    } =
-      await supabase
-        .from("universities")
-        .select("*")
-        .eq(
-          "external_id",
-          university.external_id
-        )
-        .maybeSingle();
+    } = await supabase
+      .from("universities")
+      .select(
+        "id,name,short_name,website"
+      )
+      .eq(
+        "website",
+        university.website
+      )
+      .maybeSingle();
 
     if (error) {
       throw error;
@@ -266,52 +312,24 @@ async function findUniversity(
     }
   }
 
-  /*
-    Then try the website.
-  */
-
-  if (
-    university.website
-  ) {
-    const {
-      data,
-      error,
-    } =
-      await supabase
-        .from("universities")
-        .select("*")
-        .eq(
-          "website",
-          university.website
-        )
-        .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
-
-    if (data) {
-      return data;
-    }
-  }
-
-  /*
-    Finally try the name.
-  */
+  /* -------------------------------------------------------
+     FIND BY NAME
+  ------------------------------------------------------- */
 
   if (university.name) {
     const {
       data,
       error,
-    } =
-      await supabase
-        .from("universities")
-        .select("*")
-        .ilike(
-          "name",
-          university.name
-        )
-        .limit(1);
+    } = await supabase
+      .from("universities")
+      .select(
+        "id,name,short_name,website"
+      )
+      .ilike(
+        "name",
+        university.name
+      )
+      .limit(1);
 
     if (error) {
       throw error;
@@ -324,125 +342,65 @@ async function findUniversity(
 }
 
 /* =========================================================
-   UPDATE EXISTING UNIVERSITY
+   SAVE UNIVERSITY
 ========================================================= */
 
-async function updateUniversity(
-  existing,
-  incoming
-) {
-  /*
-    Only populate useful values.
+async function saveUniversity(university) {
+  /* -------------------------------------------------------
+     SAFETY CHECK
+  ------------------------------------------------------- */
 
-    Existing manually entered information
-    should not be blindly destroyed by the
-    importer.
-  */
-
-  const updates = {};
-
-  const fields = [
-    "name",
-    "short_name",
-    "description",
-    "logo_url",
-    "cover_url",
-    "image_url",
-    "website",
-    "email",
-    "phone",
-    "address",
-    "city",
-    "state",
-    "country",
-    "established_year",
-    "accreditation",
-    "ownership",
-    "type",
-    "active",
-  ];
-
-  for (const field of fields) {
-    const incomingValue =
-      incoming[field];
-
-    const existingValue =
-      existing[field];
-
-    /*
-      Only fill empty fields.
-
-      This prevents the automatic
-      importer from overwriting your
-      manually curated university data.
-    */
-
-    if (
-      (
-        existingValue === null ||
-        existingValue === undefined ||
-        existingValue === ""
-      ) &&
-      incomingValue !== null &&
-      incomingValue !== undefined &&
-      incomingValue !== ""
-    ) {
-      updates[field] =
-        incomingValue;
-    }
+  if (!university?.name) {
+    return {
+      action: "skipped",
+      university: null,
+      reason: "Missing university name",
+    };
   }
 
-  /*
-    Store external identifiers only
-    if those columns exist in your
-    database.
-
-    They will be handled safely later
-    when we confirm your schema.
-  */
+  /* -------------------------------------------------------
+     NEVER IMPORT SKIPPED UNIVERSITIES
+  ------------------------------------------------------- */
 
   if (
-    Object.keys(updates).length === 0
+    shouldSkipUniversity(
+      university.name
+    )
   ) {
-    return existing;
+    console.log(
+      `⏭️ Skipping university: ${university.name}`
+    );
+
+    return {
+      action: "skipped",
+      university: null,
+      reason:
+        "University is configured to be skipped",
+    };
   }
 
-  updates.updated_at =
+  /* -------------------------------------------------------
+     CHECK EXISTING UNIVERSITY
+  ------------------------------------------------------- */
+
+  const existing =
+    await findUniversity(
+      university
+    );
+
+  if (existing) {
+    return {
+      action: "existing",
+      university: existing,
+    };
+  }
+
+  /* -------------------------------------------------------
+     CREATE UNIVERSITY
+  ------------------------------------------------------- */
+
+  const now =
     new Date().toISOString();
-
-  const {
-    data,
-    error,
-  } =
-    await supabase
-      .from("universities")
-      .update(updates)
-      .eq(
-        "id",
-        existing.id
-      )
-      .select()
-      .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-/* =========================================================
-   CREATE UNIVERSITY
-========================================================= */
-
-async function createUniversity(
-  university
-) {
-  /*
-    Only use columns that we know
-    already exist in your university
-    table.
-  */
 
   const payload = {
     name:
@@ -500,80 +458,47 @@ async function createUniversity(
       university.active,
 
     created_at:
-      new Date().toISOString(),
+      now,
 
     updated_at:
-      new Date().toISOString(),
+      now,
   };
 
   const {
     data,
     error,
-  } =
-    await supabase
-      .from("universities")
-      .insert(payload)
-      .select()
-      .single();
+  } = await supabase
+    .from("universities")
+    .insert(payload)
+    .select()
+    .single();
 
   if (error) {
     throw error;
   }
 
-  return data;
-}
-
-/* =========================================================
-   SAVE UNIVERSITY
-========================================================= */
-
-async function saveUniversity(
-  university
-) {
-  const existing =
-    await findUniversity(
-      university
-    );
-
-  if (existing) {
-    const updated =
-      await updateUniversity(
-        existing,
-        university
-      );
-
-    return {
-      action: "updated",
-      university: updated,
-    };
-  }
-
-  const created =
-    await createUniversity(
-      university
-    );
-
   return {
     action: "created",
-    university: created,
+    university: data,
   };
 }
 
 /* =========================================================
-   IMPORT PAGE
+   IMPORT ONE OPENALEX PAGE
 ========================================================= */
 
-export async function importUniversityPage({
+async function importUniversityPage({
   cursor = "*",
-}) {
+  perPage = 100,
+} = {}) {
   const response =
     await fetchOpenAlex({
       cursor,
-      perPage: 100,
+      perPage,
     });
 
   const institutions =
-    response.results || [];
+    response?.results || [];
 
   const statistics = {
     fetched:
@@ -581,7 +506,7 @@ export async function importUniversityPage({
 
     created: 0,
 
-    updated: 0,
+    existing: 0,
 
     skipped: 0,
 
@@ -590,66 +515,560 @@ export async function importUniversityPage({
     errors: [],
   };
 
+  const created = [];
+
+  const existing = [];
+
+  const skipped = [];
+
+  /* -------------------------------------------------------
+     PROCESS INSTITUTIONS
+  ------------------------------------------------------- */
+
   for (
-    const institution
-    of institutions
+    const institution of institutions
   ) {
+    const institutionName =
+      cleanText(
+        institution?.display_name
+      );
+
+    /* -----------------------------------------------------
+       SKIP UNIVERSITY OF MICHIGAN BEFORE ANY DB OPERATION
+    ----------------------------------------------------- */
+
+    if (
+      shouldSkipUniversity(
+        institutionName
+      )
+    ) {
+      console.log(
+        `⏭️ Automatically skipped: ${institutionName}`
+      );
+
+      statistics.skipped++;
+
+      skipped.push({
+        name:
+          institutionName,
+
+        reason:
+          "University is configured to be skipped",
+      });
+
+      continue;
+    }
+
     try {
       const university =
         mapInstitution(
           institution
         );
 
+      /* ---------------------------------------------------
+         MISSING NAME
+      --------------------------------------------------- */
+
       if (!university.name) {
         statistics.skipped++;
 
+        skipped.push({
+          name: null,
+
+          reason:
+            "Missing university name",
+        });
+
         continue;
       }
+
+      /* ---------------------------------------------------
+         SAVE
+      --------------------------------------------------- */
 
       const result =
         await saveUniversity(
           university
         );
 
+      /* ---------------------------------------------------
+         CREATED
+      --------------------------------------------------- */
+
       if (
         result.action ===
         "created"
       ) {
         statistics.created++;
-      } else {
-        statistics.updated++;
+
+        created.push(
+          result.university
+        );
+
+        console.log(
+          `✅ Created: ${university.name}`
+        );
+
+        continue;
       }
+
+      /* ---------------------------------------------------
+         EXISTING
+      --------------------------------------------------- */
+
+      if (
+        result.action ===
+        "existing"
+      ) {
+        statistics.existing++;
+
+        existing.push(
+          result.university
+        );
+
+        console.log(
+          `ℹ️ Already exists: ${university.name}`
+        );
+
+        continue;
+      }
+
+      /* ---------------------------------------------------
+         SKIPPED
+      --------------------------------------------------- */
+
+      statistics.skipped++;
+
+      skipped.push({
+        name:
+          university.name,
+
+        reason:
+          result.reason ||
+          "Unknown reason",
+      });
+
+      console.log(
+        `⏭️ Skipped: ${university.name}`
+      );
     } catch (error) {
       statistics.failed++;
 
       statistics.errors.push({
         university:
-          institution?.display_name ||
-          null,
+          institutionName,
 
         error:
           error?.message ||
           String(error),
       });
+
+      console.error(
+        `❌ Failed: ${institutionName}`,
+        error?.message ||
+          error
+      );
+    }
+  }
+
+  /* -------------------------------------------------------
+     RETURN
+  ------------------------------------------------------- */
+
+  return {
+    success: true,
+
+    statistics,
+
+    created,
+
+    existing,
+
+    skipped,
+
+    nextCursor:
+      response?.meta?.next_cursor ||
+      null,
+  };
+}
+
+/* =========================================================
+   IMPORT MULTIPLE PAGES
+========================================================= */
+
+async function importUniversities({
+  pages = 1,
+  perPage = 100,
+  cursor = "*",
+} = {}) {
+  let currentCursor =
+    cursor;
+
+  const statistics = {
+    pagesRequested:
+      Number(pages),
+
+    pagesProcessed:
+      0,
+
+    fetched:
+      0,
+
+    created:
+      0,
+
+    existing:
+      0,
+
+    skipped:
+      0,
+
+    failed:
+      0,
+  };
+
+  const created = [];
+
+  const existing = [];
+
+  const skipped = [];
+
+  const errors = [];
+
+  for (
+    let page = 0;
+    page < Number(pages);
+    page++
+  ) {
+    console.log(
+      "=============================================="
+    );
+
+    console.log(
+      `🌍 Importing university page ${
+        page + 1
+      }/${pages}...`
+    );
+
+    console.log(
+      "=============================================="
+    );
+
+    const result =
+      await importUniversityPage({
+        cursor:
+          currentCursor,
+
+        perPage,
+      });
+
+    statistics.pagesProcessed++;
+
+    statistics.fetched +=
+      Number(
+        result.statistics?.fetched ||
+          0
+      );
+
+    statistics.created +=
+      Number(
+        result.statistics?.created ||
+          0
+      );
+
+    statistics.existing +=
+      Number(
+        result.statistics?.existing ||
+          0
+      );
+
+    statistics.skipped +=
+      Number(
+        result.statistics?.skipped ||
+          0
+      );
+
+    statistics.failed +=
+      Number(
+        result.statistics?.failed ||
+          0
+      );
+
+    created.push(
+      ...(result.created || [])
+    );
+
+    existing.push(
+      ...(result.existing || [])
+    );
+
+    skipped.push(
+      ...(result.skipped || [])
+    );
+
+    errors.push(
+      ...(result.statistics
+        ?.errors || [])
+    );
+
+    currentCursor =
+      result.nextCursor;
+
+    if (!currentCursor) {
+      console.log(
+        "🌍 No more OpenAlex pages."
+      );
+
+      break;
     }
   }
 
   return {
     success: true,
 
-    nextCursor:
-      response.meta?.next_cursor ||
-      null,
-
     statistics,
+
+    created,
+
+    existing,
+
+    skipped,
+
+    errors,
+
+    nextCursor:
+      currentCursor || null,
   };
 }
 
 /* =========================================================
-   EXPORT
+   IMPORT UNIVERSITIES BY COUNTRY
+========================================================= */
+
+async function importUniversitiesByCountry({
+  countryCode,
+  pages = 1,
+  perPage = 100,
+} = {}) {
+  if (!countryCode) {
+    throw new Error(
+      "countryCode is required."
+    );
+  }
+
+  const normalizedCountry =
+    String(countryCode)
+      .trim()
+      .toLowerCase();
+
+  let cursor = "*";
+
+  const statistics = {
+    countryCode:
+      normalizedCountry.toUpperCase(),
+
+    pagesRequested:
+      Number(pages),
+
+    pagesProcessed:
+      0,
+
+    fetched:
+      0,
+
+    created:
+      0,
+
+    existing:
+      0,
+
+    skipped:
+      0,
+
+    failed:
+      0,
+  };
+
+  const created = [];
+
+  const existing = [];
+
+  const skipped = [];
+
+  const errors = [];
+
+  for (
+    let page = 0;
+    page < Number(pages);
+    page++
+  ) {
+    console.log(
+      `🌍 Importing ${normalizedCountry.toUpperCase()} universities: page ${
+        page + 1
+      }/${pages}...`
+    );
+
+    const response =
+      await fetchOpenAlex({
+        cursor,
+
+        perPage,
+
+        countryCode:
+          normalizedCountry,
+      });
+
+    const institutions =
+      response?.results || [];
+
+    statistics.pagesProcessed++;
+
+    statistics.fetched +=
+      institutions.length;
+
+    for (
+      const institution of institutions
+    ) {
+      const institutionName =
+        cleanText(
+          institution?.display_name
+        );
+
+      /* ---------------------------------------------------
+         SKIP UNIVERSITY OF MICHIGAN
+      --------------------------------------------------- */
+
+      if (
+        shouldSkipUniversity(
+          institutionName
+        )
+      ) {
+        console.log(
+          `⏭️ Automatically skipped: ${institutionName}`
+        );
+
+        statistics.skipped++;
+
+        skipped.push({
+          name:
+            institutionName,
+
+          reason:
+            "University is configured to be skipped",
+        });
+
+        continue;
+      }
+
+      try {
+        const university =
+          mapInstitution(
+            institution
+          );
+
+        if (!university.name) {
+          statistics.skipped++;
+
+          skipped.push({
+            name: null,
+
+            reason:
+              "Missing university name",
+          });
+
+          continue;
+        }
+
+        const result =
+          await saveUniversity(
+            university
+          );
+
+        if (
+          result.action ===
+          "created"
+        ) {
+          statistics.created++;
+
+          created.push(
+            result.university
+          );
+
+          continue;
+        }
+
+        if (
+          result.action ===
+          "existing"
+        ) {
+          statistics.existing++;
+
+          existing.push(
+            result.university
+          );
+
+          continue;
+        }
+
+        statistics.skipped++;
+
+        skipped.push({
+          name:
+            university.name,
+
+          reason:
+            result.reason ||
+            "Unknown reason",
+        });
+      } catch (error) {
+        statistics.failed++;
+
+        errors.push({
+          university:
+            institutionName,
+
+          error:
+            error?.message ||
+            String(error),
+        });
+      }
+    }
+
+    cursor =
+      response?.meta?.next_cursor ||
+      null;
+
+    if (!cursor) {
+      break;
+    }
+  }
+
+  return {
+    success: true,
+
+    statistics,
+
+    created,
+
+    existing,
+
+    skipped,
+
+    errors,
+
+    nextCursor:
+      cursor || null,
+  };
+}
+
+/* =========================================================
+   EXPORTS
 ========================================================= */
 
 export {
+  importUniversityPage,
+  importUniversities,
+  importUniversitiesByCountry,
   mapInstitution,
   findUniversity,
   saveUniversity,

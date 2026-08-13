@@ -1,9 +1,4 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+import React, { useEffect, useMemo,useState,} from "react";
 import {
   useNavigate,
   useParams,
@@ -14,9 +9,7 @@ import {
   AnimatePresence,
 } from "framer-motion";
 
-import {
-  ArrowLeft,
-  ArrowRight,
+import { ArrowLeft,  ArrowRight,
   MapPin,
   Globe2,
   GraduationCap,

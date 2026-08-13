@@ -9,6 +9,7 @@ const QuestionUpload = () => {
     question: "",
     options: ["", "", "", ""],
     answer: "",
+    reason: "",
     image: null,
   });
 
@@ -41,7 +42,6 @@ const QuestionUpload = () => {
     });
   };
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -49,7 +49,8 @@ const QuestionUpload = () => {
       !form.exam ||
       !form.subject ||
       !form.question ||
-      !form.answer
+      !form.answer ||
+      !form.reason
     ) {
       alert("Please fill all required fields");
       return;
@@ -60,7 +61,10 @@ const QuestionUpload = () => {
 
       let imageUrl = null;
 
-      // Upload image if selected
+      // ==============================
+      // UPLOAD IMAGE
+      // ==============================
+
       if (form.image) {
         const fileName = `${Date.now()}-${form.image.name}`;
 
@@ -77,6 +81,9 @@ const QuestionUpload = () => {
         imageUrl = data.publicUrl;
       }
 
+      // ==============================
+      // INSERT QUESTION
+      // ==============================
 
       const { error } = await supabase
         .from("cbt_questions")
@@ -87,16 +94,18 @@ const QuestionUpload = () => {
             question: form.question,
             options: form.options,
             answer: form.answer,
+            reason: form.reason,
             image: imageUrl,
           },
         ]);
 
-
       if (error) throw error;
 
+      // ==============================
+      // SUCCESS
+      // ==============================
 
       alert("Question uploaded successfully");
-
 
       setForm({
         exam: "",
@@ -104,9 +113,9 @@ const QuestionUpload = () => {
         question: "",
         options: ["", "", "", ""],
         answer: "",
+        reason: "",
         image: null,
       });
-
 
     } catch (error) {
       console.log(error);
@@ -116,7 +125,6 @@ const QuestionUpload = () => {
     }
   };
 
-
   return (
     <div className="min-h-screen bg-slate-950 text-white p-8">
 
@@ -125,7 +133,6 @@ const QuestionUpload = () => {
         <h1 className="text-3xl font-bold text-blue-400 mb-8">
           Upload CBT Question
         </h1>
-
 
         <form
           onSubmit={handleSubmit}
@@ -140,10 +147,10 @@ const QuestionUpload = () => {
 
             <select
               value={form.exam}
-              onChange={(e)=>
+              onChange={(e) =>
                 setForm({
                   ...form,
-                  exam:e.target.value
+                  exam: e.target.value,
                 })
               }
               className="w-full mt-2 bg-slate-800 rounded-lg p-3"
@@ -152,16 +159,13 @@ const QuestionUpload = () => {
                 Select Exam
               </option>
 
-              {exams.map((exam)=>(
-                <option key={exam}>
+              {exams.map((exam) => (
+                <option key={exam} value={exam}>
                   {exam}
                 </option>
               ))}
-
             </select>
           </div>
-
-
 
           {/* Subject */}
           <div>
@@ -171,136 +175,161 @@ const QuestionUpload = () => {
 
             <select
               value={form.subject}
-              onChange={(e)=>
+              onChange={(e) =>
                 setForm({
                   ...form,
-                  subject:e.target.value
+                  subject: e.target.value,
                 })
               }
               className="w-full mt-2 bg-slate-800 rounded-lg p-3"
             >
-
               <option value="">
                 Select Subject
               </option>
 
-              {subjects.map((subject)=>(
-                <option key={subject}>
+              {subjects.map((subject) => (
+                <option key={subject} value={subject}>
                   {subject}
                 </option>
               ))}
-
             </select>
           </div>
 
-
-
           {/* Question */}
           <div>
-            <label>
+            <label className="text-sm text-slate-400">
               Question
             </label>
 
             <textarea
               value={form.question}
-              onChange={(e)=>
+              onChange={(e) =>
                 setForm({
                   ...form,
-                  question:e.target.value
+                  question: e.target.value,
                 })
               }
-              className="w-full mt-2 bg-slate-800 rounded-lg p-3 h-32"
+              placeholder="Enter the question..."
+              className="w-full mt-2 bg-slate-800 rounded-lg p-3 h-32 outline-none focus:ring-2 focus:ring-blue-500"
             />
-
           </div>
-
-
 
           {/* Options */}
-          <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm text-slate-400 mb-3 block">
+              Answer Options
+            </label>
 
-            {form.options.map((option,index)=>(
-              <input
-                key={index}
-                value={option}
-                placeholder={`Option ${index+1}`}
-                onChange={(e)=>
-                  handleOptionChange(
-                    index,
-                    e.target.value
-                  )
-                }
-                className="bg-slate-800 rounded-lg p-3"
-              />
-            ))}
+            <div className="grid md:grid-cols-2 gap-4">
+              {form.options.map((option, index) => (
+                <div key={index}>
+                  <label className="text-xs text-slate-500">
+                    Option {String.fromCharCode(65 + index)}
+                  </label>
 
+                  <input
+                    value={option}
+                    placeholder={`Enter option ${String.fromCharCode(
+                      65 + index
+                    )}`}
+                    onChange={(e) =>
+                      handleOptionChange(
+                        index,
+                        e.target.value
+                      )
+                    }
+                    className="w-full mt-1 bg-slate-800 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
-
-
-          {/* Answer */}
+          {/* Correct Answer */}
           <div>
-
-            <label>
+            <label className="text-sm text-slate-400">
               Correct Answer
             </label>
 
             <input
               value={form.answer}
-              onChange={(e)=>
+              onChange={(e) =>
                 setForm({
                   ...form,
-                  answer:e.target.value
+                  answer: e.target.value,
                 })
               }
-              placeholder="Example: Option B"
-              className="w-full mt-2 bg-slate-800 rounded-lg p-3"
+              placeholder="Example: B"
+              className="w-full mt-2 bg-slate-800 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
 
+            <p className="text-xs text-slate-500 mt-2">
+              Enter A, B, C, or D depending on the correct option.
+            </p>
           </div>
 
+          {/* Reason */}
+          <div>
+            <label className="text-sm text-slate-400">
+              Reason for Answer
+            </label>
 
+            <textarea
+              value={form.reason}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  reason: e.target.value,
+                })
+              }
+              placeholder="Explain why this answer is correct..."
+              className="w-full mt-2 bg-slate-800 rounded-lg p-3 h-32 outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
+            <p className="text-xs text-slate-500 mt-2">
+              This explanation will be shown to students after they
+              answer the question.
+            </p>
+          </div>
 
           {/* Image */}
           <div>
-
             <label className="flex items-center gap-2 cursor-pointer text-blue-400">
-
-              <ImagePlus size={20}/>
+              <ImagePlus size={20} />
               Add Question Image
 
               <input
                 type="file"
                 hidden
                 accept="image/*"
-                onChange={(e)=>
+                onChange={(e) =>
                   setForm({
                     ...form,
-                    image:e.target.files[0]
+                    image: e.target.files?.[0] || null,
                   })
                 }
               />
-
             </label>
 
+            {form.image && (
+              <p className="text-sm text-slate-400 mt-2">
+                Selected: {form.image.name}
+              </p>
+            )}
           </div>
 
-
-
+          {/* Submit */}
           <button
+            type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold flex justify-center gap-2"
+            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition"
           >
-
-            <UploadCloud size={20}/>
+            <UploadCloud size={20} />
 
             {loading
               ? "Uploading..."
-              : "Upload Question"
-            }
-
+              : "Upload Question"}
           </button>
-
 
         </form>
 
@@ -309,6 +338,5 @@ const QuestionUpload = () => {
     </div>
   );
 };
-
 
 export default QuestionUpload;

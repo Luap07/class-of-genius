@@ -1,10 +1,28 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search,
+  BookOpen,
+  Flame,
+  TrendingUp,
+  Sparkles,
+  ArrowRight,
+  Library,
+  UserRound,
+  X,
+  ChevronRight,
+  Star,
+} from "lucide-react";
+
 import { supabase } from "../lib/supabaseClient";
 import novelImg from "../assets/novel.jpg";
 import Cog from "../assets/cog.png";
 
-// ================= CONSTANTS & HELPERS =================
+/* =========================================================
+   CONSTANTS
+========================================================= */
+
 const GENRES = [
   "ALL",
   "SCI_FIC",
@@ -23,176 +41,344 @@ const GENRES = [
 const normalize = (g) =>
   g ? g.toUpperCase().replace(/\s+/g, "_") : "";
 
-// ================= SCROLL CARD =================
+const formatGenre = (genre) =>
+  genre ? genre.replace(/_/g, " ") : "UNCATEGORIZED";
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+const fadeUp = {
+  hidden: {
+    opacity: 0,
+    y: 24,
+  },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.55,
+      ease: "easeOut",
+    },
+  },
+};
+
+const stagger = {
+  hidden: {},
+  show: {
+    transition: {
+      staggerChildren: 0.08,
+    },
+  },
+};
+
+/* =========================================================
+   IMAGE FALLBACK HOOK
+========================================================= */
+
+const useNovelImage = (cover) => {
+  const [imgSrc, setImgSrc] = useState(cover || novelImg);
+
+  useEffect(() => {
+    setImgSrc(cover || novelImg);
+  }, [cover]);
+
+  return [imgSrc, () => setImgSrc(novelImg)];
+};
+
+/* =========================================================
+   SCROLL CARD
+========================================================= */
+
 const ScrollCard = ({ n, navigate }) => {
-  const [imgSrc, setImgSrc] = useState(n.cover_url || novelImg);
+  const [imgSrc, handleImageError] = useNovelImage(n.cover_url);
 
   return (
-    <div
+    <motion.div
+      whileHover={{
+        y: -8,
+      }}
+      transition={{
+        duration: 0.3,
+      }}
       onClick={() => navigate(`/story/${n.id}`)}
-      className="min-w-[180px] w-[180px] cursor-pointer group shrink-0"
+      className="group w-[190px] min-w-[190px] shrink-0 cursor-pointer"
     >
-      <div className="relative overflow-hidden rounded-2xl bg-white/5 border border-white/10 aspect-[3/4]">
+      {/* COVER */}
+      <div className="relative aspect-[3/4] overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.04] shadow-xl shadow-black/20">
         <img
           src={imgSrc}
-          onError={() => setImgSrc(novelImg)}
-          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={handleImageError}
           alt={n.title}
+          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
         />
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
-          <span className="text-xs font-medium text-blue-400 bg-blue-950/80 px-2 py-1 rounded-md border border-blue-500/30 w-fit">
-            {n.genre?.replace(/_/g, " ")}
+        {/* Dark gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-70" />
+
+        {/* Hover glow */}
+        <div className="absolute inset-0 bg-blue-500/0 transition-colors duration-500 group-hover:bg-blue-500/10" />
+
+        {/* Hover details */}
+        <div className="absolute inset-x-0 bottom-0 translate-y-2 p-4 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+          <span className="inline-flex rounded-lg border border-blue-400/20 bg-blue-950/80 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-blue-300 backdrop-blur-md">
+            {formatGenre(n.genre)}
           </span>
 
-          <p className="text-white text-sm font-semibold mt-2 line-clamp-1">
+          <p className="mt-2 line-clamp-1 text-sm font-bold text-white">
             {n.title}
           </p>
 
-          <p className="text-gray-300 text-[11px] mt-1 line-clamp-1">
+          <p className="mt-1 line-clamp-1 text-[11px] text-slate-300">
             By {n.author || "Unknown Author"}
           </p>
         </div>
+
+        {/* Floating arrow */}
+        <div className="absolute right-3 top-3 flex h-8 w-8 translate-x-2 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white opacity-0 backdrop-blur-md transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+          <ArrowRight className="h-4 w-4" />
+        </div>
       </div>
 
-      {/* Author always visible below card */}
-      <div className="pt-2 px-1">
-        <p className="text-[11px] text-gray-400 truncate">
+      {/* AUTHOR */}
+      <div className="px-1 pt-3">
+        <p className="truncate text-[11px] text-slate-500">
           By{" "}
-          <span className="text-gray-300">
+          <span className="font-medium text-slate-300">
             {n.author || "Unknown Author"}
           </span>
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
-// ================= GRID CARD =================
+/* =========================================================
+   GRID CARD
+========================================================= */
+
 const GridCard = ({ n, navigate }) => {
-  const [imgSrc, setImgSrc] = useState(n.cover_url || novelImg);
+  const [imgSrc, handleImageError] = useNovelImage(n.cover_url);
 
   return (
-    <div
+    <motion.div
+      variants={fadeUp}
+      whileHover={{
+        y: -7,
+      }}
       onClick={() => navigate(`/story/${n.id}`)}
-      className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden cursor-pointer group hover:border-white/20 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/5 flex flex-col"
+      className="group relative cursor-pointer"
     >
-      {/* COVER */}
-      <div className="relative aspect-[3/4] overflow-hidden bg-white/5">
-        <img
-          src={imgSrc}
-          onError={() => setImgSrc(novelImg)}
-          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-          alt={n.title}
-        />
+      {/* Card glow */}
+      <div className="absolute -inset-[1px] rounded-[24px] bg-gradient-to-br from-blue-500/20 via-transparent to-indigo-500/20 opacity-0 blur-lg transition-opacity duration-500 group-hover:opacity-100" />
 
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.035] shadow-xl shadow-black/20 backdrop-blur-xl transition-all duration-500 group-hover:border-white/20 group-hover:bg-white/[0.055]">
+        {/* COVER */}
+        <div className="relative aspect-[3/4] overflow-hidden bg-white/[0.03]">
+          <img
+            src={imgSrc}
+            onError={handleImageError}
+            alt={n.title}
+            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+          />
 
-        {/* Author badge on hover */}
-        <div className="absolute bottom-3 left-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <p className="text-xs text-white font-medium truncate">
-            By {n.author || "Unknown Author"}
-          </p>
+          {/* Gradient */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-60" />
+
+          {/* Genre */}
+          <div className="absolute left-3 top-3">
+            <span className="rounded-lg border border-white/10 bg-black/40 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-blue-300 backdrop-blur-md">
+              {formatGenre(n.genre)}
+            </span>
+          </div>
+
+          {/* Open button */}
+          <div className="absolute bottom-3 left-3 right-3 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+            <div className="flex items-center justify-center gap-2 rounded-xl bg-blue-600/90 py-2.5 text-xs font-bold text-white shadow-xl shadow-blue-900/30 backdrop-blur-md">
+              Read Story
+              <ArrowRight className="h-3.5 w-3.5" />
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* DETAILS */}
-      <div className="p-4 flex flex-col flex-grow justify-between">
-        <div>
-          {/* GENRE */}
-          <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-400">
-            {n.genre?.replace(/_/g, " ")}
-          </span>
-
-          {/* TITLE */}
-          <h3 className="font-bold text-sm line-clamp-1 mt-1 text-white group-hover:text-blue-300 transition-colors">
+        {/* DETAILS */}
+        <div className="p-4">
+          <h3 className="line-clamp-1 text-sm font-extrabold text-white transition-colors group-hover:text-blue-300">
             {n.title}
           </h3>
 
-          {/* AUTHOR */}
-          <p className="text-xs text-gray-400 mt-2 truncate">
-            By{" "}
-            <span className="text-gray-300 font-medium">
+          <div className="mt-2 flex items-center gap-1.5">
+            <UserRound className="h-3 w-3 text-slate-600" />
+
+            <p className="truncate text-[11px] text-slate-500">
               {n.author || "Unknown Author"}
-            </span>
-          </p>
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
-// ================= SKELETON CARD =================
-const SkeletonCard = () => (
-  <div className="animate-pulse bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex flex-col aspect-[3/4]">
-    <div className="bg-white/10 w-full flex-grow" />
+/* =========================================================
+   SKELETON CARD
+========================================================= */
 
-    <div className="p-4 space-y-2">
-      <div className="h-3 bg-white/10 rounded w-1/3" />
-      <div className="h-4 bg-white/10 rounded w-4/5" />
-      <div className="h-3 bg-white/10 rounded w-1/2" />
+const SkeletonCard = () => (
+  <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.035]">
+    <div className="aspect-[3/4] animate-pulse bg-white/[0.06]" />
+
+    <div className="space-y-3 p-4">
+      <div className="h-2.5 w-1/3 animate-pulse rounded-full bg-white/10" />
+      <div className="h-4 w-4/5 animate-pulse rounded-full bg-white/10" />
+      <div className="h-2.5 w-1/2 animate-pulse rounded-full bg-white/10" />
     </div>
   </div>
 );
 
-// ================= MAIN COMPONENT =================
+/* =========================================================
+   SECTION HEADER
+========================================================= */
+
+const SectionHeader = ({
+  icon: Icon,
+  title,
+  description,
+  count,
+}) => (
+  <div className="mb-6 flex items-end justify-between gap-4">
+    <div>
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10">
+          <Icon className="h-4 w-4 text-blue-400" />
+        </div>
+
+        <h2 className="text-xl font-black tracking-tight text-white">
+          {title}
+        </h2>
+      </div>
+
+      {description && (
+        <p className="mt-2 text-xs text-slate-500">
+          {description}
+        </p>
+      )}
+    </div>
+
+    {typeof count === "number" && (
+      <span className="hidden rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-bold text-slate-500 sm:block">
+        {count} {count === 1 ? "book" : "books"}
+      </span>
+    )}
+  </div>
+);
+
+/* =========================================================
+   MAIN
+========================================================= */
+
 const Novels = () => {
   const navigate = useNavigate();
 
   const [novels, setNovels] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [selectedGenre, setSelectedGenre] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
-  // ================= FETCH NOVELS =================
+  /* =======================================================
+     FETCH NOVELS
+  ======================================================= */
+
   useEffect(() => {
+    let mounted = true;
+
     const fetchNovels = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("novels")
-        .select("*");
+      try {
+        const { data, error } = await supabase
+          .from("novels")
+          .select("*");
 
-      if (error) {
-        console.error("Error fetching novels:", error.message);
-      } else {
-        setNovels(data || []);
+        if (error) {
+          console.error(
+            "Error fetching novels:",
+            error.message
+          );
+
+          if (mounted) {
+            setNovels([]);
+          }
+
+          return;
+        }
+
+        if (mounted) {
+          setNovels(data || []);
+        }
+      } catch (error) {
+        console.error(
+          "Unexpected novels error:",
+          error
+        );
+
+        if (mounted) {
+          setNovels([]);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     };
 
     fetchNovels();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // ================= TRENDING / HOT PICKS =================
+  /* =======================================================
+     TRENDING / HOT PICKS
+  ======================================================= */
+
   const { trendingNovels, hotPicks } = useMemo(() => {
-    if (novels.length === 0) {
+    if (!novels.length) {
       return {
         trendingNovels: [],
         hotPicks: [],
       };
     }
 
-    const twoWeeksInMs = 14 * 24 * 60 * 60 * 1000;
-    const periodIndex = Math.floor(Date.now() / twoWeeksInMs);
+    const twoWeeksInMs =
+      14 * 24 * 60 * 60 * 1000;
+
+    const periodIndex = Math.floor(
+      Date.now() / twoWeeksInMs
+    );
 
     const seededShuffle = (array, seed) => {
       const arr = [...array];
 
       let m = arr.length;
-      let i;
 
       const random = (s) => {
-        let x = Math.sin(s++) * 10000;
+        const x = Math.sin(s++) * 10000;
         return x - Math.floor(x);
       };
 
       while (m) {
-        i = Math.floor(random(seed + m) * m--);
+        const i = Math.floor(
+          random(seed + m) * m--
+        );
 
-        [arr[m], arr[i]] = [arr[i], arr[m]];
+        [arr[m], arr[i]] = [
+          arr[i],
+          arr[m],
+        ];
       }
 
       return arr;
@@ -200,298 +386,749 @@ const Novels = () => {
 
     const grouped = {};
 
-    novels.forEach((n) => {
-      const g = normalize(n.genre);
+    novels.forEach((novel) => {
+      const genre = normalize(novel.genre);
 
-      if (!grouped[g]) {
-        grouped[g] = [];
+      if (!grouped[genre]) {
+        grouped[genre] = [];
       }
 
-      grouped[g].push(n);
+      grouped[genre].push(novel);
     });
 
-    const t = [];
-    const h = [];
+    const trending = [];
+    const hot = [];
 
-    Object.keys(grouped).forEach((g) => {
+    Object.keys(grouped).forEach((genre) => {
       const shuffled = seededShuffle(
-        grouped[g],
+        grouped[genre],
         periodIndex
       );
 
       if (shuffled[0]) {
-        t.push(shuffled[0]);
+        trending.push(shuffled[0]);
       }
 
       if (shuffled[1]) {
-        h.push(shuffled[1]);
+        hot.push(shuffled[1]);
       }
     });
 
     return {
-      trendingNovels: t,
-      hotPicks: h,
+      trendingNovels: trending,
+      hotPicks: hot,
     };
   }, [novels]);
 
-  // ================= FILTER =================
+  /* =======================================================
+     FILTERED NOVELS
+  ======================================================= */
+
   const filteredNovels = useMemo(() => {
-    return novels.filter((n) => {
+    const query = searchQuery
+      .trim()
+      .toLowerCase();
+
+    return novels.filter((novel) => {
       const matchesGenre =
         selectedGenre === "ALL" ||
-        normalize(n.genre) === selectedGenre;
-
-      const query = searchQuery.toLowerCase();
+        normalize(novel.genre) ===
+          selectedGenre;
 
       const matchesSearch =
-        n.title?.toLowerCase().includes(query) ||
-        n.author?.toLowerCase().includes(query);
+        !query ||
+        novel.title
+          ?.toLowerCase()
+          .includes(query) ||
+        novel.author
+          ?.toLowerCase()
+          .includes(query);
 
-      return matchesGenre && matchesSearch;
+      return (
+        matchesGenre &&
+        matchesSearch
+      );
     });
-  }, [novels, selectedGenre, searchQuery]);
+  }, [
+    novels,
+    selectedGenre,
+    searchQuery,
+  ]);
 
-  // ================= UI =================
+  /* =======================================================
+     STATS
+  ======================================================= */
+
+  const genreCount = useMemo(() => {
+    return new Set(
+      novels
+        .map((novel) =>
+          normalize(novel.genre)
+        )
+        .filter(Boolean)
+    ).size;
+  }, [novels]);
+
+  const hasSearch =
+    searchQuery.trim().length > 0;
+
+  const isDefaultView =
+    selectedGenre === "ALL" &&
+    !hasSearch;
+
+  /* =======================================================
+     RESET
+  ======================================================= */
+
+  const resetFilters = () => {
+    setSelectedGenre("ALL");
+    setSearchQuery("");
+    setMobileSearchOpen(false);
+  };
+
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
-    <div className="min-h-screen bg-[#05070f] text-white selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen overflow-x-hidden bg-[#04070e] text-white selection:bg-blue-500 selection:text-white">
+      {/* =====================================================
+          BACKGROUND
+      ===================================================== */}
 
-      {/* ================= HEADER ================= */}
-      <header className="sticky top-0 z-50 bg-[#05070f]/80 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex items-center justify-between">
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#060a13] via-[#080f1b] to-[#03050a]" />
 
-        {/* LOGO */}
+        <div className="absolute -left-60 top-0 h-[600px] w-[600px] rounded-full bg-blue-600/10 blur-[150px]" />
+
+        <div className="absolute right-[-200px] top-[20%] h-[550px] w-[550px] rounded-full bg-indigo-600/10 blur-[150px]" />
+
+        <div className="absolute bottom-[-200px] left-[25%] h-[500px] w-[500px] rounded-full bg-cyan-500/5 blur-[150px]" />
+
         <div
-          className="flex items-center gap-3 cursor-pointer"
-          onClick={() => navigate("/")}
-        >
-          <img
-            src={Cog}
-            alt="logo"
-            className="w-10 h-10 object-contain"
-          />
+          className="absolute inset-0 opacity-[0.045]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+      </div>
 
-          <div>
-            <h2 className="font-bold text-base tracking-tight">
-              Scholiqen
-            </h2>
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
 
-            <p className="text-[11px] text-gray-400">
-              Novel Library
-            </p>
+      <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#04070e]/80 px-4 backdrop-blur-2xl sm:px-6">
+        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4">
+          {/* LOGO */}
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="group flex shrink-0 items-center gap-3"
+          >
+            <div className="relative">
+              <div className="absolute inset-0 rounded-xl bg-blue-500/20 blur-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+              <img
+                src={Cog}
+                alt="Scholiqen"
+                className="relative h-10 w-10 object-contain transition-transform duration-300 group-hover:rotate-6"
+              />
+            </div>
+
+            <div className="hidden sm:block text-left">
+              <h2 className="text-sm font-black tracking-tight text-white">
+                Scholiqen
+              </h2>
+
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                Novel Library
+              </p>
+            </div>
+          </button>
+
+          {/* DESKTOP SEARCH */}
+          <div className="relative hidden w-full max-w-md md:block">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600" />
+
+            <input
+              type="text"
+              placeholder="Search stories, authors..."
+              value={searchQuery}
+              onChange={(e) =>
+                setSearchQuery(e.target.value)
+              }
+              className="w-full rounded-full border border-white/10 bg-white/[0.04] py-3 pl-11 pr-10 text-xs text-white outline-none transition-all placeholder:text-slate-600 focus:border-blue-500/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-blue-500/5"
+            />
+
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() =>
+                  setSearchQuery("")
+                }
+                className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* RIGHT */}
+          <div className="flex items-center gap-2">
+            {/* Mobile search */}
+            <button
+              type="button"
+              onClick={() =>
+                setMobileSearchOpen(
+                  (value) => !value
+                )
+              }
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition hover:border-blue-400/20 hover:text-white md:hidden"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/dashboard")
+              }
+              className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-300 transition hover:border-blue-400/20 hover:bg-white/[0.07] hover:text-white sm:flex"
+            >
+              Dashboard
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
-        {/* SEARCH */}
-        <div className="relative max-w-xs w-full hidden sm:block">
-          <input
-            type="text"
-            placeholder="Search stories or authors..."
-            value={searchQuery}
-            onChange={(e) =>
-              setSearchQuery(e.target.value)
-            }
-            className="w-full bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-xs text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors"
-          />
-        </div>
+        {/* MOBILE SEARCH */}
+        <AnimatePresence>
+          {mobileSearchOpen && (
+            <motion.div
+              initial={{
+                opacity: 0,
+                height: 0,
+              }}
+              animate={{
+                opacity: 1,
+                height: "auto",
+              }}
+              exit={{
+                opacity: 0,
+                height: 0,
+              }}
+              className="overflow-hidden md:hidden"
+            >
+              <div className="pb-4">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600" />
+
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Search stories or authors..."
+                    value={searchQuery}
+                    onChange={(e) =>
+                      setSearchQuery(
+                        e.target.value
+                      )
+                    }
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-10 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500/40"
+                  />
+
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSearchQuery("")
+                      }
+                      className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/5 text-slate-500"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
-      {/* ================= HERO ================= */}
-      <section className="px-6 pt-8">
-        <div className="relative rounded-3xl overflow-hidden border border-white/10 h-[380px] group shadow-2xl">
+      {/* =====================================================
+          HERO
+      ===================================================== */}
 
+      <main className="mx-auto max-w-7xl px-4 pb-24 pt-6 sm:px-6 md:pt-8">
+        <motion.section
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            duration: 0.7,
+          }}
+          className="relative h-[440px] overflow-hidden rounded-[30px] border border-white/10 shadow-2xl shadow-black/30 sm:h-[480px]"
+        >
+          {/* IMAGE */}
           <img
             src={novelImg}
-            className="absolute w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-            alt="hero"
+            alt="Novel Library"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-[2s] hover:scale-105"
           />
 
-          <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-transparent" />
+          {/* OVERLAYS */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black via-black/75 to-black/10" />
 
-          <div className="relative z-10 p-8 md:p-12 h-full flex flex-col justify-end max-w-2xl">
+          <div className="absolute inset-0 bg-gradient-to-t from-[#04070e] via-transparent to-transparent" />
 
-            <span className="text-xs uppercase tracking-widest text-blue-400 font-semibold mb-2">
+          {/* Decorative glow */}
+          <div className="absolute -right-20 top-10 h-72 w-72 rounded-full bg-blue-500/20 blur-[110px]" />
+
+          {/* CONTENT */}
+          <div className="relative z-10 flex h-full max-w-2xl flex-col justify-end p-7 sm:p-10 md:p-14">
+            <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-300 backdrop-blur-xl">
+              <Sparkles className="h-3.5 w-3.5" />
               Explore & Escape
-            </span>
+            </div>
 
-            <h1 className="text-3xl md:text-5xl font-black tracking-tight">
-              Discover Amazing Stories
+            <h1 className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
+              Discover Stories
+              <span className="block bg-gradient-to-r from-blue-300 via-cyan-200 to-indigo-300 bg-clip-text text-transparent">
+                Worth Reading.
+              </span>
             </h1>
 
-            <p className="text-gray-300 text-sm mt-2 max-w-md">
-              Immerse yourself in handpicked collections,
-              trending series, and captivating fiction across
-              multiple genres.
+            <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
+              Immerse yourself in captivating stories,
+              handpicked collections, and unforgettable
+              worlds across multiple genres.
             </p>
 
-          </div>
-        </div>
-      </section>
-
-      {/* ================= GENRES ================= */}
-      <section className="px-6 mt-8">
-        <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
-
-          {GENRES.map((g) => {
-            const active = selectedGenre === g;
-
-            return (
-              <button
-                key={g}
-                onClick={() => setSelectedGenre(g)}
-                className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                  active
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                    : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/5"
-                }`}
-              >
-                {g.replace(/_/g, " ")}
-              </button>
-            );
-          })}
-
-        </div>
-      </section>
-
-      {/* ================= CONTENT ================= */}
-      <section className="px-6 mt-8 pb-20">
-
-        {/* LOADING */}
-        {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        ) : selectedGenre === "ALL" && !searchQuery ? (
-
-          <div className="space-y-12">
-
-            {/* ================= HOT PICKS ================= */}
-            {hotPicks.length > 0 && (
-              <div>
-
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <span>🔥 Hot Picks</span>
-                </h2>
-
-                <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-none">
-
-                  {hotPicks.map((n) => (
-                    <ScrollCard
-                      key={`hot-${n.id}`}
-                      n={n}
-                      navigate={navigate}
-                    />
-                  ))}
-
+            {/* Hero stats */}
+            <div className="mt-7 flex flex-wrap gap-3">
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3.5 py-2.5 backdrop-blur-xl">
+                <BookOpen className="h-4 w-4 text-blue-400" />
+                <div>
+                  <p className="text-xs font-black text-white">
+                    {novels.length}
+                  </p>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Stories
+                  </p>
                 </div>
               </div>
-            )}
 
-            {/* ================= TRENDING ================= */}
-            {trendingNovels.length > 0 && (
-              <div>
-
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <span>📚 Trending Now</span>
-                </h2>
-
-                <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-none">
-
-                  {trendingNovels.map((n) => (
-                    <ScrollCard
-                      key={`trend-${n.id}`}
-                      n={n}
-                      navigate={navigate}
-                    />
-                  ))}
-
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3.5 py-2.5 backdrop-blur-xl">
+                <Library className="h-4 w-4 text-cyan-400" />
+                <div>
+                  <p className="text-xs font-black text-white">
+                    {genreCount}
+                  </p>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Genres
+                  </p>
                 </div>
               </div>
-            )}
 
-            {/* ================= COMPLETE CATALOG ================= */}
-            <div>
-
-              <h2 className="text-xl font-bold mb-4">
-                📖 Complete Catalog
-              </h2>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-
-                {novels.map((n) => (
-                  <GridCard
-                    key={`all-${n.id}`}
-                    n={n}
-                    navigate={navigate}
-                  />
-                ))}
-
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3.5 py-2.5 backdrop-blur-xl">
+                <Star className="h-4 w-4 text-yellow-400" />
+                <div>
+                  <p className="text-xs font-black text-white">
+                    Curated
+                  </p>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                    Collections
+                  </p>
+                </div>
               </div>
             </div>
-
           </div>
+        </motion.section>
 
-        ) : (
+        {/* ===================================================
+            GENRES
+        =================================================== */}
 
-          /* ================= SEARCH / GENRE RESULTS ================= */
-          <div>
+        <section className="mt-7">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {GENRES.map((genre) => {
+              const active =
+                selectedGenre === genre;
 
-            <div className="flex items-center justify-between mb-6">
-
-              <h2 className="text-xl font-bold">
-                {selectedGenre === "ALL"
-                  ? "Search Results"
-                  : `📚 ${selectedGenre.replace(/_/g, " ")}`}
-              </h2>
-
-              <span className="text-xs text-gray-400">
-                {filteredNovels.length} books found
-              </span>
-
-            </div>
-
-            {filteredNovels.length > 0 ? (
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-
-                {filteredNovels.map((n) => (
-                  <GridCard
-                    key={n.id}
-                    n={n}
-                    navigate={navigate}
-                  />
-                ))}
-
-              </div>
-
-            ) : (
-
-              <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/5">
-
-                <p className="text-gray-400 text-sm">
-                  No novels found matching your criteria.
-                </p>
-
+              return (
                 <button
-                  onClick={() => {
-                    setSelectedGenre("ALL");
-                    setSearchQuery("");
-                  }}
-                  className="mt-3 text-xs text-blue-400 hover:underline font-medium"
+                  key={genre}
+                  type="button"
+                  onClick={() =>
+                    setSelectedGenre(genre)
+                  }
+                  className={`shrink-0 rounded-full border px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
+                    active
+                      ? "border-blue-500/40 bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                      : "border-white/10 bg-white/[0.035] text-slate-400 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+                  }`}
                 >
-                  Reset filters
+                  {formatGenre(genre)}
                 </button>
-
-              </div>
-            )}
-
+              );
+            })}
           </div>
-        )}
+        </section>
 
-      </section>
+        {/* ===================================================
+            CONTENT
+        =================================================== */}
+
+        <section className="mt-10">
+          {/* LOADING */}
+          {loading ? (
+            <motion.div
+              variants={stagger}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-6"
+            >
+              {Array.from({
+                length: 12,
+              }).map((_, index) => (
+                <SkeletonCard key={index} />
+              ))}
+            </motion.div>
+          ) : isDefaultView ? (
+            <div className="space-y-14">
+              {/* =================================================
+                  HOT PICKS
+              ================================================= */}
+
+              {hotPicks.length > 0 && (
+                <motion.section
+                  initial={{
+                    opacity: 0,
+                    y: 20,
+                  }}
+                  whileInView={{
+                    opacity: 1,
+                    y: 0,
+                  }}
+                  viewport={{
+                    once: true,
+                  }}
+                >
+                  <SectionHeader
+                    icon={Flame}
+                    title="Hot Picks"
+                    description="Stories getting attention right now."
+                    count={hotPicks.length}
+                  />
+
+                  <div className="flex gap-5 overflow-x-auto pb-5 scrollbar-none">
+                    {hotPicks.map((novel) => (
+                      <ScrollCard
+                        key={`hot-${novel.id}`}
+                        n={novel}
+                        navigate={navigate}
+                      />
+                    ))}
+                  </div>
+                </motion.section>
+              )}
+
+              {/* =================================================
+                  TRENDING
+              ================================================= */}
+
+              {trendingNovels.length > 0 && (
+                <motion.section
+                  initial={{
+                    opacity: 0,
+                    y: 20,
+                  }}
+                  whileInView={{
+                    opacity: 1,
+                    y: 0,
+                  }}
+                  viewport={{
+                    once: true,
+                  }}
+                >
+                  <SectionHeader
+                    icon={TrendingUp}
+                    title="Trending Now"
+                    description="Fresh selections from across the library."
+                    count={
+                      trendingNovels.length
+                    }
+                  />
+
+                  <div className="flex gap-5 overflow-x-auto pb-5 scrollbar-none">
+                    {trendingNovels.map(
+                      (novel) => (
+                        <ScrollCard
+                          key={`trend-${novel.id}`}
+                          n={novel}
+                          navigate={navigate}
+                        />
+                      )
+                    )}
+                  </div>
+                </motion.section>
+              )}
+
+              {/* =================================================
+                  COMPLETE CATALOG
+              ================================================= */}
+
+              <motion.section
+                initial={{
+                  opacity: 0,
+                  y: 20,
+                }}
+                whileInView={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                viewport={{
+                  once: true,
+                }}
+              >
+                <SectionHeader
+                  icon={Library}
+                  title="Complete Catalog"
+                  description="Explore the full Scholiqen story collection."
+                  count={novels.length}
+                />
+
+                {novels.length > 0 ? (
+                  <motion.div
+                    variants={stagger}
+                    initial="hidden"
+                    whileInView="show"
+                    viewport={{
+                      once: true,
+                      amount: 0.05,
+                    }}
+                    className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-6"
+                  >
+                    {novels.map((novel) => (
+                      <GridCard
+                        key={`catalog-${novel.id}`}
+                        n={novel}
+                        navigate={navigate}
+                      />
+                    ))}
+                  </motion.div>
+                ) : (
+                  <EmptyState
+                    title="Your library is waiting"
+                    description="No novels have been added yet."
+                    onReset={resetFilters}
+                  />
+                )}
+              </motion.section>
+            </div>
+          ) : (
+            /* =================================================
+               SEARCH / FILTER RESULTS
+            ================================================= */
+
+            <motion.section
+              initial={{
+                opacity: 0,
+                y: 15,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+            >
+              <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10">
+                      {hasSearch ? (
+                        <Search className="h-4 w-4 text-blue-400" />
+                      ) : (
+                        <Library className="h-4 w-4 text-blue-400" />
+                      )}
+                    </div>
+
+                    <h2 className="text-xl font-black text-white">
+                      {hasSearch
+                        ? "Search Results"
+                        : formatGenre(
+                            selectedGenre
+                          )}
+                    </h2>
+                  </div>
+
+                  {hasSearch && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Results for{" "}
+                      <span className="font-semibold text-slate-300">
+                        "{searchQuery}"
+                      </span>
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500">
+                    {filteredNovels.length}{" "}
+                    {filteredNovels.length ===
+                    1
+                      ? "book"
+                      : "books"}
+                  </span>
+
+                  {(hasSearch ||
+                    selectedGenre !==
+                      "ALL") && (
+                    <button
+                      type="button"
+                      onClick={
+                        resetFilters
+                      }
+                      className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-bold text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
+                    >
+                      <X className="h-3 w-3" />
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {filteredNovels.length > 0 ? (
+                <motion.div
+                  variants={stagger}
+                  initial="hidden"
+                  animate="show"
+                  className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-6"
+                >
+                  {filteredNovels.map(
+                    (novel) => (
+                      <GridCard
+                        key={`result-${novel.id}`}
+                        n={novel}
+                        navigate={navigate}
+                      />
+                    )
+                  )}
+                </motion.div>
+              ) : (
+                <EmptyState
+                  title="No stories found"
+                  description="Try another search term or explore a different genre."
+                  onReset={resetFilters}
+                />
+              )}
+            </motion.section>
+          )}
+        </section>
+
+        {/* ===================================================
+            BOTTOM CTA
+        =================================================== */}
+
+        {!loading && novels.length > 0 && (
+          <motion.section
+            initial={{
+              opacity: 0,
+              y: 25,
+            }}
+            whileInView={{
+              opacity: 1,
+              y: 0,
+            }}
+            viewport={{
+              once: true,
+            }}
+            className="relative mt-20 overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.035] px-7 py-12 text-center backdrop-blur-2xl sm:px-12"
+          >
+            <div className="pointer-events-none absolute left-1/2 top-[-160px] h-80 w-80 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[100px]" />
+
+            <div className="relative z-10">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-500/10">
+                <BookOpen className="h-7 w-7 text-blue-400" />
+              </div>
+
+              <h2 className="mt-5 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                Your Next Story Is Waiting
+              </h2>
+
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-500">
+                Explore the library, discover new authors,
+                and find stories that keep you coming back.
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  window.scrollTo({
+                    top: 0,
+                    behavior: "smooth",
+                  })
+                }
+                className="group mt-7 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 text-xs font-extrabold text-white shadow-xl shadow-blue-900/20 transition-all duration-300 hover:-translate-y-1 hover:from-blue-500 hover:to-indigo-500"
+              >
+                Explore Library
+                <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </button>
+            </div>
+          </motion.section>
+        )}
+      </main>
     </div>
   );
 };
 
-export default Novels;
+/* =========================================================
+   EMPTY STATE
+========================================================= */
 
+const EmptyState = ({
+  title,
+  description,
+  onReset,
+}) => {
+  return (
+    <motion.div
+      initial={{
+        opacity: 0,
+        scale: 0.98,
+      }}
+      animate={{
+        opacity: 1,
+        scale: 1,
+      }}
+      className="rounded-[30px] border border-white/10 bg-white/[0.025] px-6 py-20 text-center"
+    >
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-500/10">
+        <BookOpen className="h-7 w-7 text-blue-400" />
+      </div>
+
+      <h3 className="mt-6 text-lg font-black text-white">
+        {title}
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+        {description}
+      </p>
+
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] px-5 py-2.5 text-xs font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+      >
+        Explore All Stories
+      </button>
+    </motion.div>
+  );
+};
+
+export default Novels;

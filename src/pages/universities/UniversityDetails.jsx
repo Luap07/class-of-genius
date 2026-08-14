@@ -1,4 +1,8 @@
-import React, { useEffect, useMemo,useState,} from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   useNavigate,
   useParams,
@@ -9,7 +13,9 @@ import {
   AnimatePresence,
 } from "framer-motion";
 
-import { ArrowLeft,  ArrowRight,
+import {
+  ArrowLeft,
+  ArrowRight,
   MapPin,
   Globe2,
   GraduationCap,
@@ -34,18 +40,26 @@ import { ArrowLeft,  ArrowRight,
   Search,
   X,
   Layers3,
+  CalendarDays,
+  Info,
+  Navigation,
+  BadgeCheck,
+  BookMarked,
+  CircleDot,
+  Command,
+  Hash,
 } from "lucide-react";
 
 import { supabase } from "../../lib/supabaseClient";
 
 /* =========================================================
-   ANIMATIONS
+   PREMIUM ANIMATIONS
 ========================================================= */
 
 const fadeUp = {
   hidden: {
     opacity: 0,
-    y: 20,
+    y: 24,
   },
   visible: {
     opacity: 1,
@@ -53,12 +67,34 @@ const fadeUp = {
   },
 };
 
+const fadeScale = {
+  hidden: {
+    opacity: 0,
+    scale: 0.96,
+  },
+  visible: {
+    opacity: 1,
+    scale: 1,
+  },
+};
+
 const staggerContainer = {
   hidden: {},
   visible: {
     transition: {
-      staggerChildren: 0.06,
+      staggerChildren: 0.065,
     },
+  },
+};
+
+const heroText = {
+  hidden: {
+    opacity: 0,
+    y: 30,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
   },
 };
 
@@ -72,6 +108,7 @@ const SectionCard = ({
   description,
   children,
   className = "",
+  eyebrow,
 }) => {
   return (
     <motion.section
@@ -80,39 +117,49 @@ const SectionCard = ({
       whileInView="visible"
       viewport={{
         once: true,
-        amount: 0.06,
+        amount: 0.05,
       }}
       transition={{
-        duration: 0.5,
-        ease: "easeOut",
+        duration: 0.55,
+        ease: [0.22, 1, 0.36, 1],
       }}
       className={[
-        "relative overflow-hidden rounded-[2rem]",
-        "border border-white/[0.08]",
-        "bg-[#0a1020]/90",
-        "shadow-[0_25px_90px_rgba(0,0,0,0.28)]",
+        "group relative overflow-hidden rounded-[2rem]",
+        "border border-white/[0.075]",
+        "bg-[#080d19]/95",
+        "shadow-[0_30px_100px_rgba(0,0,0,0.25)]",
         "backdrop-blur-2xl",
         className,
       ].join(" ")}
     >
-      <div className="p-5 sm:p-6">
-        <div className="mb-5 flex items-start gap-4">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent" />
+
+      <div className="p-5 sm:p-6 lg:p-7">
+        <div className="mb-6 flex items-start gap-4">
           {Icon && (
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-400/10 bg-cyan-400/[0.06]">
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.055] shadow-[0_10px_35px_rgba(6,182,212,0.05)]">
               <Icon
                 size={19}
                 className="text-cyan-400"
               />
+
+              <div className="absolute inset-0 rounded-2xl bg-cyan-400/[0.025] blur-xl" />
             </div>
           )}
 
           <div className="min-w-0">
+            {eyebrow && (
+              <p className="mb-1 text-[8px] font-black uppercase tracking-[0.22em] text-cyan-400/55">
+                {eyebrow}
+              </p>
+            )}
+
             <h2 className="text-lg font-black tracking-tight text-white sm:text-xl">
               {title}
             </h2>
 
             {description && (
-              <p className="mt-1.5 text-sm leading-6 text-slate-500">
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">
                 {description}
               </p>
             )}
@@ -134,43 +181,85 @@ const InfoStat = ({
   label,
   value,
   accent = "cyan",
+  helper,
 }) => {
   const accentClasses = {
-    cyan:
-      "border-cyan-400/10 bg-cyan-400/[0.06] text-cyan-400",
+    cyan: {
+      box: "border-cyan-400/10 bg-cyan-400/[0.055]",
+      icon: "text-cyan-400",
+      glow: "bg-cyan-400/[0.035]",
+    },
 
-    blue:
-      "border-blue-400/10 bg-blue-400/[0.06] text-blue-400",
+    blue: {
+      box: "border-blue-400/10 bg-blue-400/[0.055]",
+      icon: "text-blue-400",
+      glow: "bg-blue-400/[0.035]",
+    },
 
-    emerald:
-      "border-emerald-400/10 bg-emerald-400/[0.06] text-emerald-400",
+    emerald: {
+      box: "border-emerald-400/10 bg-emerald-400/[0.055]",
+      icon: "text-emerald-400",
+      glow: "bg-emerald-400/[0.035]",
+    },
 
-    violet:
-      "border-violet-400/10 bg-violet-400/[0.06] text-violet-400",
+    violet: {
+      box: "border-violet-400/10 bg-violet-400/[0.055]",
+      icon: "text-violet-400",
+      glow: "bg-violet-400/[0.035]",
+    },
   };
+
+  const colors =
+    accentClasses[accent] ||
+    accentClasses.cyan;
 
   return (
     <motion.div
       variants={fadeUp}
-      className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0a1020]/80 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-white/[0.13] hover:bg-[#0d1426]"
+      whileHover={{
+        y: -4,
+      }}
+      transition={{
+        duration: 0.25,
+      }}
+      className="group relative overflow-hidden rounded-[1.5rem] border border-white/[0.065] bg-[#080d19]/90 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)]"
     >
       <div
         className={[
-          "flex h-10 w-10 items-center justify-center rounded-xl border",
-          accentClasses[accent] ||
-            accentClasses.cyan,
+          "absolute -right-8 -top-8 h-28 w-28 rounded-full blur-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100",
+          colors.glow,
         ].join(" ")}
-      >
-        {Icon && <Icon size={18} />}
+      />
+
+      <div className="relative">
+        <div
+          className={[
+            "flex h-10 w-10 items-center justify-center rounded-xl border",
+            colors.box,
+          ].join(" ")}
+        >
+          {Icon && (
+            <Icon
+              size={18}
+              className={colors.icon}
+            />
+          )}
+        </div>
+
+        <p className="mt-5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
+          {label}
+        </p>
+
+        <p className="mt-1 truncate text-lg font-black text-white">
+          {value}
+        </p>
+
+        {helper && (
+          <p className="mt-1 truncate text-[10px] font-semibold text-slate-700">
+            {helper}
+          </p>
+        )}
       </div>
-
-      <p className="mt-5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
-        {label}
-      </p>
-
-      <p className="mt-1 truncate text-lg font-black text-white">
-        {value}
-      </p>
     </motion.div>
   );
 };
@@ -205,26 +294,29 @@ const FacultyCard = ({
         "group relative w-full overflow-hidden rounded-[1.5rem]",
         "border p-5 text-left",
         "transition-all duration-300",
+        "focus:outline-none focus:ring-2 focus:ring-cyan-400/20",
 
         selected
-          ? "border-cyan-400/30 bg-cyan-400/[0.055] shadow-[0_15px_50px_rgba(6,182,212,0.07)]"
-          : "border-white/[0.07] bg-[#080d19]/90 hover:border-cyan-400/20 hover:bg-[#0b1220]",
+          ? "border-cyan-400/30 bg-cyan-400/[0.055] shadow-[0_20px_60px_rgba(6,182,212,0.07)]"
+          : "border-white/[0.07] bg-[#070c17]/90 hover:border-cyan-400/20 hover:bg-[#0a1020]",
       ].join(" ")}
     >
       {selected && (
         <motion.div
           layoutId="faculty-active-indicator"
-          className="absolute left-0 top-5 h-10 w-1 rounded-r-full bg-cyan-400"
+          className="absolute bottom-5 left-0 top-5 w-1 rounded-r-full bg-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.4)]"
         />
       )}
 
-      <div className="flex items-start gap-4">
+      <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-cyan-400/[0.025] blur-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+
+      <div className="relative flex items-start gap-4">
         <div
           className={[
             "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition-all duration-300",
 
             selected
-              ? "border-cyan-400/20 bg-cyan-400/[0.09]"
+              ? "border-cyan-400/20 bg-cyan-400/[0.09] shadow-[0_10px_30px_rgba(6,182,212,0.08)]"
               : "border-white/[0.07] bg-white/[0.025] group-hover:border-cyan-400/20 group-hover:bg-cyan-400/[0.06]",
           ].join(" ")}
         >
@@ -241,13 +333,19 @@ const FacultyCard = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="mb-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-700">
-                Faculty{" "}
-                {String(index + 1).padStart(
-                  2,
-                  "0"
+              <div className="mb-1 flex items-center gap-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-700">
+                  Faculty{" "}
+                  {String(index + 1).padStart(
+                    2,
+                    "0"
+                  )}
+                </p>
+
+                {isActive && (
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.45)]" />
                 )}
-              </p>
+              </div>
 
               <h3 className="font-black leading-6 text-white">
                 {faculty?.name ||
@@ -420,9 +518,14 @@ const ProgramCard = ({
   return (
     <motion.article
       variants={fadeUp}
-      className="group relative overflow-hidden rounded-[1.5rem] border border-white/[0.07] bg-[#070c17] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/20 hover:bg-[#0a1020] sm:p-6"
+      whileHover={{
+        y: -3,
+      }}
+      className="group relative overflow-hidden rounded-[1.5rem] border border-white/[0.07] bg-[#070c17] p-5 transition-all duration-300 hover:border-cyan-400/20 hover:bg-[#0a1020] hover:shadow-[0_25px_70px_rgba(0,0,0,0.25)] sm:p-6"
     >
-      <div className="flex items-start gap-4">
+      <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-cyan-400/[0.025] blur-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+
+      <div className="relative flex items-start gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.06]">
           <BookOpen
             size={19}
@@ -454,7 +557,7 @@ const ProgramCard = ({
       </div>
 
       {description && (
-        <div className="mt-5 rounded-2xl border border-white/[0.05] bg-white/[0.015] p-4">
+        <div className="relative mt-5 rounded-2xl border border-white/[0.05] bg-white/[0.015] p-4">
           <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-700">
             Description
           </p>
@@ -602,9 +705,7 @@ const ProgramCard = ({
         </div>
       )}
 
-      {Object.entries(
-        program || {}
-      )
+      {Object.entries(program || {})
         .filter(
           ([key, value]) =>
             !excludedFields.includes(
@@ -695,12 +796,14 @@ const FacultyProgramPanel = ({
       }}
       transition={{
         duration: 0.35,
-        ease: "easeOut",
+        ease: [0.22, 1, 0.36, 1],
       }}
-      className="mt-5 overflow-hidden rounded-[1.75rem] border border-cyan-400/10 bg-[#060b15]"
+      className="mt-5 overflow-hidden rounded-[1.75rem] border border-cyan-400/10 bg-[#060b15] shadow-[0_25px_80px_rgba(0,0,0,0.28)]"
     >
-      <div className="border-b border-white/[0.06] bg-gradient-to-r from-cyan-400/[0.045] to-transparent p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
+      <div className="relative overflow-hidden border-b border-white/[0.06] bg-gradient-to-r from-cyan-400/[0.055] via-cyan-400/[0.015] to-transparent p-5 sm:p-6">
+        <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-cyan-400/[0.035] blur-3xl" />
+
+        <div className="relative flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.07]">
               <Layers3
@@ -728,6 +831,7 @@ const FacultyProgramPanel = ({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close faculty programs"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.03] text-slate-600 transition hover:border-white/[0.12] hover:bg-white/[0.06] hover:text-white"
           >
             <X size={16} />
@@ -751,7 +855,22 @@ const FacultyProgramPanel = ({
         {!loading &&
           !error &&
           programs.length > 0 && (
-            <div className="mb-5 flex justify-end">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="inline-flex items-center gap-2 text-xs font-bold text-slate-600">
+                <BookMarked
+                  size={14}
+                  className="text-cyan-400"
+                />
+
+                <span>
+                  {programs.length}{" "}
+                  {programs.length === 1
+                    ? "program"
+                    : "programs"}{" "}
+                  available
+                </span>
+              </div>
+
               <div className="relative w-full sm:w-72">
                 <Search
                   size={14}
@@ -776,6 +895,7 @@ const FacultyProgramPanel = ({
                     onClick={() =>
                       setSearch("")
                     }
+                    aria-label="Clear course search"
                     className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-700 hover:bg-white/[0.05] hover:text-white"
                   >
                     <X size={13} />
@@ -786,24 +906,35 @@ const FacultyProgramPanel = ({
           )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2
-              size={25}
-              className="animate-spin text-cyan-400"
-            />
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.06] bg-[#060b15] py-14">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.05]">
+              <Loader2
+                size={25}
+                className="animate-spin text-cyan-400"
+              />
+            </div>
+
+            <p className="mt-4 text-sm font-bold text-slate-600">
+              Loading academic programs...
+            </p>
           </div>
         ) : error ? (
           <div className="rounded-2xl border border-red-400/10 bg-red-400/[0.035] p-5">
-            <p className="text-sm leading-7 text-red-300">
-              {error}
-            </p>
+            <div className="flex items-start gap-3">
+              <Info
+                size={18}
+                className="mt-0.5 shrink-0 text-red-400"
+              />
+
+              <p className="text-sm leading-7 text-red-300">
+                {error}
+              </p>
+            </div>
           </div>
         ) : filteredPrograms.length >
           0 ? (
           <motion.div
-            variants={
-              staggerContainer
-            }
+            variants={staggerContainer}
             initial="hidden"
             animate="visible"
             className="space-y-4"
@@ -825,12 +956,36 @@ const FacultyProgramPanel = ({
             )}
           </motion.div>
         ) : search ? (
-          <div className="flex items-center justify-center py-10">
-            <p className="text-sm font-semibold text-slate-600">
-              No matching course found.
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.07] py-12 text-center">
+            <Search
+              size={26}
+              className="text-slate-700"
+            />
+
+            <p className="mt-4 text-sm font-black text-white">
+              No matching course found
+            </p>
+
+            <p className="mt-2 text-xs text-slate-600">
+              Try a different course name, code, or keyword.
             </p>
           </div>
-        ) : null}
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.07] py-12 text-center">
+            <BookOpen
+              size={26}
+              className="text-slate-700"
+            />
+
+            <p className="mt-4 text-sm font-black text-white">
+              No programs listed
+            </p>
+
+            <p className="mt-2 text-xs text-slate-600">
+              Academic programs have not been added for this faculty yet.
+            </p>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -842,7 +997,6 @@ const FacultyProgramPanel = ({
 
 const UniversityDetails = () => {
   const navigate = useNavigate();
-
   const { id } = useParams();
 
   const [university, setUniversity] =
@@ -1227,16 +1381,9 @@ const UniversityDetails = () => {
         selectedFaculty?.id ===
         faculty.id
       ) {
-        setSelectedFaculty(
-          null
-        );
-
-        setFacultyPrograms(
-          []
-        );
-
+        setSelectedFaculty(null);
+        setFacultyPrograms([]);
         setProgramError("");
-
         setProgramSearch("");
 
         return;
@@ -1246,12 +1393,8 @@ const UniversityDetails = () => {
         faculty
       );
 
-      setFacultyPrograms(
-        []
-      );
-
+      setFacultyPrograms([]);
       setProgramError("");
-
       setProgramSearch("");
 
       await loadFacultyPrograms(
@@ -1514,8 +1657,22 @@ const UniversityDetails = () => {
     !university
   ) {
     return (
-      <div className="min-h-screen bg-[#03050a] px-4 py-10 text-white">
-        <div className="mx-auto max-w-5xl">
+      <div className="relative min-h-screen overflow-hidden bg-[#03050a] px-4 py-10 text-white">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-red-500/[0.025] blur-[140px]" />
+
+          <div
+            className="absolute inset-0 opacity-[0.018]"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle, white 1px, transparent 1px)",
+              backgroundSize:
+                "32px 32px",
+            }}
+          />
+        </div>
+
+        <div className="relative mx-auto max-w-5xl">
           <button
             type="button"
             onClick={() =>
@@ -1527,44 +1684,63 @@ const UniversityDetails = () => {
           >
             <ArrowLeft
               size={16}
+              className="transition-transform group-hover:-translate-x-1"
             />
 
             Back to Universities
           </button>
 
-          <div className="mt-8 overflow-hidden rounded-[2rem] border border-white/[0.08] bg-[#0a1020] px-6 py-20 text-center shadow-2xl">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-red-400/10 bg-red-400/[0.07]">
-              <Building2
-                size={34}
-                className="text-red-400"
-              />
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 20,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            className="relative mt-8 overflow-hidden rounded-[2.25rem] border border-white/[0.08] bg-[#0a1020] px-6 py-20 text-center shadow-[0_35px_120px_rgba(0,0,0,0.4)]"
+          >
+            <div className="absolute left-1/2 top-0 h-40 w-72 -translate-x-1/2 rounded-full bg-red-400/[0.025] blur-3xl" />
+
+            <div className="relative">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-red-400/10 bg-red-400/[0.07]">
+                <Building2
+                  size={34}
+                  className="text-red-400"
+                />
+              </div>
+
+              <p className="mt-7 text-[9px] font-black uppercase tracking-[0.22em] text-red-400/60">
+                Institution unavailable
+              </p>
+
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                University not found
+              </h1>
+
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-slate-500">
+                {error ||
+                  "The university you're looking for does not exist or is no longer available."}
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(
+                    "/universities"
+                  )
+                }
+                className="mt-8 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-6 py-3.5 text-sm font-black text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-cyan-400"
+              >
+                <ArrowLeft
+                  size={17}
+                />
+
+                Browse Universities
+              </button>
             </div>
-
-            <h1 className="mt-7 text-3xl font-black tracking-tight text-white sm:text-4xl">
-              University not found
-            </h1>
-
-            <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-slate-500">
-              {error ||
-                "The university you're looking for does not exist or is no longer available."}
-            </p>
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate(
-                  "/universities"
-                )
-              }
-              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-6 py-3.5 text-sm font-black text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-cyan-400"
-            >
-              <ArrowLeft
-                size={17}
-              />
-
-              Browse Universities
-            </button>
-          </div>
+          </motion.div>
         </div>
       </div>
     );
@@ -1576,9 +1752,27 @@ const UniversityDetails = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#03050a] px-4 py-10 text-white">
-        <div className="mx-auto max-w-7xl">
-          <div className="h-[500px] animate-pulse rounded-[2.25rem] border border-white/[0.06] bg-white/[0.025]" />
+      <div className="relative min-h-screen overflow-hidden bg-[#03050a] px-4 py-10 text-white">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-[-10%] top-[-10%] h-[500px] w-[500px] rounded-full bg-cyan-500/[0.025] blur-[150px]" />
+
+          <div className="absolute right-[-12%] top-[20%] h-[550px] w-[550px] rounded-full bg-blue-600/[0.025] blur-[150px]" />
+
+          <div
+            className="absolute inset-0 opacity-[0.018]"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle, white 1px, transparent 1px)",
+              backgroundSize:
+                "32px 32px",
+            }}
+          />
+        </div>
+
+        <div className="relative mx-auto max-w-7xl">
+          <div className="mb-6 h-10 w-36 animate-pulse rounded-xl border border-white/[0.06] bg-white/[0.025]" />
+
+          <div className="h-[500px] animate-pulse rounded-[2.25rem] border border-white/[0.06] bg-white/[0.025] sm:h-[560px]" />
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({
@@ -1592,10 +1786,12 @@ const UniversityDetails = () => {
           </div>
 
           <div className="flex flex-col items-center justify-center py-16">
-            <Loader2
-              size={28}
-              className="animate-spin text-cyan-400"
-            />
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.05]">
+              <Loader2
+                size={28}
+                className="animate-spin text-cyan-400"
+              />
+            </div>
 
             <p className="mt-4 text-sm font-bold text-slate-600">
               Loading university profile...
@@ -1612,14 +1808,16 @@ const UniversityDetails = () => {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#03050a] text-white">
-      {/* BACKGROUND */}
+      {/* =====================================================
+          PREMIUM BACKGROUND
+      ===================================================== */}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-[-10%] top-[-10%] h-[500px] w-[500px] rounded-full bg-cyan-500/[0.025] blur-[150px]" />
+        <div className="absolute left-[-10%] top-[-10%] h-[550px] w-[550px] rounded-full bg-cyan-500/[0.025] blur-[150px]" />
 
-        <div className="absolute right-[-12%] top-[20%] h-[550px] w-[550px] rounded-full bg-blue-600/[0.025] blur-[150px]" />
+        <div className="absolute right-[-12%] top-[18%] h-[600px] w-[600px] rounded-full bg-blue-600/[0.025] blur-[160px]" />
 
-        <div className="absolute bottom-[-15%] left-[30%] h-[500px] w-[500px] rounded-full bg-violet-500/[0.018] blur-[150px]" />
+        <div className="absolute bottom-[-15%] left-[28%] h-[550px] w-[550px] rounded-full bg-violet-500/[0.018] blur-[160px]" />
 
         <div
           className="absolute inset-0 opacity-[0.018]"
@@ -1630,10 +1828,14 @@ const UniversityDetails = () => {
               "32px 32px",
           }}
         />
+
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/15 to-transparent" />
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
-        {/* BACK */}
+        {/* ===================================================
+            BACK
+        =================================================== */}
 
         <motion.div
           initial={{
@@ -1664,7 +1866,9 @@ const UniversityDetails = () => {
           </button>
         </motion.div>
 
-        {/* HERO */}
+        {/* ===================================================
+            HERO
+        =================================================== */}
 
         <motion.section
           initial={{
@@ -1676,50 +1880,94 @@ const UniversityDetails = () => {
             y: 0,
           }}
           transition={{
-            duration: 0.65,
-            ease: "easeOut",
+            duration: 0.7,
+            ease: [0.22, 1, 0.36, 1],
           }}
           className="relative mb-7 overflow-hidden rounded-[2.25rem] border border-white/[0.09] bg-[#080d19] shadow-[0_35px_120px_rgba(0,0,0,0.4)]"
         >
-          <div className="relative h-[500px] sm:h-[560px] lg:h-[600px]">
+          <div className="relative h-[520px] sm:h-[580px] lg:h-[620px]">
             {universityImage ? (
               <img
                 src={universityImage}
                 alt={universityName}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-cover transition-transform duration-[2s]"
               />
             ) : (
               <div className="h-full w-full bg-gradient-to-br from-[#101a31] via-[#080d19] to-[#03050a]" />
             )}
 
+            {/* Image overlays */}
+
             <div className="absolute inset-0 bg-gradient-to-t from-[#040711] via-[#040711]/65 to-[#040711]/10" />
 
-            <div className="absolute inset-0 bg-gradient-to-r from-[#040711]/80 via-[#040711]/20 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#040711]/85 via-[#040711]/25 to-transparent" />
 
-            <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/35 to-transparent" />
+            <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-black/40 to-transparent" />
+
+            {/* subtle premium grid */}
+
+            <div
+              className="absolute inset-0 opacity-[0.045]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
+                backgroundSize:
+                  "70px 70px",
+                maskImage:
+                  "linear-gradient(to bottom, black, transparent 75%)",
+                WebkitMaskImage:
+                  "linear-gradient(to bottom, black, transparent 75%)",
+              }}
+            />
 
             {/* LOGO */}
 
-            <div className="absolute left-5 top-5 sm:left-8 sm:top-8">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/15 bg-slate-950/75 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:h-24 sm:w-24">
-                {universityLogo ? (
-                  <img
-                    src={universityLogo}
-                    alt={`${universityName} logo`}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <Building2
-                    size={36}
-                    className="text-slate-600"
-                  />
-                )}
+            <motion.div
+              variants={fadeScale}
+              initial="hidden"
+              animate="visible"
+              transition={{
+                delay: 0.15,
+                duration: 0.5,
+              }}
+              className="absolute left-5 top-5 sm:left-8 sm:top-8"
+            >
+              <div className="relative">
+                <div className="absolute inset-0 rounded-[1.5rem] bg-cyan-400/[0.08] blur-2xl" />
+
+                <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/15 bg-slate-950/80 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:h-24 sm:w-24">
+                  {universityLogo ? (
+                    <img
+                      src={universityLogo}
+                      alt={`${universityName} logo`}
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <Building2
+                      size={36}
+                      className="text-slate-600"
+                    />
+                  )}
+                </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* TYPE */}
 
-            <div className="absolute right-5 top-5 sm:right-8 sm:top-8">
+            <motion.div
+              initial={{
+                opacity: 0,
+                x: 10,
+              }}
+              animate={{
+                opacity: 1,
+                x: 0,
+              }}
+              transition={{
+                delay: 0.2,
+              }}
+              className="absolute right-5 top-5 sm:right-8 sm:top-8"
+            >
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/65 px-3.5 py-2 text-[9px] font-black uppercase tracking-[0.17em] text-cyan-300 backdrop-blur-xl">
                 <Sparkles
                   size={12}
@@ -1727,12 +1975,22 @@ const UniversityDetails = () => {
 
                 {universityType}
               </div>
-            </div>
+            </motion.div>
 
             {/* HERO CONTENT */}
 
             <div className="absolute inset-x-0 bottom-0 p-6 sm:p-9 lg:p-11">
-              <div className="max-w-5xl">
+              <motion.div
+                variants={heroText}
+                initial="hidden"
+                animate="visible"
+                transition={{
+                  delay: 0.18,
+                  duration: 0.65,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className="max-w-5xl"
+              >
                 <div className="mb-4 flex flex-wrap items-center gap-2.5">
                   <span className="rounded-full border border-cyan-400/15 bg-cyan-400/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-300">
                     {universityShortName}
@@ -1777,7 +2035,7 @@ const UniversityDetails = () => {
                     {universityState}
                   </span>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
 
@@ -1789,7 +2047,7 @@ const UniversityDetails = () => {
                 href={websiteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3.5 text-sm font-black text-slate-950 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-400"
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3.5 text-sm font-black text-slate-950 shadow-[0_10px_35px_rgba(6,182,212,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-400 hover:shadow-[0_15px_45px_rgba(6,182,212,0.18)]"
               >
                 <Globe2
                   size={17}
@@ -1799,6 +2057,7 @@ const UniversityDetails = () => {
 
                 <ExternalLink
                   size={14}
+                  className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                 />
               </a>
             )}
@@ -1820,12 +2079,12 @@ const UniversityDetails = () => {
           </div>
         </motion.section>
 
-        {/* QUICK STATS */}
+        {/* ===================================================
+            QUICK STATS
+        =================================================== */}
 
         <motion.div
-          variants={
-            staggerContainer
-          }
+          variants={staggerContainer}
           initial="hidden"
           animate="visible"
           className="mb-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
@@ -1836,6 +2095,7 @@ const UniversityDetails = () => {
             value={
               universityShortName
             }
+            helper={universityType}
             accent="cyan"
           />
 
@@ -1845,6 +2105,7 @@ const UniversityDetails = () => {
             value={
               universityState
             }
+            helper={universityLocation}
             accent="blue"
           />
 
@@ -1853,6 +2114,11 @@ const UniversityDetails = () => {
             label="Faculties"
             value={
               faculties.length
+            }
+            helper={
+              activeFacultyCount > 0
+                ? `${activeFacultyCount} active`
+                : "Academic faculties"
             }
             accent="emerald"
           />
@@ -1865,34 +2131,44 @@ const UniversityDetails = () => {
                 ? facultyPrograms.length
                 : "Select faculty"
             }
+            helper={
+              selectedFaculty
+                ? selectedFaculty.name
+                : "Explore available courses"
+            }
             accent="violet"
           />
         </motion.div>
 
-        {/* MAIN GRID */}
+        {/* ===================================================
+            MAIN GRID
+        =================================================== */}
 
         <motion.div
-          variants={
-            staggerContainer
-          }
+          variants={staggerContainer}
           initial="hidden"
           animate="visible"
           className="grid gap-7 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)]"
         >
-          {/* LEFT */}
+          {/* =================================================
+              LEFT
+          ================================================= */}
 
           <div className="min-w-0 space-y-7">
             {/* ABOUT */}
 
             <SectionCard
               icon={Building2}
+              eyebrow="Institution profile"
               title="About the University"
               description="An overview of the institution and its academic identity."
             >
-              <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#060b15] p-5 sm:p-6">
-                <div className="absolute left-0 top-6 h-12 w-1 rounded-r-full bg-cyan-400/60" />
+              <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#060b15] p-5 shadow-inner sm:p-6">
+                <div className="absolute left-0 top-6 h-12 w-1 rounded-r-full bg-cyan-400/60 shadow-[0_0_20px_rgba(34,211,238,0.2)]" />
 
-                <p className="whitespace-pre-line pl-4 text-sm leading-8 text-slate-400 sm:text-[15px]">
+                <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-cyan-400/[0.02] blur-3xl" />
+
+                <p className="relative whitespace-pre-line pl-4 text-sm leading-8 text-slate-400 sm:text-[15px]">
                   {universityAbout}
                 </p>
               </div>
@@ -1908,6 +2184,7 @@ const UniversityDetails = () => {
                 icon={
                   GraduationCap
                 }
+                eyebrow="Academic structure"
                 title="Faculties & Academic Programs"
                 description={
                   facultyLoading
@@ -1946,7 +2223,7 @@ const UniversityDetails = () => {
                           )
                         }
                         placeholder="Search faculties..."
-                        className="w-full rounded-2xl border border-white/[0.07] bg-[#060b15] py-3.5 pl-11 pr-11 text-sm font-semibold text-white outline-none placeholder:text-slate-700 focus:border-cyan-400/20"
+                        className="w-full rounded-2xl border border-white/[0.07] bg-[#060b15] py-3.5 pl-11 pr-11 text-sm font-semibold text-white outline-none placeholder:text-slate-700 transition-all focus:border-cyan-400/20 focus:bg-[#080e19]"
                       />
 
                       {facultySearch && (
@@ -1957,6 +2234,7 @@ const UniversityDetails = () => {
                               ""
                             )
                           }
+                          aria-label="Clear faculty search"
                           className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-700 hover:bg-white/[0.05] hover:text-white"
                         >
                           <X
@@ -1989,10 +2267,12 @@ const UniversityDetails = () => {
                       }}
                       className="flex flex-col items-center justify-center rounded-2xl border border-white/[0.06] bg-[#060b15] py-14"
                     >
-                      <Loader2
-                        size={26}
-                        className="animate-spin text-cyan-400"
-                      />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.05]">
+                        <Loader2
+                          size={26}
+                          className="animate-spin text-cyan-400"
+                        />
+                      </div>
 
                       <p className="mt-4 text-sm font-bold text-slate-600">
                         Loading faculties...
@@ -2143,15 +2423,18 @@ const UniversityDetails = () => {
             </div>
           </div>
 
-          {/* RIGHT SIDEBAR */}
+          {/* =================================================
+              RIGHT SIDEBAR
+          ================================================= */}
 
-          <aside className="min-w-0 space-y-7">
+          <aside className="min-w-0 space-y-7 lg:sticky lg:top-6 lg:self-start">
             {/* ADMISSION */}
 
             <SectionCard
               icon={
                 ClipboardCheck
               }
+              eyebrow="Application"
               title="Admission"
               description="Important information before applying."
             >
@@ -2162,9 +2445,16 @@ const UniversityDetails = () => {
                   }
                 </p>
               ) : (
-                <p className="text-sm leading-7 text-slate-600">
-                  Admission information for this institution has not been added yet.
-                </p>
+                <div className="rounded-2xl border border-dashed border-white/[0.07] bg-[#060b15] p-5">
+                  <Info
+                    size={18}
+                    className="text-slate-700"
+                  />
+
+                  <p className="mt-3 text-sm leading-7 text-slate-600">
+                    Admission information for this institution has not been added yet.
+                  </p>
+                </div>
               )}
 
               <div className="mt-5 rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.045] p-4">
@@ -2185,6 +2475,7 @@ const UniversityDetails = () => {
 
             <SectionCard
               icon={Wallet}
+              eyebrow="Financial information"
               title="Fees"
               description="Tuition and related financial information."
             >
@@ -2193,9 +2484,16 @@ const UniversityDetails = () => {
                   {university.fees}
                 </p>
               ) : (
-                <p className="text-sm leading-7 text-slate-600">
-                  Fee information for this institution has not been added yet.
-                </p>
+                <div className="rounded-2xl border border-dashed border-white/[0.07] bg-[#060b15] p-5">
+                  <Info
+                    size={18}
+                    className="text-slate-700"
+                  />
+
+                  <p className="mt-3 text-sm leading-7 text-slate-600">
+                    Fee information for this institution has not been added yet.
+                  </p>
+                </div>
               )}
 
               <div className="mt-5 rounded-2xl border border-amber-400/10 bg-amber-400/[0.035] p-4">
@@ -2216,6 +2514,7 @@ const UniversityDetails = () => {
 
             <SectionCard
               icon={Phone}
+              eyebrow="Get in touch"
               title="Contact"
               description="Available institutional contact details."
             >
@@ -2290,6 +2589,7 @@ const UniversityDetails = () => {
                             onClick={
                               handleCopyEmail
                             }
+                            aria-label="Copy university email"
                             className="rounded-lg p-1.5 text-slate-600 transition hover:bg-white/[0.05] hover:text-cyan-400"
                           >
                             {copied ? (
@@ -2342,10 +2642,13 @@ const UniversityDetails = () => {
             {websiteUrl && (
               <motion.a
                 variants={fadeUp}
+                whileHover={{
+                  y: -4,
+                }}
                 href={websiteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative block overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-gradient-to-br from-cyan-400/[0.07] to-blue-500/[0.025] p-6 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/20"
+                className="group relative block overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-gradient-to-br from-cyan-400/[0.07] to-blue-500/[0.025] p-6 transition-all duration-300 hover:border-cyan-400/20 hover:shadow-[0_25px_70px_rgba(6,182,212,0.07)]"
               >
                 <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-cyan-400/[0.05] blur-3xl" />
 
@@ -2375,13 +2678,23 @@ const UniversityDetails = () => {
                   <p className="mt-2 text-xs leading-6 text-slate-600">
                     Get the latest information directly from the institution.
                   </p>
+
+                  <div className="mt-5 inline-flex items-center gap-2 text-xs font-black text-cyan-400">
+                    Open website
+                    <ArrowRight
+                      size={14}
+                      className="transition-transform group-hover:translate-x-1"
+                    />
+                  </div>
                 </div>
               </motion.a>
             )}
           </aside>
         </motion.div>
 
-        {/* TRUST */}
+        {/* ===================================================
+            TRUST
+        =================================================== */}
 
         <motion.div
           initial={{
@@ -2394,6 +2707,7 @@ const UniversityDetails = () => {
           }}
           viewport={{
             once: true,
+            amount: 0.1,
           }}
           className="mt-8 overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.015] p-5 sm:p-6"
         >
@@ -2414,10 +2728,23 @@ const UniversityDetails = () => {
                 Information displayed on this profile is loaded from the institution records available in the platform. Confirm important admission, fee and application details with the institution.
               </p>
             </div>
+
+            <div className="hidden shrink-0 items-center gap-2 rounded-full border border-emerald-400/10 bg-emerald-400/[0.045] px-3 py-2 sm:inline-flex">
+              <CheckCircle2
+                size={13}
+                className="text-emerald-400"
+              />
+
+              <span className="text-[9px] font-black uppercase tracking-wider text-emerald-400">
+                Platform Listed
+              </span>
+            </div>
           </div>
         </motion.div>
 
-        {/* BOTTOM NAVIGATION */}
+        {/* ===================================================
+            BOTTOM NAVIGATION
+        =================================================== */}
 
         <div className="flex justify-center py-12">
           <button
@@ -2438,7 +2765,9 @@ const UniversityDetails = () => {
           </button>
         </div>
 
-        {/* FOOTER */}
+        {/* ===================================================
+            FOOTER
+        =================================================== */}
 
         <footer className="border-t border-white/[0.06] py-8 text-center">
           <p className="text-xs font-semibold text-slate-700">

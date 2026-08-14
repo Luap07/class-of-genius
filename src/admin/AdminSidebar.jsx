@@ -163,7 +163,7 @@ const menuItems = [
 
 const AdminSidebar = () => {
   const [isCollapsed, setIsCollapsed] =
-    useState(false);
+    useState(true); // Set default to true (closed)
 
   const [footerCollapsed, setFooterCollapsed] =
     useState(false);

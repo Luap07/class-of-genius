@@ -36,39 +36,58 @@ import {
 ============================================================ */
 
 /*
- * Decode HTML entities such as:
+ * Decode HTML entities repeatedly.
+ *
+ * This fixes values such as:
  *
  * &nbsp;
  * &amp;
  * &lt;
  * &gt;
+ * &lt;sup&gt;3&lt;/sup&gt;
  *
- * This is important because old questions may have been stored
- * with HTML entities instead of actual HTML.
+ * and also handles double-encoded content.
  */
 const decodeHtml = (value = "") => {
   if (typeof value !== "string") {
     return "";
   }
 
-  const textarea = document.createElement("textarea");
-  textarea.innerHTML = value;
+  let result = value;
 
-  return textarea.value;
+  for (let i = 0; i < 3; i += 1) {
+    const textarea =
+      document.createElement("textarea");
+
+    textarea.innerHTML = result;
+
+    const decoded = textarea.value;
+
+    if (decoded === result) {
+      break;
+    }
+
+    result = decoded;
+  }
+
+  return result;
 };
 
 /*
- * Convert HTML entities into proper browser HTML.
+ * Convert plain text mathematical notation into HTML.
  *
- * Example:
+ * Examples:
  *
- * "The reading&nbsp;&nbsp;above"
+ * cm3       -> cm<sup>3</sup>
+ * cm^3      -> cm<sup>3</sup>
+ * x^2       -> x<sup>2</sup>
+ * H2O       -> H<sub>2</sub>O
  *
- * becomes:
- *
- * "The reading  above"
+ * We DO NOT automatically convert every number
+ * into a subscript because ordinary text such as
+ * "Question 20" must remain untouched.
  */
-const normalizeRichContent = (value = "") => {
+const convertMathNotation = (value = "") => {
   if (!value) {
     return "";
   }
@@ -76,112 +95,29 @@ const normalizeRichContent = (value = "") => {
   let content = String(value);
 
   /*
-   * If the value contains HTML tags, preserve the HTML.
+   * Existing superscripts/subscripts are protected
+   * from being processed again.
    */
-  const hasHtmlTags =
-    /<\/?[a-z][\s\S]*>/i.test(content);
+  const protectedTags = [];
 
-  if (hasHtmlTags) {
-    return content;
-  }
-
-  /*
-   * Decode entities.
-   */
-  content = decodeHtml(content);
-
-  /*
-   * Convert plain text newlines to <br>.
-   */
-  content = content
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/\n/g, "<br />");
-
-  return content;
-};
-
-/*
- * Clean content before saving.
- *
- * We intentionally DO NOT strip HTML because the editor
- * needs to preserve formatting.
- */
-const cleanRichContent = (value = "") => {
-  if (!value) {
-    return "";
-  }
-
-  let content = String(value);
-
-  /*
-   * Decode accidental double entities.
-   */
-  content = decodeHtml(content);
-
-  /*
-   * Convert common mathematical caret notation.
-   *
-   * 2^4  -> 2<sup>4</sup>
-   * x^2  -> x<sup>2</sup>
-   * a^n  -> a<sup>n</sup>
-   *
-   * Only simple exponent expressions are automatically
-   * transformed.
-   */
-  content = convertCaretPowers(content);
-
-  return content.trim();
-};
-
-/*
- * Automatically convert:
- *
- * 2^4
- * x^2
- * a^n
- *
- * to:
- *
- * 2<sup>4</sup>
- * x<sup>2</sup>
- * a<sup>n</sup>
- */
-const convertCaretPowers = (html = "") => {
-  if (!html) {
-    return "";
-  }
-
-  /*
-   * Don't modify existing sup elements.
-   *
-   * We temporarily protect them.
-   */
-  const protectedSuperscripts = [];
-
-  let content = html.replace(
-    /<sup\b[^>]*>[\s\S]*?<\/sup>/gi,
+  content = content.replace(
+    /<(sup|sub)\b[^>]*>[\s\S]*?<\/\1>/gi,
     (match) => {
-      const token = `___SUP_TOKEN_${protectedSuperscripts.length}___`;
+      const token =
+        `___MATH_TAG_${protectedTags.length}___`;
 
-      protectedSuperscripts.push(match);
+      protectedTags.push(match);
 
       return token;
     }
   );
 
   /*
-   * Convert:
+   * Convert caret notation:
    *
-   * 2^4
    * x^2
+   * 2^4
    * a^n
-   * )
-   *
-   * The exponent can be:
-   * - one number
-   * - one letter
-   * - one simple group
    */
   content = content.replace(
     /([A-Za-z0-9)\]])\^(\d+|[A-Za-z]+|\([^)]*\))/g,
@@ -201,8 +137,93 @@ const convertCaretPowers = (html = "") => {
   );
 
   /*
-   * Restore existing superscripts.
+   * Convert common scientific units that are
+   * frequently imported as:
+   *
+   * cm3
+   * cm³
+   * m2
+   * m²
+   * m3
+   * m³
+   *
+   * Only known measurement units are changed.
    */
+  content = content.replace(
+    /\b(cm|mm|dm|m|km|cm²|cm³|mm²|mm³|m²|m³|km²|km³)([23])\b/gi,
+    (_, unit, power) => {
+      return `${unit}<sup>${power}</sup>`;
+    }
+  );
+
+  /*
+   * Convert Unicode superscript 2 and 3
+   * after units if needed.
+   */
+  content = content.replace(
+    /\b(cm|mm|dm|m|km)([²³])\b/gi,
+    (_, unit, power) => {
+      const converted =
+        power === "²" ? "2" : "3";
+
+      return `${unit}<sup>${converted}</sup>`;
+    }
+  );
+
+  /*
+   * Restore protected tags.
+   */
+  protectedTags.forEach(
+    (tag, index) => {
+      content = content.replace(
+        `___MATH_TAG_${index}___`,
+        tag
+      );
+    }
+  );
+
+  return content;
+};
+
+/*
+ * Convert caret powers while preserving existing HTML.
+ */
+const convertCaretPowers = (html = "") => {
+  if (!html) {
+    return "";
+  }
+
+  const protectedSuperscripts = [];
+
+  let content = String(html).replace(
+    /<sup\b[^>]*>[\s\S]*?<\/sup>/gi,
+    (match) => {
+      const token =
+        `___SUP_TOKEN_${protectedSuperscripts.length}___`;
+
+      protectedSuperscripts.push(match);
+
+      return token;
+    }
+  );
+
+  content = content.replace(
+    /([A-Za-z0-9)\]])\^(\d+|[A-Za-z]+|\([^)]*\))/g,
+    (_, base, exponent) => {
+      let cleanExponent = exponent;
+
+      if (
+        cleanExponent.startsWith("(") &&
+        cleanExponent.endsWith(")")
+      ) {
+        cleanExponent =
+          cleanExponent.slice(1, -1);
+      }
+
+      return `${base}<sup>${cleanExponent}</sup>`;
+    }
+  );
+
   protectedSuperscripts.forEach(
     (sup, index) => {
       content = content.replace(
@@ -216,16 +237,128 @@ const convertCaretPowers = (html = "") => {
 };
 
 /*
- * Get plain text from HTML.
+ * Normalize rich content for display.
  *
- * Used for validation.
+ * IMPORTANT:
+ *
+ * We decode entities BEFORE checking whether
+ * the content contains HTML.
+ *
+ * This is what fixes:
+ *
+ * 200 cm&lt;sup&gt;3&lt;/sup&gt;
+ *
+ * into:
+ *
+ * 200 cm<sup>3</sup>
+ */
+const normalizeRichContent = (value = "") => {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  let content = String(value);
+
+  /*
+   * Decode encoded HTML first.
+   */
+  content = decodeHtml(content);
+
+  /*
+   * Normalize whitespace entities.
+   */
+  content = content
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\u00a0/g, " ");
+
+  /*
+   * Convert Unicode math characters where useful.
+   */
+  content = content
+    .replace(/×/g, "×")
+    .replace(/÷/g, "÷");
+
+  /*
+   * If content contains actual HTML,
+   * preserve it.
+   */
+  const hasHtml =
+    /<\/?[a-z][\s\S]*>/i.test(
+      content
+    );
+
+  if (hasHtml) {
+    return convertCaretPowers(
+      content
+    );
+  }
+
+  /*
+   * Plain text:
+   *
+   * Convert mathematical notation first.
+   */
+  content =
+    convertMathNotation(content);
+
+  /*
+   * Convert newlines to HTML breaks.
+   */
+  content = content
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n/g, "<br />");
+
+  return content;
+};
+
+/*
+ * Clean rich content before saving.
+ */
+const cleanRichContent = (value = "") => {
+  if (!value) {
+    return "";
+  }
+
+  let content =
+    decodeHtml(String(value));
+
+  content = content
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\u00a0/g, " ");
+
+  content =
+    convertCaretPowers(content);
+
+  return content.trim();
+};
+
+/*
+ * Extract readable text for validation.
  */
 const getTextFromHtml = (html = "") => {
-  const div = document.createElement("div");
+  const div =
+    document.createElement("div");
 
-  div.innerHTML = html;
+  div.innerHTML =
+    normalizeRichContent(html);
 
-  return div.textContent || div.innerText || "";
+  return (
+    div.textContent ||
+    div.innerText ||
+    ""
+  );
+};
+
+/*
+ * Safely prepare content before
+ * putting it inside contentEditable.
+ */
+const getEditorHtml = (value = "") => {
+  return normalizeRichContent(value);
 };
 
 /* ============================================================
@@ -233,20 +366,26 @@ const getTextFromHtml = (html = "") => {
 ============================================================ */
 
 const QuestionsAdmin = () => {
-  const [questions, setQuestions] = useState([]);
+  const [questions, setQuestions] =
+    useState([]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] =
+    useState("");
 
   const [editingQuestion, setEditingQuestion] =
     useState(null);
 
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] =
+    useState(false);
 
-  const [deleting, setDeleting] = useState(null);
+  const [deleting, setDeleting] =
+    useState(null);
 
-  const [activating, setActivating] = useState(null);
+  const [activating, setActivating] =
+    useState(null);
 
   /* ==========================================================
      FETCH QUESTIONS
@@ -263,7 +402,10 @@ const QuestionsAdmin = () => {
       let from = 0;
 
       while (true) {
-        const { data, error } = await supabase
+        const {
+          data,
+          error,
+        } = await supabase
           .from("cbt_questions")
           .select("*")
           .order("created_at", {
@@ -278,7 +420,8 @@ const QuestionsAdmin = () => {
           throw error;
         }
 
-        const currentBatch = data || [];
+        const currentBatch =
+          data || [];
 
         allQuestions = [
           ...allQuestions,
@@ -295,7 +438,9 @@ const QuestionsAdmin = () => {
         from += batchSize;
       }
 
-      setQuestions(allQuestions);
+      setQuestions(
+        allQuestions
+      );
     } catch (error) {
       console.error(
         "Fetch Questions Error:",
@@ -314,10 +459,13 @@ const QuestionsAdmin = () => {
      DELETE
   ========================================================== */
 
-  const deleteQuestion = async (id) => {
-    const confirmed = window.confirm(
-      "Delete this question permanently?"
-    );
+  const deleteQuestion = async (
+    id
+  ) => {
+    const confirmed =
+      window.confirm(
+        "Delete this question permanently?"
+      );
 
     if (!confirmed) {
       return;
@@ -326,7 +474,9 @@ const QuestionsAdmin = () => {
     try {
       setDeleting(id);
 
-      const { error } = await supabase
+      const {
+        error,
+      } = await supabase
         .from("cbt_questions")
         .delete()
         .eq("id", id);
@@ -335,15 +485,17 @@ const QuestionsAdmin = () => {
         throw error;
       }
 
-      setQuestions((previous) =>
-        previous.filter(
-          (question) =>
-            question.id !== id
-        )
+      setQuestions(
+        (previous) =>
+          previous.filter(
+            (question) =>
+              question.id !== id
+          )
       );
 
       if (
-        editingQuestion?.id === id
+        editingQuestion?.id ===
+        id
       ) {
         setEditingQuestion(null);
       }
@@ -366,40 +518,51 @@ const QuestionsAdmin = () => {
      ACTIVE / INACTIVE
   ========================================================== */
 
-  const toggleActive = async (question) => {
+  const toggleActive = async (
+    question
+  ) => {
     try {
-      setActivating(question.id);
+      setActivating(
+        question.id
+      );
 
       const newStatus =
         question.active === false;
 
-      const { data, error } =
-        await supabase
-          .from("cbt_questions")
-          .update({
-            active: newStatus,
-          })
-          .eq("id", question.id)
-          .select()
-          .single();
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("cbt_questions")
+        .update({
+          active: newStatus,
+        })
+        .eq("id", question.id)
+        .select()
+        .single();
 
       if (error) {
         throw error;
       }
 
-      setQuestions((previous) =>
-        previous.map((item) =>
-          item.id === question.id
-            ? data
-            : item
-        )
+      setQuestions(
+        (previous) =>
+          previous.map(
+            (item) =>
+              item.id ===
+              question.id
+                ? data
+                : item
+          )
       );
 
       if (
         editingQuestion?.id ===
         question.id
       ) {
-        setEditingQuestion(data);
+        setEditingQuestion(
+          data
+        );
       }
     } catch (error) {
       console.error(
@@ -420,60 +583,71 @@ const QuestionsAdmin = () => {
      SEARCH
   ========================================================== */
 
-  const filteredQuestions = useMemo(() => {
-    const searchText = search
-      .toLowerCase()
-      .trim();
+  const filteredQuestions =
+    useMemo(() => {
+      const searchText =
+        search
+          .toLowerCase()
+          .trim();
 
-    if (!searchText) {
-      return questions;
-    }
+      if (!searchText) {
+        return questions;
+      }
 
-    return questions.filter((item) => {
-      const optionsText =
-        Array.isArray(item.options)
-          ? item.options.join(" ")
-          : "";
+      return questions.filter(
+        (item) => {
+          const optionsText =
+            Array.isArray(
+              item.options
+            )
+              ? item.options.join(
+                  " "
+                )
+              : "";
 
-      const text = `
-        ${item.exam || ""}
-        ${item.subject || ""}
-        ${item.question || ""}
-        ${optionsText}
-        ${item.answer || ""}
-        ${item.reason || ""}
-      `.toLowerCase();
+          const text = `
+            ${item.exam || ""}
+            ${item.subject || ""}
+            ${getTextFromHtml(
+              item.question || ""
+            )}
+            ${getTextFromHtml(
+              optionsText
+            )}
+            ${getTextFromHtml(
+              item.answer || ""
+            )}
+            ${getTextFromHtml(
+              item.reason || ""
+            )}
+          `.toLowerCase();
 
-      return text.includes(searchText);
-    });
-  }, [questions, search]);
+          return text.includes(
+            searchText
+          );
+        }
+      );
+    }, [questions, search]);
 
   /* ==========================================================
      OPEN EDITOR
   ========================================================== */
 
-  const openEditor = (question) => {
+  const openEditor = (
+    question
+  ) => {
     const normalizedOptions =
-      Array.isArray(question.options)
-        ? question.options.map((option) =>
-            normalizeRichContent(
-              option || ""
-            )
+      Array.isArray(
+        question.options
+      )
+        ? question.options.map(
+            (option) =>
+              normalizeRichContent(
+                option || ""
+              )
           )
         : ["", "", "", ""];
 
-    /*
-     * IMPORTANT:
-     *
-     * Normalize the question when opening it.
-     *
-     * This fixes existing content such as:
-     *
-     * The reading&nbsp;&nbsp;above
-     *
-     * and preserves existing <strong>, <sup>,
-     * <sub>, <br>, etc.
-     */
     const normalizedQuestion =
       normalizeRichContent(
         question.question || ""
@@ -496,10 +670,11 @@ const QuestionsAdmin = () => {
       reason:
         normalizedReason,
 
-      answer:
-        String(
-          question.answer || ""
-        ).trim().toUpperCase(),
+      answer: String(
+        question.answer || ""
+      )
+        .trim()
+        .toUpperCase(),
     });
   };
 
@@ -523,16 +698,18 @@ const QuestionsAdmin = () => {
     field,
     value
   ) => {
-    setEditingQuestion((previous) => {
-      if (!previous) {
-        return previous;
-      }
+    setEditingQuestion(
+      (previous) => {
+        if (!previous) {
+          return previous;
+        }
 
-      return {
-        ...previous,
-        [field]: value,
-      };
-    });
+        return {
+          ...previous,
+          [field]: value,
+        };
+      }
+    );
   };
 
   /* ==========================================================
@@ -543,22 +720,26 @@ const QuestionsAdmin = () => {
     index,
     value
   ) => {
-    setEditingQuestion((previous) => {
-      if (!previous) {
-        return previous;
+    setEditingQuestion(
+      (previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        const options = [
+          ...(previous.options ||
+            []),
+        ];
+
+        options[index] =
+          value;
+
+        return {
+          ...previous,
+          options,
+        };
       }
-
-      const options = [
-        ...(previous.options || []),
-      ];
-
-      options[index] = value;
-
-      return {
-        ...previous,
-        options,
-      };
-    });
+    );
   };
 
   /* ==========================================================
@@ -566,235 +747,227 @@ const QuestionsAdmin = () => {
   ========================================================== */
 
   const addOption = () => {
-    setEditingQuestion((previous) => {
-      if (!previous) {
-        return previous;
+    setEditingQuestion(
+      (previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+
+          options: [
+            ...(previous.options ||
+              []),
+            "",
+          ],
+        };
       }
-
-      return {
-        ...previous,
-
-        options: [
-          ...(previous.options || []),
-          "",
-        ],
-      };
-    });
+    );
   };
 
   /* ==========================================================
      REMOVE OPTION
   ========================================================== */
 
-  const removeOption = (index) => {
-    setEditingQuestion((previous) => {
-      if (!previous) {
-        return previous;
-      }
+  const removeOption = (
+    index
+  ) => {
+    setEditingQuestion(
+      (previous) => {
+        if (!previous) {
+          return previous;
+        }
 
-      const options = [
-        ...(previous.options || []),
-      ];
+        const options = [
+          ...(previous.options ||
+            []),
+        ];
 
-      options.splice(index, 1);
-
-      let answer =
-        previous.answer || "";
-
-      const removedLetter =
-        String.fromCharCode(
-          65 + index
+        options.splice(
+          index,
+          1
         );
 
-      if (
-        answer === removedLetter
-      ) {
-        answer = "";
-      }
+        let answer =
+          previous.answer ||
+          "";
 
-      /*
-       * If an option after the removed
-       * option was the correct answer,
-       * shift the letter down.
-       */
-      const answerIndex =
-        answer
-          ? answer.charCodeAt(0) - 65
-          : -1;
-
-      if (
-        answerIndex > index
-      ) {
-        answer =
+        const removedLetter =
           String.fromCharCode(
-            answer.charCodeAt(0) - 1
+            65 + index
           );
-      }
 
-      return {
-        ...previous,
-        options,
-        answer,
-      };
-    });
+        if (
+          answer ===
+          removedLetter
+        ) {
+          answer = "";
+        }
+
+        const answerIndex =
+          answer
+            ? answer.charCodeAt(
+                0
+              ) - 65
+            : -1;
+
+        if (
+          answerIndex >
+          index
+        ) {
+          answer =
+            String.fromCharCode(
+              answer.charCodeAt(
+                0
+              ) - 1
+            );
+        }
+
+        return {
+          ...previous,
+          options,
+          answer,
+        };
+      }
+    );
   };
 
   /* ==========================================================
      SAVE QUESTION
   ========================================================== */
 
-  const saveQuestion = async () => {
-    if (!editingQuestion?.id) {
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      /*
-       * Clean question HTML.
-       */
-      const cleanedQuestion =
-        cleanRichContent(
-          editingQuestion.question ||
-            ""
-        );
-
-      /*
-       * Clean options.
-       */
-      const cleanedOptions = (
-        editingQuestion.options || []
-      ).map((option) =>
-        cleanRichContent(
-          option || ""
-        )
-      );
-
-      /*
-       * Clean reason.
-       */
-      const cleanedReason =
-        cleanRichContent(
-          editingQuestion.reason ||
-            ""
-        );
-
-      /*
-       * Validate question.
-       */
-      const questionText =
-        getTextFromHtml(
-          cleanedQuestion
-        ).trim();
-
-      if (!questionText) {
-        alert(
-          "Please enter the question."
-        );
-
-        setSaving(false);
-
-        return;
-      }
-
-      /*
-       * Validate options.
-       */
-      const emptyOption =
-        cleanedOptions.some(
-          (option) =>
-            !getTextFromHtml(
-              option
-            ).trim()
-        );
-
-      if (emptyOption) {
-        alert(
-          "Please fill all answer options."
-        );
-
-        setSaving(false);
-
-        return;
-      }
-
-      /*
-       * Normalize answer.
-       */
-      const answer =
-        String(
-          editingQuestion.answer ||
-            ""
-        )
-          .trim()
-          .toUpperCase();
-
+  const saveQuestion =
+    async () => {
       if (
-        !/^[A-Z]$/.test(answer)
+        !editingQuestion?.id
       ) {
-        alert(
-          "Please select a valid correct answer."
-        );
-
-        setSaving(false);
-
         return;
       }
 
-      /*
-       * IMPORTANT:
-       *
-       * Reason is included here.
-       *
-       * Your old save function did not
-       * include reason, so editing could
-       * lose the explanation.
-       */
-      const payload = {
-        exam: String(
-          editingQuestion.exam ||
-            ""
-        ).trim(),
+      try {
+        setSaving(true);
 
-        subject: String(
-          editingQuestion.subject ||
-            ""
-        ).trim(),
+        const cleanedQuestion =
+          cleanRichContent(
+            editingQuestion.question ||
+              ""
+          );
 
-        question:
-          cleanedQuestion,
+        const cleanedOptions =
+          (
+            editingQuestion.options ||
+            []
+          ).map(
+            (option) =>
+              cleanRichContent(
+                option || ""
+              )
+          );
 
-        options:
-          cleanedOptions,
+        const cleanedReason =
+          cleanRichContent(
+            editingQuestion.reason ||
+              ""
+          );
 
-        answer,
+        const questionText =
+          getTextFromHtml(
+            cleanedQuestion
+          ).trim();
 
-        reason:
-          cleanedReason,
+        if (!questionText) {
+          alert(
+            "Please enter the question."
+          );
 
-        image:
-          editingQuestion.image ||
-          null,
-      };
+          setSaving(false);
 
-      /*
-       * Only send active if the field
-       * exists on the question.
-       */
-      if (
-        Object.prototype.hasOwnProperty.call(
-          editingQuestion,
-          "active"
-        )
-      ) {
-        payload.active =
-          editingQuestion.active !==
-          false;
-      }
+          return;
+        }
 
-      const { data, error } =
-        await supabase
+        const emptyOption =
+          cleanedOptions.some(
+            (option) =>
+              !getTextFromHtml(
+                option
+              ).trim()
+          );
+
+        if (emptyOption) {
+          alert(
+            "Please fill all answer options."
+          );
+
+          setSaving(false);
+
+          return;
+        }
+
+        const answer =
+          String(
+            editingQuestion.answer ||
+              ""
+          )
+            .trim()
+            .toUpperCase();
+
+        if (
+          !/^[A-Z]$/.test(
+            answer
+          )
+        ) {
+          alert(
+            "Please select a valid correct answer."
+          );
+
+          setSaving(false);
+
+          return;
+        }
+
+        const payload = {
+          exam: String(
+            editingQuestion.exam ||
+              ""
+          ).trim(),
+
+          subject: String(
+            editingQuestion.subject ||
+              ""
+          ).trim(),
+
+          question:
+            cleanedQuestion,
+
+          options:
+            cleanedOptions,
+
+          answer,
+
+          reason:
+            cleanedReason,
+
+          image:
+            editingQuestion.image ||
+            null,
+        };
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            editingQuestion,
+            "active"
+          )
+        ) {
+          payload.active =
+            editingQuestion.active !==
+            false;
+        }
+
+        const {
+          data,
+          error,
+        } = await supabase
           .from("cbt_questions")
           .update(payload)
           .eq(
@@ -804,42 +977,38 @@ const QuestionsAdmin = () => {
           .select()
           .single();
 
-      if (error) {
-        throw error;
+        if (error) {
+          throw error;
+        }
+
+        setQuestions(
+          (previous) =>
+            previous.map(
+              (item) =>
+                item.id ===
+                editingQuestion.id
+                  ? data
+                  : item
+            )
+        );
+
+        setEditingQuestion(
+          null
+        );
+      } catch (error) {
+        console.error(
+          "Update Question Error:",
+          error
+        );
+
+        alert(
+          error?.message ||
+            "Failed to update question."
+        );
+      } finally {
+        setSaving(false);
       }
-
-      /*
-       * Update local state with exactly
-       * what Supabase returned.
-       */
-      setQuestions((previous) =>
-        previous.map((item) =>
-          item.id ===
-          editingQuestion.id
-            ? data
-            : item
-        )
-      );
-
-      /*
-       * Close editor only AFTER successful
-       * database update.
-       */
-      setEditingQuestion(null);
-    } catch (error) {
-      console.error(
-        "Update Question Error:",
-        error
-      );
-
-      alert(
-        error?.message ||
-          "Failed to update question."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+    };
 
   /* ==========================================================
      RENDER
@@ -879,8 +1048,6 @@ const QuestionsAdmin = () => {
             </p>
           </div>
 
-          {/* SEARCH */}
-
           <div className="relative w-full lg:w-[360px]">
 
             <Search
@@ -893,7 +1060,9 @@ const QuestionsAdmin = () => {
               placeholder="Search questions..."
               value={search}
               onChange={(e) =>
-                setSearch(e.target.value)
+                setSearch(
+                  e.target.value
+                )
               }
               className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-400/30 focus:bg-white/[0.05]"
             />
@@ -908,7 +1077,9 @@ const QuestionsAdmin = () => {
 
           <StatCard
             label="Total Questions"
-            value={questions.length}
+            value={
+              questions.length
+            }
             icon={Sigma}
           />
 
@@ -917,7 +1088,8 @@ const QuestionsAdmin = () => {
             value={
               questions.filter(
                 (item) =>
-                  item.active !== false
+                  item.active !==
+                  false
               ).length
             }
             icon={CheckCircle2}
@@ -928,7 +1100,8 @@ const QuestionsAdmin = () => {
             value={
               questions.filter(
                 (item) =>
-                  item.active === false
+                  item.active ===
+                  false
               ).length
             }
             icon={EyeOff}
@@ -953,7 +1126,8 @@ const QuestionsAdmin = () => {
             </div>
 
           </div>
-        ) : filteredQuestions.length === 0 ? (
+        ) : filteredQuestions.length ===
+          0 ? (
           <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/[0.02] p-14 text-center">
 
             <Sigma
@@ -989,13 +1163,17 @@ const QuestionsAdmin = () => {
                     )
                   }
                   onToggleActive={() =>
-                    toggleActive(item)
+                    toggleActive(
+                      item
+                    )
                   }
                   deleting={
-                    deleting === item.id
+                    deleting ===
+                    item.id
                   }
                   activating={
-                    activating === item.id
+                    activating ===
+                    item.id
                   }
                 />
               )
@@ -1006,19 +1184,23 @@ const QuestionsAdmin = () => {
 
       </div>
 
-      {/* EDIT MODAL */}
-
       {editingQuestion && (
         <EditQuestionModal
-          question={editingQuestion}
+          question={
+            editingQuestion
+          }
           saving={saving}
           onClose={closeEditor}
           onSave={saveQuestion}
           onFieldChange={
             updateEditingField
           }
-          onOptionChange={updateOption}
-          onAddOption={addOption}
+          onOptionChange={
+            updateOption
+          }
+          onAddOption={
+            addOption
+          }
           onRemoveOption={
             removeOption
           }
@@ -1067,16 +1249,16 @@ const QuestionCard = ({
 
         <div className="min-w-0 flex-1">
 
-          {/* BADGES */}
-
           <div className="mb-4 flex flex-wrap items-center gap-2">
 
             <span className="rounded-full bg-blue-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-blue-400">
-              {item.exam || "Exam"}
+              {item.exam ||
+                "Exam"}
             </span>
 
             <span className="rounded-full bg-purple-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-purple-400">
-              {item.subject || "Subject"}
+              {item.subject ||
+                "Subject"}
             </span>
 
             <span
@@ -1093,8 +1275,6 @@ const QuestionCard = ({
 
           </div>
 
-          {/* QUESTION */}
-
           <div className="text-lg font-bold leading-8 text-white">
 
             <span className="mr-2 text-blue-400">
@@ -1102,14 +1282,14 @@ const QuestionCard = ({
             </span>
 
             <RichContent
-              content={item.question}
+              content={
+                item.question
+              }
             />
 
           </div>
 
         </div>
-
-        {/* ACTIONS */}
 
         <div className="flex shrink-0 items-start gap-2">
 
@@ -1124,8 +1304,12 @@ const QuestionCard = ({
 
           <button
             type="button"
-            onClick={onToggleActive}
-            disabled={activating}
+            onClick={
+              onToggleActive
+            }
+            disabled={
+              activating
+            }
             className={`flex h-10 w-10 items-center justify-center rounded-xl border transition ${
               isActive
                 ? "border-amber-400/10 bg-amber-400/[0.06] text-amber-400 hover:bg-amber-400/10"
@@ -1168,20 +1352,23 @@ const QuestionCard = ({
 
       </div>
 
-      {/* OPTIONS */}
-
       <div className="mt-6 grid gap-3 md:grid-cols-2">
 
         {(item.options || []).map(
-          (option, optionIndex) => {
+          (
+            option,
+            optionIndex
+          ) => {
             const letter =
               String.fromCharCode(
-                65 + optionIndex
+                65 +
+                  optionIndex
               );
 
             const isCorrect =
               String(
-                item.answer || ""
+                item.answer ||
+                  ""
               )
                 .trim()
                 .toUpperCase() ===
@@ -1189,7 +1376,9 @@ const QuestionCard = ({
 
             return (
               <div
-                key={optionIndex}
+                key={
+                  optionIndex
+                }
                 className={`rounded-xl border p-4 text-sm ${
                   isCorrect
                     ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300"
@@ -1204,9 +1393,13 @@ const QuestionCard = ({
                   </span>
 
                   <div className="min-w-0 flex-1">
+
                     <RichContent
-                      content={option}
+                      content={
+                        option
+                      }
                     />
+
                   </div>
 
                   {isCorrect && (
@@ -1225,8 +1418,6 @@ const QuestionCard = ({
 
       </div>
 
-      {/* ANSWER */}
-
       <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
 
         <span className="font-black text-slate-600">
@@ -1234,12 +1425,11 @@ const QuestionCard = ({
         </span>
 
         <span className="rounded-lg bg-emerald-400/10 px-3 py-1.5 font-black text-emerald-400">
-          {item.answer || "Not set"}
+          {item.answer ||
+            "Not set"}
         </span>
 
       </div>
-
-      {/* REASON */}
 
       {item.reason && (
         <div className="mt-5 rounded-xl border border-white/5 bg-white/[0.02] p-4">
@@ -1249,15 +1439,17 @@ const QuestionCard = ({
           </p>
 
           <div className="text-sm leading-7 text-slate-400">
+
             <RichContent
-              content={item.reason}
+              content={
+                item.reason
+              }
             />
+
           </div>
 
         </div>
       )}
-
-      {/* IMAGE */}
 
       {item.image && (
         <div className="mt-5">
@@ -1300,53 +1492,38 @@ const EditQuestionModal = ({
   const isActive =
     question.active !== false;
 
-  /*
-   * IMPORTANT:
-   *
-   * Whenever a different question is opened,
-   * put its HTML into the editor.
-   */
   useEffect(() => {
-    if (!questionEditorRef.current) {
+    if (
+      !questionEditorRef.current
+    ) {
       return;
     }
 
     const content =
-      normalizeRichContent(
-        question.question || ""
+      getEditorHtml(
+        question.question ||
+          ""
       );
 
-    if (
-      questionEditorRef.current
-        .innerHTML !== content
-    ) {
-      questionEditorRef.current.innerHTML =
-        content;
-    }
+    questionEditorRef.current.innerHTML =
+      content;
   }, [question.id]);
 
   useEffect(() => {
-    if (!reasonEditorRef.current) {
+    if (
+      !reasonEditorRef.current
+    ) {
       return;
     }
 
     const content =
-      normalizeRichContent(
+      getEditorHtml(
         question.reason || ""
       );
 
-    if (
-      reasonEditorRef.current
-        .innerHTML !== content
-    ) {
-      reasonEditorRef.current.innerHTML =
-        content;
-    }
+    reasonEditorRef.current.innerHTML =
+      content;
   }, [question.id]);
-
-  /* ==========================================================
-     EXEC COMMAND
-  ========================================================== */
 
   const runCommand = (
     command,
@@ -1370,11 +1547,9 @@ const EditQuestionModal = ({
     syncQuestionEditor();
   };
 
-  /* ==========================================================
-     INSERT HTML
-  ========================================================== */
-
-  const insertHTML = (html) => {
+  const insertHTML = (
+    html
+  ) => {
     const editor =
       questionEditorRef.current;
 
@@ -1393,88 +1568,69 @@ const EditQuestionModal = ({
     syncQuestionEditor();
   };
 
-  /* ==========================================================
-     SYNC QUESTION EDITOR
-  ========================================================== */
+  const syncQuestionEditor =
+    () => {
+      if (
+        !questionEditorRef.current
+      ) {
+        return;
+      }
 
-  const syncQuestionEditor = () => {
-    if (
-      !questionEditorRef.current
-    ) {
-      return;
-    }
+      let html =
+        questionEditorRef
+          .current
+          .innerHTML;
 
-    let html =
-      questionEditorRef.current
-        .innerHTML;
+      html =
+        convertCaretPowers(
+          html
+        );
 
-    /*
-     * Automatically turn 2^4 into 2⁴.
-     */
-    html = convertCaretPowers(html);
+      if (
+        questionEditorRef.current
+          .innerHTML !== html
+      ) {
+        questionEditorRef.current.innerHTML =
+          html;
+      }
 
-    /*
-     * Put transformed HTML back into
-     * editor if necessary.
-     */
-    if (
-      questionEditorRef.current
-        .innerHTML !== html
-    ) {
-      questionEditorRef.current.innerHTML =
-        html;
-    }
+      onFieldChange(
+        "question",
+        html
+      );
+    };
 
-    onFieldChange(
-      "question",
-      html
-    );
-  };
-
-  /* ==========================================================
-     QUESTION INPUT
-  ========================================================== */
-
-  const handleQuestionInput = () => {
-    syncQuestionEditor();
-  };
-
-  /* ==========================================================
-     REASON INPUT
-  ========================================================== */
-
-  const handleReasonInput = () => {
-    if (!reasonEditorRef.current) {
-      return;
-    }
-
-    onFieldChange(
-      "reason",
-      reasonEditorRef.current
-        .innerHTML
-    );
-  };
-
-  /* ==========================================================
-     AUTO POWER
-  ========================================================== */
-
-  const handleQuestionKeyUp = () => {
-    /*
-     * Run after the browser has updated
-     * contentEditable.
-     */
-    setTimeout(() => {
+  const handleQuestionInput =
+    () => {
       syncQuestionEditor();
-    }, 0);
-  };
+    };
+
+  const handleReasonInput =
+    () => {
+      if (
+        !reasonEditorRef.current
+      ) {
+        return;
+      }
+
+      onFieldChange(
+        "reason",
+        reasonEditorRef.current
+          .innerHTML
+      );
+    };
+
+  const handleQuestionKeyUp =
+    () => {
+      setTimeout(() => {
+        syncQuestionEditor();
+      }, 0);
+    };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md sm:p-8">
 
       <div className="my-4 w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-[0_30px_120px_rgba(0,0,0,0.6)] sm:my-8">
-
-        {/* HEADER */}
 
         <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur-xl sm:px-7">
 
@@ -1501,17 +1657,15 @@ const EditQuestionModal = ({
 
         </div>
 
-        {/* BODY */}
-
         <div className="max-h-[calc(100vh-150px)] overflow-y-auto p-5 sm:p-7">
-
-          {/* EXAM + SUBJECT */}
 
           <div className="grid gap-4 md:grid-cols-2">
 
             <Field
               label="Exam"
-              value={question.exam || ""}
+              value={
+                question.exam || ""
+              }
               onChange={(value) =>
                 onFieldChange(
                   "exam",
@@ -1524,7 +1678,8 @@ const EditQuestionModal = ({
             <Field
               label="Subject"
               value={
-                question.subject || ""
+                question.subject ||
+                ""
               }
               onChange={(value) =>
                 onFieldChange(
@@ -1548,12 +1703,10 @@ const EditQuestionModal = ({
               </label>
 
               <span className="text-[10px] font-bold text-blue-400">
-                2^4 → 2⁴ automatically
+                2^4 → 2⁴
               </span>
 
             </div>
-
-            {/* TOOLBAR */}
 
             <div className="flex flex-wrap gap-1 rounded-t-2xl border border-white/10 bg-white/[0.03] p-2">
 
@@ -1561,7 +1714,9 @@ const EditQuestionModal = ({
                 icon={Bold}
                 title="Bold"
                 onClick={() =>
-                  runCommand("bold")
+                  runCommand(
+                    "bold"
+                  )
                 }
               />
 
@@ -1569,7 +1724,9 @@ const EditQuestionModal = ({
                 icon={Italic}
                 title="Italic"
                 onClick={() =>
-                  runCommand("italic")
+                  runCommand(
+                    "italic"
+                  )
                 }
               />
 
@@ -1586,7 +1743,9 @@ const EditQuestionModal = ({
               <ToolbarDivider />
 
               <ToolbarButton
-                icon={Superscript}
+                icon={
+                  Superscript
+                }
                 title="Superscript"
                 onClick={() =>
                   runCommand(
@@ -1596,7 +1755,9 @@ const EditQuestionModal = ({
               />
 
               <ToolbarButton
-                icon={Subscript}
+                icon={
+                  Subscript
+                }
                 title="Subscript"
                 onClick={() =>
                   runCommand(
@@ -1667,10 +1828,10 @@ const EditQuestionModal = ({
 
             </div>
 
-            {/* EDITOR */}
-
             <div
-              ref={questionEditorRef}
+              ref={
+                questionEditorRef
+              }
               contentEditable
               suppressContentEditableWarning
               onInput={
@@ -1679,17 +1840,17 @@ const EditQuestionModal = ({
               onKeyUp={
                 handleQuestionKeyUp
               }
-              className="min-h-[150px] rounded-b-2xl border-x border-b border-white/10 bg-white/[0.025] p-5 text-[15px] leading-8 text-white outline-none transition focus:border-blue-400/30"
+              className="min-h-[150px] rounded-b-2xl border-x border-b border-white/10 bg-white/[0.025] p-5 text-[15px] leading-8 text-white outline-none transition focus:border-blue-400/30 [&_sup]:align-super [&_sup]:text-[0.7em] [&_sub]:align-sub [&_sub]:text-[0.7em]"
             />
 
             <p className="mt-2 text-[11px] leading-5 text-slate-600">
-              Type mathematical powers normally:
+              You can type:
               <span className="mx-1 text-slate-400">
-                2^4
+                cm^3
               </span>
-              becomes
+              and it will display as
               <span className="mx-1 text-slate-400">
-                2⁴
+                cm³
               </span>
               automatically.
             </p>
@@ -1716,7 +1877,9 @@ const EditQuestionModal = ({
 
               <button
                 type="button"
-                onClick={onAddOption}
+                onClick={
+                  onAddOption
+                }
                 className="inline-flex items-center gap-2 rounded-xl border border-blue-400/15 bg-blue-400/10 px-3.5 py-2 text-xs font-black text-blue-400 transition hover:bg-blue-400/15"
               >
                 <Plus size={15} />
@@ -1727,11 +1890,16 @@ const EditQuestionModal = ({
 
             <div className="space-y-3">
 
-              {(question.options || []).map(
-                (option, index) => {
+              {(question.options ||
+                []).map(
+                (
+                  option,
+                  index
+                ) => {
                   const letter =
                     String.fromCharCode(
-                      65 + index
+                      65 +
+                        index
                     );
 
                   const isCorrect =
@@ -1746,11 +1914,21 @@ const EditQuestionModal = ({
                   return (
                     <OptionEditor
                       key={`${question.id}-${index}`}
-                      index={index}
-                      letter={letter}
-                      value={option}
-                      isCorrect={isCorrect}
-                      onChange={(value) =>
+                      index={
+                        index
+                      }
+                      letter={
+                        letter
+                      }
+                      value={
+                        option
+                      }
+                      isCorrect={
+                        isCorrect
+                      }
+                      onChange={(
+                        value
+                      ) =>
                         onOptionChange(
                           index,
                           value
@@ -1785,11 +1963,15 @@ const EditQuestionModal = ({
             </label>
 
             <div
-              ref={reasonEditorRef}
+              ref={
+                reasonEditorRef
+              }
               contentEditable
               suppressContentEditableWarning
-              onInput={handleReasonInput}
-              className="min-h-[120px] rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-sm leading-7 text-white outline-none focus:border-blue-400/30"
+              onInput={
+                handleReasonInput
+              }
+              className="min-h-[120px] rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-sm leading-7 text-white outline-none focus:border-blue-400/30 [&_sup]:align-super [&_sup]:text-[0.7em] [&_sub]:align-sub [&_sub]:text-[0.7em]"
             />
 
             <p className="mt-2 text-[11px] text-slate-600">
@@ -1817,7 +1999,8 @@ const EditQuestionModal = ({
               <input
                 type="text"
                 value={
-                  question.image || ""
+                  question.image ||
+                  ""
                 }
                 onChange={(e) =>
                   onFieldChange(
@@ -1833,7 +2016,9 @@ const EditQuestionModal = ({
 
             {question.image && (
               <img
-                src={question.image}
+                src={
+                  question.image
+                }
                 alt="Question preview"
                 className="mt-4 max-h-64 rounded-2xl border border-white/10 object-contain"
               />
@@ -1889,8 +2074,12 @@ const EditQuestionModal = ({
 
               <button
                 type="button"
-                onClick={onToggleActive}
-                disabled={activating}
+                onClick={
+                  onToggleActive
+                }
+                disabled={
+                  activating
+                }
                 className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition ${
                   isActive
                     ? "border border-red-400/15 bg-red-400/10 text-red-400 hover:bg-red-400/15"
@@ -1905,12 +2094,16 @@ const EditQuestionModal = ({
                   />
                 ) : isActive ? (
                   <>
-                    <EyeOff size={15} />
+                    <EyeOff
+                      size={15}
+                    />
                     Deactivate
                   </>
                 ) : (
                   <>
-                    <Power size={15} />
+                    <Power
+                      size={15}
+                    />
                     Activate
                   </>
                 )}
@@ -1981,43 +2174,38 @@ const OptionEditor = ({
   onRemove,
   onSetCorrect,
 }) => {
-  const editorRef = useRef(null);
+  const editorRef =
+    useRef(null);
 
-  /*
-   * Load option HTML when the option changes
-   * or a different question is opened.
-   */
   useEffect(() => {
     if (!editorRef.current) {
       return;
     }
 
     const normalized =
-      normalizeRichContent(
+      getEditorHtml(
         value || ""
       );
 
-    if (
-      editorRef.current.innerHTML !==
-      normalized
-    ) {
-      editorRef.current.innerHTML =
-        normalized;
-    }
+    editorRef.current.innerHTML =
+      normalized;
   }, [value]);
 
-  const handleInput = (event) => {
+  const handleInput = (
+    event
+  ) => {
     let html =
-      event.currentTarget.innerHTML;
+      event.currentTarget
+        .innerHTML;
 
-    /*
-     * Automatic power conversion.
-     */
-    html = convertCaretPowers(html);
+    html =
+      convertCaretPowers(
+        html
+      );
 
     if (
-      event.currentTarget.innerHTML !==
-      html
+      event.currentTarget
+        .innerHTML !== html
     ) {
       event.currentTarget.innerHTML =
         html;
@@ -2026,7 +2214,9 @@ const OptionEditor = ({
     onChange(html);
   };
 
-  const format = (command) => {
+  const format = (
+    command
+  ) => {
     if (!editorRef.current) {
       return;
     }
@@ -2040,7 +2230,8 @@ const OptionEditor = ({
     );
 
     onChange(
-      editorRef.current.innerHTML
+      editorRef.current
+        .innerHTML
     );
   };
 
@@ -2055,11 +2246,11 @@ const OptionEditor = ({
 
       <div className="flex items-start gap-3">
 
-        {/* LETTER */}
-
         <button
           type="button"
-          onClick={onSetCorrect}
+          onClick={
+            onSetCorrect
+          }
           title="Set as correct answer"
           className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black transition ${
             isCorrect
@@ -2076,14 +2267,14 @@ const OptionEditor = ({
 
         <div className="min-w-0 flex-1">
 
-          {/* MINI TOOLBAR */}
-
           <div className="mb-2 flex gap-1">
 
             <button
               type="button"
               onClick={() =>
-                format("bold")
+                format(
+                  "bold"
+                )
               }
               className="rounded-lg p-1.5 text-slate-500 hover:bg-white/10 hover:text-white"
             >
@@ -2093,7 +2284,9 @@ const OptionEditor = ({
             <button
               type="button"
               onClick={() =>
-                format("italic")
+                format(
+                  "italic"
+                )
               }
               className="rounded-lg p-1.5 text-slate-500 hover:bg-white/10 hover:text-white"
             >
@@ -2103,7 +2296,9 @@ const OptionEditor = ({
             <button
               type="button"
               onClick={() =>
-                format("underline")
+                format(
+                  "underline"
+                )
               }
               className="rounded-lg p-1.5 text-slate-500 hover:bg-white/10 hover:text-white"
             >
@@ -2113,44 +2308,52 @@ const OptionEditor = ({
             <button
               type="button"
               onClick={() =>
-                format("superscript")
+                format(
+                  "superscript"
+                )
               }
               title="Superscript"
               className="rounded-lg p-1.5 text-slate-500 hover:bg-white/10 hover:text-white"
             >
-              <Superscript size={13} />
+              <Superscript
+                size={13}
+              />
             </button>
 
             <button
               type="button"
               onClick={() =>
-                format("subscript")
+                format(
+                  "subscript"
+                )
               }
               title="Subscript"
               className="rounded-lg p-1.5 text-slate-500 hover:bg-white/10 hover:text-white"
             >
-              <Subscript size={13} />
+              <Subscript
+                size={13}
+              />
             </button>
 
           </div>
-
-          {/* EDITABLE OPTION */}
 
           <div
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            onInput={handleInput}
-            className="min-h-[45px] rounded-xl border border-white/5 bg-black/10 p-3 text-sm leading-6 text-white outline-none focus:border-blue-400/20"
+            onInput={
+              handleInput
+            }
+            className="min-h-[45px] rounded-xl border border-white/5 bg-black/10 p-3 text-sm leading-6 text-white outline-none focus:border-blue-400/20 [&_sup]:align-super [&_sup]:text-[0.7em] [&_sub]:align-sub [&_sub]:text-[0.7em]"
           />
 
         </div>
 
-        {/* REMOVE */}
-
         <button
           type="button"
-          onClick={onRemove}
+          onClick={
+            onRemove
+          }
           className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-600 transition hover:bg-red-400/10 hover:text-red-400"
           title="Remove option"
         >
@@ -2188,9 +2391,10 @@ const ToolbarButton = ({
    TOOLBAR DIVIDER
 ============================================================= */
 
-const ToolbarDivider = () => (
-  <div className="mx-1 h-8 w-px bg-white/10" />
-);
+const ToolbarDivider =
+  () => (
+    <div className="mx-1 h-8 w-px bg-white/10" />
+  );
 
 /* =============================================================
    FIELD
@@ -2213,9 +2417,13 @@ const Field = ({
         type="text"
         value={value}
         onChange={(e) =>
-          onChange(e.target.value)
+          onChange(
+            e.target.value
+          )
         }
-        placeholder={placeholder}
+        placeholder={
+          placeholder
+        }
         className="w-full rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-700 focus:border-blue-400/30"
       />
 
@@ -2271,7 +2479,11 @@ const StatCard = ({
 const RichContent = ({
   content,
 }) => {
-  if (!content) {
+  if (
+    content === null ||
+    content === undefined ||
+    content === ""
+  ) {
     return (
       <span className="text-slate-600">
         —
@@ -2279,35 +2491,31 @@ const RichContent = ({
     );
   }
 
+  /*
+   * ALWAYS normalize before deciding
+   * whether this is HTML.
+   *
+   * This is the important fix.
+   */
   const normalized =
     normalizeRichContent(
-      content
+      String(content)
     );
 
-  /*
-   * If there is no HTML, render as
-   * normal text.
-   */
-  const looksLikeHtml =
-    /<\/?[a-z][\s\S]*>/i.test(
-      String(normalized)
-    );
-
-  if (!looksLikeHtml) {
+  if (!normalized) {
     return (
-      <span className="whitespace-pre-wrap">
-        {decodeHtml(
-          String(normalized)
-        )}
+      <span className="text-slate-600">
+        —
       </span>
     );
   }
 
   return (
     <span
-      className="rich-content [&_sup]:align-super [&_sup]:text-[0.7em] [&_sub]:align-sub [&_sub]:text-[0.7em]"
+      className="rich-content [&_sup]:align-super [&_sup]:text-[0.7em] [&_sub]:align-sub [&_sub]:text-[0.7em] [&_br]:leading-none"
       dangerouslySetInnerHTML={{
-        __html: normalized,
+        __html:
+          normalized,
       }}
     />
   );

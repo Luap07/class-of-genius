@@ -51,19 +51,10 @@ const normalize = (value) =>
 const shuffleQuestions = (questions) => {
   const shuffled = [...questions];
 
-  for (
-    let i = shuffled.length - 1;
-    i > 0;
-    i -= 1
-  ) {
-    const j = Math.floor(
-      Math.random() * (i + 1)
-    );
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
 
-    [
-      shuffled[i],
-      shuffled[j],
-    ] = [
+    [shuffled[i], shuffled[j]] = [
       shuffled[j],
       shuffled[i],
     ];
@@ -118,20 +109,16 @@ const SUBJECT_GROUPS = {
    CANONICAL SUBJECT
 ============================================================================ */
 
-const getCanonicalSubject = (
-  subject
-) => {
+const getCanonicalSubject = (subject) => {
   const value = normalize(subject);
 
   if (!value) {
     return "";
   }
 
-  for (
-    const [canonical, aliases] of Object.entries(
-      SUBJECT_GROUPS
-    )
-  ) {
+  for (const [canonical, aliases] of Object.entries(
+    SUBJECT_GROUPS
+  )) {
     if (aliases.includes(value)) {
       return canonical;
     }
@@ -144,11 +131,8 @@ const getCanonicalSubject = (
    DISPLAY NAME
 ============================================================================ */
 
-const getSubjectDisplayName = (
-  subject
-) => {
-  const canonical =
-    getCanonicalSubject(subject);
+const getSubjectDisplayName = (subject) => {
+  const canonical = getCanonicalSubject(subject);
 
   const names = {
     english: "English Language",
@@ -170,10 +154,7 @@ const getSubjectDisplayName = (
    SUBJECT MATCH
 ============================================================================ */
 
-const subjectsMatch = (
-  first,
-  second
-) => {
+const subjectsMatch = (first, second) => {
   const firstCanonical =
     getCanonicalSubject(first);
 
@@ -183,8 +164,7 @@ const subjectsMatch = (
   return (
     firstCanonical !== "" &&
     secondCanonical !== "" &&
-    firstCanonical ===
-      secondCanonical
+    firstCanonical === secondCanonical
   );
 };
 
@@ -192,9 +172,7 @@ const subjectsMatch = (
    QUESTION OPTIONS
 ============================================================================ */
 
-const getQuestionOptions = (
-  question
-) => {
+const getQuestionOptions = (question) => {
   if (!question) {
     return [];
   }
@@ -219,11 +197,7 @@ const getQuestionOptions = (
     );
   }
 
-  if (
-    Array.isArray(
-      question.options
-    )
-  ) {
+  if (Array.isArray(question.options)) {
     return question.options.filter(
       (option) =>
         option !== null &&
@@ -239,9 +213,7 @@ const getQuestionOptions = (
    CORRECT ANSWER
 ============================================================================ */
 
-const getCorrectAnswerValue = (
-  question
-) => {
+const getCorrectAnswerValue = (question) => {
   if (!question) {
     return "";
   }
@@ -260,13 +232,8 @@ const getCorrectAnswerValue = (
    STORAGE KEY
 ============================================================================ */
 
-const createStorageKey = (
-  exam,
-  subjects
-) => {
-  const subjectKey = [
-    ...subjects,
-  ]
+const createStorageKey = (exam, subjects) => {
+  const subjectKey = [...subjects]
     .map((subject) =>
       getCanonicalSubject(subject)
     )
@@ -279,19 +246,31 @@ const createStorageKey = (
 };
 
 /* ============================================================================
-   MATHEMATICAL TEXT RENDERER
+   MATHEMATICAL TEXT
 ============================================================================
 
-   Supported:
+   This renderer supports all of these:
 
-   2^4
+   999^2
+   999^{2}
    x^2
-   x^10
-   2^{10}
+   x^{10}
+   x^-2
    x^{-2}
    x^n
 
-   Also supports:
+   HTML:
+
+   <sup>2</sup>
+   <SUP>2</SUP>
+
+   HTML entities:
+
+   &sup2;
+   &sup3;
+   &sup1;
+
+   Fraction markup:
 
    <span class="math-fraction">
      <span>5</span>
@@ -316,23 +295,59 @@ const SUPERCHARS = {
   "=": "⁼",
   "(": "⁽",
   ")": "⁾",
-  "n": "ⁿ",
+  "a": "ᵃ",
+  "b": "ᵇ",
+  "c": "ᶜ",
+  "d": "ᵈ",
+  "e": "ᵉ",
+  "f": "ᶠ",
+  "g": "ᵍ",
+  "h": "ʰ",
   "i": "ⁱ",
+  "j": "ʲ",
+  "k": "ᵏ",
+  "l": "ˡ",
+  "m": "ᵐ",
+  "n": "ⁿ",
+  "o": "ᵒ",
+  "p": "ᵖ",
+  "r": "ʳ",
+  "s": "ˢ",
+  "t": "ᵗ",
+  "u": "ᵘ",
+  "v": "ᵛ",
+  "w": "ʷ",
+  "x": "ˣ",
+  "y": "ʸ",
+  "z": "ᶻ",
+};
+
+/* ============================================================================
+   HTML ENTITY CONVERSION
+============================================================================ */
+
+const convertMathEntities = (text) => {
+  return String(text ?? "")
+    .replace(/&sup1;|&#185;|&#xB9;/gi, "¹")
+    .replace(/&sup2;|&#178;|&#xB2;/gi, "²")
+    .replace(/&sup3;|&#179;|&#xB3;/gi, "³")
+    .replace(/&plusmn;|&#177;|&#xB1;/gi, "±")
+    .replace(/&minus;|&#8722;|&#x2212;/gi, "−")
+    .replace(/&times;|&#215;|&#xD7;/gi, "×")
+    .replace(/&divide;|&#247;|&#xF7;/gi, "÷")
+    .replace(/&nbsp;|&#160;/gi, " ");
 };
 
 /* ============================================================================
    SUPER SCRIPT
 ============================================================================ */
 
-const toSuperscript = (
-  value
-) => {
+const toSuperscript = (value) => {
   return String(value)
     .split("")
     .map(
       (character) =>
-        SUPERCHARS[character] ??
-        character
+        SUPERCHARS[character] ?? character
     )
     .join("");
 };
@@ -341,18 +356,44 @@ const toSuperscript = (
    POWER CONVERSION
 ============================================================================ */
 
-const convertPowers = (
-  text
-) => {
-  let value = String(
-    text ?? ""
+const convertPowers = (text) => {
+  let value = String(text ?? "");
+
+  /*
+   * Decode common HTML entities first.
+   */
+  value = convertMathEntities(value);
+
+  /*
+   * Convert HTML <sup>...</sup>.
+   *
+   * Example:
+   *
+   * 999<sup>2</sup>
+   *
+   * becomes:
+   *
+   * 999²
+   */
+
+  value = value.replace(
+    /<sup\b[^>]*>([\s\S]*?)<\/sup>/gi,
+    (_, exponent) =>
+      toSuperscript(
+        String(exponent)
+          .replace(/<[^>]+>/g, "")
+          .trim()
+      )
   );
 
   /*
-   * 2^{10}
+   * Convert markdown-style powers:
+   *
    * x^{2}
-   * a^{-2}
+   * 999^{10}
+   * x^{-2}
    */
+
   value = value.replace(
     /\^\{([^{}]+)\}/g,
     (_, exponent) =>
@@ -360,10 +401,14 @@ const convertPowers = (
   );
 
   /*
-   * 2^10
+   * Convert normal powers:
+   *
    * x^2
+   * x^10
+   * 999^2
    * a^-2
    */
+
   value = value.replace(
     /\^(-?\d+(?:\.\d+)?)/g,
     (_, exponent) =>
@@ -371,14 +416,23 @@ const convertPowers = (
   );
 
   /*
+   * Convert letter powers:
+   *
    * x^n
    * y^i
    */
+
   value = value.replace(
     /\^([A-Za-z])/g,
     (_, exponent) =>
       toSuperscript(exponent)
   );
+
+  /*
+   * Some question generators may produce
+   * Unicode superscript characters already.
+   * They are intentionally left untouched.
+   */
 
   return value;
 };
@@ -401,14 +455,7 @@ const MathText = ({
   const text = String(children);
 
   /*
-   * Database fraction markup.
-   *
-   * Example:
-   *
-   * <span class="math-fraction">
-   *   <span>5</span>
-   *   <span>2</span>
-   * </span>
+   * Fraction markup from the database.
    */
 
   const fractionPattern =
@@ -425,13 +472,10 @@ const MathText = ({
     null
   ) {
     /*
-     * Normal text before fraction.
+     * Text before fraction.
      */
 
-    if (
-      match.index >
-      lastIndex
-    ) {
+    if (match.index > lastIndex) {
       const normalText =
         text.slice(
           lastIndex,
@@ -442,9 +486,7 @@ const MathText = ({
         <React.Fragment
           key={`math-text-${lastIndex}`}
         >
-          {convertPowers(
-            normalText
-          )}
+          {convertPowers(normalText)}
         </React.Fragment>
       );
     }
@@ -456,21 +498,17 @@ const MathText = ({
     parts.push(
       <span
         key={`math-fraction-${match.index}`}
-        className="math-fraction"
+        className="math-fraction inline-flex flex-col items-center align-middle mx-1 leading-none"
         aria-label={`${match[1]} divided by ${match[2]}`}
       >
-        <span className="math-fraction-top">
-          {convertPowers(
-            match[1]
-          )}
+        <span className="math-fraction-top px-1">
+          {convertPowers(match[1])}
         </span>
 
-        <span className="math-fraction-line" />
+        <span className="math-fraction-line w-full border-t border-current my-0.5" />
 
-        <span className="math-fraction-bottom">
-          {convertPowers(
-            match[2]
-          )}
+        <span className="math-fraction-bottom px-1">
+          {convertPowers(match[2])}
         </span>
       </span>
     );
@@ -484,10 +522,7 @@ const MathText = ({
    * Remaining text.
    */
 
-  if (
-    lastIndex <
-    text.length
-  ) {
+  if (lastIndex < text.length) {
     parts.push(
       <React.Fragment
         key={`math-text-${lastIndex}`}
@@ -503,22 +538,16 @@ const MathText = ({
    * No fractions.
    */
 
-  if (
-    parts.length === 0
-  ) {
+  if (parts.length === 0) {
     return (
-      <span
-        className={className}
-      >
+      <span className={className}>
         {convertPowers(text)}
       </span>
     );
   }
 
   return (
-    <span
-      className={className}
-    >
+    <span className={className}>
       {parts}
     </span>
   );
@@ -529,8 +558,7 @@ const MathText = ({
 ============================================================================ */
 
 const CBTExam = () => {
-  const location =
-    useLocation();
+  const location = useLocation();
 
   const exam =
     location.state?.exam;
@@ -618,8 +646,7 @@ const CBTExam = () => {
     timeLeft,
     setTimeLeft,
   ] = useState(
-    EXAM_DURATION_MINUTES *
-      60
+    EXAM_DURATION_MINUTES * 60
   );
 
   /* ==========================================================================
@@ -653,276 +680,245 @@ const CBTExam = () => {
   useEffect(() => {
     let mounted = true;
 
-    const fetchQuestions =
-      async () => {
-        if (!exam) {
+    const fetchQuestions = async () => {
+      if (!exam) {
+        if (mounted) {
+          setLoading(false);
+        }
+
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        console.log(
+          "========================================"
+        );
+
+        console.log(
+          "STARTING CBT QUESTION LOAD"
+        );
+
+        console.log(
+          "EXAM:",
+          exam
+        );
+
+        console.log(
+          "SELECTED SUBJECTS:",
+          suppliedSubjects
+        );
+
+        console.log(
+          "========================================"
+        );
+
+        if (
+          suppliedSubjects.length ===
+          0
+        ) {
+          console.error(
+            "CBT ERROR: No subject was supplied."
+          );
+
           if (mounted) {
+            setQuestionsBySubject({});
+            setSelectedSubjects([]);
             setLoading(false);
           }
 
           return;
         }
 
-        try {
-          setLoading(true);
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("cbt_questions")
+          .select("*");
 
-          console.log(
-            "========================================"
+        if (error) {
+          throw error;
+        }
+
+        console.log(
+          "TOTAL QUESTIONS:",
+          data?.length || 0
+        );
+
+        if (!data || data.length === 0) {
+          if (mounted) {
+            setQuestionsBySubject({});
+            setSelectedSubjects([]);
+          }
+
+          return;
+        }
+
+        const normalizedExam =
+          normalize(exam);
+
+        const examQuestions =
+          data.filter(
+            (question) =>
+              normalize(
+                question.exam
+              ) === normalizedExam
           );
 
-          console.log(
-            "STARTING CBT QUESTION LOAD"
-          );
+        console.log(
+          `QUESTIONS FOR EXAM "${exam}":`,
+          examQuestions.length
+        );
 
-          console.log(
-            "EXAM:",
-            exam
-          );
+        const normalizedSelectedSubjects =
+          suppliedSubjects
+            .map((subject) =>
+              String(
+                subject ?? ""
+              ).trim()
+            )
+            .filter(Boolean);
 
-          console.log(
-            "SELECTED SUBJECTS:",
-            suppliedSubjects
-          );
+        const grouped = {};
 
-          console.log(
-            "========================================"
-          );
+        normalizedSelectedSubjects.forEach(
+          (selectedSubject) => {
+            const displaySubject =
+              getSubjectDisplayName(
+                selectedSubject
+              );
 
-          if (
-            suppliedSubjects.length ===
-            0
-          ) {
-            console.error(
-              "CBT ERROR: No subject was supplied."
+            const matchingQuestions =
+              examQuestions.filter(
+                (question) =>
+                  subjectsMatch(
+                    question.subject,
+                    selectedSubject
+                  )
+              );
+
+            const selectedQuestions =
+              shuffleQuestions(
+                matchingQuestions
+              ).slice(
+                0,
+                QUESTIONS_PER_SUBJECT
+              );
+
+            grouped[displaySubject] =
+              selectedQuestions;
+
+            console.log(
+              displaySubject,
+              selectedQuestions.length
             );
-
-            if (mounted) {
-              setQuestionsBySubject(
-                {}
-              );
-
-              setSelectedSubjects(
-                []
-              );
-
-              setLoading(false);
-            }
-
-            return;
           }
+        );
 
-          const {
-            data,
-            error,
-          } = await supabase
-            .from("cbt_questions")
-            .select("*");
-
-          if (error) {
-            throw error;
-          }
-
-          console.log(
-            "TOTAL QUESTIONS:",
-            data?.length || 0
-          );
-
-          if (
-            !data ||
-            data.length === 0
-          ) {
-            if (mounted) {
-              setQuestionsBySubject(
-                {}
-              );
-
-              setSelectedSubjects(
-                []
-              );
-            }
-
-            return;
-          }
-
-          const normalizedExam =
-            normalize(exam);
-
-          const examQuestions =
-            data.filter(
-              (question) =>
-                normalize(
-                  question.exam
-                ) ===
-                normalizedExam
-            );
-
-          console.log(
-            `QUESTIONS FOR EXAM "${exam}":`,
-            examQuestions.length
-          );
-
-          const normalizedSelectedSubjects =
-            suppliedSubjects
-              .map((subject) =>
-                String(
-                  subject ?? ""
-                ).trim()
+        const finalSubjects =
+          normalizedSelectedSubjects
+            .map((subject) =>
+              getSubjectDisplayName(
+                subject
               )
-              .filter(Boolean);
-
-          const grouped = {};
-
-          normalizedSelectedSubjects.forEach(
-            (selectedSubject) => {
-              const displaySubject =
-                getSubjectDisplayName(
-                  selectedSubject
-                );
-
-              const matchingQuestions =
-                examQuestions.filter(
-                  (question) =>
-                    subjectsMatch(
-                      question.subject,
-                      selectedSubject
-                    )
-                );
-
-              const selectedQuestions =
-                shuffleQuestions(
-                  matchingQuestions
-                ).slice(
-                  0,
-                  QUESTIONS_PER_SUBJECT
-                );
-
-              grouped[
-                displaySubject
-              ] = selectedQuestions;
-
-              console.log(
-                displaySubject,
-                selectedQuestions.length
-              );
-            }
-          );
-
-          const finalSubjects =
-            normalizedSelectedSubjects
-              .map((subject) =>
-                getSubjectDisplayName(
-                  subject
-                )
-              )
-              .filter(
-                (displaySubject) =>
-                  grouped[
-                    displaySubject
-                  ] &&
-                  grouped[
-                    displaySubject
-                  ].length > 0
-              );
-
-          if (!mounted) {
-            return;
-          }
-
-          if (
-            finalSubjects.length ===
-            0
-          ) {
-            setQuestionsBySubject(
-              {}
+            )
+            .filter(
+              (displaySubject) =>
+                grouped[displaySubject] &&
+                grouped[displaySubject]
+                  .length > 0
             );
 
-            setSelectedSubjects(
-              []
-            );
+        if (!mounted) {
+          return;
+        }
 
-            return;
-          }
+        if (
+          finalSubjects.length ===
+          0
+        ) {
+          setQuestionsBySubject({});
+          setSelectedSubjects([]);
+          return;
+        }
 
-          const newEndTime =
-            Date.now() +
-            EXAM_DURATION_MINUTES *
-              60 *
-              1000;
+        const newEndTime =
+          Date.now() +
+          EXAM_DURATION_MINUTES *
+            60 *
+            1000;
 
-          setQuestionsBySubject(
-            grouped
-          );
+        setQuestionsBySubject(
+          grouped
+        );
 
-          setSelectedSubjects(
+        setSelectedSubjects(
+          finalSubjects
+        );
+
+        setActiveSubject(
+          finalSubjects[0]
+        );
+
+        setCurrentIndex(0);
+
+        setAnswers({});
+
+        setMarked({});
+
+        setEndTime(
+          newEndTime
+        );
+
+        setTimeLeft(
+          EXAM_DURATION_MINUTES *
+            60
+        );
+
+        setSubmitted(false);
+
+        const newStorageKey =
+          createStorageKey(
+            exam,
             finalSubjects
           );
 
-          setActiveSubject(
-            finalSubjects[0]
-          );
+        localStorage.setItem(
+          newStorageKey,
+          JSON.stringify({
+            exam,
+            subjects:
+              finalSubjects,
+            questionsBySubject:
+              grouped,
+            activeSubject:
+              finalSubjects[0],
+            currentIndex: 0,
+            answers: {},
+            marked: {},
+            endTime:
+              newEndTime,
+            submitted: false,
+          })
+        );
+      } catch (error) {
+        console.error(
+          "CBT QUESTION LOADING ERROR:",
+          error
+        );
 
-          setCurrentIndex(0);
-
-          setAnswers({});
-
-          setMarked({});
-
-          setEndTime(
-            newEndTime
-          );
-
-          setTimeLeft(
-            EXAM_DURATION_MINUTES *
-              60
-          );
-
-          setSubmitted(false);
-
-          const newStorageKey =
-            createStorageKey(
-              exam,
-              finalSubjects
-            );
-
-          localStorage.setItem(
-            newStorageKey,
-            JSON.stringify({
-              exam,
-              subjects:
-                finalSubjects,
-              questionsBySubject:
-                grouped,
-              activeSubject:
-                finalSubjects[0],
-              currentIndex: 0,
-              answers: {},
-              marked: {},
-              endTime:
-                newEndTime,
-              submitted: false,
-            })
-          );
-        } catch (error) {
-          console.error(
-            "CBT QUESTION LOADING ERROR:",
-            error
-          );
-
-          if (mounted) {
-            setQuestionsBySubject(
-              {}
-            );
-
-            setSelectedSubjects(
-              []
-            );
-          }
-        } finally {
-          if (mounted) {
-            setLoading(false);
-          }
+        if (mounted) {
+          setQuestionsBySubject({});
+          setSelectedSubjects([]);
         }
-      };
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
 
     fetchQuestions();
 
@@ -942,8 +938,7 @@ const CBTExam = () => {
     if (
       loading ||
       !storageKey ||
-      selectedSubjects.length ===
-        0
+      selectedSubjects.length === 0
     ) {
       return;
     }
@@ -1069,8 +1064,7 @@ const CBTExam = () => {
     if (
       loading ||
       !storageKey ||
-      selectedSubjects.length ===
-        0 ||
+      selectedSubjects.length === 0 ||
       Object.keys(
         questionsBySubject
       ).length === 0
@@ -1144,14 +1138,8 @@ const CBTExam = () => {
 
       if (remaining <= 0) {
         setSubmitted(true);
-
-        setShowNavigator(
-          false
-        );
-
-        setShowCalculator(
-          false
-        );
+        setShowNavigator(false);
+        setShowCalculator(false);
       }
     };
 
@@ -1175,9 +1163,7 @@ const CBTExam = () => {
      FORMAT TIME
   ========================================================================== */
 
-  const formatTime = (
-    seconds
-  ) => {
+  const formatTime = (seconds) => {
     const hours =
       Math.floor(
         seconds / 3600
@@ -1252,47 +1238,44 @@ const CBTExam = () => {
      GLOBAL QUESTION NUMBER
   ========================================================================== */
 
-  const getGlobalQuestionNumber =
-    (
-      subject,
-      index
-    ) => {
-      let number = 0;
+  const getGlobalQuestionNumber = (
+    subject,
+    index
+  ) => {
+    let number = 0;
 
-      for (
-        const selectedSubject of selectedSubjects
+    for (
+      const selectedSubject of selectedSubjects
+    ) {
+      if (
+        subjectsMatch(
+          selectedSubject,
+          subject
+        )
       ) {
-        if (
-          subjectsMatch(
-            selectedSubject,
-            subject
-          )
-        ) {
-          return (
-            number +
-            index +
-            1
-          );
-        }
-
-        number +=
-          (
-            questionsBySubject[
-              selectedSubject
-            ] || []
-          ).length;
+        return (
+          number +
+          index +
+          1
+        );
       }
 
-      return index + 1;
-    };
+      number +=
+        (
+          questionsBySubject[
+            selectedSubject
+          ] || []
+        ).length;
+    }
+
+    return index + 1;
+  };
 
   /* ==========================================================================
      ANSWER
   ========================================================================== */
 
-  const selectAnswer = (
-    option
-  ) => {
+  const selectAnswer = (option) => {
     if (
       !currentQuestion ||
       submitted
@@ -1380,54 +1363,53 @@ const CBTExam = () => {
      PREVIOUS
   ========================================================================== */
 
-  const previousQuestion =
-    () => {
-      if (currentIndex > 0) {
-        setCurrentIndex(
-          (previous) =>
-            previous - 1
-        );
+  const previousQuestion = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(
+        (previous) =>
+          previous - 1
+      );
 
-        return;
-      }
+      return;
+    }
 
-      const currentPosition =
-        selectedSubjects.findIndex(
-          (subject) =>
-            subjectsMatch(
-              subject,
-              activeSubject
-            )
-        );
-
-      const previousSubject =
-        selectedSubjects[
-          currentPosition - 1
-        ];
-
-      if (previousSubject) {
-        const previousQuestions =
-          questionsBySubject[
-            previousSubject
-          ] || [];
-
-        setActiveSubject(
-          previousSubject
-        );
-
-        setCurrentIndex(
-          Math.max(
-            previousQuestions.length -
-              1,
-            0
+    const currentPosition =
+      selectedSubjects.findIndex(
+        (subject) =>
+          subjectsMatch(
+            subject,
+            activeSubject
           )
-        );
+      );
 
-        setShowCalculator(
-          false
-        );
-      }
-    };
+    const previousSubject =
+      selectedSubjects[
+        currentPosition - 1
+      ];
+
+    if (previousSubject) {
+      const previousQuestions =
+        questionsBySubject[
+          previousSubject
+        ] || [];
+
+      setActiveSubject(
+        previousSubject
+      );
+
+      setCurrentIndex(
+        Math.max(
+          previousQuestions.length -
+            1,
+          0
+        )
+      );
+
+      setShowCalculator(
+        false
+      );
+    }
+  };
 
   /* ==========================================================================
      CHANGE SUBJECT
@@ -1522,13 +1504,9 @@ const CBTExam = () => {
 
     setSubmitted(true);
 
-    setShowNavigator(
-      false
-    );
+    setShowNavigator(false);
 
-    setShowCalculator(
-      false
-    );
+    setShowCalculator(false);
   };
 
   /* ==========================================================================
@@ -1861,8 +1839,6 @@ const CBTExam = () => {
             />
           </div>
 
-          {/* SUBJECT BREAKDOWN */}
-
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
             {selectedSubjects.map(
               (subject) => {
@@ -1910,8 +1886,6 @@ const CBTExam = () => {
               }
             )}
           </div>
-
-          {/* REVIEW */}
 
           <div className="space-y-5">
             {allQuestions.map(
@@ -2175,9 +2149,7 @@ const CBTExam = () => {
 
   return (
     <div className="min-h-screen bg-[#071426] text-white">
-      {/* ======================================================================
-          BACKGROUND
-      ====================================================================== */}
+      {/* BACKGROUND */}
 
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-600/[0.04] rounded-full blur-3xl" />
@@ -2195,15 +2167,11 @@ const CBTExam = () => {
         />
       </div>
 
-      {/* ======================================================================
-          HEADER
-      ====================================================================== */}
+      {/* HEADER */}
 
       <header className="sticky top-0 z-50 bg-[#071426]/95 backdrop-blur-2xl border-b border-white/[0.08] shadow-2xl">
         <div className="max-w-[1600px] mx-auto px-4 md:px-7">
           <div className="h-[76px] grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-            {/* LEFT */}
-
             <div className="flex items-center gap-4 min-w-0">
               <div className="flex items-center gap-2.5 shrink-0">
                 <div className="w-10 h-10 rounded-xl bg-blue-500/[0.08] border border-blue-400/20 flex items-center justify-center overflow-hidden">
@@ -2226,8 +2194,6 @@ const CBTExam = () => {
               </div>
 
               <div className="hidden md:block w-px h-9 bg-white/10" />
-
-              {/* TIMER */}
 
               <div
                 className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl border transition ${
@@ -2263,8 +2229,6 @@ const CBTExam = () => {
               </div>
             </div>
 
-            {/* CENTER */}
-
             <div className="text-center min-w-0">
               <p className="text-[10px] uppercase tracking-[0.25em] text-blue-400 font-semibold truncate">
                 {exam}
@@ -2274,8 +2238,6 @@ const CBTExam = () => {
                 CBT Examination
               </h1>
             </div>
-
-            {/* RIGHT */}
 
             <div className="flex items-center justify-end gap-2">
               {normalize(
@@ -2304,9 +2266,7 @@ const CBTExam = () => {
 
               <button
                 onClick={() =>
-                  setShowNavigator(
-                    true
-                  )
+                  setShowNavigator(true)
                 }
                 title="Question Navigator"
                 className="w-10 h-10 rounded-xl border border-white/10 bg-white/[0.035] text-slate-300 hover:text-white hover:bg-white/[0.07] transition flex items-center justify-center"
@@ -2317,9 +2277,7 @@ const CBTExam = () => {
               </button>
 
               <button
-                onClick={
-                  submitExam
-                }
+                onClick={submitExam}
                 className="hidden sm:flex items-center gap-2 px-4 md:px-5 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 transition font-semibold text-sm shadow-lg shadow-blue-600/10"
               >
                 Submit
@@ -2331,9 +2289,7 @@ const CBTExam = () => {
 
               <button
                 onClick={() =>
-                  setShowNavigator(
-                    true
-                  )
+                  setShowNavigator(true)
                 }
                 className="sm:hidden w-10 h-10 rounded-xl border border-white/10 bg-white/[0.035] flex items-center justify-center"
               >
@@ -2346,14 +2302,10 @@ const CBTExam = () => {
         </div>
       </header>
 
-      {/* ======================================================================
-          MAIN
-      ====================================================================== */}
+      {/* MAIN */}
 
       <main className="relative z-10 max-w-[1400px] mx-auto px-4 md:px-7 py-7">
-        {/* ====================================================================
-            SUBJECT TABS
-        ==================================================================== */}
+        {/* SUBJECT TABS */}
 
         <div className="mb-6">
           <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] backdrop-blur-xl p-2">
@@ -2434,9 +2386,7 @@ const CBTExam = () => {
           </div>
         </div>
 
-        {/* ====================================================================
-            TOOLBAR
-        ==================================================================== */}
+        {/* TOOLBAR */}
 
         <div className="max-w-5xl mx-auto mb-6">
           <div className="flex items-center justify-between gap-4">
@@ -2473,9 +2423,7 @@ const CBTExam = () => {
           </div>
         </div>
 
-        {/* ====================================================================
-            CALCULATOR
-        ==================================================================== */}
+        {/* CALCULATOR */}
 
         {showCalculator &&
           normalize(
@@ -2549,9 +2497,7 @@ const CBTExam = () => {
                   ].map(
                     (value) => (
                       <button
-                        key={
-                          value
-                        }
+                        key={value}
                         onClick={() =>
                           calculatorPress(
                             value
@@ -2564,9 +2510,7 @@ const CBTExam = () => {
                             : "bg-white/[0.04] hover:bg-white/[0.08] text-slate-200"
                         }`}
                       >
-                        {
-                          value
-                        }
+                        {value}
                       </button>
                     )
                   )}
@@ -2575,21 +2519,15 @@ const CBTExam = () => {
             </div>
           )}
 
-        {/* ====================================================================
-            QUESTION
-        ==================================================================== */}
+        {/* QUESTION */}
 
         <div className="max-w-5xl mx-auto">
           <div className="rounded-3xl border border-white/[0.08] bg-white/[0.025] backdrop-blur-xl overflow-hidden">
-            {/* QUESTION TOP */}
-
             <div className="px-5 md:px-8 py-5 border-b border-white/[0.07]">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold">
-                    {
-                      globalNumber
-                    }
+                    {globalNumber}
                   </div>
 
                   <div>
@@ -2598,9 +2536,7 @@ const CBTExam = () => {
                     </p>
 
                     <p className="text-sm font-semibold">
-                      {
-                        activeSubject
-                      }
+                      {activeSubject}
                     </p>
                   </div>
                 </div>
@@ -2622,8 +2558,6 @@ const CBTExam = () => {
               </div>
             </div>
 
-            {/* QUESTION BODY */}
-
             <div className="p-5 md:p-8">
               {currentQuestion?.image && (
                 <div className="mb-6">
@@ -2637,17 +2571,11 @@ const CBTExam = () => {
                 </div>
               )}
 
-              {/* ==============================================================
-                  QUESTION WITH AUTOMATIC MATH
-              ============================================================== */}
-
               <MathText className="block text-lg md:text-xl font-semibold leading-8 text-white whitespace-pre-wrap">
                 {
                   currentQuestion?.question
                 }
               </MathText>
-
-              {/* OPTIONS */}
 
               <div className="mt-8 space-y-3">
                 {currentOptions.map(
@@ -2671,9 +2599,7 @@ const CBTExam = () => {
 
                     return (
                       <button
-                        key={
-                          index
-                        }
+                        key={index}
                         onClick={() =>
                           selectAnswer(
                             option
@@ -2692,9 +2618,7 @@ const CBTExam = () => {
                               : "bg-[#102238] text-slate-400"
                           }`}
                         >
-                          {
-                            letter
-                          }
+                          {letter}
                         </span>
 
                         <MathText
@@ -2704,17 +2628,13 @@ const CBTExam = () => {
                               : "text-slate-300"
                           }
                         >
-                          {
-                            option
-                          }
+                          {option}
                         </MathText>
 
                         {selected && (
                           <CheckCircle2
                             className="ml-auto text-blue-400 shrink-0"
-                            size={
-                              20
-                            }
+                            size={20}
                           />
                         )}
                       </button>
@@ -2804,9 +2724,7 @@ const CBTExam = () => {
         </div>
       </main>
 
-      {/* ======================================================================
-          QUESTION NAVIGATOR
-      ====================================================================== */}
+      {/* QUESTION NAVIGATOR */}
 
       {showNavigator && (
         <>
@@ -2942,10 +2860,7 @@ const CBTExam = () => {
                                     : "bg-[#102238] border-white/10 text-slate-400 hover:bg-[#17304d]"
                                 }`}
                               >
-                                {
-                                  index +
-                                  1
-                                }
+                                {index + 1}
 
                                 {markedQuestion && (
                                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-yellow-400" />
@@ -2960,8 +2875,6 @@ const CBTExam = () => {
                 }
               )}
             </div>
-
-            {/* LEGEND */}
 
             <div className="border-t border-white/10 p-4">
               <div className="grid grid-cols-2 gap-3 text-[10px] text-slate-500">

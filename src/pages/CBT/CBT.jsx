@@ -133,7 +133,6 @@ const CBT = () => {
   const [questionCount, setQuestionCount] = useState(0);
   const [questionsLoading, setQuestionsLoading] = useState(true);
 
-
   useEffect(() => {
     let mounted = true;
 
@@ -181,24 +180,12 @@ const CBT = () => {
     };
   }, []);
 
-  /*
-   * ============================================================
-   * SCROLL TO EXAMINATION LIBRARY
-   * ============================================================
-   */
-
   const scrollToExaminationLibrary = () => {
     examinationLibraryRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
   };
-
-  /*
-   * ============================================================
-   * FORMAT QUESTION COUNT
-   * ============================================================
-   */
 
   const formattedQuestionCount = questionsLoading
     ? "..."
@@ -229,13 +216,11 @@ const CBT = () => {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050816] text-white">
-
       {/* =========================================================
           BACKGROUND
       ========================================================== */}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-
         <div className="absolute left-[-180px] top-[-180px] h-[520px] w-[520px] rounded-full bg-blue-600/10 blur-[150px]" />
 
         <div className="absolute right-[-180px] top-[20%] h-[520px] w-[520px] rounded-full bg-purple-600/10 blur-[150px]" />
@@ -261,15 +246,12 @@ const CBT = () => {
       ========================================================== */}
 
       <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 sm:px-8 lg:px-10">
-
         {/* =======================================================
             HERO
         ======================================================== */}
 
         <section className="pt-14 sm:pt-20 lg:pt-24">
-
           <div className="mx-auto max-w-4xl text-center">
-
             <motion.div
               initial={{ opacity: 0, y: -15 }}
               animate={{ opacity: 1, y: 0 }}
@@ -329,7 +311,6 @@ const CBT = () => {
                 />
               </button>
             </motion.div>
-
           </div>
         </section>
 
@@ -338,7 +319,6 @@ const CBT = () => {
         ======================================================== */}
 
         <div className="relative mx-auto mt-14 max-w-6xl">
-
           <div className="h-px bg-gradient-to-r from-transparent via-blue-400/30 to-transparent" />
 
           <motion.div
@@ -352,7 +332,6 @@ const CBT = () => {
             }}
             className="absolute left-0 top-0 h-px w-40 bg-gradient-to-r from-transparent via-cyan-300 to-transparent"
           />
-
         </div>
 
         {/* =======================================================
@@ -360,7 +339,6 @@ const CBT = () => {
         ======================================================== */}
 
         <section className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
-
           {stats.map((stat, index) => {
             const Icon = stat.icon;
 
@@ -381,11 +359,9 @@ const CBT = () => {
                 }}
                 className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl"
               >
-
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.06] to-transparent opacity-0 transition group-hover:opacity-100" />
 
                 <div className="relative">
-
                   <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/10 bg-blue-500/10 text-blue-400">
                     <Icon size={17} />
                   </div>
@@ -397,12 +373,10 @@ const CBT = () => {
                   <div className="mt-1 text-[11px] text-slate-500">
                     {stat.label}
                   </div>
-
                 </div>
               </motion.div>
             );
           })}
-
         </section>
 
         {/* =======================================================
@@ -411,13 +385,10 @@ const CBT = () => {
 
         <section
           ref={examinationLibraryRef}
-          className="scroll-mt-20 mt-20"
+          className="mt-20 scroll-mt-20"
         >
-
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-
             <div>
-
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-400">
                 <GraduationCap size={15} />
                 Examination Library
@@ -431,14 +402,12 @@ const CBT = () => {
                 Select an examination body to explore available subjects and
                 start a practice session.
               </p>
-
             </div>
 
             <div className="flex items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.035] px-4 py-2 text-xs text-slate-400">
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
               CBT System Online
             </div>
-
           </div>
 
           {/* =====================================================
@@ -446,9 +415,7 @@ const CBT = () => {
           ====================================================== */}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-
             {exams.map((exam, index) => (
-
               <motion.button
                 key={exam.name}
                 initial={{
@@ -477,7 +444,6 @@ const CBT = () => {
                 }
                 className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 text-left backdrop-blur-xl transition-colors duration-300 hover:border-white/[0.16] hover:bg-white/[0.055]"
               >
-
                 <div
                   className={`absolute left-0 right-0 top-0 h-[2px] bg-gradient-to-r ${exam.accent} opacity-40 transition-opacity group-hover:opacity-100`}
                 />
@@ -487,9 +453,7 @@ const CBT = () => {
                 />
 
                 <div className="relative">
-
                   <div className="flex items-start justify-between">
-
                     <div
                       className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${exam.accent} text-sm font-black text-white shadow-lg`}
                     >
@@ -499,11 +463,9 @@ const CBT = () => {
                     <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.035] text-slate-500 transition group-hover:border-blue-400/20 group-hover:text-blue-400">
                       <ChevronRight size={16} />
                     </div>
-
                   </div>
 
                   <div className="mt-5">
-
                     <h3 className="text-lg font-bold tracking-tight text-white">
                       {exam.name}
                     </h3>
@@ -511,13 +473,10 @@ const CBT = () => {
                     <p className="mt-1 min-h-[36px] text-xs leading-5 text-slate-500">
                       {exam.description}
                     </p>
-
                   </div>
 
                   <div className="mt-5 space-y-2 border-t border-white/[0.06] pt-4">
-
                     <div className="flex items-center justify-between text-[11px]">
-
                       <span className="flex items-center gap-2 text-slate-500">
                         <BookOpen size={13} />
                         Subjects
@@ -526,11 +485,9 @@ const CBT = () => {
                       <span className="text-right text-slate-300">
                         {exam.subjects}
                       </span>
-
                     </div>
 
                     <div className="flex items-center justify-between text-[11px]">
-
                       <span className="flex items-center gap-2 text-slate-500">
                         <FileText size={13} />
                         Practice
@@ -539,13 +496,10 @@ const CBT = () => {
                       <span className="text-slate-300">
                         Available
                       </span>
-
                     </div>
-
                   </div>
 
                   <div className="mt-5 flex items-center justify-between">
-
                     <span className="text-xs font-medium text-slate-500 transition group-hover:text-blue-400">
                       Select examination
                     </span>
@@ -554,20 +508,15 @@ const CBT = () => {
                       size={15}
                       className="text-slate-600 transition-all group-hover:translate-x-1 group-hover:text-blue-400"
                     />
-
                   </div>
-
                 </div>
               </motion.button>
-
             ))}
-
           </div>
         </section>
 
         {/* =======================================================
             FEATURE BANNER
-            NO EXPLORE CBT BUTTON
         ======================================================== */}
 
         <motion.section
@@ -587,15 +536,12 @@ const CBT = () => {
           }}
           className="relative mt-16 overflow-hidden rounded-3xl border border-blue-400/10 bg-gradient-to-br from-blue-500/[0.09] via-white/[0.025] to-purple-500/[0.08] p-7 sm:p-9"
         >
-
           <div className="absolute right-[-100px] top-[-100px] h-64 w-64 rounded-full bg-blue-500/10 blur-[90px]" />
 
           <div className="absolute bottom-[-100px] left-[-100px] h-64 w-64 rounded-full bg-purple-500/10 blur-[90px]" />
 
           <div className="relative">
-
             <div className="max-w-3xl">
-
               <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-400">
                 <Clock3 size={14} />
                 Built for serious preparation
@@ -610,11 +556,8 @@ const CBT = () => {
                 strengthen weak subjects, and build confidence before the
                 actual examination.
               </p>
-
             </div>
-
           </div>
-
         </motion.section>
 
         {/* =======================================================
@@ -622,7 +565,6 @@ const CBT = () => {
         ======================================================== */}
 
         <footer className="mt-16 border-t border-white/[0.06] pt-8 text-center">
-
           <p className="text-xs text-slate-500">
             Practice exam-standard CBT questions across multiple examination
             bodies.
@@ -632,9 +574,7 @@ const CBT = () => {
             Powered by Scholiqen CBT System ©{" "}
             {new Date().getFullYear()}
           </div>
-
         </footer>
-
       </main>
     </div>
   );

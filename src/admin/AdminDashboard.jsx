@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   Users,
@@ -11,6 +10,8 @@ import {
   ArrowUpRight,
   RefreshCw,
   ClipboardCheck,
+  Activity,
+  BarChart3,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
@@ -53,10 +54,10 @@ const AdminDashboard = () => {
       color: "from-pink-500 to-rose-500",
     },
     {
-      title: "CBT Attempts",
+      title: "Project Growth",
       value: 0,
       change: "Live",
-      icon: ClipboardCheck,
+      icon: TrendingUp,
       color: "from-cyan-500 to-blue-500",
     },
   ]);
@@ -64,6 +65,15 @@ const AdminDashboard = () => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [growth, setGrowth] = useState({
+    users: 0,
+    courses: 0,
+    labs: 0,
+    questions: 0,
+    novels: 0,
+    overall: 0,
+  });
 
   // -------------------------------------------------------
   // FORMAT NUMBER
@@ -131,6 +141,27 @@ const AdminDashboard = () => {
   };
 
   // -------------------------------------------------------
+  // COUNT CREATED RECORDS IN A PERIOD
+  // -------------------------------------------------------
+
+  const getCountSince = async (table, date) => {
+    const { count, error } = await supabase
+      .from(table)
+      .select("*", {
+        count: "exact",
+        head: true,
+      })
+      .gte("created_at", date.toISOString());
+
+    if (error) {
+      console.error(`Error calculating growth for ${table}:`, error);
+      return 0;
+    }
+
+    return count || 0;
+  };
+
+  // -------------------------------------------------------
   // AUTHENTICATION USER COUNT
   // -------------------------------------------------------
 
@@ -152,6 +183,67 @@ const AdminDashboard = () => {
   };
 
   // -------------------------------------------------------
+  // CALCULATE PROJECT GROWTH
+  // -------------------------------------------------------
+
+  const calculateGrowth = async () => {
+    /*
+      We calculate project growth from records created
+      during the last 30 days.
+
+      This is intentionally NOT revenue.
+
+      Tomorrow, when payments are added, revenue growth
+      can be connected to the payment/transactions table.
+    */
+
+    const thirtyDaysAgo = new Date();
+
+    thirtyDaysAgo.setDate(
+      thirtyDaysAgo.getDate() - 30
+    );
+
+    const [
+      usersGrowth,
+      coursesGrowth,
+      labsGrowth,
+      questionsGrowth,
+      novelsGrowth,
+    ] = await Promise.all([
+      getCountSince("profiles", thirtyDaysAgo),
+      getCountSince("courses", thirtyDaysAgo),
+      getCountSince("virtual_labs", thirtyDaysAgo),
+      getCountSince("cbt_questions", thirtyDaysAgo),
+      getCountSince("novels", thirtyDaysAgo),
+    ]);
+
+    const totalGrowth =
+      usersGrowth +
+      coursesGrowth +
+      labsGrowth +
+      questionsGrowth +
+      novelsGrowth;
+
+    setGrowth({
+      users: usersGrowth,
+      courses: coursesGrowth,
+      labs: labsGrowth,
+      questions: questionsGrowth,
+      novels: novelsGrowth,
+      overall: totalGrowth,
+    });
+
+    return {
+      usersGrowth,
+      coursesGrowth,
+      labsGrowth,
+      questionsGrowth,
+      novelsGrowth,
+      totalGrowth,
+    };
+  };
+
+  // -------------------------------------------------------
   // FETCH LIVE DASHBOARD DATA
   // -------------------------------------------------------
 
@@ -169,18 +261,21 @@ const AdminDashboard = () => {
         labsCount,
         questionsCount,
         novelsCount,
-        attemptsCount,
       ] = await Promise.all([
-        // IMPORTANT:
-        // This comes directly from Supabase auth.users
         getAuthUserCount(),
-
         getCount("courses"),
         getCount("virtual_labs"),
         getCount("cbt_questions"),
         getCount("novels"),
-        getCount("cbt_attempts"),
       ]);
+
+      // ---------------------------------------------------
+      // PROJECT GROWTH
+      // ---------------------------------------------------
+
+      const growthData = await calculateGrowth();
+
+      const overallGrowth = growthData.totalGrowth;
 
       setStats([
         {
@@ -219,10 +314,10 @@ const AdminDashboard = () => {
           color: "from-pink-500 to-rose-500",
         },
         {
-          title: "CBT Attempts",
-          value: attemptsCount,
-          change: "Live",
-          icon: ClipboardCheck,
+          title: "Project Growth",
+          value: overallGrowth,
+          change: "Last 30 days",
+          icon: TrendingUp,
           color: "from-cyan-500 to-blue-500",
         },
       ]);
@@ -231,34 +326,21 @@ const AdminDashboard = () => {
       // RECENT CBT ATTEMPTS
       // ---------------------------------------------------
 
-      const {
-        data: recentAttempts,
-        error: attemptsError,
-      } = await supabase
-        .from("cbt_attempts")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(5);
+      /*
+        cbt_attempts DOES NOT EXIST in your database.
 
-      if (attemptsError) {
-        console.error(
-          "Error fetching recent CBT attempts:",
-          attemptsError
-        );
-      }
+        Therefore we intentionally do not query it.
+
+        This prevents:
+
+        PGRST205:
+        Could not find table public.cbt_attempts
+
+        CBT activity can be added later when you create
+        the attempts table.
+      */
 
       const liveActivities = [];
-
-      if (recentAttempts?.length) {
-        recentAttempts.forEach((attempt) => {
-          liveActivities.push({
-            title: "CBT examination attempt recorded",
-            time: timeAgo(attempt.created_at),
-            icon: ClipboardCheck,
-            date: attempt.created_at,
-          });
-        });
-      }
 
       // ---------------------------------------------------
       // RECENT NOVELS
@@ -270,8 +352,10 @@ const AdminDashboard = () => {
       } = await supabase
         .from("novels")
         .select("id, title, created_at")
-        .order("created_at", { ascending: false })
-        .limit(2);
+        .order("created_at", {
+          ascending: false,
+        })
+        .limit(3);
 
       if (novelsError) {
         console.error(
@@ -301,8 +385,10 @@ const AdminDashboard = () => {
       } = await supabase
         .from("courses")
         .select("id, title, created_at")
-        .order("created_at", { ascending: false })
-        .limit(2);
+        .order("created_at", {
+          ascending: false,
+        })
+        .limit(3);
 
       if (coursesError) {
         console.error(
@@ -323,7 +409,40 @@ const AdminDashboard = () => {
       }
 
       // ---------------------------------------------------
-      // SORT ACTIVITIES BY ACTUAL DATE
+      // RECENT CBT QUESTIONS
+      // ---------------------------------------------------
+
+      const {
+        data: recentQuestions,
+        error: questionsError,
+      } = await supabase
+        .from("cbt_questions")
+        .select("id, created_at")
+        .order("created_at", {
+          ascending: false,
+        })
+        .limit(3);
+
+      if (questionsError) {
+        console.error(
+          "Error fetching recent CBT questions:",
+          questionsError
+        );
+      }
+
+      if (recentQuestions?.length) {
+        recentQuestions.forEach((question) => {
+          liveActivities.push({
+            title: "CBT question added",
+            time: timeAgo(question.created_at),
+            icon: FileQuestion,
+            date: question.created_at,
+          });
+        });
+      }
+
+      // ---------------------------------------------------
+      // SORT ACTIVITIES
       // ---------------------------------------------------
 
       liveActivities.sort(
@@ -332,9 +451,14 @@ const AdminDashboard = () => {
           new Date(a.date || 0)
       );
 
-      setActivities(liveActivities.slice(0, 8));
+      setActivities(
+        liveActivities.slice(0, 8)
+      );
     } catch (error) {
-      console.error("Dashboard error:", error);
+      console.error(
+        "Dashboard error:",
+        error
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -383,6 +507,7 @@ const AdminDashboard = () => {
   if (loading) {
     return (
       <div className="space-y-8">
+
         <div>
           <div className="h-10 w-72 bg-slate-800 rounded-xl animate-pulse" />
 
@@ -390,6 +515,7 @@ const AdminDashboard = () => {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+
           {[...Array(6)].map((_, index) => (
             <div
               key={index}
@@ -402,7 +528,9 @@ const AdminDashboard = () => {
               <div className="h-4 w-20 bg-slate-800 rounded mt-4" />
             </div>
           ))}
+
         </div>
+
       </div>
     );
   }
@@ -435,7 +563,11 @@ const AdminDashboard = () => {
         >
           <RefreshCw
             size={18}
-            className={refreshing ? "animate-spin" : ""}
+            className={
+              refreshing
+                ? "animate-spin"
+                : ""
+            }
           />
 
           {refreshing
@@ -450,13 +582,27 @@ const AdminDashboard = () => {
       <div className="flex flex-wrap items-center gap-4 text-xs">
 
         <div className="flex items-center gap-2 text-emerald-400">
+
           <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+
           Live database statistics
+
         </div>
 
         <div className="flex items-center gap-2 text-blue-400">
+
           <span className="h-2 w-2 rounded-full bg-blue-400" />
+
           Users sourced from Authentication
+
+        </div>
+
+        <div className="flex items-center gap-2 text-violet-400">
+
+          <span className="h-2 w-2 rounded-full bg-violet-400" />
+
+          Growth calculated from live records
+
         </div>
 
       </div>
@@ -505,6 +651,142 @@ const AdminDashboard = () => {
           );
 
         })}
+
+      </div>
+
+      {/* PROJECT GROWTH */}
+
+      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
+
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+          <div>
+
+            <div className="flex items-center gap-3">
+
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10">
+
+                <TrendingUp
+                  size={24}
+                  className="text-cyan-400"
+                />
+
+              </div>
+
+              <div>
+
+                <h2 className="text-2xl font-bold">
+                  Project Growth
+                </h2>
+
+                <p className="text-sm text-slate-400">
+                  Live platform activity over the last 30 days
+                </p>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2 text-sm text-emerald-400">
+
+            <Activity size={16} />
+
+            {formatNumber(growth.overall)} new records
+
+          </div>
+
+        </div>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+
+          <div className="rounded-2xl bg-slate-800 p-5">
+
+            <Users
+              size={20}
+              className="text-blue-400"
+            />
+
+            <p className="mt-4 text-sm text-slate-400">
+              Users
+            </p>
+
+            <p className="mt-1 text-2xl font-bold">
+              {formatNumber(growth.users)}
+            </p>
+
+          </div>
+
+          <div className="rounded-2xl bg-slate-800 p-5">
+
+            <GraduationCap
+              size={20}
+              className="text-indigo-400"
+            />
+
+            <p className="mt-4 text-sm text-slate-400">
+              Courses
+            </p>
+
+            <p className="mt-1 text-2xl font-bold">
+              {formatNumber(growth.courses)}
+            </p>
+
+          </div>
+
+          <div className="rounded-2xl bg-slate-800 p-5">
+
+            <FlaskConical
+              size={20}
+              className="text-emerald-400"
+            />
+
+            <p className="mt-4 text-sm text-slate-400">
+              Labs
+            </p>
+
+            <p className="mt-1 text-2xl font-bold">
+              {formatNumber(growth.labs)}
+            </p>
+
+          </div>
+
+          <div className="rounded-2xl bg-slate-800 p-5">
+
+            <FileQuestion
+              size={20}
+              className="text-orange-400"
+            />
+
+            <p className="mt-4 text-sm text-slate-400">
+              CBT Questions
+            </p>
+
+            <p className="mt-1 text-2xl font-bold">
+              {formatNumber(growth.questions)}
+            </p>
+
+          </div>
+
+          <div className="rounded-2xl bg-slate-800 p-5">
+
+            <BookOpen
+              size={20}
+              className="text-pink-400"
+            />
+
+            <p className="mt-4 text-sm text-slate-400">
+              Novels
+            </p>
+
+            <p className="mt-1 text-2xl font-bold">
+              {formatNumber(growth.novels)}
+            </p>
+
+          </div>
+
+        </div>
 
       </div>
 
@@ -561,9 +843,18 @@ const AdminDashboard = () => {
 
           <div className="flex items-center justify-between">
 
-            <h2 className="text-2xl font-bold">
-              Recent Activity
-            </h2>
+            <div className="flex items-center gap-3">
+
+              <BarChart3
+                size={22}
+                className="text-blue-400"
+              />
+
+              <h2 className="text-2xl font-bold">
+                Recent Activity
+              </h2>
+
+            </div>
 
             <span className="text-xs text-emerald-400">
               Live
@@ -575,44 +866,49 @@ const AdminDashboard = () => {
 
             {activities.length > 0 ? (
 
-              activities.map((activity, index) => {
+              activities.map(
+                (activity, index) => {
 
-                const Icon =
-                  activity.icon || Clock;
+                  const Icon =
+                    activity.icon ||
+                    Clock;
 
-                return (
-                  <div
-                    key={`${activity.title}-${index}`}
-                    className="flex items-center justify-between rounded-2xl bg-slate-800 px-5 py-4"
-                  >
+                  return (
+                    <div
+                      key={`${activity.title}-${index}`}
+                      className="flex items-center justify-between rounded-2xl bg-slate-800 px-5 py-4"
+                    >
 
-                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3">
 
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                        <Icon
-                          size={18}
-                          className="text-blue-400"
-                        />
-                      </div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
 
-                      <div>
+                          <Icon
+                            size={18}
+                            className="text-blue-400"
+                          />
 
-                        <p className="font-medium">
-                          {activity.title}
-                        </p>
+                        </div>
 
-                        <p className="text-sm text-slate-400">
-                          {activity.time}
-                        </p>
+                        <div>
+
+                          <p className="font-medium">
+                            {activity.title}
+                          </p>
+
+                          <p className="text-sm text-slate-400">
+                            {activity.time}
+                          </p>
+
+                        </div>
 
                       </div>
 
                     </div>
+                  );
 
-                  </div>
-                );
-
-              })
+                }
+              )
 
             ) : (
 
@@ -631,6 +927,45 @@ const AdminDashboard = () => {
 
             )}
 
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* PAYMENT / REVENUE READY */}
+
+      <div className="rounded-3xl border border-dashed border-slate-700 bg-slate-900/70 p-6">
+
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+
+          <div className="flex items-center gap-4">
+
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10">
+
+              <TrendingUp
+                size={26}
+                className="text-emerald-400"
+              />
+
+            </div>
+
+            <div>
+
+              <h2 className="text-xl font-bold">
+                Revenue & Monetization
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Payment analytics will appear here once the payment system is connected.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-400">
+            Payment integration ready
           </div>
 
         </div>

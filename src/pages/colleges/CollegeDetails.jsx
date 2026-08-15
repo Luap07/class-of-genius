@@ -1,16 +1,13 @@
-
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowUpRight,
   Building2,
   Check,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Copy,
   ExternalLink,
   Globe,
@@ -21,9 +18,10 @@ import {
   School,
   Sparkles,
   BookOpen,
-  Clock3,
+  ShieldCheck,
   Layers3,
-  Award,
+  Compass,
+  Landmark,
 } from "lucide-react";
 
 import { supabase } from "../../lib/supabaseClient";
@@ -33,13 +31,7 @@ const CollegeDetails = () => {
   const { id } = useParams();
 
   const [college, setCollege] = useState(null);
-  const [faculties, setFaculties] = useState([]);
-  const [facultyCourses, setFacultyCourses] = useState({});
-  const [expandedFaculty, setExpandedFaculty] = useState(null);
-
   const [loading, setLoading] = useState(true);
-  const [facultyLoading, setFacultyLoading] = useState(false);
-
   const [copied, setCopied] = useState("");
 
   /* =========================================================
@@ -55,163 +47,29 @@ const CollegeDetails = () => {
     fetchCollege();
   }, [id]);
 
-  /* =========================================================
-     FETCH COLLEGE + FACULTIES
-  ========================================================= */
-
   const fetchCollege = async () => {
     try {
       setLoading(true);
 
-      const { data: collegeData, error: collegeError } =
-        await supabase
-          .from("colleges")
-          .select("*")
-          .eq("id", id)
-          .single();
+      const { data, error } = await supabase
+        .from("colleges")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-      if (collegeError) {
-        console.error(
-          "College Details Error:",
-          collegeError
-        );
-
+      if (error) {
+        console.error("College Details Error:", error);
         setCollege(null);
         return;
       }
 
-      setCollege(collegeData);
-
-      /*
-       * Faculties are stored in school_faculties.
-       *
-       * IMPORTANT:
-       * school_type must be "college".
-       */
-
-      const {
-        data: facultyData,
-        error: facultyError,
-      } = await supabase
-        .from("school_faculties")
-        .select("*")
-        .eq("school_id", id)
-        .eq("school_type", "college")
-        .order("created_at", {
-          ascending: true,
-        });
-
-      if (facultyError) {
-        console.error(
-          "College Faculties Error:",
-          facultyError
-        );
-
-        setFaculties([]);
-      } else {
-        setFaculties(facultyData || []);
-      }
+      setCollege(data);
     } catch (error) {
-      console.error(
-        "College Details Error:",
-        error
-      );
-
+      console.error("College Details Error:", error);
       setCollege(null);
     } finally {
       setLoading(false);
     }
-  };
-
-  /* =========================================================
-     FETCH FACULTY CONTENT
-  ========================================================= */
-
-  const fetchFacultyContent = async (faculty) => {
-    if (!faculty?.id) return;
-
-    /*
-     * Already loaded.
-     */
-
-    if (
-      Object.prototype.hasOwnProperty.call(
-        facultyCourses,
-        faculty.id
-      )
-    ) {
-      return;
-    }
-
-    try {
-      setFacultyLoading(true);
-
-      /*
-       * All courses belonging to this faculty.
-       *
-       * Nothing is hardcoded here.
-       */
-
-      const {
-        data: courses,
-        error,
-      } = await supabase
-        .from("courses")
-        .select("*")
-        .eq("faculty_id", faculty.id)
-        .order("created_at", {
-          ascending: true,
-        });
-
-      if (error) {
-        console.error(
-          "Faculty Courses Error:",
-          error
-        );
-
-        setFacultyCourses((prev) => ({
-          ...prev,
-          [faculty.id]: [],
-        }));
-
-        return;
-      }
-
-      setFacultyCourses((prev) => ({
-        ...prev,
-        [faculty.id]: courses || [],
-      }));
-    } catch (error) {
-      console.error(
-        "Faculty Content Error:",
-        error
-      );
-
-      setFacultyCourses((prev) => ({
-        ...prev,
-        [faculty.id]: [],
-      }));
-    } finally {
-      setFacultyLoading(false);
-    }
-  };
-
-  /* =========================================================
-     FACULTY CLICK
-  ========================================================= */
-
-  const handleFacultyClick = async (faculty) => {
-    const isOpen =
-      expandedFaculty === faculty.id;
-
-    if (isOpen) {
-      setExpandedFaculty(null);
-      return;
-    }
-
-    setExpandedFaculty(faculty.id);
-
-    await fetchFacultyContent(faculty);
   };
 
   /* =========================================================
@@ -230,10 +88,7 @@ const CollegeDetails = () => {
         setCopied("");
       }, 1800);
     } catch (error) {
-      console.error(
-        "Copy Error:",
-        error
-      );
+      console.error("Copy Error:", error);
     }
   };
 
@@ -241,24 +96,40 @@ const CollegeDetails = () => {
      WEBSITE
   ========================================================= */
 
-  const websiteUrl = college?.website
-    ? college.website.startsWith("http://") ||
-      college.website.startsWith("https://")
-      ? college.website
-      : `https://${college.website}`
-    : "";
+  const websiteUrl = useMemo(() => {
+    if (!college?.website) return "";
+
+    const website = college.website.trim();
+
+    if (!website) return "";
+
+    if (
+      website.startsWith("http://") ||
+      website.startsWith("https://")
+    ) {
+      return website;
+    }
+
+    return `https://${website}`;
+  }, [college?.website]);
 
   /* =========================================================
      LOCATION
   ========================================================= */
 
-  const locationText = [
+  const locationText = useMemo(() => {
+    return [
+      college?.location,
+      college?.state,
+      college?.country,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }, [
     college?.location,
     college?.state,
     college?.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  ]);
 
   /* =========================================================
      LOADING
@@ -266,13 +137,13 @@ const CollegeDetails = () => {
 
   if (loading) {
     return (
-      <section className="min-h-screen bg-[#020617] px-4 py-8 text-white sm:px-6 lg:px-10">
+      <section className="min-h-screen overflow-hidden bg-[#020617] px-4 py-8 text-white sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl animate-pulse">
 
           <div className="h-11 w-36 rounded-2xl bg-white/5" />
 
-          <div className="mt-6 overflow-hidden rounded-[2rem] border border-white/5 bg-white/[0.025]">
-            <div className="h-[430px] bg-white/5 sm:h-[520px]" />
+          <div className="mt-6 overflow-hidden rounded-[2.5rem] border border-white/5 bg-white/[0.025]">
+            <div className="h-[430px] bg-white/5 sm:h-[560px]" />
           </div>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -284,7 +155,7 @@ const CollegeDetails = () => {
             ))}
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_0.5fr]">
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <div className="h-80 rounded-[2rem] bg-white/5" />
             <div className="h-80 rounded-[2rem] bg-white/5" />
           </div>
@@ -333,9 +204,7 @@ const CollegeDetails = () => {
 
           <button
             type="button"
-            onClick={() =>
-              navigate("/colleges")
-            }
+            onClick={() => navigate("/colleges")}
             className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-6 py-3.5 text-sm font-black text-slate-950 transition hover:bg-cyan-300"
           >
             <ArrowLeft size={17} />
@@ -350,16 +219,16 @@ const CollegeDetails = () => {
     <section className="relative min-h-screen overflow-hidden bg-[#020617] px-4 py-6 text-white sm:px-6 lg:px-10 lg:py-8">
 
       {/* =====================================================
-          BACKGROUND
+          PREMIUM BACKGROUND
       ===================================================== */}
 
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
 
-        <div className="absolute left-[8%] top-0 h-[420px] w-[420px] rounded-full bg-cyan-500/[0.055] blur-[150px]" />
+        <div className="absolute left-[5%] top-[-5%] h-[500px] w-[500px] rounded-full bg-cyan-500/[0.055] blur-[160px]" />
 
-        <div className="absolute right-[3%] top-[35%] h-[380px] w-[380px] rounded-full bg-blue-500/[0.045] blur-[140px]" />
+        <div className="absolute right-[-5%] top-[25%] h-[460px] w-[460px] rounded-full bg-blue-500/[0.045] blur-[160px]" />
 
-        <div className="absolute bottom-0 left-[35%] h-[320px] w-[320px] rounded-full bg-cyan-400/[0.025] blur-[130px]" />
+        <div className="absolute bottom-[-10%] left-[30%] h-[420px] w-[420px] rounded-full bg-cyan-400/[0.025] blur-[150px]" />
 
         <div
           className="absolute inset-0 opacity-[0.022]"
@@ -369,6 +238,7 @@ const CollegeDetails = () => {
             backgroundSize: "28px 28px",
           }}
         />
+
       </div>
 
       <div className="relative z-10 mx-auto max-w-7xl">
@@ -390,9 +260,7 @@ const CollegeDetails = () => {
         >
           <button
             type="button"
-            onClick={() =>
-              navigate("/colleges")
-            }
+            onClick={() => navigate("/colleges")}
             className="group inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-2.5 text-sm font-bold text-slate-300 backdrop-blur-xl transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.05] hover:text-white"
           >
             <ArrowLeft
@@ -403,8 +271,12 @@ const CollegeDetails = () => {
             Back to Colleges
           </button>
 
-          <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 sm:flex">
-            <ShieldIcon />
+          <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 sm:flex">
+            <ShieldCheck
+              size={14}
+              className="text-cyan-400"
+            />
+
             College Profile
           </div>
         </motion.div>
@@ -425,10 +297,12 @@ const CollegeDetails = () => {
           transition={{
             duration: 0.55,
           }}
-          className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900 shadow-[0_30px_100px_rgba(0,0,0,0.35)]"
+          className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-slate-900 shadow-[0_30px_120px_rgba(0,0,0,0.45)]"
         >
 
-          <div className="relative h-[430px] sm:h-[520px]">
+          <div className="relative h-[450px] sm:h-[560px]">
+
+            {/* IMAGE */}
 
             {college.image_url ? (
               <img
@@ -439,20 +313,20 @@ const CollegeDetails = () => {
             ) : (
               <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950">
                 <School
-                  size={150}
+                  size={170}
                   strokeWidth={1}
                   className="text-cyan-400/10"
                 />
               </div>
             )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/60 to-transparent" />
+            {/* IMAGE OVERLAYS */}
 
-            <div className="absolute inset-0 bg-gradient-to-r from-[#020617]/70 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/55 to-transparent" />
 
-            {/* =================================================
-                LOGO
-            ================================================= */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#020617]/80 via-[#020617]/20 to-transparent" />
+
+            {/* LOGO */}
 
             <motion.div
               initial={{
@@ -470,7 +344,7 @@ const CollegeDetails = () => {
             >
               <div className="relative">
 
-                <div className="absolute -inset-3 rounded-[2rem] bg-cyan-400/10 blur-2xl" />
+                <div className="absolute -inset-4 rounded-[2rem] bg-cyan-400/10 blur-2xl" />
 
                 <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-[1.75rem] border border-white/30 bg-white p-3 shadow-2xl sm:h-36 sm:w-36">
 
@@ -498,9 +372,7 @@ const CollegeDetails = () => {
               </div>
             </motion.div>
 
-            {/* =================================================
-                HERO CONTENT
-            ================================================= */}
+            {/* HERO CONTENT */}
 
             <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10 lg:p-12">
 
@@ -511,7 +383,7 @@ const CollegeDetails = () => {
                   College
                 </div>
 
-                <h1 className="max-w-5xl text-4xl font-black leading-[1.02] tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
+                <h1 className="max-w-5xl text-4xl font-black leading-[1.02] tracking-[-0.045em] text-white sm:text-5xl lg:text-7xl">
                   {college.name}
                 </h1>
 
@@ -531,6 +403,7 @@ const CollegeDetails = () => {
                 )}
 
               </div>
+
             </div>
           </div>
         </motion.div>
@@ -567,23 +440,22 @@ const CollegeDetails = () => {
           />
 
           <InfoCard
-            icon={Building2}
-            title="Faculties"
-            value={`${faculties.length} Faculties`}
+            icon={Landmark}
+            title="Institution Type"
+            value="Higher Education"
           />
 
         </div>
 
         {/* ===================================================
             WHERE TO FIND US
-            FIRST SECTION
         =================================================== */}
 
         {locationText && (
           <SectionCard
             icon={MapPin}
             eyebrow="Where to find us"
-            title="Where to Find Us"
+            title="Campus Location"
           >
             <div className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-cyan-400/[0.08] via-white/[0.025] to-transparent p-6 sm:p-8">
 
@@ -622,8 +494,7 @@ const CollegeDetails = () => {
         )}
 
         {/* ===================================================
-            ABOUT THE COLLEGE
-            SECOND SECTION
+            ABOUT
         =================================================== */}
 
         {college.description && (
@@ -645,267 +516,110 @@ const CollegeDetails = () => {
         )}
 
         {/* ===================================================
-            FACULTIES
-            THIRD SECTION
+            ACADEMIC FACULTIES
+            PREMIUM WEBSITE CTA
         =================================================== */}
 
         <SectionCard
           icon={Building2}
           eyebrow="Academic Structure"
-          title="Faculties"
+          title="Explore Academic Faculties"
         >
 
-          {faculties.length > 0 ? (
-            <div className="space-y-4">
+          <div className="relative overflow-hidden rounded-[2rem] border border-cyan-400/15 bg-gradient-to-br from-cyan-400/[0.10] via-blue-500/[0.04] to-transparent p-7 sm:p-10">
 
-              {faculties.map((faculty, index) => {
-                const isExpanded =
-                  expandedFaculty === faculty.id;
+            {/* DECORATION */}
 
-                const courses =
-                  facultyCourses[faculty.id] || [];
+            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-cyan-400/[0.07] blur-[80px]" />
 
-                const facultyName =
-                  faculty.name ||
-                  faculty.title ||
-                  `Faculty ${index + 1}`;
+            <div className="absolute -bottom-24 -left-20 h-64 w-64 rounded-full bg-blue-500/[0.05] blur-[80px]" />
 
-                return (
-                  <motion.div
-                    key={faculty.id}
-                    layout
-                    className={`overflow-hidden rounded-[1.75rem] border transition-all duration-300 ${
-                      isExpanded
-                        ? "border-cyan-400/20 bg-cyan-400/[0.035] shadow-[0_20px_70px_rgba(0,0,0,0.2)]"
-                        : "border-white/7 bg-white/[0.02] hover:border-cyan-400/15 hover:bg-white/[0.035]"
-                    }`}
-                  >
+            <div className="relative">
 
-                    {/* FACULTY HEADER */}
+              <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleFacultyClick(
-                          faculty
-                        )
-                      }
-                      className="group w-full p-5 text-left sm:p-6"
+                <div className="max-w-2xl">
+
+                  <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-400/10">
+                    <GraduationCap
+                      size={27}
+                      className="text-cyan-400"
+                    />
+                  </div>
+
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-400/70">
+                    Complete Academic Directory
+                  </p>
+
+                  <h3 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                    Get all faculties from the institution
+                  </h3>
+
+                  <p className="mt-4 max-w-xl text-sm leading-7 text-slate-400 sm:text-base">
+                    Explore the complete list of faculties,
+                    schools, departments, and academic units
+                    directly from the institution's official
+                    website. This ensures you always have access
+                    to the most complete and up-to-date academic
+                    information.
+                  </p>
+
+                </div>
+
+                <div className="shrink-0">
+
+                  {websiteUrl ? (
+                    <a
+                      href={websiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-cyan-400 px-6 py-4 text-sm font-black text-slate-950 shadow-[0_15px_45px_rgba(34,211,238,0.15)] transition duration-300 hover:-translate-y-1 hover:bg-cyan-300 sm:w-auto"
                     >
+                      <Globe size={18} />
 
-                      <div className="flex items-center gap-4">
+                      Get All Faculties
 
-                        <div
-                          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border transition ${
-                            isExpanded
-                              ? "border-cyan-400/20 bg-cyan-400/10"
-                              : "border-white/5 bg-white/[0.035] group-hover:border-cyan-400/15 group-hover:bg-cyan-400/[0.07]"
-                          }`}
-                        >
-                          <Building2
-                            size={23}
-                            className="text-cyan-400"
-                          />
-                        </div>
+                      <ArrowUpRight
+                        size={17}
+                        className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                      />
+                    </a>
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-6 py-4 text-center text-sm font-bold text-slate-500">
+                      Official website unavailable
+                    </div>
+                  )}
 
-                        <div className="min-w-0 flex-1">
+                </div>
 
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-400/60">
-                            Faculty
-                          </p>
-
-                          <h3 className="mt-1 text-lg font-black text-white sm:text-xl">
-                            {facultyName}
-                          </h3>
-
-                          {faculty.description && (
-                            <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">
-                              {faculty.description}
-                            </p>
-                          )}
-
-                        </div>
-
-                        <div
-                          className={`hidden shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold sm:flex ${
-                            isExpanded
-                              ? "border-cyan-400/15 bg-cyan-400/10 text-cyan-400"
-                              : "border-white/5 bg-white/[0.03] text-slate-500"
-                          }`}
-                        >
-                          <span>
-                            {isExpanded
-                              ? "Close"
-                              : "Explore"}
-                          </span>
-
-                          {isExpanded ? (
-                            <ChevronUp size={15} />
-                          ) : (
-                            <ChevronDown size={15} />
-                          )}
-                        </div>
-
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] text-slate-500 sm:hidden">
-                          {isExpanded ? (
-                            <ChevronUp size={17} />
-                          ) : (
-                            <ChevronDown size={17} />
-                          )}
-                        </div>
-
-                      </div>
-                    </button>
-
-                    {/* =================================================
-                        FACULTY CONTENT
-                    ================================================= */}
-
-                    <AnimatePresence initial={false}>
-
-                      {isExpanded && (
-                        <motion.div
-                          initial={{
-                            opacity: 0,
-                            height: 0,
-                          }}
-                          animate={{
-                            opacity: 1,
-                            height: "auto",
-                          }}
-                          exit={{
-                            opacity: 0,
-                            height: 0,
-                          }}
-                          transition={{
-                            duration: 0.3,
-                          }}
-                        >
-
-                          <div className="border-t border-white/5 px-5 pb-6 pt-5 sm:px-6">
-
-                            {/* FACULTY DESCRIPTION */}
-
-                            {faculty.description && (
-                              <div className="mb-6 rounded-2xl border border-white/5 bg-white/[0.02] p-5">
-
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-400/60">
-                                  About this Faculty
-                                </p>
-
-                                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-400">
-                                  {faculty.description}
-                                </p>
-
-                              </div>
-                            )}
-
-                            {/* LOADING */}
-
-                            {facultyLoading &&
-                              !Object.prototype.hasOwnProperty.call(
-                                facultyCourses,
-                                faculty.id
-                              ) && (
-                                <div className="grid gap-4 sm:grid-cols-2">
-
-                                  {[1, 2, 3].map(
-                                    (item) => (
-                                      <div
-                                        key={item}
-                                        className="h-36 animate-pulse rounded-2xl border border-white/5 bg-white/[0.025]"
-                                      />
-                                    )
-                                  )}
-
-                                </div>
-                              )}
-
-                            {/* COURSES */}
-
-                            {!facultyLoading &&
-                              Object.prototype.hasOwnProperty.call(
-                                facultyCourses,
-                                faculty.id
-                              ) &&
-                              courses.length > 0 && (
-                                <div>
-
-                                  <div className="mb-4 flex items-center justify-between gap-4">
-
-                                    <div>
-                                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-400/60">
-                                        Academic Programs
-                                      </p>
-
-                                      <h4 className="mt-1 text-lg font-black text-white">
-                                        Courses & Programs
-                                      </h4>
-                                    </div>
-
-                                    <div className="rounded-full border border-cyan-400/10 bg-cyan-400/[0.06] px-3 py-1.5 text-xs font-black text-cyan-400">
-                                      {courses.length}
-                                    </div>
-
-                                  </div>
-
-                                  <div className="grid gap-4 md:grid-cols-2">
-
-                                    {courses.map(
-                                      (
-                                        course,
-                                        courseIndex
-                                      ) => (
-                                        <CourseCard
-                                          key={
-                                            course.id ||
-                                            courseIndex
-                                          }
-                                          course={
-                                            course
-                                          }
-                                        />
-                                      )
-                                    )}
-
-                                  </div>
-
-                                </div>
-                              )}
-
-                          </div>
-                        </motion.div>
-                      )}
-
-                    </AnimatePresence>
-
-                  </motion.div>
-                );
-              })}
-
-            </div>
-          ) : (
-            <div className="rounded-[1.75rem] border border-dashed border-white/10 bg-white/[0.015] p-8 text-center">
-
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.03]">
-                <Building2
-                  size={24}
-                  className="text-slate-600"
-                />
               </div>
 
-              <h3 className="mt-4 font-black text-white">
-                Faculty Information
-              </h3>
+              {/* BENEFITS */}
 
-              <p className="mt-2 text-sm text-slate-600">
-                Faculty information is currently
-                unavailable.
-              </p>
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+
+                <FacultyBenefit
+                  icon={Building2}
+                  title="Faculties"
+                  text="View the institution's complete faculty structure."
+                />
+
+                <FacultyBenefit
+                  icon={Layers3}
+                  title="Departments"
+                  text="Discover departments and academic units."
+                />
+
+                <FacultyBenefit
+                  icon={ShieldCheck}
+                  title="Official Source"
+                  text="Get information directly from the institution."
+                />
+
+              </div>
 
             </div>
-          )}
-
+          </div>
         </SectionCard>
 
         {/* ===================================================
@@ -963,9 +677,7 @@ const CollegeDetails = () => {
                       "address"
                     )
                   }
-                  copied={
-                    copied === "address"
-                  }
+                  copied={copied === "address"}
                 />
               )}
 
@@ -973,10 +685,12 @@ const CollegeDetails = () => {
 
           </SectionCard>
 
+          {/* OFFICIAL WEBSITE */}
+
           {websiteUrl && (
             <motion.div
               whileHover={{
-                y: -3,
+                y: -4,
               }}
               className="relative overflow-hidden rounded-[2rem] border border-cyan-400/15 bg-gradient-to-br from-cyan-400/[0.10] via-slate-900 to-slate-950 p-6 shadow-xl"
             >
@@ -1004,10 +718,14 @@ const CollegeDetails = () => {
                   href={websiteUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-5 py-3.5 text-sm font-black text-slate-950 transition hover:bg-cyan-300"
+                  className="group mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-5 py-3.5 text-sm font-black text-slate-950 transition hover:bg-cyan-300"
                 >
-                  Visit Website
-                  <ExternalLink size={16} />
+                  Visit Official Website
+
+                  <ExternalLink
+                    size={16}
+                    className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                  />
                 </a>
 
               </div>
@@ -1017,28 +735,59 @@ const CollegeDetails = () => {
         </div>
 
         {/* ===================================================
-            FOOTER ACTION
+            FINAL CTA
         =================================================== */}
 
-        <div className="mb-12 mt-8 flex justify-center">
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          whileInView={{
+            opacity: 1,
+            y: 0,
+          }}
+          viewport={{
+            once: true,
+          }}
+          className="relative mb-12 mt-8 overflow-hidden rounded-[2.25rem] border border-white/10 bg-gradient-to-br from-white/[0.04] to-transparent p-7 text-center sm:p-10"
+        >
 
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/colleges")
-            }
-            className="group inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-3.5 text-sm font-bold text-slate-400 transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.05] hover:text-white"
-          >
-            <ArrowLeft
-              size={17}
-              className="transition-transform duration-300 group-hover:-translate-x-1"
-            />
+          <div className="absolute left-1/2 top-0 h-40 w-40 -translate-x-1/2 rounded-full bg-cyan-400/[0.06] blur-3xl" />
 
-            Explore More Colleges
+          <div className="relative">
 
-          </button>
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-400/10">
+              <Compass
+                size={26}
+                className="text-cyan-400"
+              />
+            </div>
 
-        </div>
+            <h3 className="mt-5 text-2xl font-black text-white sm:text-3xl">
+              Continue Exploring
+            </h3>
+
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-500">
+              Discover more colleges and explore
+              opportunities across institutions.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate("/colleges")}
+              className="group mt-6 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-3.5 text-sm font-bold text-slate-300 transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] hover:text-white"
+            >
+              <ArrowLeft
+                size={17}
+                className="transition-transform duration-300 group-hover:-translate-x-1"
+              />
+
+              Explore More Colleges
+            </button>
+
+          </div>
+        </motion.div>
 
       </div>
     </section>
@@ -1046,104 +795,38 @@ const CollegeDetails = () => {
 };
 
 /* =========================================================
-   COURSE CARD
+   FACULTY BENEFIT
 ========================================================= */
 
-const CourseCard = ({ course }) => {
-  const courseName =
-    course.name ||
-    course.title ||
-    course.course_name ||
-    "Course";
-
-  const description =
-    course.description ||
-    course.summary ||
-    "";
-
-  const degreeType =
-    course.degree_type ||
-    course.degree ||
-    "";
-
-  const duration =
-    course.duration ||
-    "";
-
-  const studyMode =
-    course.study_mode ||
-    course.studyMode ||
-    "";
-
+const FacultyBenefit = ({
+  icon: Icon,
+  title,
+  text,
+}) => {
   return (
-    <motion.div
-      whileHover={{
-        y: -3,
-      }}
-      transition={{
-        duration: 0.2,
-      }}
-      className="group relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.025] p-5 transition hover:border-cyan-400/15 hover:bg-cyan-400/[0.025]"
-    >
+    <div className="rounded-2xl border border-white/5 bg-white/[0.025] p-4 transition hover:border-cyan-400/10 hover:bg-white/[0.04]">
 
-      <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-cyan-400/[0.035] blur-2xl transition group-hover:bg-cyan-400/[0.07]" />
+      <div className="flex items-start gap-3">
 
-      <div className="relative">
-
-        <div className="flex items-start gap-4">
-
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/10 bg-blue-400/[0.08]">
-            <GraduationCap
-              size={20}
-              className="text-blue-400"
-            />
-          </div>
-
-          <div className="min-w-0 flex-1">
-
-            <h5 className="font-black leading-6 text-white">
-              {courseName}
-            </h5>
-
-            {degreeType && (
-              <p className="mt-1 text-xs font-bold text-cyan-400">
-                {degreeType}
-              </p>
-            )}
-
-          </div>
-
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-400/10 bg-cyan-400/[0.07]">
+          <Icon
+            size={17}
+            className="text-cyan-400"
+          />
         </div>
 
-        {description && (
-          <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-500">
-            {description}
+        <div>
+          <p className="text-sm font-black text-white">
+            {title}
           </p>
-        )}
 
-        {(duration ||
-          studyMode) && (
-          <div className="mt-4 flex flex-wrap gap-2">
-
-            {duration && (
-              <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1.5 text-[10px] font-bold text-slate-500">
-                <Clock3 size={12} />
-                {duration}
-              </div>
-            )}
-
-            {studyMode && (
-              <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1.5 text-[10px] font-bold text-slate-500">
-                <Layers3 size={12} />
-                {studyMode}
-              </div>
-            )}
-
-          </div>
-        )}
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            {text}
+          </p>
+        </div>
 
       </div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -1220,7 +903,7 @@ const SectionCard = ({
       transition={{
         duration: 0.45,
       }}
-      className={`rounded-[2rem] border border-white/10 bg-white/[0.025] backdrop-blur-2xl ${
+      className={`mt-6 rounded-[2rem] border border-white/10 bg-white/[0.025] backdrop-blur-2xl ${
         compact
           ? "p-5"
           : "p-6 sm:p-8"
@@ -1313,19 +996,6 @@ const ContactItem = ({
 
       </div>
     </div>
-  );
-};
-
-/* =========================================================
-   SHIELD ICON
-========================================================= */
-
-const ShieldIcon = () => {
-  return (
-    <CheckCircle2
-      size={14}
-      className="text-cyan-400"
-    />
   );
 };
 

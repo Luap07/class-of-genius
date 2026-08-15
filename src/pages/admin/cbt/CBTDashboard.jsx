@@ -1,4 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import {
   BookOpen,
   HelpCircle,
@@ -7,6 +11,7 @@ import {
   Loader2,
   Activity,
 } from "lucide-react";
+
 import { supabase } from "../../../lib/supabaseClient";
 
 const CBTDashboard = () => {
@@ -17,114 +22,334 @@ const CBTDashboard = () => {
     attempts: 0,
   });
 
+  const [subjectList, setSubjectList] = useState([]);
+
   const [loading, setLoading] = useState(true);
+
   const [live, setLive] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
 
-  // ==============================
-  // FETCH CBT STATS
-  // ==============================
+  const [lastUpdated, setLastUpdated] =
+    useState(null);
 
-  const fetchCBTStats = useCallback(async () => {
-    try {
-      const [
-        subjectsResult,
-        questionsResult,
-        examsResult,
-        attemptsResult,
-      ] = await Promise.all([
-        supabase
-          .from("cbt_subjects")
-          .select("*", {
-            count: "exact",
-            head: true,
-          }),
+  /* ==========================================================================
+     NORMALIZE
+  ========================================================================== */
 
-        supabase
+  const normalize = (value) =>
+    String(value ?? "")
+      .replace(/\u00a0/g, " ")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+
+  /* ==========================================================================
+     DISPLAY NAME
+  ========================================================================== */
+
+  const formatSubjectName = (subject) => {
+    const normalized = normalize(subject);
+
+    const names = {
+      english: "English",
+      "english language": "English",
+      mathematics: "Mathematics",
+      maths: "Mathematics",
+      math: "Mathematics",
+      physics: "Physics",
+      chemistry: "Chemistry",
+      biology: "Biology",
+      economics: "Economics",
+      government: "Government",
+      literature: "Literature",
+      "literature in english":
+        "Literature",
+      "civic education":
+        "Civic Education",
+    };
+
+    if (names[normalized]) {
+      return names[normalized];
+    }
+
+    return String(subject)
+      .trim()
+      .replace(/\b\w/g, (letter) =>
+        letter.toUpperCase()
+      );
+  };
+
+  /* ==========================================================================
+     FETCH CBT STATS
+
+     IMPORTANT:
+     Subjects are now calculated from the DISTINCT
+     `subject` values inside `cbt_questions`.
+
+     We are NOT depending on cbt_subjects anymore.
+  ========================================================================== */
+
+  const fetchCBTStats = useCallback(
+    async () => {
+      try {
+        setLoading(true);
+
+        /* --------------------------------------------------------------------
+           FETCH QUESTIONS
+
+           We need the actual subject and exam columns
+           because the dashboard should reflect what
+           actually exists in the CBT question bank.
+        -------------------------------------------------------------------- */
+
+        const {
+          data: questionRows,
+          error: questionsError,
+        } = await supabase
           .from("cbt_questions")
-          .select("*", {
-            count: "exact",
-            head: true,
-          }),
+          .select("id, subject, exam");
 
-        supabase
-          .from("cbt_exams")
-          .select("*", {
-            count: "exact",
-            head: true,
-          }),
+        if (questionsError) {
+          console.error(
+            "CBT questions error:",
+            questionsError
+          );
 
-        supabase
+          throw questionsError;
+        }
+
+        const questions =
+          questionRows || [];
+
+        /* --------------------------------------------------------------------
+           UNIQUE SUBJECTS
+
+           Example:
+
+           English
+           english language
+           Mathematics
+           maths
+           Physics
+
+           becomes:
+
+           English
+           Mathematics
+           Physics
+        -------------------------------------------------------------------- */
+
+        const subjectMap = new Map();
+
+        questions.forEach((row) => {
+          const rawSubject =
+            String(
+              row?.subject ?? ""
+            ).trim();
+
+          if (!rawSubject) {
+            return;
+          }
+
+          const normalized =
+            normalize(rawSubject);
+
+          if (!normalized) {
+            return;
+          }
+
+          if (
+            !subjectMap.has(normalized)
+          ) {
+            subjectMap.set(
+              normalized,
+              formatSubjectName(
+                rawSubject
+              )
+            );
+          }
+        });
+
+        const uniqueSubjects =
+          Array.from(
+            subjectMap.values()
+          ).sort((a, b) =>
+            a.localeCompare(b)
+          );
+
+        /* --------------------------------------------------------------------
+           UNIQUE EXAMS FROM QUESTIONS
+
+           This makes the dashboard reflect the actual
+           exams attached to the question bank.
+
+           If you have:
+
+           WAEC
+           waec
+           W.A.E.C.
+
+           they will still be normalized separately unless
+           you add an alias. Normal exam names are preserved.
+        -------------------------------------------------------------------- */
+
+        const examMap = new Map();
+
+        questions.forEach((row) => {
+          const rawExam =
+            String(
+              row?.exam ?? ""
+            ).trim();
+
+          if (!rawExam) {
+            return;
+          }
+
+          const normalized =
+            normalize(rawExam);
+
+          if (!normalized) {
+            return;
+          }
+
+          if (
+            !examMap.has(normalized)
+          ) {
+            examMap.set(
+              normalized,
+              rawExam
+            );
+          }
+        });
+
+        const uniqueExams =
+          Array.from(
+            examMap.values()
+          );
+
+        /* --------------------------------------------------------------------
+           ATTEMPTS
+
+           Attempts still come from cbt_attempts.
+        -------------------------------------------------------------------- */
+
+        const {
+          count: attemptsCount,
+          error: attemptsError,
+        } = await supabase
           .from("cbt_attempts")
           .select("*", {
             count: "exact",
             head: true,
-          }),
-      ]);
+          });
 
-      if (subjectsResult.error) {
-        console.error(
-          "Subjects count error:",
-          subjectsResult.error
+        if (attemptsError) {
+          console.error(
+            "Attempts count error:",
+            attemptsError
+          );
+        }
+
+        /* --------------------------------------------------------------------
+           UPDATE STATS
+        -------------------------------------------------------------------- */
+
+        setStats({
+          subjects:
+            uniqueSubjects.length,
+
+          questions:
+            questions.length,
+
+          exams:
+            uniqueExams.length,
+
+          attempts:
+            attemptsCount || 0,
+        });
+
+        setSubjectList(
+          uniqueSubjects
         );
-      }
 
-      if (questionsResult.error) {
-        console.error(
-          "Questions count error:",
-          questionsResult.error
+        setLastUpdated(
+          new Date()
         );
-      }
 
-      if (examsResult.error) {
-        console.error(
-          "Exams count error:",
-          examsResult.error
+        console.log(
+          "================================="
         );
-      }
 
-      if (attemptsResult.error) {
-        console.error(
-          "Attempts count error:",
-          attemptsResult.error
+        console.log(
+          "CBT DASHBOARD UPDATED"
         );
+
+        console.log(
+          "Subjects:",
+          uniqueSubjects
+        );
+
+        console.log(
+          "Subject count:",
+          uniqueSubjects.length
+        );
+
+        console.log(
+          "Question count:",
+          questions.length
+        );
+
+        console.log(
+          "Exam count:",
+          uniqueExams.length
+        );
+
+        console.log(
+          "Attempt count:",
+          attemptsCount || 0
+        );
+
+        console.log(
+          "================================="
+        );
+      } catch (error) {
+        console.error(
+          "CBT dashboard error:",
+          error
+        );
+      } finally {
+        setLoading(false);
       }
+    },
+    []
+  );
 
-      setStats({
-        subjects: subjectsResult.count || 0,
-        questions: questionsResult.count || 0,
-        exams: examsResult.count || 0,
-        attempts: attemptsResult.count || 0,
-      });
-
-      setLastUpdated(new Date());
-    } catch (error) {
-      console.error(
-        "CBT dashboard error:",
-        error
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // ==============================
-  // INITIAL LOAD
-  // ==============================
+  /* ==========================================================================
+     INITIAL LOAD
+  ========================================================================== */
 
   useEffect(() => {
     fetchCBTStats();
   }, [fetchCBTStats]);
 
-  // ==============================
-  // LIVE UPDATES
-  // ==============================
+  /* ==========================================================================
+     LIVE UPDATES
+
+     We listen to cbt_questions because subjects, questions
+     and exams are derived from that table.
+
+     We also listen to attempts.
+  ========================================================================== */
 
   useEffect(() => {
     const channel = supabase
-      .channel("cbt-dashboard-live")
+      .channel(
+        "cbt-dashboard-live"
+      )
 
-      // QUESTIONS
+      /* ----------------------------------------------------------------------
+         QUESTIONS
+      ---------------------------------------------------------------------- */
+
       .on(
         "postgres_changes",
         {
@@ -133,40 +358,18 @@ const CBTDashboard = () => {
           table: "cbt_questions",
         },
         () => {
-          console.log("CBT questions changed");
+          console.log(
+            "CBT questions changed"
+          );
+
           fetchCBTStats();
         }
       )
 
-      // SUBJECTS
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "cbt_subjects",
-        },
-        () => {
-          console.log("CBT subjects changed");
-          fetchCBTStats();
-        }
-      )
+      /* ----------------------------------------------------------------------
+         ATTEMPTS
+      ---------------------------------------------------------------------- */
 
-      // EXAMS
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "cbt_exams",
-        },
-        () => {
-          console.log("CBT exams changed");
-          fetchCBTStats();
-        }
-      )
-
-      // ATTEMPTS
       .on(
         "postgres_changes",
         {
@@ -175,7 +378,10 @@ const CBTDashboard = () => {
           table: "cbt_attempts",
         },
         () => {
-          console.log("CBT attempts changed");
+          console.log(
+            "CBT attempts changed"
+          );
+
           fetchCBTStats();
         }
       )
@@ -186,7 +392,9 @@ const CBTDashboard = () => {
           status
         );
 
-        if (status === "SUBSCRIBED") {
+        if (
+          status === "SUBSCRIBED"
+        ) {
           setLive(true);
         } else {
           setLive(false);
@@ -194,59 +402,75 @@ const CBTDashboard = () => {
       });
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(
+        channel
+      );
     };
   }, [fetchCBTStats]);
 
-  // ==============================
-  // STAT CARDS
-  // ==============================
+  /* ==========================================================================
+     STAT CARDS
+  ========================================================================== */
 
   const statsData = [
     {
       title: "Subjects",
       value: stats.subjects,
       icon: BookOpen,
+      description:
+        "Unique CBT subjects",
     },
+
     {
       title: "Questions",
       value: stats.questions,
       icon: HelpCircle,
+      description:
+        "Questions in question bank",
     },
+
     {
       title: "Exams",
       value: stats.exams,
       icon: FileText,
+      description:
+        "Exams in question bank",
     },
+
     {
       title: "Attempts",
       value: stats.attempts,
       icon: BarChart3,
+      description:
+        "Recorded CBT attempts",
     },
   ];
 
-  // ==============================
-  // FORMAT TIME
-  // ==============================
+  /* ==========================================================================
+     FORMAT TIME
+  ========================================================================== */
 
   const formattedTime = lastUpdated
-    ? lastUpdated.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      })
+    ? lastUpdated.toLocaleTimeString(
+        [],
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }
+      )
     : "";
 
-  // ==============================
-  // UI
-  // ==============================
+  /* ==========================================================================
+     UI
+  ========================================================================== */
 
   return (
     <div className="space-y-8">
 
-      {/* ==============================
+      {/* ======================================================================
           HEADER
-      ============================== */}
+      ====================================================================== */}
 
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
 
@@ -258,7 +482,7 @@ const CBTDashboard = () => {
               CBT Dashboard
             </h1>
 
-            {/* LIVE INDICATOR */}
+            {/* LIVE */}
 
             <div
               className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
@@ -285,7 +509,9 @@ const CBTDashboard = () => {
               </span>
 
               <span className="text-xs font-medium">
-                {live ? "LIVE" : "CONNECTING"}
+                {live
+                  ? "LIVE"
+                  : "CONNECTING"}
               </span>
 
             </div>
@@ -293,7 +519,8 @@ const CBTDashboard = () => {
           </div>
 
           <p className="text-slate-400 mt-1">
-            Manage computer based tests, questions and exams.
+            Manage computer based tests,
+            questions and examinations.
           </p>
 
         </div>
@@ -312,55 +539,156 @@ const CBTDashboard = () => {
 
       </div>
 
-
-      {/* ==============================
+      {/* ======================================================================
           STAT CARDS
-      ============================== */}
+      ====================================================================== */}
 
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
 
-        {statsData.map((item) => {
+        {statsData.map(
+          (item) => {
+            const Icon =
+              item.icon;
 
-          const Icon = item.icon;
+            return (
+              <div
+                key={item.title}
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-5 transition-all duration-300 hover:border-blue-500/30"
+              >
 
-          return (
-            <div
-              key={item.title}
-              className="bg-slate-900 border border-slate-800 rounded-2xl p-5 transition-all duration-300 hover:border-blue-500/30"
-            >
+                <div className="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4">
+                  <Icon size={25} />
+                </div>
 
-              <div className="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4">
-                <Icon size={25} />
+                <h2 className="text-slate-400">
+                  {item.title}
+                </h2>
+
+                <p className="text-3xl font-bold mt-2 text-white">
+
+                  {loading ? (
+                    <Loader2
+                      size={25}
+                      className="animate-spin text-blue-400"
+                    />
+                  ) : (
+                    item.value.toLocaleString()
+                  )}
+
+                </p>
+
+                <p className="text-xs text-slate-600 mt-2">
+                  {item.description}
+                </p>
+
               </div>
-
-              <h2 className="text-slate-400">
-                {item.title}
-              </h2>
-
-              <p className="text-3xl font-bold mt-2 text-white">
-
-                {loading ? (
-                  <Loader2
-                    size={25}
-                    className="animate-spin text-blue-400"
-                  />
-                ) : (
-                  item.value.toLocaleString()
-                )}
-
-              </p>
-
-            </div>
-          );
-
-        })}
+            );
+          }
+        )}
 
       </div>
 
+      {/* ======================================================================
+          SUBJECT OVERVIEW
+      ====================================================================== */}
 
-      {/* ==============================
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+
+          <div>
+
+            <h2 className="text-xl font-semibold text-white">
+              CBT Subjects
+            </h2>
+
+            <p className="text-sm text-slate-500 mt-1">
+              Subjects detected directly from
+              the CBT question bank.
+            </p>
+
+          </div>
+
+          <div className="px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-semibold">
+            {stats.subjects}{" "}
+            {stats.subjects === 1
+              ? "Subject"
+              : "Subjects"}
+          </div>
+
+        </div>
+
+        {loading ? (
+
+          <div className="flex items-center gap-2 text-slate-400">
+
+            <Loader2
+              size={18}
+              className="animate-spin"
+            />
+
+            Loading subjects...
+
+          </div>
+
+        ) : subjectList.length > 0 ? (
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+
+            {subjectList.map(
+              (subject) => (
+                <div
+                  key={subject}
+                  className="px-4 py-4 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-blue-500/30 transition"
+                >
+
+                  <div className="flex items-center gap-3">
+
+                    <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
+                      <BookOpen
+                        size={17}
+                      />
+                    </div>
+
+                    <p className="text-sm font-semibold text-slate-200 truncate">
+                      {subject}
+                    </p>
+
+                  </div>
+
+                </div>
+              )
+            )}
+
+          </div>
+
+        ) : (
+
+          <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-6 text-center">
+
+            <BookOpen
+              size={28}
+              className="mx-auto text-slate-600 mb-3"
+            />
+
+            <p className="text-slate-400 font-medium">
+              No CBT subjects found
+            </p>
+
+            <p className="text-xs text-slate-600 mt-1">
+              Add questions with a subject
+              in the cbt_questions table.
+            </p>
+
+          </div>
+
+        )}
+
+      </div>
+
+      {/* ======================================================================
           RECENT CBT ACTIVITY
-      ============================== */}
+      ====================================================================== */}
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
 
@@ -402,12 +730,13 @@ const CBTDashboard = () => {
 
             </span>
 
-            {live ? "Live" : "Offline"}
+            {live
+              ? "Live"
+              : "Offline"}
 
           </div>
 
         </div>
-
 
         {/* LOADING */}
 
@@ -438,8 +767,12 @@ const CBTDashboard = () => {
 
               <p className="text-white font-medium">
 
-                {stats.attempts.toLocaleString()} CBT attempt
-                {stats.attempts === 1 ? "" : "s"}
+                {stats.attempts.toLocaleString()} CBT
+                attempt
+                {stats.attempts ===
+                1
+                  ? ""
+                  : "s"}
 
               </p>
 
@@ -468,7 +801,8 @@ const CBTDashboard = () => {
               </p>
 
               <p className="text-sm text-slate-500">
-                User attempts will appear here automatically.
+                User attempts will appear
+                here automatically.
               </p>
 
             </div>

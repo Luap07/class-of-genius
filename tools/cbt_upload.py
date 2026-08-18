@@ -1,6 +1,7 @@
 import csv
 import os
 import re
+import random
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -8,10 +9,25 @@ from supabase import create_client, Client
 
 
 # ============================================================
+# CONFIGURATION
+# ============================================================
+
+RANDOMIZE_OPTIONS = True
+
+# IMPORTANT:
+# True  = DELETE ALL EXISTING QUESTIONS BEFORE IMPORT
+# False = ONLY INSERT NEW QUESTIONS
+#
+# Keep this TRUE if your CSV is the master copy of your CBT.
+REPLACE_EXISTING_QUESTIONS = True
+
+
+# ============================================================
 # LOAD ENVIRONMENT VARIABLES
 # ============================================================
 
 env_path = Path(__file__).resolve().parent.parent / ".env"
+
 load_dotenv(dotenv_path=env_path)
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -54,10 +70,7 @@ if not CSV_FILE.exists():
 
 
 # ============================================================
-# MATHEMATICAL TEXT CONVERTER
-#
-# Converts Unicode mathematical notation into HTML that
-# CBTExam.jsx can render correctly.
+# SUPERSCRIPT MAP
 # ============================================================
 
 SUPERSCRIPT_MAP = str.maketrans({
@@ -79,6 +92,11 @@ SUPERSCRIPT_MAP = str.maketrans({
     "ⁿ": "n",
 })
 
+
+# ============================================================
+# SUBSCRIPT MAP
+# ============================================================
+
 SUBSCRIPT_MAP = str.maketrans({
     "₀": "0",
     "₁": "1",
@@ -99,17 +117,152 @@ SUBSCRIPT_MAP = str.maketrans({
 })
 
 
+# ============================================================
+# CLEAN LATEX + MARKDOWN
+# ============================================================
+
+def clean_latex(text):
+
+    if not text:
+        return ""
+
+    text = str(text).strip()
+
+    # Markdown bold
+    text = re.sub(
+        r"\*\*(.*?)\*\*",
+        r"\1",
+        text,
+        flags=re.DOTALL
+    )
+
+    # Markdown italic
+    text = re.sub(
+        r"(?<!\*)\*([^*]+)\*(?!\*)",
+        r"\1",
+        text
+    )
+
+    # Markdown underscore bold
+    text = re.sub(
+        r"__([^_]+)__",
+        r"\1",
+        text
+    )
+
+    # Markdown underscore italic
+    text = re.sub(
+        r"(?<!_)_([^_]+)_(?!_)",
+        r"\1",
+        text
+    )
+
+    # Math delimiters
+    text = text.replace("$", "")
+    text = text.replace(r"\(", "")
+    text = text.replace(r"\)", "")
+    text = text.replace(r"\[", "")
+    text = text.replace(r"\]", "")
+
+    # \text{...}
+    text = re.sub(
+        r"\\text\s*\{\s*([^{}]*?)\s*\}",
+        r"\1",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # Other text commands
+    text = re.sub(
+        r"\\(?:mathrm|textrm|textnormal|textbf|textit|"
+        r"mathbf|mathit|mathsf|mathtt)"
+        r"\s*\{\s*([^{}]*?)\s*\}",
+        r"\1",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # Fractions
+    text = re.sub(
+        r"\\frac\s*\{\s*([^{}]*)\s*\}"
+        r"\s*\{\s*([^{}]*)\s*\}",
+        r"\1/\2",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # Square root
+    text = re.sub(
+        r"\\sqrt\s*\{\s*([^{}]*)\s*\}",
+        r"√\1",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    # LaTeX symbols
+    latex_symbols = {
+        r"\times": "×",
+        r"\cdot": "·",
+        r"\div": "÷",
+        r"\pm": "±",
+        r"\mp": "∓",
+        r"\leq": "≤",
+        r"\le": "≤",
+        r"\geq": "≥",
+        r"\ge": "≥",
+        r"\neq": "≠",
+        r"\approx": "≈",
+        r"\infty": "∞",
+        r"\pi": "π",
+        r"\theta": "θ",
+        r"\alpha": "α",
+        r"\beta": "β",
+        r"\gamma": "γ",
+        r"\delta": "δ",
+        r"\lambda": "λ",
+        r"\mu": "μ",
+        r"\sigma": "σ",
+        r"\omega": "ω",
+        r"\Delta": "Δ",
+        r"\degree": "°",
+    }
+
+    for latex, symbol in latex_symbols.items():
+        text = text.replace(latex, symbol)
+
+    # LaTeX spacing
+    text = text.replace(r"\,", " ")
+    text = text.replace(r"\;", " ")
+    text = text.replace(r"\:", " ")
+    text = text.replace(r"\!", "")
+    text = text.replace(r"\ ", " ")
+
+    # Remove remaining LaTeX commands
+    text = re.sub(
+        r"\\[A-Za-z]+",
+        "",
+        text
+    )
+
+    # Remove braces
+    text = text.replace("{", "")
+    text = text.replace("}", "")
+
+    # Normalize whitespace
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
+
+    return text
+
+
+# ============================================================
+# UNICODE MATH
+# ============================================================
+
 def convert_math_unicode(text):
-    """
-    Converts Unicode powers/subscripts into HTML.
-
-    Examples:
-
-        m²       -> m<sup>2</sup>
-        m⁻²      -> m<sup>−2</sup>
-        kg m⁻³   -> kg m<sup>−3</sup>
-        x₂       -> x<sub>2</sub>
-    """
 
     if not text:
         return ""
@@ -128,9 +281,11 @@ def convert_math_unicode(text):
     current_sup = []
 
     def flush_sup():
+
         nonlocal current_sup
 
         if current_sup:
+
             converted = "".join(
                 current_sup
             ).translate(
@@ -146,16 +301,17 @@ def convert_math_unicode(text):
     for char in text:
 
         if char in superscript_chars:
+
             current_sup.append(char)
 
         else:
+
             flush_sup()
             result.append(char)
 
     flush_sup()
 
     text = "".join(result)
-
 
     # --------------------------------------------------------
     # SUBSCRIPTS
@@ -169,9 +325,11 @@ def convert_math_unicode(text):
     current_sub = []
 
     def flush_sub():
+
         nonlocal current_sub
 
         if current_sub:
+
             converted = "".join(
                 current_sub
             ).translate(
@@ -187,17 +345,17 @@ def convert_math_unicode(text):
     for char in text:
 
         if char in subscript_chars:
+
             current_sub.append(char)
 
         else:
+
             flush_sub()
             result.append(char)
 
     flush_sub()
 
-    text = "".join(result)
-
-    return text
+    return "".join(result)
 
 
 # ============================================================
@@ -205,16 +363,6 @@ def convert_math_unicode(text):
 # ============================================================
 
 def convert_simple_fractions(text):
-    """
-    Converts simple mathematical fractions.
-
-    Example:
-
-        1/2 -> HTML fraction
-
-    We deliberately avoid converting dates, URLs,
-    normal text paths, etc.
-    """
 
     if not text:
         return ""
@@ -256,13 +404,123 @@ def format_math(text):
 
     text = str(text).strip()
 
-    # First convert Unicode powers/subscripts.
+    text = clean_latex(text)
+
     text = convert_math_unicode(text)
 
-    # Then convert simple fractions.
     text = convert_simple_fractions(text)
 
     return text
+
+
+# ============================================================
+# ANSWER CLEANER
+# ============================================================
+
+def clean_answer(answer):
+
+    if not answer:
+        return ""
+
+    answer = str(answer).strip().upper()
+
+    answer = re.sub(
+        r"\*\*(.*?)\*\*",
+        r"\1",
+        answer
+    )
+
+    answer = re.sub(
+        r"__([^_]+)__",
+        r"\1",
+        answer
+    )
+
+    # Examples accepted:
+    #
+    # A
+    # A.
+    # A)
+    # A - something
+    # A: something
+
+    match = re.match(
+        r"^\s*([ABCD])"
+        r"(?:\s*[,.:;()\-\u2013\u2014]"
+        r"|\s+|$)",
+        answer
+    )
+
+    if match:
+        return match.group(1)
+
+    if answer in {"A", "B", "C", "D"}:
+        return answer
+
+    return answer
+
+
+# ============================================================
+# SHUFFLE OPTIONS
+# ============================================================
+
+def shuffle_options(
+    option_a,
+    option_b,
+    option_c,
+    option_d,
+    correct_answer
+):
+
+    original_options = {
+        "A": option_a,
+        "B": option_b,
+        "C": option_c,
+        "D": option_d,
+    }
+
+    if correct_answer not in original_options:
+        raise ValueError(
+            f"Invalid correct answer: {correct_answer}"
+        )
+
+    correct_text = original_options[
+        correct_answer
+    ]
+
+    options = [
+        option_a,
+        option_b,
+        option_c,
+        option_d,
+    ]
+
+    # THIS IS THE ACTUAL RANDOM SHUFFLE
+    random.shuffle(options)
+
+    # Find where the correct option moved
+    correct_index = options.index(
+        correct_text
+    )
+
+    answer_letters = [
+        "A",
+        "B",
+        "C",
+        "D"
+    ]
+
+    new_answer = answer_letters[
+        correct_index
+    ]
+
+    return (
+        options[0],
+        options[1],
+        options[2],
+        options[3],
+        new_answer
+    )
 
 
 # ============================================================
@@ -283,10 +541,18 @@ required_columns = {
 
 
 # ============================================================
-# READ QUESTIONS
+# READ CSV
 # ============================================================
 
 questions = []
+
+answer_distribution = {
+    "A": 0,
+    "B": 0,
+    "C": 0,
+    "D": 0,
+}
+
 
 with open(
     CSV_FILE,
@@ -302,15 +568,20 @@ with open(
     )
 
     missing_columns = (
-        required_columns -
+        required_columns
+        -
         actual_columns
     )
 
     if missing_columns:
+
         raise Exception(
             "Missing CSV columns: "
-            + ", ".join(
-                sorted(missing_columns)
+            +
+            ", ".join(
+                sorted(
+                    missing_columns
+                )
             )
         )
 
@@ -319,9 +590,9 @@ with open(
         start=2
     ):
 
-        # ====================================================
+        # ----------------------------------------------------
         # SKIP EMPTY ROWS
-        # ====================================================
+        # ----------------------------------------------------
 
         if not any(
             value and value.strip()
@@ -330,10 +601,9 @@ with open(
         ):
             continue
 
-
-        # ====================================================
-        # GET VALUES
-        # ====================================================
+        # ----------------------------------------------------
+        # READ DATA
+        # ----------------------------------------------------
 
         exam = (
             row.get("exam") or ""
@@ -363,18 +633,22 @@ with open(
             row.get("optionD") or ""
         ).strip()
 
-        answer = (
+        answer = clean_answer(
             row.get("answer") or ""
-        ).strip().upper()
+        )
 
         reason = (
             row.get("reason") or ""
         ).strip()
 
+        # image is optional
+        image = (
+            row.get("image") or ""
+        ).strip()
 
-        # ====================================================
+        # ----------------------------------------------------
         # VALIDATION
-        # ====================================================
+        # ----------------------------------------------------
 
         if not exam:
             raise ValueError(
@@ -411,80 +685,104 @@ with open(
                 f"Row {row_number}: optionD is empty."
             )
 
-        if not answer:
-            raise ValueError(
-                f"Row {row_number}: answer is empty."
-            )
-
         if answer not in {
             "A",
             "B",
             "C",
-            "D",
+            "D"
         }:
             raise ValueError(
                 f"Row {row_number}: invalid answer "
                 f"'{answer}'. "
-                "Answer must be A, B, C, or D."
+                "Answer must be A, B, C or D."
             )
 
         if not reason:
             raise ValueError(
-                f"\n❌ Row {row_number} is missing a reason.\n"
+                f"\nRow {row_number} is missing a reason.\n"
                 f"Question: {question}\n"
-                f"Answer: {answer}\n\n"
-                "Add a reason to this row in "
-                "cbt_questions.csv."
+                f"Answer: {answer}\n"
             )
 
+        # ----------------------------------------------------
+        # FORMAT CONTENT
+        # ----------------------------------------------------
 
-        # ====================================================
-        # FORMAT MATHEMATICS
-        # ====================================================
+        question = format_math(question)
 
-        question = format_math(
-            question
-        )
+        option_a = format_math(option_a)
+        option_b = format_math(option_b)
+        option_c = format_math(option_c)
+        option_d = format_math(option_d)
 
-        option_a = format_math(
-            option_a
-        )
+        reason = format_math(reason)
 
-        option_b = format_math(
-            option_b
-        )
+        # ----------------------------------------------------
+        # SHUFFLE OPTIONS
+        # ----------------------------------------------------
 
-        option_c = format_math(
-            option_c
-        )
+        original_answer = answer
 
-        option_d = format_math(
-            option_d
-        )
+        if RANDOMIZE_OPTIONS:
 
-        reason = format_math(
-            reason
-        )
+            (
+                option_a,
+                option_b,
+                option_c,
+                option_d,
+                new_answer
+            ) = shuffle_options(
+                option_a,
+                option_b,
+                option_c,
+                option_d,
+                answer
+            )
 
+        else:
 
-        # ====================================================
-        # BUILD QUESTION
-        # ====================================================
+            new_answer = answer
+
+        # ----------------------------------------------------
+        # COUNT ANSWERS
+        # ----------------------------------------------------
+
+        answer_distribution[
+            new_answer
+        ] += 1
+
+        # ----------------------------------------------------
+        # BUILD DATABASE ROW
+        # ----------------------------------------------------
+
+        question_data = {
+            "exam": exam,
+            "subject": subject,
+            "question": question,
+            "optionA": option_a,
+            "optionB": option_b,
+            "optionC": option_c,
+            "optionD": option_d,
+            "answer": new_answer,
+            "reason": reason,
+        }
+
+        # Add image only when supplied
+        if image:
+            question_data["image"] = image
 
         questions.append(
-            {
-                "exam": exam,
-                "subject": subject,
-                "question": question,
-                "options": [
-                    option_a,
-                    option_b,
-                    option_c,
-                    option_d,
-                ],
-                "answer": answer,
-                "reason": reason,
-            }
+            question_data
+        )
+
+        # ----------------------------------------------------
+        # SHOW RESULT
+        # ----------------------------------------------------
+
+        print(
+            f"Q{len(questions):04d} | "
+            f"{subject:<25} | "
+            f"{original_answer} -> {new_answer}"
         )
 
 
@@ -493,87 +791,210 @@ with open(
 # ============================================================
 
 if not questions:
+
     print(
-        "⚠️ No questions found in CSV."
+        "No questions found in CSV."
     )
+
     raise SystemExit
 
 
 # ============================================================
-# DISPLAY SUMMARY
+# SUMMARY BEFORE DATABASE OPERATION
 # ============================================================
 
 print()
+print("=" * 70)
+print("                 CBT QUESTION IMPORT")
+print("=" * 70)
+
 print(
-    "================================"
-)
-print(
-    "       CBT QUESTION IMPORT"
-)
-print(
-    "================================"
+    f"CSV: {CSV_FILE}"
 )
 
 print(
-    f"CSV file: {CSV_FILE}"
+    f"Questions prepared: {len(questions)}"
+)
+
+print()
+print("NEW ANSWER DISTRIBUTION")
+print("-" * 30)
+
+print(
+    f"A = {answer_distribution['A']}"
 )
 
 print(
-    f"Total questions: {len(questions)}"
+    f"B = {answer_distribution['B']}"
 )
 
 print(
-    "Reason column: ENABLED"
+    f"C = {answer_distribution['C']}"
 )
 
 print(
-    "Mathematical formatting: ENABLED"
+    f"D = {answer_distribution['D']}"
+)
+
+print()
+print(
+    "Option shuffling:",
+    "ENABLED" if RANDOMIZE_OPTIONS else "DISABLED"
 )
 
 print(
-    "Superscripts: ENABLED"
+    "Replace existing questions:",
+    "YES" if REPLACE_EXISTING_QUESTIONS else "NO"
 )
 
-print(
-    "Subscripts: ENABLED"
-)
-
-print(
-    "Fractions: ENABLED"
-)
-
-print(
-    "================================"
-)
-
+print("=" * 70)
 print()
 
 
 # ============================================================
-# UPLOAD
+# REPLACE EXISTING QUESTIONS
 # ============================================================
+
+if REPLACE_EXISTING_QUESTIONS:
+
+    print(
+        "Deleting existing cbt_questions..."
+    )
+
+    try:
+
+        # ----------------------------------------------------
+        # DELETE ALL ROWS
+        #
+        # The condition must match rows.
+        # id is assumed to exist in your table.
+        # ----------------------------------------------------
+
+        delete_response = (
+            supabase
+            .table("cbt_questions")
+            .delete()
+            .not_.is_("id", "null")
+            .execute()
+        )
+
+        print(
+            "Existing questions deleted."
+        )
+
+    except Exception as error:
+
+        print()
+        print(
+            "DATABASE DELETE FAILED"
+        )
+        print(error)
+
+        raise SystemExit(1)
+
+
+# ============================================================
+# UPLOAD IN BATCHES
+# ============================================================
+
+BATCH_SIZE = 500
+
+total_uploaded = 0
+
+print()
+print(
+    "Uploading questions..."
+)
+print()
+
 
 try:
 
-    response = (
-        supabase
-        .table("cbt_questions")
-        .insert(questions)
-        .execute()
-    )
+    for start in range(
+        0,
+        len(questions),
+        BATCH_SIZE
+    ):
 
-    print(
-        "✅ Questions uploaded successfully!"
-    )
+        batch = questions[
+            start:start + BATCH_SIZE
+        ]
 
-    print(
-        f"Total uploaded: {len(questions)}"
-    )
+        (
+            supabase
+            .table("cbt_questions")
+            .insert(batch)
+            .execute()
+        )
+
+        total_uploaded += len(batch)
+
+        print(
+            f"Uploaded "
+            f"{total_uploaded}/{len(questions)}"
+        )
 
 except Exception as error:
 
+    print()
     print(
-        "❌ Upload failed:"
+        "UPLOAD FAILED"
     )
 
     print(error)
+
+    raise SystemExit(1)
+
+
+# ============================================================
+# FINAL RESULT
+# ============================================================
+
+print()
+print("=" * 70)
+print("              IMPORT COMPLETED")
+print("=" * 70)
+
+print(
+    f"Total uploaded: {total_uploaded}"
+)
+
+print()
+print("ANSWER DISTRIBUTION")
+print("-" * 30)
+
+print(
+    f"A = {answer_distribution['A']}"
+)
+
+print(
+    f"B = {answer_distribution['B']}"
+)
+
+print(
+    f"C = {answer_distribution['C']}"
+)
+
+print(
+    f"D = {answer_distribution['D']}"
+)
+
+print()
+print(
+    "A/B/C/D options were randomly shuffled."
+)
+
+print(
+    "Correct-answer letters were automatically updated."
+)
+
+print(
+    "Reasons were preserved."
+)
+
+print(
+    "Images were preserved when supplied."
+)
+
+print("=" * 70)
+print()

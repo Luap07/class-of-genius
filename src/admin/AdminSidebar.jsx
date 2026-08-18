@@ -21,9 +21,14 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ClipboardList,
+  Image as ImageIcon,
 } from "lucide-react";
 
 import { supabase } from "../lib/supabaseClient";
+
+/* ============================================================
+   MENU
+============================================================ */
 
 const menuItems = [
   {
@@ -37,6 +42,10 @@ const menuItems = [
     icon: GraduationCap,
     path: "/admin/lms",
   },
+
+  /* ==========================================================
+     SCHOOLS
+  ========================================================== */
 
   {
     title: "Schools",
@@ -62,11 +71,19 @@ const menuItems = [
     ],
   },
 
+  /* ==========================================================
+     DOCUMENTS
+  ========================================================== */
+
   {
     title: "Documents",
     icon: FileText,
     path: "/admin/documents",
   },
+
+  /* ==========================================================
+     RESOURCES
+  ========================================================== */
 
   {
     title: "Resources",
@@ -74,35 +91,71 @@ const menuItems = [
     path: "/admin/resources",
   },
 
+  /* ==========================================================
+     VIRTUAL LABS
+  ========================================================== */
+
   {
     title: "Virtual Labs",
     icon: FlaskConical,
     path: "/admin/labs",
   },
 
+  /* ==========================================================
+     CBT
+  ========================================================== */
+
   {
     title: "CBT",
     icon: ClipboardList,
     collapsible: true,
+
     children: [
       {
         title: "Overview",
         path: "/admin/cbt",
       },
+
       {
         title: "Upload Questions",
         path: "/admin/cbt/questions/upload",
       },
+
+      {
+        title: "Extract From Image",
+        path: "/admin/cbt/questions/upload",
+      },
+
       {
         title: "Manage Questions",
         path: "/admin/cbt/questions",
       },
+
+      {
+        title: "Subjects",
+        path: "/admin/cbt/subjects",
+      },
+
+      {
+        title: "Exams",
+        path: "/admin/cbt/exams",
+      },
+
       {
         title: "Results",
         path: "/admin/cbt/results",
       },
+
+      {
+        title: "Analytics",
+        path: "/admin/cbt/analytics",
+      },
     ],
   },
+
+  /* ==========================================================
+     NOVELS
+  ========================================================== */
 
   {
     title: "Novels",
@@ -110,11 +163,19 @@ const menuItems = [
     path: "/admin/novels",
   },
 
+  /* ==========================================================
+     USERS
+  ========================================================== */
+
   {
     title: "Users",
     icon: Users,
     path: "/admin/users",
   },
+
+  /* ==========================================================
+     ANALYTICS
+  ========================================================== */
 
   {
     title: "Analytics",
@@ -122,19 +183,26 @@ const menuItems = [
     path: "/admin/analytics",
   },
 
+  /* ==========================================================
+     LANGUAGES
+  ========================================================== */
+
   {
     title: "Languages",
     icon: Languages,
     collapsible: true,
+
     children: [
       {
         title: "Overview",
         path: "/admin/languages",
       },
+
       {
         title: "Vocabulary Bank",
         path: "/admin/languages/vocabulary",
       },
+
       {
         title: "Grammar Rules",
         path: "/admin/languages/grammar",
@@ -142,17 +210,29 @@ const menuItems = [
     ],
   },
 
+  /* ==========================================================
+     MESSAGES
+  ========================================================== */
+
   {
     title: "Messages",
     icon: MessageSquareText,
     path: "/admin/messages",
   },
 
+  /* ==========================================================
+     SETTINGS
+  ========================================================== */
+
   {
     title: "Settings",
     icon: Settings,
     path: "/admin/settings",
   },
+
+  /* ==========================================================
+     NEWSLETTER
+  ========================================================== */
 
   {
     title: "Newsletter",
@@ -161,9 +241,12 @@ const menuItems = [
   },
 ];
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 const AdminSidebar = () => {
-  const [isCollapsed, setIsCollapsed] =
-    useState(true); // Set default to true (closed)
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   const [footerCollapsed, setFooterCollapsed] =
     useState(false);
@@ -180,33 +263,36 @@ const AdminSidebar = () => {
   const [mediaCount, setMediaCount] =
     useState(0);
 
-  // -------------------------------------------------------
-  // FETCH LIVE MEDIA COUNT
-  // -------------------------------------------------------
+  /* ==========================================================
+     MEDIA COUNT
+  ========================================================== */
 
   const fetchMediaCount = async () => {
-    const { count, error } =
-      await supabase
+    try {
+      const { count, error } = await supabase
         .from("media")
         .select("*", {
           count: "exact",
           head: true,
         });
 
-    if (error) {
+      if (error) {
+        console.error(
+          "Error fetching media count:",
+          error
+        );
+
+        return;
+      }
+
+      setMediaCount(count || 0);
+    } catch (error) {
       console.error(
-        "Error fetching media count:",
+        "Media count error:",
         error
       );
-      return;
     }
-
-    setMediaCount(count || 0);
   };
-
-  // -------------------------------------------------------
-  // INITIAL MEDIA COUNT
-  // -------------------------------------------------------
 
   useEffect(() => {
     fetchMediaCount();
@@ -218,38 +304,76 @@ const AdminSidebar = () => {
     return () => clearInterval(interval);
   }, []);
 
+  /* ==========================================================
+     COLLAPSIBLE STATE
+  ========================================================== */
+
+  const getOpenState = (title) => {
+    if (title === "Languages") {
+      return languagesOpen;
+    }
+
+    if (title === "CBT") {
+      return cbtOpen;
+    }
+
+    if (title === "Schools") {
+      return schoolsOpen;
+    }
+
+    return false;
+  };
+
+  const toggleMenu = (title) => {
+    if (title === "Languages") {
+      setLanguagesOpen((previous) => !previous);
+      return;
+    }
+
+    if (title === "CBT") {
+      setCbtOpen((previous) => !previous);
+      return;
+    }
+
+    if (title === "Schools") {
+      setSchoolsOpen((previous) => !previous);
+    }
+  };
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
     <aside
-      className={`bg-slate-900 border-r border-slate-800 flex flex-col h-screen select-none transition-all duration-300 relative ${
+      className={`relative flex h-screen shrink-0 flex-col select-none border-r border-slate-800 bg-slate-900 transition-all duration-300 ${
         isCollapsed
           ? "w-20"
           : "w-72"
       }`}
     >
-      {/* =================================================
+      {/* ======================================================
           HEADER
-      ================================================= */}
+      ====================================================== */}
 
       <div
-        className={`flex items-center ${
+        className={`flex items-center border-b border-slate-800 py-5 ${
           isCollapsed
             ? "justify-center px-3"
             : "justify-between px-5"
-        } py-5 border-b border-slate-800`}
+        }`}
       >
-        {!isCollapsed && (
+        {!isCollapsed ? (
           <div>
             <h1 className="text-lg font-extrabold tracking-tight text-white">
               SCHOLIQEN
             </h1>
 
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            <p className="mt-0.5 text-[11px] text-slate-500">
               Admin Panel
             </p>
           </div>
-        )}
-
-        {isCollapsed && (
+        ) : (
           <div>
             <h1 className="text-lg font-extrabold text-blue-500">
               SQ
@@ -260,9 +384,11 @@ const AdminSidebar = () => {
         <button
           type="button"
           onClick={() =>
-            setIsCollapsed((prev) => !prev)
+            setIsCollapsed(
+              (previous) => !previous
+            )
           }
-          className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
+          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
           title={
             isCollapsed
               ? "Expand Sidebar"
@@ -277,37 +403,51 @@ const AdminSidebar = () => {
         </button>
       </div>
 
-      {/* =================================================
+      {/* ======================================================
           NAVIGATION
-      ================================================= */}
+      ====================================================== */}
 
-      <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
+      <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-6 scrollbar-thin scrollbar-thumb-slate-800">
         {menuItems.map((item) => {
           const Icon = item.icon;
 
-          /* =================================================
-              COLLAPSIBLE ITEMS
-          ================================================= */
+          /* ==================================================
+             COLLAPSIBLE
+          ================================================== */
 
           if (item.collapsible) {
-            /* -------------------------------------------------
-                COLLAPSED SIDEBAR
-            ------------------------------------------------- */
+            /* ================================================
+               COLLAPSED SIDEBAR
+            ================================================= */
 
             if (isCollapsed) {
-              const collapsedPath =
-                item.title === "Languages"
-                  ? "/admin/languages"
-                  : item.title === "CBT"
-                  ? "/admin/cbt"
-                  : "/admin/schools";
+              let collapsedPath = "/admin";
+
+              if (item.title === "CBT") {
+                collapsedPath =
+                  "/admin/cbt";
+              }
+
+              if (item.title === "Languages") {
+                collapsedPath =
+                  "/admin/languages";
+              }
+
+              if (item.title === "Schools") {
+                collapsedPath =
+                  "/admin/schools";
+              }
 
               return (
                 <NavLink
                   key={item.title}
                   to={collapsedPath}
+                  end={
+                    collapsedPath ===
+                    "/admin/cbt"
+                  }
                   className={({ isActive }) =>
-                    `flex items-center justify-center p-3 rounded-xl transition-all duration-200 ${
+                    `flex items-center justify-center rounded-xl p-3 transition-all duration-200 ${
                       isActive
                         ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
                         : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
@@ -320,52 +460,28 @@ const AdminSidebar = () => {
               );
             }
 
-            /* -------------------------------------------------
-                OPEN/CLOSED STATE
-            ------------------------------------------------- */
+            /* ================================================
+               EXPANDED SIDEBAR
+            ================================================= */
 
             const isOpen =
-              item.title === "Languages"
-                ? languagesOpen
-                : item.title === "CBT"
-                ? cbtOpen
-                : schoolsOpen;
-
-            /* -------------------------------------------------
-                TOGGLE
-            ------------------------------------------------- */
-
-            const toggleMenu = () => {
-              if (
-                item.title === "Languages"
-              ) {
-                setLanguagesOpen(
-                  (prev) => !prev
-                );
-              } else if (
-                item.title === "CBT"
-              ) {
-                setCbtOpen(
-                  (prev) => !prev
-                );
-              } else {
-                setSchoolsOpen(
-                  (prev) => !prev
-                );
-              }
-            };
+              getOpenState(item.title);
 
             return (
               <div
                 key={item.title}
                 className="space-y-1"
               >
-                {/* HEADER */}
+                {/* ==========================================
+                    SECTION BUTTON
+                ========================================== */}
 
                 <button
                   type="button"
-                  onClick={toggleMenu}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition group ${
+                  onClick={() =>
+                    toggleMenu(item.title)
+                  }
+                  className={`group flex w-full items-center justify-between rounded-xl px-4 py-3 transition ${
                     isOpen
                       ? "bg-slate-800/60 text-white"
                       : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
@@ -381,7 +497,7 @@ const AdminSidebar = () => {
                       }
                     />
 
-                    <span className="font-medium text-sm">
+                    <span className="text-sm font-medium">
                       {item.title}
                     </span>
                   </div>
@@ -393,36 +509,53 @@ const AdminSidebar = () => {
                   )}
                 </button>
 
-                {/* SUB MENU */}
+                {/* ==========================================
+                    CHILDREN
+                ========================================== */}
 
                 {isOpen && (
-                  <div className="ml-5 pl-3 border-l border-slate-800 space-y-1">
+                  <div className="ml-5 space-y-1 border-l border-slate-800 pl-3">
                     {item.children.map(
-                      (child) => (
-                        <NavLink
-                          key={child.title}
-                          to={child.path}
-                          end={
-                            child.path ===
-                              "/admin/languages" ||
-                            child.path ===
-                              "/admin/cbt" ||
-                            child.path ===
-                              "/admin/schools"
-                          }
-                          className={({
-                            isActive,
-                          }) =>
-                            `flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-200 ${
-                              isActive
-                                ? "bg-blue-600 text-white font-medium shadow-md shadow-blue-900/20"
-                                : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                            }`
-                          }
-                        >
-                          {child.title}
-                        </NavLink>
-                      )
+                      (child) => {
+                        const isQuestionImporter =
+                          child.path ===
+                          "/admin/cbt/questions/upload";
+
+                        return (
+                          <NavLink
+                            key={`${child.title}-${child.path}`}
+                            to={child.path}
+                            end={
+                              child.path ===
+                                "/admin/cbt" ||
+                              child.path ===
+                                "/admin/schools" ||
+                              child.path ===
+                                "/admin/languages"
+                            }
+                            className={({ isActive }) =>
+                              `flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-200 ${
+                                isActive
+                                  ? "bg-blue-600 font-medium text-white shadow-md shadow-blue-900/20"
+                                  : isQuestionImporter
+                                  ? "text-blue-400 hover:bg-blue-500/10 hover:text-blue-300"
+                                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                              }`
+                            }
+                          >
+                            {isQuestionImporter && (
+                              <ImageIcon
+                                size={15}
+                                className="shrink-0"
+                              />
+                            )}
+
+                            <span>
+                              {child.title}
+                            </span>
+                          </NavLink>
+                        );
+                      }
                     )}
                   </div>
                 )}
@@ -430,9 +563,9 @@ const AdminSidebar = () => {
             );
           }
 
-          /* =================================================
-              STANDARD NAVIGATION ITEM
-          ================================================= */
+          /* ==================================================
+             STANDARD ITEM
+          ================================================== */
 
           return (
             <NavLink
@@ -442,13 +575,13 @@ const AdminSidebar = () => {
                 item.path === "/admin"
               }
               className={({ isActive }) =>
-                `flex items-center ${
+                `flex items-center rounded-xl transition-all duration-200 ${
                   isCollapsed
                     ? "justify-center p-3"
                     : "gap-4 px-4 py-3"
-                } rounded-xl transition-all duration-200 ${
+                } ${
                   isActive
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20 font-medium"
+                    ? "bg-blue-600 font-medium text-white shadow-lg shadow-blue-900/20"
                     : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
                 }`
               }
@@ -461,19 +594,17 @@ const AdminSidebar = () => {
               <Icon size={20} />
 
               {!isCollapsed && (
-                <div className="flex items-center justify-between flex-1">
-                  <span className="font-medium text-sm">
+                <div className="flex flex-1 items-center justify-between">
+                  <span className="text-sm font-medium">
                     {item.title}
                   </span>
-
-                  {/* LIVE MEDIA COUNT */}
 
                   {item.title ===
                     "Media" && (
                     <span
-                      className={`min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-full text-[10px] font-bold ${
+                      className={`flex h-6 min-w-[24px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
                         mediaCount > 0
-                          ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
+                          ? "border border-blue-500/20 bg-blue-500/15 text-blue-400"
                           : "bg-slate-800 text-slate-500"
                       }`}
                     >
@@ -487,21 +618,21 @@ const AdminSidebar = () => {
         })}
       </nav>
 
-      {/* =================================================
+      {/* ======================================================
           FOOTER
-      ================================================= */}
+      ====================================================== */}
 
       {!isCollapsed && (
         <div className="border-t border-slate-800 p-4">
-          <div className="rounded-xl bg-slate-950/50 p-4 relative border border-slate-800/50">
+          <div className="relative rounded-xl border border-slate-800/50 bg-slate-950/50 p-4">
             <button
               type="button"
               onClick={() =>
                 setFooterCollapsed(
-                  (prev) => !prev
+                  (previous) => !previous
                 )
               }
-              className="absolute top-2.5 right-2.5 text-slate-500 hover:text-white transition p-1"
+              className="absolute right-2.5 top-2.5 rounded p-1 text-slate-500 transition hover:text-white"
               title={
                 footerCollapsed
                   ? "Expand info"
@@ -517,17 +648,17 @@ const AdminSidebar = () => {
 
             {!footerCollapsed ? (
               <div className="pr-5">
-                <p className="text-sm font-semibold text-white tracking-wide">
+                <p className="text-sm font-semibold tracking-wide text-white">
                   Scholiqen
                 </p>
 
-                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                <p className="mt-0.5 text-[11px] font-medium text-slate-500">
                   Learning Management
                   System
                 </p>
               </div>
             ) : (
-              <div className="flex items-center gap-2.5 text-slate-400 py-0.5">
+              <div className="flex items-center gap-2.5 py-0.5 text-slate-400">
                 <GraduationCap
                   size={18}
                   className="text-blue-500"

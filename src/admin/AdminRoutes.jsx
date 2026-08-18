@@ -4,54 +4,50 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import AdminLayout from "./AdminLayout";
 import AdminDashboard from "./AdminDashboard";
 
-/* ================= LANGUAGES ================= */
+/* ============================================================
+   LANGUAGES
+============================================================ */
 
 import LanguageCMSAdmin from "../pages/admin/languages/LanguageCMSAdmin";
 import LanguageContentManager from "../components/admin/languages/LanguageContentManager";
 import LanguagesAdmin from "../pages/admin/languages/LanguagesAdmin";
 
-/* ================= NEWSLETTER ================= */
+/* ============================================================
+   NEWSLETTER
+============================================================ */
 
 import NewsletterAdmin from "../pages/admin/NewsletterAdmin";
 
-/* ================= MESSAGES ================= */
+/* ============================================================
+   MESSAGES
+============================================================ */
 
 import MessagesAdmin from "../pages/admin/contacts/ContactMessagesAdmin";
 
-/* ================= SCHOOLS ================= */
+/* ============================================================
+   SCHOOLS
+============================================================ */
 
 import SchoolsAdmin from "../pages/admin/schools/SchoolsAdmin";
-
 import UniversitiesAdmin from "../pages/admin/schools/UniversitiesAdmin";
 import UniversityForm from "../pages/admin/schools/UniversityForm";
-
 import CollegesAdmin from "../pages/admin/schools/CollegesAdmin";
 import CollegeForm from "../pages/admin/schools/CollegeForm";
-
 import PolytechnicsAdmin from "../pages/admin/schools/PolytechnicsAdmin";
 import PolytechnicForm from "../pages/admin/schools/PolytechnicForm";
-
 import SchoolDetailsAdmin from "../pages/admin/schools/SchoolDetailsAdmin";
 import FacultyManager from "../pages/admin/schools/FacultyManager";
 
-/* ================= LMS ================= */
+/* ============================================================
+   LMS
+============================================================ */
 
 import CoursesAdmin from "../pages/admin/lms/CoursesAdmin";
 import CreateCourse from "../pages/admin/lms/CreateCourse";
 import EditCourse from "../pages/admin/lms/EditCourse";
 
-import LearningPathsAdmin from "../pages/admin/lms/LearningPathsAdmin";
-import QuizzesAdmin from "../pages/admin/lms/QuizzesAdmin";
-import CertificatesAdmin from "../pages/admin/lms/CertificatesAdmin";
-import StudentsAdmin from "../pages/admin/lms/StudentsAdmin";
-import InstructorsAdmin from "../pages/admin/lms/InstructorsAdmin";
-
 import MaterialsAdmin from "../pages/admin/lms/MaterialsAdmin";
 import CreateMaterial from "../pages/admin/lms/CreateMaterial";
-
-import EditWeeklyTask from "../pages/admin/lms/EditWeeklyTask";
-import EditMonthlyQuiz from "../pages/admin/lms/EditMonthlyQuiz";
-import ViewMonthlyQuiz from "../pages/admin/lms/ViewMonthlyQuiz";
 
 import CourseCategories from "../pages/admin/lms/CourseCategories";
 
@@ -65,13 +61,22 @@ import EditResource from "../pages/admin/lms/EditResource";
 
 import WeeklyTasksAdmin from "../pages/admin/lms/WeeklyTasksAdmin";
 import CreateWeeklyTask from "../pages/admin/lms/CreateWeeklyTask";
+import EditWeeklyTask from "../pages/admin/lms/EditWeeklyTask";
 
 import MonthlyQuizAdmin from "../pages/admin/lms/MonthlyQuizAdmin";
 import CreateMonthlyQuiz from "../pages/admin/lms/CreateMonthlyQuiz";
+import EditMonthlyQuiz from "../pages/admin/lms/EditMonthlyQuiz";
+import ViewMonthlyQuiz from "../pages/admin/lms/ViewMonthlyQuiz";
+
+/* ============================================================
+   DOCUMENTS
+============================================================ */
 
 import DocumentsAdmin from "./DocumentsAdmin";
 
-/* ================= VIRTUAL LABS ================= */
+/* ============================================================
+   VIRTUAL LABS
+============================================================ */
 
 import VirtualLabsDashboard from "../pages/admin/virtualLabs/VirtualLabsDashboard";
 import PhysicsExperiments from "../pages/admin/virtualLabs/PhysicsExperiments";
@@ -81,17 +86,35 @@ import MathematicsExperiments from "../pages/admin/virtualLabs/MathematicsExperi
 import AddExperiment from "../pages/admin/virtualLabs/AddExperiment";
 import EditExperiment from "../pages/admin/virtualLabs/EditExperiment";
 
-/* ================= CBT ================= */
+/* ============================================================
+   CBT
+============================================================ */
 
 import CBTDashboard from "../pages/admin/cbt/CBTDashboard";
 import SubjectsAdmin from "../pages/admin/cbt/SubjectsAdmin";
 import ExamsAdmin from "../pages/admin/cbt/ExamsAdmin";
 import ResultsAdmin from "../pages/admin/cbt/ResultsAdmin";
 import AnalyticsAdmin from "../pages/admin/cbt/AnalyticsAdmin";
-import QuestionUpload from "../pages/admin/cbt/QuestionUpload";
 import QuestionsAdmin from "../pages/admin/cbt/QuestionsAdmin";
 
-/* ================= NOVELS ================= */
+/*
+   IMPORTANT:
+
+   QuestionImporter.jsx must exist here:
+
+   src/pages/admin/QuestionImporter.jsx
+
+   If yours is instead:
+
+   src/pages/admin/cbt/QuestionImporter.jsx
+
+   change this import accordingly.
+*/
+import QuestionImporter from "../pages/admin/QuestionImporter";
+
+/* ============================================================
+   NOVELS
+============================================================ */
 
 import NovelsDashboard from "../pages/admin/novels/NovelsDashboard";
 import NovelEditor from "../pages/admin/novels/NovelEditor";
@@ -101,7 +124,9 @@ import ChaptersAdmin from "../pages/admin/novels/ChaptersAdmin";
 import NovelReviews from "../pages/admin/novels/NovelReviews";
 import NovelsList from "../pages/admin/novels/NovelsList";
 
-/* ================= USERS ================= */
+/* ============================================================
+   USERS
+============================================================ */
 
 import UsersDashboard from "../pages/admin/users/UsersDashboard";
 import Students from "../pages/admin/users/Students";
@@ -110,7 +135,9 @@ import Schools from "../pages/admin/users/Schools";
 import Admins from "../pages/admin/users/Admins";
 import Roles from "../pages/admin/users/Roles";
 
-/* ================= ANALYTICS ================= */
+/* ============================================================
+   ANALYTICS
+============================================================ */
 
 import DashboardAnalytics from "../pages/admin/analytics/DashboardAnalytics";
 import CourseAnalytics from "../pages/admin/analytics/CourseAnalytics";
@@ -119,7 +146,9 @@ import LabAnalytics from "../pages/admin/analytics/LabAnalytics";
 import NovelAnalytics from "../pages/admin/analytics/NovelAnalytics";
 import RevenueAnalytics from "../pages/admin/analytics/RevenueAnalytics";
 
-/* ================= MEDIA ================= */
+/* ============================================================
+   MEDIA
+============================================================ */
 
 import MediaLibrary from "../pages/admin/media/MediaLibrary";
 import Images from "../pages/admin/media/Images";
@@ -127,7 +156,9 @@ import Videos from "../pages/admin/media/Videos";
 import PDFs from "../pages/admin/media/PDFs";
 import Audio from "../pages/admin/media/Audio";
 
-/* ================= SETTINGS ================= */
+/* ============================================================
+   SETTINGS
+============================================================ */
 
 import GeneralSettings from "../pages/admin/settings/GeneralSettings";
 import Branding from "../pages/admin/settings/Branding";
@@ -137,27 +168,30 @@ import StorageSettings from "../pages/admin/settings/StorageSettings";
 import Integrations from "../pages/admin/settings/Integrations";
 import APIKeys from "../pages/admin/settings/APIKeys";
 
+
 const AdminRoutes = () => {
   return (
     <Routes>
-      {/* =====================================================
+
+      {/* ======================================================
           ADMIN LAYOUT
-      ===================================================== */}
+      ====================================================== */}
 
       <Route element={<AdminLayout />}>
 
-        {/* =================================================
+        {/* ====================================================
             DASHBOARD
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           index
           element={<AdminDashboard />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
             LMS
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="lms"
@@ -190,11 +224,26 @@ const AdminRoutes = () => {
         />
 
         <Route
+          path="lms/course/:courseId/materials"
+          element={<MaterialsAdmin />}
+        />
+
+        <Route
+          path="lms/materials/create"
+          element={<CreateMaterial />}
+        />
+
+        <Route
+          path="lms/categories"
+          element={<CourseCategories />}
+        />
+
+        <Route
           path="lms/tasks/edit/:id"
           element={<EditWeeklyTask />}
         />
 
-        {/* RESOURCES */}
+        {/* LMS RESOURCES */}
 
         <Route
           path="lms/topic/:topicId/resources"
@@ -209,11 +258,6 @@ const AdminRoutes = () => {
         <Route
           path="lms/topic/:topicId/resources/edit/:resourceId"
           element={<EditResource />}
-        />
-
-        <Route
-          path="lms/categories"
-          element={<CourseCategories />}
         />
 
         <Route
@@ -260,21 +304,10 @@ const AdminRoutes = () => {
           element={<ViewMonthlyQuiz />}
         />
 
-        {/* MATERIALS */}
 
-        <Route
-          path="lms/course/:courseId/materials"
-          element={<MaterialsAdmin />}
-        />
-
-        <Route
-          path="lms/materials/create"
-          element={<CreateMaterial />}
-        />
-
-        {/* =================================================
+        {/* ====================================================
             LANGUAGES
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="languages"
@@ -346,9 +379,10 @@ const AdminRoutes = () => {
           element={<LanguageCMSAdmin />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
             SCHOOLS
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="schools"
@@ -421,7 +455,7 @@ const AdminRoutes = () => {
           element={<SchoolDetailsAdmin />}
         />
 
-        {/* SCHOOL DETAILS */}
+        {/* GENERIC SCHOOL DETAILS */}
 
         <Route
           path="schools/:type/:id"
@@ -435,57 +469,128 @@ const AdminRoutes = () => {
           element={<FacultyManager />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
             CBT
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="cbt"
           element={<CBTDashboard />}
         />
 
+        {/* ====================================================
+            QUESTION IMPORTER
+        ====================================================
+
+            FINAL URL:
+
+            /admin/cbt/questions/upload
+
+            This MUST render QuestionImporter.
+        */}
+
         <Route
           path="cbt/questions/upload"
-          element={<QuestionUpload />}
+          element={<QuestionImporter />}
         />
+
+        {/* Optional alias */}
+
+        <Route
+          path="cbt/question-importer"
+          element={<QuestionImporter />}
+        />
+
+        {/* MANAGE QUESTIONS */}
 
         <Route
           path="cbt/questions"
           element={<QuestionsAdmin />}
         />
 
+        {/* SUBJECTS */}
+
         <Route
           path="cbt/subjects"
           element={<SubjectsAdmin />}
         />
+
+        {/* EXAMS */}
 
         <Route
           path="cbt/exams"
           element={<ExamsAdmin />}
         />
 
+        {/* RESULTS */}
+
         <Route
           path="cbt/results"
           element={<ResultsAdmin />}
         />
+
+        {/* CBT ANALYTICS */}
 
         <Route
           path="cbt/analytics"
           element={<AnalyticsAdmin />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
             DOCUMENTS
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="documents"
           element={<DocumentsAdmin />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
+            VIRTUAL LABS
+        ==================================================== */}
+
+        <Route
+          path="labs"
+          element={<VirtualLabsDashboard />}
+        />
+
+        <Route
+          path="labs/physics"
+          element={<PhysicsExperiments />}
+        />
+
+        <Route
+          path="labs/chemistry"
+          element={<ChemistryExperiments />}
+        />
+
+        <Route
+          path="labs/biology"
+          element={<BiologyExperiments />}
+        />
+
+        <Route
+          path="labs/mathematics"
+          element={<MathematicsExperiments />}
+        />
+
+        <Route
+          path="labs/add"
+          element={<AddExperiment />}
+        />
+
+        <Route
+          path="labs/edit/:id"
+          element={<EditExperiment />}
+        />
+
+
+        {/* ====================================================
             NOVELS
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="novels"
@@ -527,27 +632,30 @@ const AdminRoutes = () => {
           element={<NovelReviews />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
             NEWSLETTER
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="newsletter"
           element={<NewsletterAdmin />}
         />
 
-        {/* =================================================
-            CONTACT MESSAGES
-        ================================================= */}
+
+        {/* ====================================================
+            MESSAGES
+        ==================================================== */}
 
         <Route
           path="messages"
           element={<MessagesAdmin />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
             USERS
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="users"
@@ -579,9 +687,10 @@ const AdminRoutes = () => {
           element={<Roles />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
             ANALYTICS
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="analytics"
@@ -613,9 +722,10 @@ const AdminRoutes = () => {
           element={<RevenueAnalytics />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
             MEDIA
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="media"
@@ -642,9 +752,10 @@ const AdminRoutes = () => {
           element={<Audio />}
         />
 
-        {/* =================================================
+
+        {/* ====================================================
             SETTINGS
-        ================================================= */}
+        ==================================================== */}
 
         <Route
           path="settings"
@@ -680,11 +791,12 @@ const AdminRoutes = () => {
           path="settings/api"
           element={<APIKeys />}
         />
+
       </Route>
 
-      {/* =====================================================
+      {/* ======================================================
           UNKNOWN ADMIN ROUTES
-      ===================================================== */}
+      ====================================================== */}
 
       <Route
         path="*"
@@ -695,6 +807,7 @@ const AdminRoutes = () => {
           />
         }
       />
+
     </Routes>
   );
 };

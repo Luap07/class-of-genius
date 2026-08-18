@@ -45,7 +45,7 @@ const normalize = (value) =>
     .toLowerCase();
 
 /* ============================================================================
-   SHUFFLE
+   RANDOM SHUFFLE
 ============================================================================ */
 
 const shuffleQuestions = (questions) => {
@@ -64,90 +64,11 @@ const shuffleQuestions = (questions) => {
 };
 
 /* ============================================================================
-   SUBJECT ALIASES
-============================================================================ */
-
-const SUBJECT_GROUPS = {
-  english: [
-    "english",
-    "english language",
-  ],
-
-  mathematics: [
-    "mathematics",
-    "math",
-    "maths",
-  ],
-
-  chemistry: [
-    "chemistry",
-    "chem",
-  ],
-
-  physics: [
-    "physics",
-    "phy",
-  ],
-
-  biology: [
-    "biology",
-    "bio",
-  ],
-
-  literature: [
-    "literature",
-    "literature in english",
-  ],
-
-  civic: [
-    "civic",
-    "civic education",
-  ],
-};
-
-/* ============================================================================
-   CANONICAL SUBJECT
-============================================================================ */
-
-const getCanonicalSubject = (subject) => {
-  const value = normalize(subject);
-
-  if (!value) {
-    return "";
-  }
-
-  for (const [canonical, aliases] of Object.entries(
-    SUBJECT_GROUPS
-  )) {
-    if (aliases.includes(value)) {
-      return canonical;
-    }
-  }
-
-  return value;
-};
-
-/* ============================================================================
-   DISPLAY NAME
+   DISPLAY SUBJECT
 ============================================================================ */
 
 const getSubjectDisplayName = (subject) => {
-  const canonical = getCanonicalSubject(subject);
-
-  const names = {
-    english: "English Language",
-    mathematics: "Mathematics",
-    chemistry: "Chemistry",
-    physics: "Physics",
-    biology: "Biology",
-    literature: "Literature",
-    civic: "Civic Education",
-  };
-
-  return (
-    names[canonical] ||
-    String(subject ?? "").trim()
-  );
+  return String(subject ?? "").trim();
 };
 
 /* ============================================================================
@@ -155,16 +76,10 @@ const getSubjectDisplayName = (subject) => {
 ============================================================================ */
 
 const subjectsMatch = (first, second) => {
-  const firstCanonical =
-    getCanonicalSubject(first);
-
-  const secondCanonical =
-    getCanonicalSubject(second);
-
   return (
-    firstCanonical !== "" &&
-    secondCanonical !== "" &&
-    firstCanonical === secondCanonical
+    normalize(first) !== "" &&
+    normalize(second) !== "" &&
+    normalize(first) === normalize(second)
   );
 };
 
@@ -177,19 +92,22 @@ const getQuestionOptions = (question) => {
     return [];
   }
 
+  const separateOptions = [
+    question.optionA,
+    question.optionB,
+    question.optionC,
+    question.optionD,
+  ];
+
   const hasSeparateOptions =
-    question.optionA !== undefined ||
-    question.optionB !== undefined ||
-    question.optionC !== undefined ||
-    question.optionD !== undefined;
+    separateOptions.some(
+      (option) =>
+        option !== undefined &&
+        option !== null
+    );
 
   if (hasSeparateOptions) {
-    return [
-      question.optionA,
-      question.optionB,
-      question.optionC,
-      question.optionD,
-    ].filter(
+    return separateOptions.filter(
       (option) =>
         option !== null &&
         option !== undefined &&
@@ -234,9 +152,7 @@ const getCorrectAnswerValue = (question) => {
 
 const createStorageKey = (exam, subjects) => {
   const subjectKey = [...subjects]
-    .map((subject) =>
-      getCanonicalSubject(subject)
-    )
+    .map((subject) => normalize(subject))
     .sort()
     .join("|");
 
@@ -247,36 +163,6 @@ const createStorageKey = (exam, subjects) => {
 
 /* ============================================================================
    MATHEMATICAL TEXT
-============================================================================
-
-   This renderer supports all of these:
-
-   999^2
-   999^{2}
-   x^2
-   x^{10}
-   x^-2
-   x^{-2}
-   x^n
-
-   HTML:
-
-   <sup>2</sup>
-   <SUP>2</SUP>
-
-   HTML entities:
-
-   &sup2;
-   &sup3;
-   &sup1;
-
-   Fraction markup:
-
-   <span class="math-fraction">
-     <span>5</span>
-     <span>2</span>
-   </span>
-
 ============================================================================ */
 
 const SUPERCHARS = {
@@ -323,7 +209,7 @@ const SUPERCHARS = {
 };
 
 /* ============================================================================
-   HTML ENTITY CONVERSION
+   HTML ENTITIES
 ============================================================================ */
 
 const convertMathEntities = (text) => {
@@ -359,22 +245,7 @@ const toSuperscript = (value) => {
 const convertPowers = (text) => {
   let value = String(text ?? "");
 
-  /*
-   * Decode common HTML entities first.
-   */
   value = convertMathEntities(value);
-
-  /*
-   * Convert HTML <sup>...</sup>.
-   *
-   * Example:
-   *
-   * 999<sup>2</sup>
-   *
-   * becomes:
-   *
-   * 999²
-   */
 
   value = value.replace(
     /<sup\b[^>]*>([\s\S]*?)<\/sup>/gi,
@@ -386,28 +257,11 @@ const convertPowers = (text) => {
       )
   );
 
-  /*
-   * Convert markdown-style powers:
-   *
-   * x^{2}
-   * 999^{10}
-   * x^{-2}
-   */
-
   value = value.replace(
     /\^\{([^{}]+)\}/g,
     (_, exponent) =>
       toSuperscript(exponent)
   );
-
-  /*
-   * Convert normal powers:
-   *
-   * x^2
-   * x^10
-   * 999^2
-   * a^-2
-   */
 
   value = value.replace(
     /\^(-?\d+(?:\.\d+)?)/g,
@@ -415,30 +269,17 @@ const convertPowers = (text) => {
       toSuperscript(exponent)
   );
 
-  /*
-   * Convert letter powers:
-   *
-   * x^n
-   * y^i
-   */
-
   value = value.replace(
     /\^([A-Za-z])/g,
     (_, exponent) =>
       toSuperscript(exponent)
   );
 
-  /*
-   * Some question generators may produce
-   * Unicode superscript characters already.
-   * They are intentionally left untouched.
-   */
-
   return value;
 };
 
 /* ============================================================================
-   MATH TEXT COMPONENT
+   MATH TEXT
 ============================================================================ */
 
 const MathText = ({
@@ -454,10 +295,6 @@ const MathText = ({
 
   const text = String(children);
 
-  /*
-   * Fraction markup from the database.
-   */
-
   const fractionPattern =
     /<span\s+class=["']math-fraction["']>\s*<span>(.*?)<\/span>\s*<span>(.*?)<\/span>\s*<\/span>/gis;
 
@@ -468,19 +305,13 @@ const MathText = ({
 
   while (
     (match =
-      fractionPattern.exec(text)) !==
-    null
+      fractionPattern.exec(text)) !== null
   ) {
-    /*
-     * Text before fraction.
-     */
-
     if (match.index > lastIndex) {
-      const normalText =
-        text.slice(
-          lastIndex,
-          match.index
-        );
+      const normalText = text.slice(
+        lastIndex,
+        match.index
+      );
 
       parts.push(
         <React.Fragment
@@ -491,36 +322,27 @@ const MathText = ({
       );
     }
 
-    /*
-     * Fraction.
-     */
-
     parts.push(
       <span
         key={`math-fraction-${match.index}`}
         className="math-fraction inline-flex flex-col items-center align-middle mx-1 leading-none"
         aria-label={`${match[1]} divided by ${match[2]}`}
       >
-        <span className="math-fraction-top px-1">
+        <span className="px-1">
           {convertPowers(match[1])}
         </span>
 
-        <span className="math-fraction-line w-full border-t border-current my-0.5" />
+        <span className="w-full border-t border-current my-0.5" />
 
-        <span className="math-fraction-bottom px-1">
+        <span className="px-1">
           {convertPowers(match[2])}
         </span>
       </span>
     );
 
     lastIndex =
-      match.index +
-      match[0].length;
+      match.index + match[0].length;
   }
-
-  /*
-   * Remaining text.
-   */
 
   if (lastIndex < text.length) {
     parts.push(
@@ -533,10 +355,6 @@ const MathText = ({
       </React.Fragment>
     );
   }
-
-  /*
-   * No fractions.
-   */
 
   if (parts.length === 0) {
     return (
@@ -560,15 +378,26 @@ const MathText = ({
 const CBTExam = () => {
   const location = useLocation();
 
-  const exam =
-    location.state?.exam;
+  const exam = location.state?.exam;
 
-  const suppliedSubjects =
-    Array.isArray(
-      location.state?.subjects
-    )
-      ? location.state.subjects
-      : [];
+  /*
+   * IMPORTANT:
+   *
+   * We DO NOT hard-code subjects here.
+   *
+   * Whatever subjects were selected on the previous page
+   * come through location.state.subjects.
+   */
+
+  const suppliedSubjects = Array.isArray(
+    location.state?.subjects
+  )
+    ? location.state.subjects
+        .map((subject) =>
+          String(subject ?? "").trim()
+        )
+        .filter(Boolean)
+    : [];
 
   /* ==========================================================================
      STATE
@@ -608,6 +437,13 @@ const CBTExam = () => {
     loading,
     setLoading,
   ] = useState(true);
+
+  const [
+    loadingMessage,
+    setLoadingMessage,
+  ] = useState(
+    "Loading questions..."
+  );
 
   const [
     submitted,
@@ -654,35 +490,43 @@ const CBTExam = () => {
   ========================================================================== */
 
   const storageKey = useMemo(() => {
-    if (!exam) {
+    if (!exam || suppliedSubjects.length === 0) {
       return null;
     }
 
-    const subjectsForKey =
-      selectedSubjects.length > 0
-        ? selectedSubjects
-        : suppliedSubjects;
-
     return createStorageKey(
       exam,
-      subjectsForKey
+      suppliedSubjects
     );
   }, [
     exam,
-    selectedSubjects,
-    suppliedSubjects,
+    suppliedSubjects.join("|"),
   ]);
 
   /* ==========================================================================
-     LOAD QUESTIONS
+     FETCH 40 RANDOM QUESTIONS PER SELECTED SUBJECT
   ========================================================================== */
 
   useEffect(() => {
     let mounted = true;
 
-    const fetchQuestions = async () => {
+    const fetchQuestionsFromBackend = async () => {
       if (!exam) {
         if (mounted) {
+          setLoading(false);
+        }
+
+        return;
+      }
+
+      if (suppliedSubjects.length === 0) {
+        console.error(
+          "CBT ERROR: No subjects were supplied."
+        );
+
+        if (mounted) {
+          setQuestionsBySubject({});
+          setSelectedSubjects([]);
           setLoading(false);
         }
 
@@ -692,12 +536,20 @@ const CBTExam = () => {
       try {
         setLoading(true);
 
+        setLoadingMessage(
+          `Loading ${suppliedSubjects.length} selected subject${
+            suppliedSubjects.length > 1
+              ? "s"
+              : ""
+          }...`
+        );
+
         console.log(
           "========================================"
         );
 
         console.log(
-          "STARTING CBT QUESTION LOAD"
+          "CBT BACKEND QUESTION LOAD"
         );
 
         console.log(
@@ -711,144 +563,239 @@ const CBTExam = () => {
         );
 
         console.log(
+          "QUESTIONS PER SUBJECT:",
+          QUESTIONS_PER_SUBJECT
+        );
+
+        console.log(
           "========================================"
         );
 
-        if (
-          suppliedSubjects.length ===
-          0
-        ) {
-          console.error(
-            "CBT ERROR: No subject was supplied."
-          );
+        /*
+         * ================================================================
+         * FETCH EACH SELECTED SUBJECT DIRECTLY FROM SUPABASE
+         * ================================================================
+         *
+         * No hard-coded subject names.
+         *
+         * Example:
+         *
+         * If selectedSubjects is:
+         *
+         * ["English Language", "Mathematics", "Physics"]
+         *
+         * the backend receives:
+         *
+         * exam = selected exam
+         * subject = English Language
+         *
+         * then:
+         *
+         * exam = selected exam
+         * subject = Mathematics
+         *
+         * then:
+         *
+         * exam = selected exam
+         * subject = Physics
+         *
+         * ================================================================
+         */
 
-          if (mounted) {
-            setQuestionsBySubject({});
-            setSelectedSubjects([]);
-            setLoading(false);
-          }
-
-          return;
-        }
-
-        const {
-          data,
-          error,
-        } = await supabase
-          .from("cbt_questions")
-          .select("*");
-
-        if (error) {
-          throw error;
-        }
-
-        console.log(
-          "TOTAL QUESTIONS:",
-          data?.length || 0
-        );
-
-        if (!data || data.length === 0) {
-          if (mounted) {
-            setQuestionsBySubject({});
-            setSelectedSubjects([]);
-          }
-
-          return;
-        }
-
-        const normalizedExam =
-          normalize(exam);
-
-        const examQuestions =
-          data.filter(
-            (question) =>
-              normalize(
-                question.exam
-              ) === normalizedExam
-          );
-
-        console.log(
-          `QUESTIONS FOR EXAM "${exam}":`,
-          examQuestions.length
-        );
-
-        const normalizedSelectedSubjects =
-          suppliedSubjects
-            .map((subject) =>
-              String(
-                subject ?? ""
-              ).trim()
-            )
-            .filter(Boolean);
-
-        const grouped = {};
-
-        normalizedSelectedSubjects.forEach(
-          (selectedSubject) => {
-            const displaySubject =
-              getSubjectDisplayName(
-                selectedSubject
-              );
-
-            const matchingQuestions =
-              examQuestions.filter(
-                (question) =>
-                  subjectsMatch(
-                    question.subject,
+        const subjectResults =
+          await Promise.all(
+            suppliedSubjects.map(
+              async (selectedSubject) => {
+                const cleanSubject =
+                  String(
                     selectedSubject
+                  ).trim();
+
+                console.log(
+                  `FETCHING BACKEND QUESTIONS FOR SUBJECT: "${cleanSubject}"`
+                );
+
+                /*
+                 * ilike makes subject matching
+                 * case-insensitive.
+                 *
+                 * So:
+                 *
+                 * Physics
+                 * physics
+                 * PHYSICS
+                 *
+                 * can match the same database subject.
+                 */
+
+                const {
+                  data,
+                  error,
+                } = await supabase
+                  .from(
+                    "cbt_questions"
                   )
-              );
+                  .select("*")
+                  .eq(
+                    "exam",
+                    exam
+                  )
+                  .ilike(
+                    "subject",
+                    cleanSubject
+                  );
 
-            const selectedQuestions =
-              shuffleQuestions(
-                matchingQuestions
-              ).slice(
-                0,
-                QUESTIONS_PER_SUBJECT
-              );
+                if (error) {
+                  console.error(
+                    `BACKEND ERROR FOR SUBJECT "${cleanSubject}":`,
+                    error
+                  );
 
-            grouped[displaySubject] =
-              selectedQuestions;
+                  return {
+                    subject:
+                      cleanSubject,
+                    questions: [],
+                    error,
+                  };
+                }
 
-            console.log(
-              displaySubject,
-              selectedQuestions.length
-            );
-          }
-        );
+                console.log(
+                  `BACKEND RETURNED ${data?.length || 0} QUESTIONS FOR "${cleanSubject}"`
+                );
 
-        const finalSubjects =
-          normalizedSelectedSubjects
-            .map((subject) =>
-              getSubjectDisplayName(
-                subject
-              )
+                /*
+                 * Shuffle ONLY the questions returned
+                 * from the backend for this selected subject.
+                 */
+
+                const randomQuestions =
+                  shuffleQuestions(
+                    data || []
+                  ).slice(
+                    0,
+                    QUESTIONS_PER_SUBJECT
+                  );
+
+                console.log(
+                  `USING ${randomQuestions.length} RANDOM QUESTIONS FOR "${cleanSubject}"`
+                );
+
+                return {
+                  subject:
+                    cleanSubject,
+                  questions:
+                    randomQuestions,
+                  error: null,
+                };
+              }
             )
-            .filter(
-              (displaySubject) =>
-                grouped[displaySubject] &&
-                grouped[displaySubject]
-                  .length > 0
-            );
+          );
 
         if (!mounted) {
           return;
         }
 
-        if (
-          finalSubjects.length ===
-          0
-        ) {
+        /* ==================================================================
+           BUILD QUESTIONS BY SUBJECT
+        ================================================================== */
+
+        const grouped = {};
+
+        const finalSubjects = [];
+
+        subjectResults.forEach(
+          ({
+            subject,
+            questions,
+          }) => {
+            const displaySubject =
+              getSubjectDisplayName(
+                subject
+              );
+
+            /*
+             * Keep the exact selected subject
+             * as the key.
+             */
+
+            grouped[displaySubject] =
+              questions;
+
+            /*
+             * Only include the subject if
+             * backend returned questions.
+             */
+
+            if (
+              questions &&
+              questions.length > 0
+            ) {
+              finalSubjects.push(
+                displaySubject
+              );
+            }
+          }
+        );
+
+        console.log(
+          "========================================"
+        );
+
+        console.log(
+          "FINAL BACKEND QUESTIONS"
+        );
+
+        finalSubjects.forEach(
+          (subject) => {
+            console.log(
+              `${subject}: ${
+                grouped[subject]?.length ||
+                0
+              }`
+            );
+          }
+        );
+
+        console.log(
+          "TOTAL SUBJECTS:",
+          finalSubjects.length
+        );
+
+        console.log(
+          "========================================"
+        );
+
+        if (finalSubjects.length === 0) {
           setQuestionsBySubject({});
           setSelectedSubjects([]);
+          setLoading(false);
+
           return;
         }
+
+        /*
+         * New exam timer.
+         */
 
         const newEndTime =
           Date.now() +
           EXAM_DURATION_MINUTES *
             60 *
             1000;
+
+        /*
+         * IMPORTANT:
+         *
+         * This is the actual backend result.
+         *
+         * Example:
+         *
+         * Mathematics = 40
+         * Physics     = 40
+         * Chemistry   = 40
+         *
+         * Total = 120
+         */
 
         setQuestionsBySubject(
           grouped
@@ -879,6 +826,12 @@ const CBTExam = () => {
 
         setSubmitted(false);
 
+        /*
+         * Save the backend-selected questions
+         * so refresh does not change the questions
+         * during an active exam.
+         */
+
         const newStorageKey =
           createStorageKey(
             exam,
@@ -905,7 +858,7 @@ const CBTExam = () => {
         );
       } catch (error) {
         console.error(
-          "CBT QUESTION LOADING ERROR:",
+          "CBT BACKEND QUESTION LOADING ERROR:",
           error
         );
 
@@ -920,18 +873,18 @@ const CBTExam = () => {
       }
     };
 
-    fetchQuestions();
+    fetchQuestionsFromBackend();
 
     return () => {
       mounted = false;
     };
   }, [
     exam,
-    suppliedSubjects,
+    suppliedSubjects.join("|"),
   ]);
 
   /* ==========================================================================
-     RESTORE SESSION
+     RESTORE ACTIVE EXAM SESSION
   ========================================================================== */
 
   useEffect(() => {
@@ -1057,7 +1010,7 @@ const CBTExam = () => {
   ]);
 
   /* ==========================================================================
-     SAVE SESSION
+     SAVE ACTIVE SESSION
   ========================================================================== */
 
   useEffect(() => {
@@ -1183,9 +1136,10 @@ const CBTExam = () => {
       secs,
     ]
       .map((value) =>
-        String(
-          value
-        ).padStart(2, "0")
+        String(value).padStart(
+          2,
+          "0"
+        )
       )
       .join(":");
   };
@@ -1197,7 +1151,7 @@ const CBTExam = () => {
     timeLeft <= 5 * 60;
 
   /* ==========================================================================
-     CURRENT QUESTIONS
+     CURRENT QUESTION
   ========================================================================== */
 
   const currentQuestions =
@@ -1217,10 +1171,7 @@ const CBTExam = () => {
   const totalQuestions =
     useMemo(() => {
       return selectedSubjects.reduce(
-        (
-          total,
-          subject
-        ) =>
+        (total, subject) =>
           total +
           (
             questionsBySubject[
@@ -1272,7 +1223,7 @@ const CBTExam = () => {
   };
 
   /* ==========================================================================
-     ANSWER
+     SELECT ANSWER
   ========================================================================== */
 
   const selectAnswer = (option) => {
@@ -1293,7 +1244,7 @@ const CBTExam = () => {
   };
 
   /* ==========================================================================
-     MARK
+     MARK QUESTION
   ========================================================================== */
 
   const toggleMark = () => {
@@ -1316,7 +1267,7 @@ const CBTExam = () => {
   };
 
   /* ==========================================================================
-     NEXT
+     NEXT QUESTION
   ========================================================================== */
 
   const nextQuestion = () => {
@@ -1353,14 +1304,12 @@ const CBTExam = () => {
 
       setCurrentIndex(0);
 
-      setShowCalculator(
-        false
-      );
+      setShowCalculator(false);
     }
   };
 
   /* ==========================================================================
-     PREVIOUS
+     PREVIOUS QUESTION
   ========================================================================== */
 
   const previousQuestion = () => {
@@ -1405,9 +1354,7 @@ const CBTExam = () => {
         )
       );
 
-      setShowCalculator(
-        false
-      );
+      setShowCalculator(false);
     }
   };
 
@@ -1424,9 +1371,7 @@ const CBTExam = () => {
 
     setCurrentIndex(0);
 
-    setShowCalculator(
-      false
-    );
+    setShowCalculator(false);
   };
 
   /* ==========================================================================
@@ -1503,9 +1448,7 @@ const CBTExam = () => {
     }
 
     setSubmitted(true);
-
     setShowNavigator(false);
-
     setShowCalculator(false);
   };
 
@@ -1689,18 +1632,41 @@ const CBTExam = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#071426] text-white flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-[#071426] text-white flex items-center justify-center px-6">
+        <div className="text-center max-w-md">
           <div className="w-11 h-11 mx-auto mb-5 rounded-full border-2 border-blue-500/20 border-t-blue-500 animate-spin" />
 
           <p className="text-lg font-semibold">
-            Loading Questions...
+            {loadingMessage}
           </p>
 
           <p className="text-sm text-slate-400 mt-2">
-            Loading the selected
-            subject questions...
+            Fetching{" "}
+            {QUESTIONS_PER_SUBJECT}{" "}
+            random questions from the
+            backend for each selected
+            subject.
           </p>
+
+          <div className="mt-5 space-y-2 text-left">
+            {suppliedSubjects.map(
+              (subject) => (
+                <div
+                  key={subject}
+                  className="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03] border border-white/10"
+                >
+                  <span className="text-sm text-slate-300">
+                    {subject}
+                  </span>
+
+                  <span className="text-xs text-blue-400">
+                    {QUESTIONS_PER_SUBJECT}{" "}
+                    questions
+                  </span>
+                </div>
+              )
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1710,9 +1676,7 @@ const CBTExam = () => {
      NO QUESTIONS
   ========================================================================== */
 
-  if (
-    totalQuestions === 0
-  ) {
+  if (totalQuestions === 0) {
     return (
       <div className="min-h-screen bg-[#071426] text-white flex items-center justify-center px-6">
         <div className="max-w-lg text-center">
@@ -1728,9 +1692,9 @@ const CBTExam = () => {
           </h1>
 
           <p className="text-slate-400 mt-3 leading-7">
-            There are no questions for
-            the selected subject in
-            this examination.
+            The backend could not find
+            questions for the selected
+            subjects in this examination.
           </p>
 
           <div className="mt-5 p-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-left">
@@ -1743,22 +1707,45 @@ const CBTExam = () => {
             </p>
 
             <p className="text-slate-500 mt-4">
-              Selected Subject
+              Selected Subjects
             </p>
 
-            <p className="font-semibold mt-1">
-              {suppliedSubjects.length
-                ? suppliedSubjects.join(
-                    ", "
-                  )
-                : "None"}
-            </p>
+            <div className="mt-2 space-y-2">
+              {suppliedSubjects.map(
+                (subject) => (
+                  <div
+                    key={subject}
+                    className="flex items-center justify-between"
+                  >
+                    <span>
+                      {subject}
+                    </span>
 
-            <p className="text-slate-500 mt-4">
-              Make sure the subject
-              column in cbt_questions
-              matches the selected
-              subject.
+                    <span className="text-slate-500">
+                      0 /{" "}
+                      {
+                        QUESTIONS_PER_SUBJECT
+                      }
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+
+            <p className="text-slate-500 mt-5">
+              Check that the{" "}
+              <strong className="text-slate-300">
+                exam
+              </strong>{" "}
+              and{" "}
+              <strong className="text-slate-300">
+                subject
+              </strong>{" "}
+              values in{" "}
+              <strong className="text-slate-300">
+                cbt_questions
+              </strong>{" "}
+              match the selections.
             </p>
           </div>
         </div>
@@ -1803,6 +1790,11 @@ const CBTExam = () => {
               {selectedSubjects.join(
                 " • "
               )}
+            </p>
+
+            <p className="text-slate-500 text-xs mt-3">
+              {totalQuestions} total
+              questions
             </p>
 
             {timeLeft === 0 && (
@@ -1952,9 +1944,9 @@ const CBTExam = () => {
 
                         {question.subject && (
                           <p className="text-xs text-blue-400 mb-2">
-                            {getSubjectDisplayName(
+                            {
                               question.subject
-                            )}
+                            }
                           </p>
                         )}
 
@@ -2240,29 +2232,34 @@ const CBTExam = () => {
             </div>
 
             <div className="flex items-center justify-end gap-2">
-              {normalize(
-                activeSubject
-              ) ===
-                "mathematics" && (
-                <button
-                  onClick={() =>
-                    setShowCalculator(
-                      (previous) =>
-                        !previous
-                    )
-                  }
-                  title="Calculator"
-                  className={`w-10 h-10 rounded-xl border flex items-center justify-center transition ${
-                    showCalculator
-                      ? "bg-blue-600 border-blue-400 text-white"
-                      : "bg-white/[0.035] border-white/10 text-slate-300 hover:text-white hover:bg-white/[0.07]"
-                  }`}
-                >
-                  <Calculator
-                    size={18}
-                  />
-                </button>
-              )}
+              {currentQuestion &&
+                currentOptions.length >
+                  0 &&
+                normalize(
+                  activeSubject
+                ) ===
+                  normalize(
+                    "mathematics"
+                  ) && (
+                  <button
+                    onClick={() =>
+                      setShowCalculator(
+                        (previous) =>
+                          !previous
+                      )
+                    }
+                    title="Calculator"
+                    className={`w-10 h-10 rounded-xl border flex items-center justify-center transition ${
+                      showCalculator
+                        ? "bg-blue-600 border-blue-400 text-white"
+                        : "bg-white/[0.035] border-white/10 text-slate-300 hover:text-white hover:bg-white/[0.07]"
+                    }`}
+                  >
+                    <Calculator
+                      size={18}
+                    />
+                  </button>
+                )}
 
               <button
                 onClick={() =>
@@ -2429,7 +2426,9 @@ const CBTExam = () => {
           normalize(
             activeSubject
           ) ===
-            "mathematics" && (
+            normalize(
+              "mathematics"
+            ) && (
             <div className="fixed top-[88px] right-5 z-40 w-[310px] rounded-2xl border border-white/10 bg-[#0a1b30]/98 backdrop-blur-2xl shadow-2xl shadow-black/30 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                 <div className="flex items-center gap-2">

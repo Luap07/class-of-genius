@@ -3,7 +3,6 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
@@ -22,12 +21,10 @@ import {
   Power,
   Bold,
   Italic,
-  Underline,
   Superscript,
   Subscript,
   Sigma,
   Plus,
-  Minus,
   Image as ImageIcon,
   Eye,
   EyeOff,
@@ -57,8 +54,7 @@ const decodeHtml = (value = "") => {
   }
 
   for (let i = 0; i < 3; i += 1) {
-    const textarea =
-      document.createElement("textarea");
+    const textarea = document.createElement("textarea");
 
     textarea.innerHTML = result;
 
@@ -75,26 +71,306 @@ const decodeHtml = (value = "") => {
 };
 
 /* ============================================================
+   ESCAPE HTML
+============================================================ */
+
+const escapeHtml = (value = "") => {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
+/* ============================================================
+   NORMALIZE OPTIONS
+   ------------------------------------------------------------
+   IMPORTANT FIX
+
+   The database may contain options as:
+
+   1. Array:
+      ["A", "B", "C", "D"]
+
+   2. JSON string:
+      '["A","B","C","D"]'
+
+   3. Object:
+      {
+        A: "A",
+        B: "B",
+        C: "C",
+        D: "D"
+      }
+
+   4. Object with optionA/optionB/etc.
+
+   5. Separate database columns:
+      optionA
+      optionB
+      optionC
+      optionD
+
+   This function ALWAYS returns an array.
+============================================================ */
+
+const normalizeOptions = (itemOrOptions) => {
+  if (
+    itemOrOptions === null ||
+    itemOrOptions === undefined
+  ) {
+    return [];
+  }
+
+  /*
+   * If the whole question object was supplied,
+   * first check the options field.
+   */
+
+  if (
+    typeof itemOrOptions === "object" &&
+    !Array.isArray(itemOrOptions)
+  ) {
+    const item = itemOrOptions;
+
+    /*
+     * Existing options column
+     */
+
+    if (
+      item.options !== null &&
+      item.options !== undefined
+    ) {
+      const normalized = normalizeOptions(
+        item.options
+      );
+
+      if (normalized.length > 0) {
+        return normalized;
+      }
+    }
+
+    /*
+     * Support your CBT database format:
+     *
+     * optionA
+     * optionB
+     * optionC
+     * optionD
+     */
+
+    const separateOptions = [
+      item.optionA,
+      item.optionB,
+      item.optionC,
+      item.optionD,
+    ];
+
+    const hasSeparateOptions =
+      separateOptions.some(
+        (option) =>
+          option !== null &&
+          option !== undefined &&
+          String(option).trim() !== ""
+      );
+
+    if (hasSeparateOptions) {
+      return separateOptions.map(
+        (option) =>
+          option === null ||
+          option === undefined
+            ? ""
+            : String(option)
+      );
+    }
+
+    /*
+     * Object formats:
+     *
+     * {
+     *   A: "...",
+     *   B: "...",
+     *   C: "...",
+     *   D: "..."
+     * }
+     */
+
+    const objectKeys = [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+    ];
+
+    const objectOptions =
+      objectKeys
+        .filter((key) =>
+          Object.prototype.hasOwnProperty.call(
+            item,
+            key
+          )
+        )
+        .map((key) => item[key]);
+
+    if (objectOptions.length > 0) {
+      return objectOptions.map(
+        (option) =>
+          option === null ||
+          option === undefined
+            ? ""
+            : String(option)
+      );
+    }
+
+    return [];
+  }
+
+  /*
+   * Already an array.
+   */
+
+  if (Array.isArray(itemOrOptions)) {
+    return itemOrOptions.map(
+      (option) => {
+        if (
+          option === null ||
+          option === undefined
+        ) {
+          return "";
+        }
+
+        /*
+         * Sometimes an option itself can
+         * accidentally be an object.
+         */
+
+        if (
+          typeof option === "object"
+        ) {
+          if (
+            option.text !== undefined
+          ) {
+            return String(
+              option.text
+            );
+          }
+
+          if (
+            option.value !== undefined
+          ) {
+            return String(
+              option.value
+            );
+          }
+
+          return JSON.stringify(
+            option
+          );
+        }
+
+        return String(option);
+      }
+    );
+  }
+
+  /*
+   * JSON string.
+   */
+
+  if (
+    typeof itemOrOptions === "string"
+  ) {
+    const value =
+      itemOrOptions.trim();
+
+    if (!value) {
+      return [];
+    }
+
+    /*
+     * Try JSON first.
+     */
+
+    if (
+      value.startsWith("[") ||
+      value.startsWith("{")
+    ) {
+      try {
+        const parsed =
+          JSON.parse(value);
+
+        return normalizeOptions(
+          parsed
+        );
+      } catch {
+        /*
+         * Ignore and continue.
+         */
+      }
+    }
+
+    /*
+     * Support newline-separated options.
+     */
+
+    if (
+      value.includes("\n")
+    ) {
+      return value
+        .split("\n")
+        .map((option) =>
+          option.trim()
+        )
+        .filter(Boolean);
+    }
+
+    /*
+     * If it is just one option,
+     * return it as an array.
+     */
+
+    return [value];
+  }
+
+  return [];
+};
+
+/* ============================================================
+   NORMALIZE QUESTION RECORD
+============================================================ */
+
+const normalizeQuestionRecord = (
+  item
+) => {
+  if (!item) {
+    return item;
+  }
+
+  return {
+    ...item,
+    options:
+      normalizeOptions(item),
+  };
+};
+
+/* ============================================================
    CLEAN MARKDOWN / LATEX
 ============================================================ */
 
-const cleanLatexMarkdown = (value = "") => {
+const cleanLatexMarkdown = (
+  value = ""
+) => {
   if (!value) {
     return "";
   }
 
   let content =
     decodeHtml(value);
-
-  /*
-   * Remove markdown bold/italic markers.
-   *
-   * **$2\text{ cm}$**
-   *
-   * becomes:
-   *
-   * $2\text{ cm}$
-   */
 
   content = content.replace(
     /\*\*/g,
@@ -105,14 +381,6 @@ const cleanLatexMarkdown = (value = "") => {
     /__/g,
     ""
   );
-
-  /*
-   * Remove accidental unmatched
-   * dollar signs at the ends.
-   *
-   * 2\text{ cm}$
-   * $2\text{ cm}
-   */
 
   const dollarCount =
     (content.match(/\$/g) || [])
@@ -139,7 +407,9 @@ const cleanLatexMarkdown = (value = "") => {
    HTML DETECTION
 ============================================================ */
 
-const hasHtml = (value = "") => {
+const hasHtml = (
+  value = ""
+) => {
   return /<\/?[a-z][\s\S]*>/i.test(
     value
   );
@@ -159,10 +429,6 @@ const convertCaretPowers = (
   let content =
     String(value);
 
-  /*
-   * Protect existing sup/sub tags.
-   */
-
   const protectedTags = [];
 
   content =
@@ -179,12 +445,6 @@ const convertCaretPowers = (
         return token;
       }
     );
-
-  /*
-   * x^2
-   * x^n
-   * 2^4
-   */
 
   content =
     content.replace(
@@ -272,22 +532,11 @@ const normalizeLatexSource = (
       value
     );
 
-  /*
-   * Fix common malformed:
-   *
-   * 2\text{ cm}$
-   */
-
   content =
     content.replace(
       /\$\s*([^$]+)\s*$/g,
       "$1"
     );
-
-  /*
-   * If there is an unmatched
-   * trailing dollar.
-   */
 
   if (
     content.endsWith("$") &&
@@ -306,7 +555,7 @@ const normalizeLatexSource = (
 };
 
 /* ============================================================
-   RENDER ONE LATEX EXPRESSION
+   RENDER KATEX
 ============================================================ */
 
 const renderKatex = (
@@ -324,10 +573,6 @@ const renderKatex = (
     normalizeLatexSource(
       source
     );
-
-  /*
-   * Remove surrounding $
-   */
 
   if (
     source.startsWith("$") &&
@@ -370,37 +615,7 @@ const renderKatex = (
 };
 
 /* ============================================================
-   ESCAPE HTML
-============================================================ */
-
-const escapeHtml = (
-  value = ""
-) => {
-  return String(value)
-    .replace(
-      /&/g,
-      "&amp;"
-    )
-    .replace(
-      /</g,
-      "&lt;"
-    )
-    .replace(
-      />/g,
-      "&gt;"
-    )
-    .replace(
-      /"/g,
-      "&quot;"
-    )
-    .replace(
-      /'/g,
-      "&#039;"
-    );
-};
-
-/* ============================================================
-   RICH CONTENT PARSER
+   RICH CONTENT
 ============================================================ */
 
 const renderRichContentHtml = (
@@ -418,18 +633,10 @@ const renderRichContentHtml = (
       String(value)
     );
 
-  /*
-   * Clean markdown wrappers first.
-   */
-
   content =
     cleanLatexMarkdown(
       content
     );
-
-  /*
-   * Normalize nbsp.
-   */
 
   content =
     content
@@ -442,30 +649,11 @@ const renderRichContentHtml = (
         " "
       );
 
-  /*
-   * If actual HTML already exists,
-   * preserve it.
-   *
-   * This supports old records containing
-   * <sup> and <sub>.
-   */
-
   if (hasHtml(content)) {
     return convertCaretPowers(
       content
     );
   }
-
-  /*
-   * Split:
-   *
-   * text
-   * $math$
-   * text
-   *
-   * and render only the math
-   * portions through KaTeX.
-   */
 
   const parts = [];
 
@@ -512,11 +700,6 @@ const renderRichContentHtml = (
     );
 
   if (remaining) {
-    /*
-     * If remaining content itself
-     * looks like LaTeX, render it.
-     */
-
     if (
       containsLatex(
         remaining
@@ -537,12 +720,6 @@ const renderRichContentHtml = (
     }
   }
 
-  /*
-   * If no $...$ was found but
-   * content is LaTeX, render whole
-   * content.
-   */
-
   if (
     parts.length === 0 &&
     containsLatex(content)
@@ -556,13 +733,11 @@ const renderRichContentHtml = (
 };
 
 /* ============================================================
-   DISPLAY COMPONENT
+   RICH CONTENT COMPONENT
 ============================================================ */
 
 const RichContent = memo(
-  ({
-    content,
-  }) => {
+  ({ content }) => {
     if (
       content === null ||
       content === undefined ||
@@ -627,32 +802,11 @@ const cleanRichContent = (
         " "
       );
 
-  /*
-   * Remove our old custom fraction
-   * HTML if an old question contains it.
-   *
-   * Example:
-   *
-   * <span class="math-fraction">
-   *   <span>5</span>
-   *   <span>2</span>
-   * </span>
-   *
-   * becomes:
-   *
-   * 5/2
-   */
-
   content =
     content.replace(
       /<span[^>]*class=["'][^"']*math-fraction[^"']*["'][^>]*>\s*<span[^>]*>(.*?)<\/span>\s*<span[^>]*>(.*?)<\/span>\s*<\/span>/gis,
       "$1/$2"
     );
-
-  /*
-   * Convert old fraction HTML
-   * into normal text if needed.
-   */
 
   content =
     content.replace(
@@ -660,19 +814,11 @@ const cleanRichContent = (
       "$1"
     );
 
-  /*
-   * IMPORTANT:
-   *
-   * We do NOT convert LaTeX to HTML.
-   *
-   * We store the original LaTeX.
-   */
-
   return content.trim();
 };
 
 /* ============================================================
-   TEXT FOR SEARCH / VALIDATION
+   TEXT EXTRACTION
 ============================================================ */
 
 const getTextFromContent = (
@@ -687,11 +833,11 @@ const getTextFromContent = (
       String(value)
     );
 
-  /*
-   * Remove HTML tags.
-   */
-
-  if (hasHtml(text)) {
+  if (
+    hasHtml(text) &&
+    typeof document !==
+      "undefined"
+  ) {
     const div =
       document.createElement(
         "div"
@@ -705,10 +851,6 @@ const getTextFromContent = (
       div.innerText ||
       "";
   }
-
-  /*
-   * Make LaTeX searchable.
-   */
 
   text =
     text.replace(
@@ -749,7 +891,7 @@ const getTextFromContent = (
 };
 
 /* ============================================================
-   EDITOR SOURCE
+   EDITOR VALUE
 ============================================================ */
 
 const getEditorValue = (
@@ -758,11 +900,6 @@ const getEditorValue = (
   if (!value) {
     return "";
   }
-
-  /*
-   * If old custom fraction HTML exists,
-   * convert it back to plain fraction.
-   */
 
   return cleanRichContent(
     value
@@ -815,7 +952,7 @@ const QuestionsAdmin = () => {
   ] = useState(null);
 
   /* ==========================================================
-     FETCH
+     FETCH QUESTIONS
   ========================================================== */
 
   const fetchQuestions =
@@ -863,8 +1000,20 @@ const QuestionsAdmin = () => {
             const batch =
               data || [];
 
+            /*
+             * IMPORTANT:
+             *
+             * Normalize every database
+             * record immediately.
+             */
+
+            const normalizedBatch =
+              batch.map(
+                normalizeQuestionRecord
+              );
+
             allQuestions.push(
-              ...batch
+              ...normalizedBatch
             );
 
             if (
@@ -921,14 +1070,19 @@ const QuestionsAdmin = () => {
 
       return questions.filter(
         (item) => {
+          /*
+           * NEVER call .map directly
+           * on item.options.
+           *
+           * normalizeOptions ALWAYS
+           * returns an array.
+           */
+
           const options =
-            Array.isArray(
-              item.options
+            normalizeOptions(
+              item
             )
-              ? item.options.join(
-                  " "
-                )
-              : "";
+              .join(" ");
 
           const searchable = [
             item.exam || "",
@@ -1008,6 +1162,11 @@ const QuestionsAdmin = () => {
   const openEditor =
     useCallback(
       (question) => {
+        const options =
+          normalizeOptions(
+            question
+          );
+
         setEditingQuestion({
           ...question,
 
@@ -1018,22 +1177,12 @@ const QuestionsAdmin = () => {
             ),
 
           options:
-            Array.isArray(
-              question.options
-            )
-              ? question.options.map(
-                  (option) =>
-                    getEditorValue(
-                      option ||
-                        ""
-                    )
+            options.map(
+              (option) =>
+                getEditorValue(
+                  option
                 )
-              : [
-                  "",
-                  "",
-                  "",
-                  "",
-                ],
+            ),
 
           reason:
             getEditorValue(
@@ -1054,7 +1203,7 @@ const QuestionsAdmin = () => {
     );
 
   /* ==========================================================
-     CLOSE
+     CLOSE EDITOR
   ========================================================== */
 
   const closeEditor =
@@ -1111,10 +1260,10 @@ const QuestionsAdmin = () => {
               return previous;
             }
 
-            const options = [
-              ...(previous.options ||
-                []),
-            ];
+            const options =
+              normalizeOptions(
+                previous
+              );
 
             options[index] =
               value;
@@ -1141,12 +1290,16 @@ const QuestionsAdmin = () => {
             return previous;
           }
 
+          const options =
+            normalizeOptions(
+              previous
+            );
+
           return {
             ...previous,
 
             options: [
-              ...(previous.options ||
-                []),
+              ...options,
               "",
             ],
           };
@@ -1167,10 +1320,10 @@ const QuestionsAdmin = () => {
               return previous;
             }
 
-            const options = [
-              ...(previous.options ||
-                []),
-            ];
+            const options =
+              normalizeOptions(
+                previous
+              );
 
             options.splice(
               index,
@@ -1336,13 +1489,18 @@ const QuestionsAdmin = () => {
             throw error;
           }
 
+          const normalizedData =
+            normalizeQuestionRecord(
+              data
+            );
+
           setQuestions(
             (previous) =>
               previous.map(
                 (item) =>
                   item.id ===
                   question.id
-                    ? data
+                    ? normalizedData
                     : item
               )
           );
@@ -1352,7 +1510,7 @@ const QuestionsAdmin = () => {
             question.id
           ) {
             setEditingQuestion(
-              data
+              normalizedData
             );
           }
         } catch (error) {
@@ -1398,11 +1556,17 @@ const QuestionsAdmin = () => {
                 ""
             );
 
+          /*
+           * Always normalize before map.
+           */
+
+          const currentOptions =
+            normalizeOptions(
+              editingQuestion
+            );
+
           const cleanedOptions =
-            (
-              editingQuestion.options ||
-              []
-            ).map(
+            currentOptions.map(
               (option) =>
                 cleanRichContent(
                   option ||
@@ -1424,6 +1588,17 @@ const QuestionsAdmin = () => {
           if (!questionText) {
             alert(
               "Please enter the question."
+            );
+
+            return;
+          }
+
+          if (
+            cleanedOptions.length <
+            2
+          ) {
+            alert(
+              "Please provide at least two answer options."
             );
 
             return;
@@ -1467,6 +1642,30 @@ const QuestionsAdmin = () => {
             return;
           }
 
+          const answerIndex =
+            answer.charCodeAt(
+              0
+            ) - 65;
+
+          if (
+            answerIndex <
+              0 ||
+            answerIndex >=
+              cleanedOptions.length
+          ) {
+            alert(
+              "The correct answer does not match an available option."
+            );
+
+            return;
+          }
+
+          /*
+           * Main payload.
+           *
+           * Keep options as an array.
+           */
+
           const payload = {
             exam: String(
               editingQuestion.exam ||
@@ -1477,18 +1676,6 @@ const QuestionsAdmin = () => {
               editingQuestion.subject ||
                 ""
             ).trim(),
-
-            /*
-             * IMPORTANT:
-             *
-             * Save the LaTeX source.
-             *
-             * NOT:
-             *
-             * <span class="math-fraction">
-             *
-             * NOT rendered KaTeX HTML.
-             */
 
             question:
               cleanedQuestion,
@@ -1517,6 +1704,51 @@ const QuestionsAdmin = () => {
               false;
           }
 
+          /*
+           * If your database also has
+           * optionA-optionD columns,
+           * keep them synchronized.
+           *
+           * These fields are only added
+           * when they existed on the
+           * original question.
+           */
+
+          if (
+            Object.prototype.hasOwnProperty.call(
+              editingQuestion,
+              "optionA"
+            ) ||
+            Object.prototype.hasOwnProperty.call(
+              editingQuestion,
+              "optionB"
+            ) ||
+            Object.prototype.hasOwnProperty.call(
+              editingQuestion,
+              "optionC"
+            ) ||
+            Object.prototype.hasOwnProperty.call(
+              editingQuestion,
+              "optionD"
+            )
+          ) {
+            payload.optionA =
+              cleanedOptions[0] ||
+              "";
+
+            payload.optionB =
+              cleanedOptions[1] ||
+              "";
+
+            payload.optionC =
+              cleanedOptions[2] ||
+              "";
+
+            payload.optionD =
+              cleanedOptions[3] ||
+              "";
+          }
+
           const {
             data,
             error,
@@ -1539,13 +1771,18 @@ const QuestionsAdmin = () => {
             throw error;
           }
 
+          const normalizedData =
+            normalizeQuestionRecord(
+              data
+            );
+
           setQuestions(
             (previous) =>
               previous.map(
                 (item) =>
                   item.id ===
                   editingQuestion.id
-                    ? data
+                    ? normalizedData
                     : item
               )
           );
@@ -1578,7 +1815,6 @@ const QuestionsAdmin = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 p-5 text-white sm:p-8">
-
       <div className="mx-auto max-w-7xl">
 
         {/* HEADER */}
@@ -1586,16 +1822,13 @@ const QuestionsAdmin = () => {
         <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 
           <div>
-
             <div className="mb-2 flex items-center gap-2">
 
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10">
-
                 <Sigma
                   size={18}
                   className="text-blue-400"
                 />
-
               </div>
 
               <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-400">
@@ -1613,7 +1846,6 @@ const QuestionsAdmin = () => {
               activate and manage
               your CBT questions.
             </p>
-
           </div>
 
           <div className="relative w-full lg:w-[360px]">
@@ -1682,7 +1914,6 @@ const QuestionsAdmin = () => {
         {/* CONTENT */}
 
         {loading ? (
-
           <div className="flex min-h-[300px] items-center justify-center">
 
             <div className="flex items-center gap-3 text-sm text-slate-500">
@@ -1697,7 +1928,6 @@ const QuestionsAdmin = () => {
             </div>
 
           </div>
-
         ) : filteredQuestions.length ===
           0 ? (
 
@@ -1720,13 +1950,10 @@ const QuestionsAdmin = () => {
           </div>
 
         ) : (
-
           <>
-
             <div className="mb-4 flex items-center justify-between">
 
               <p className="text-xs font-bold text-slate-500">
-
                 Showing{" "}
 
                 <span className="text-white">
@@ -1755,7 +1982,6 @@ const QuestionsAdmin = () => {
                     filteredQuestions.length
                   }
                 </span>
-
               </p>
 
               <p className="text-xs font-bold text-slate-600">
@@ -1815,8 +2041,7 @@ const QuestionsAdmin = () => {
 
             {totalPages >
               1 && (
-
-              <div className="mt-8 flex items-center justify-center gap-2">
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
 
                 <button
                   type="button"
@@ -1907,10 +2132,8 @@ const QuestionsAdmin = () => {
 
               </div>
             )}
-
           </>
         )}
-
       </div>
 
       {editingQuestion && (
@@ -1950,7 +2173,6 @@ const QuestionsAdmin = () => {
           }
         />
       )}
-
     </div>
   );
 };
@@ -1971,6 +2193,17 @@ const QuestionCard = memo(
   }) => {
     const isActive =
       item.active !== false;
+
+    /*
+     * IMPORTANT:
+     * Never assume item.options is
+     * an array.
+     */
+
+    const options =
+      normalizeOptions(
+        item
+      );
 
     return (
       <div
@@ -2094,11 +2327,11 @@ const QuestionCard = memo(
 
         </div>
 
+        {/* OPTIONS */}
+
         <div className="mt-6 grid gap-3 md:grid-cols-2">
 
-          {(item.options ||
-            []
-          ).map(
+          {options.map(
             (
               option,
               optionIndex
@@ -2138,11 +2371,13 @@ const QuestionCard = memo(
                     </span>
 
                     <div className="min-w-0 flex-1">
+
                       <RichContent
                         content={
                           option
                         }
                       />
+
                     </div>
 
                     {isCorrect && (
@@ -2182,11 +2417,13 @@ const QuestionCard = memo(
             </p>
 
             <div className="text-sm leading-7 text-slate-400">
+
               <RichContent
                 content={
                   item.reason
                 }
               />
+
             </div>
 
           </div>
@@ -2215,342 +2452,345 @@ const QuestionCard = memo(
    EDIT MODAL
 ============================================================ */
 
-const EditQuestionModal =
-  ({
-    question,
-    saving,
-    onClose,
-    onSave,
-    onFieldChange,
-    onOptionChange,
-    onAddOption,
-    onRemoveOption,
-    onToggleActive,
-    activating,
-  }) => {
+const EditQuestionModal = ({
+  question,
+  saving,
+  onClose,
+  onSave,
+  onFieldChange,
+  onOptionChange,
+  onAddOption,
+  onRemoveOption,
+  onToggleActive,
+  activating,
+}) => {
+  const [
+    questionText,
+    setQuestionText,
+  ] = useState(
+    question.question ||
+      ""
+  );
 
-    const [
-      questionText,
-      setQuestionText,
-    ] = useState(
+  const [
+    reasonText,
+    setReasonText,
+  ] = useState(
+    question.reason ||
+      ""
+  );
+
+  /*
+   * Normalize options for the editor too.
+   */
+
+  const options =
+    normalizeOptions(
+      question
+    );
+
+  useEffect(() => {
+    setQuestionText(
       question.question ||
         ""
     );
 
-    const [
-      reasonText,
-      setReasonText,
-    ] = useState(
+    setReasonText(
       question.reason ||
         ""
     );
+  }, [
+    question.id,
+    question.question,
+    question.reason,
+  ]);
 
-    useEffect(() => {
+  const updateQuestion =
+    (value) => {
       setQuestionText(
-        question.question ||
-          ""
+        value
       );
 
+      onFieldChange(
+        "question",
+        value
+      );
+    };
+
+  const updateReason =
+    (value) => {
       setReasonText(
-        question.reason ||
-          ""
+        value
       );
-    }, [
-      question.id,
-    ]);
 
-    const updateQuestion =
-      (value) => {
-        setQuestionText(
-          value
-        );
+      onFieldChange(
+        "reason",
+        value
+      );
+    };
 
-        onFieldChange(
-          "question",
-          value
-        );
-      };
+  const insertLatex =
+    (value) => {
+      updateQuestion(
+        `${questionText}${value}`
+      );
+    };
 
-    const updateReason =
-      (value) => {
-        setReasonText(
-          value
-        );
+  return (
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md sm:p-8">
 
-        onFieldChange(
-          "reason",
-          value
-        );
-      };
+      <div className="my-4 w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-2xl">
 
-    /*
-     * Insert LaTeX SOURCE.
-     *
-     * NOT HTML.
-     */
+        {/* HEADER */}
 
-    const insertLatex =
-      (value) => {
-        updateQuestion(
-          `${questionText}${value}`
-        );
-      };
+        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur-xl sm:px-7">
 
-    return (
-      <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md sm:p-8">
+          <div>
 
-        <div className="my-4 w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-2xl">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">
+              Question Editor
+            </p>
 
-          {/* HEADER */}
-
-          <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur-xl sm:px-7">
-
-            <div>
-
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">
-                Question Editor
-              </p>
-
-              <h2 className="mt-1 text-xl font-black">
-                Edit CBT Question
-              </h2>
-
-            </div>
-
-            <button
-              type="button"
-              onClick={
-                onClose
-              }
-              disabled={
-                saving
-              }
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-400"
-            >
-              <X
-                size={19}
-              />
-            </button>
+            <h2 className="mt-1 text-xl font-black">
+              Edit CBT Question
+            </h2>
 
           </div>
 
-          <div className="max-h-[calc(100vh-150px)] overflow-y-auto p-5 sm:p-7">
+          <button
+            type="button"
+            onClick={
+              onClose
+            }
+            disabled={
+              saving
+            }
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-400"
+          >
+            <X
+              size={19}
+            />
+          </button>
 
-            {/* EXAM / SUBJECT */}
+        </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+        <div className="max-h-[calc(100vh-150px)] overflow-y-auto p-5 sm:p-7">
 
-              <Field
-                label="Exam"
-                value={
-                  question.exam ||
-                  ""
-                }
-                onChange={(
+          {/* EXAM / SUBJECT */}
+
+          <div className="grid gap-4 md:grid-cols-2">
+
+            <Field
+              label="Exam"
+              value={
+                question.exam ||
+                ""
+              }
+              onChange={(
+                value
+              ) =>
+                onFieldChange(
+                  "exam",
                   value
-                ) =>
-                  onFieldChange(
-                    "exam",
-                    value
-                  )
-                }
-                placeholder="e.g. WAEC"
-              />
+                )
+              }
+              placeholder="e.g. WAEC"
+            />
 
-              <Field
-                label="Subject"
-                value={
-                  question.subject ||
-                  ""
-                }
-                onChange={(
+            <Field
+              label="Subject"
+              value={
+                question.subject ||
+                ""
+              }
+              onChange={(
+                value
+              ) =>
+                onFieldChange(
+                  "subject",
                   value
-                ) =>
-                  onFieldChange(
-                    "subject",
-                    value
-                  )
-                }
-                placeholder="e.g. Mathematics"
-              />
+                )
+              }
+              placeholder="e.g. Mathematics"
+            />
+
+          </div>
+
+          {/* QUESTION */}
+
+          <div className="mt-7">
+
+            <div className="mb-2 flex items-center justify-between">
+
+              <label className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
+                Question
+              </label>
+
+              <span className="text-[10px] font-bold text-blue-400">
+                LaTeX enabled
+              </span>
 
             </div>
 
-            {/* QUESTION */}
+            {/* TOOLBAR */}
 
-            <div className="mt-7">
+            <div className="flex flex-wrap gap-1 rounded-t-2xl border border-white/10 bg-white/[0.03] p-2">
 
-              <div className="mb-2 flex items-center justify-between">
-
-                <label className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-                  Question
-                </label>
-
-                <span className="text-[10px] font-bold text-blue-400">
-                  LaTeX enabled
-                </span>
-
-              </div>
-
-              {/* MATH TOOLBAR */}
-
-              <div className="flex flex-wrap gap-1 rounded-t-2xl border border-white/10 bg-white/[0.03] p-2">
-
-                <ToolbarButton
-                  icon={Bold}
-                  title="Bold"
-                  onClick={() =>
-                    insertLatex(
-                      "**text**"
-                    )
-                  }
-                />
-
-                <ToolbarButton
-                  icon={Italic}
-                  title="Italic"
-                  onClick={() =>
-                    insertLatex(
-                      "*text*"
-                    )
-                  }
-                />
-
-                <ToolbarButton
-                  icon={
-                    Superscript
-                  }
-                  title="Power"
-                  onClick={() =>
-                    insertLatex(
-                      "$x^2$"
-                    )
-                  }
-                />
-
-                <ToolbarButton
-                  icon={
-                    Subscript
-                  }
-                  title="Subscript"
-                  onClick={() =>
-                    insertLatex(
-                      "$x_2$"
-                    )
-                  }
-                />
-
-                <ToolbarDivider />
-
-                <button
-                  type="button"
-                  title="Fraction"
-                  onClick={() =>
-                    insertLatex(
-                      "$\\frac{5}{2}$"
-                    )
-                  }
-                  className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-                >
-                  ½
-                </button>
-
-                <button
-                  type="button"
-                  title="Square root"
-                  onClick={() =>
-                    insertLatex(
-                      "$\\sqrt{x}$"
-                    )
-                  }
-                  className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-                >
-                  √
-                </button>
-
-                <button
-                  type="button"
-                  title="Degree"
-                  onClick={() =>
-                    insertLatex(
-                      "$40^\\circ$"
-                    )
-                  }
-                  className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-                >
-                  °
-                </button>
-
-                <button
-                  type="button"
-                  title="Pi"
-                  onClick={() =>
-                    insertLatex(
-                      "$\\pi$"
-                    )
-                  }
-                  className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-                >
-                  π
-                </button>
-
-                <button
-                  type="button"
-                  title="Plus or minus"
-                  onClick={() =>
-                    insertLatex(
-                      "$\\pm$"
-                    )
-                  }
-                  className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-                >
-                  ±
-                </button>
-
-                <button
-                  type="button"
-                  title="Times"
-                  onClick={() =>
-                    insertLatex(
-                      "$\\times$"
-                    )
-                  }
-                  className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-                >
-                  ×
-                </button>
-
-                <button
-                  type="button"
-                  title="Division"
-                  onClick={() =>
-                    insertLatex(
-                      "$\\div$"
-                    )
-                  }
-                  className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-                >
-                  ÷
-                </button>
-
-              </div>
-
-              <textarea
-                value={
-                  questionText
-                }
-                onChange={(
-                  event
-                ) =>
-                  updateQuestion(
-                    event.target
-                      .value
+              <ToolbarButton
+                icon={Bold}
+                title="Bold"
+                onClick={() =>
+                  insertLatex(
+                    "**text**"
                   )
                 }
-                rows={7}
-                spellCheck={false}
-                className="w-full rounded-b-2xl border-x border-b border-white/10 bg-white/[0.025] p-5 text-[15px] leading-8 text-white outline-none focus:border-blue-400/30"
-                placeholder={`Example:
+              />
+
+              <ToolbarButton
+                icon={Italic}
+                title="Italic"
+                onClick={() =>
+                  insertLatex(
+                    "*text*"
+                  )
+                }
+              />
+
+              <ToolbarButton
+                icon={
+                  Superscript
+                }
+                title="Power"
+                onClick={() =>
+                  insertLatex(
+                    "$x^2$"
+                  )
+                }
+              />
+
+              <ToolbarButton
+                icon={
+                  Subscript
+                }
+                title="Subscript"
+                onClick={() =>
+                  insertLatex(
+                    "$x_2$"
+                  )
+                }
+              />
+
+              <ToolbarDivider />
+
+              <button
+                type="button"
+                title="Fraction"
+                onClick={() =>
+                  insertLatex(
+                    "$\\frac{5}{2}$"
+                  )
+                }
+                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                ½
+              </button>
+
+              <button
+                type="button"
+                title="Square root"
+                onClick={() =>
+                  insertLatex(
+                    "$\\sqrt{x}$"
+                  )
+                }
+                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                √
+              </button>
+
+              <button
+                type="button"
+                title="Degree"
+                onClick={() =>
+                  insertLatex(
+                    "$40^\\circ$"
+                  )
+                }
+                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                °
+              </button>
+
+              <button
+                type="button"
+                title="Pi"
+                onClick={() =>
+                  insertLatex(
+                    "$\\pi$"
+                  )
+                }
+                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                π
+              </button>
+
+              <button
+                type="button"
+                title="Plus or minus"
+                onClick={() =>
+                  insertLatex(
+                    "$\\pm$"
+                  )
+                }
+                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                ±
+              </button>
+
+              <button
+                type="button"
+                title="Times"
+                onClick={() =>
+                  insertLatex(
+                    "$\\times$"
+                  )
+                }
+                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                ×
+              </button>
+
+              <button
+                type="button"
+                title="Division"
+                onClick={() =>
+                  insertLatex(
+                    "$\\div$"
+                  )
+                }
+                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                ÷
+              </button>
+
+            </div>
+
+            <textarea
+              value={
+                questionText
+              }
+              onChange={(
+                event
+              ) =>
+                updateQuestion(
+                  event.target
+                    .value
+                )
+              }
+              rows={7}
+              spellCheck={false}
+              className="w-full rounded-b-2xl border-x border-b border-white/10 bg-white/[0.025] p-5 text-[15px] leading-8 text-white outline-none focus:border-blue-400/30"
+              placeholder={`Example:
 
 If the interior angle of a regular polygon is $140^\\circ$, how many sides does the polygon have?
 
@@ -2559,353 +2799,63 @@ Another example:
 $n = \\frac{360^\\circ}{40^\\circ}$
 
 The length is $2\\text{ cm}$.`}
-              />
+            />
 
-              {/* LIVE PREVIEW */}
+            {/* LIVE PREVIEW */}
 
-              <div className="mt-4 rounded-2xl border border-blue-400/10 bg-blue-400/[0.03] p-5">
+            <div className="mt-4 rounded-2xl border border-blue-400/10 bg-blue-400/[0.03] p-5">
 
-                <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3 flex items-center justify-between">
 
-                  <span className="text-[10px] font-black uppercase tracking-[0.15em] text-blue-400">
-                    Live Preview
-                  </span>
+                <span className="text-[10px] font-black uppercase tracking-[0.15em] text-blue-400">
+                  Live Preview
+                </span>
 
-                  <span className="text-[10px] text-slate-600">
-                    No custom math spans
-                  </span>
-
-                </div>
-
-                <div className="text-[15px] leading-8 text-slate-200">
-
-                  <RichContent
-                    content={
-                      questionText
-                    }
-                  />
-
-                </div>
+                <span className="text-[10px] text-slate-600">
+                  No custom math spans
+                </span>
 
               </div>
 
-              <div className="mt-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="text-[15px] leading-8 text-slate-200">
 
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-600">
-                  Supported examples
-                </p>
-
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-
-                  <Example
-                    source="$PAB$"
-                    result="$PAB$"
-                  />
-
-                  <Example
-                    source="$2\\text{ cm}$"
-                    result="$2\\text{ cm}$"
-                  />
-
-                  <Example
-                    source="$40^\\circ$"
-                    result="$40^\\circ$"
-                  />
-
-                  <Example
-                    source="$\\frac{5}{2}$"
-                    result="$\\frac{5}{2}$"
-                  />
-
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* OPTIONS */}
-
-            <div className="mt-7">
-
-              <div className="mb-4 flex items-center justify-between">
-
-                <div>
-
-                  <p className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-                    Answer Options
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-600">
-                    LaTeX works inside every option.
-                  </p>
-
-                </div>
-
-                <button
-                  type="button"
-                  onClick={
-                    onAddOption
+                <RichContent
+                  content={
+                    questionText
                   }
-                  className="inline-flex items-center gap-2 rounded-xl border border-blue-400/15 bg-blue-400/10 px-3.5 py-2 text-xs font-black text-blue-400"
-                >
-                  <Plus
-                    size={15}
-                  />
-                  Add Option
-                </button>
-
-              </div>
-
-              <div className="space-y-3">
-
-                {(question.options ||
-                  []
-                ).map(
-                  (
-                    option,
-                    index
-                  ) => {
-
-                    const letter =
-                      String.fromCharCode(
-                        65 +
-                          index
-                      );
-
-                    const isCorrect =
-                      String(
-                        question.answer ||
-                          ""
-                      )
-                        .trim()
-                        .toUpperCase() ===
-                      letter;
-
-                    return (
-                      <OptionEditor
-                        key={`${question.id}-${index}`}
-                        index={
-                          index
-                        }
-                        letter={
-                          letter
-                        }
-                        value={
-                          option
-                        }
-                        isCorrect={
-                          isCorrect
-                        }
-                        onChange={(
-                          value
-                        ) =>
-                          onOptionChange(
-                            index,
-                            value
-                          )
-                        }
-                        onRemove={() =>
-                          onRemoveOption(
-                            index
-                          )
-                        }
-                        onSetCorrect={() =>
-                          onFieldChange(
-                            "answer",
-                            letter
-                          )
-                        }
-                      />
-                    );
-                  }
-                )}
-
-              </div>
-
-            </div>
-
-            {/* REASON */}
-
-            <div className="mt-7">
-
-              <label className="mb-2 block text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-                Reason / Explanation
-              </label>
-
-              <textarea
-                value={
-                  reasonText
-                }
-                onChange={(
-                  event
-                ) =>
-                  updateReason(
-                    event.target
-                      .value
-                  )
-                }
-                rows={6}
-                spellCheck={false}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-sm leading-7 text-white outline-none focus:border-blue-400/30"
-                placeholder="Example: The sum of the exterior angles of any polygon is $360^\\circ$."
-              />
-
-              <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.02] p-4">
-
-                <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-600">
-                  Explanation Preview
-                </p>
-
-                <div className="text-sm leading-7 text-slate-400">
-
-                  <RichContent
-                    content={
-                      reasonText
-                    }
-                  />
-
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* IMAGE */}
-
-            <div className="mt-7">
-
-              <label className="mb-2 block text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-                Question Image
-              </label>
-
-              <div className="relative">
-
-                <ImageIcon
-                  size={17}
-                  className="absolute left-4 top-3.5 text-slate-600"
-                />
-
-                <input
-                  type="text"
-                  value={
-                    question.image ||
-                    ""
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    onFieldChange(
-                      "image",
-                      event.target
-                        .value
-                    )
-                  }
-                  placeholder="Image URL (optional)"
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.025] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-700 focus:border-blue-400/30"
                 />
 
               </div>
 
-              {question.image && (
-                <img
-                  src={
-                    question.image
-                  }
-                  alt="Question preview"
-                  className="mt-4 max-h-64 rounded-2xl border border-white/10 object-contain"
-                />
-              )}
-
             </div>
 
-            {/* STATUS */}
+            <div className="mt-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
 
-            <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-600">
+                Supported examples
+              </p>
 
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
 
-                <div className="flex items-center gap-3">
+                <Example
+                  source="$PAB$"
+                  result="$PAB$"
+                />
 
-                  <div
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl ${
-                      question.active !==
-                      false
-                        ? "bg-emerald-400/10"
-                        : "bg-red-400/10"
-                    }`}
-                  >
+                <Example
+                  source="$2\\text{ cm}$"
+                  result="$2\\text{ cm}$"
+                />
 
-                    {question.active !==
-                    false ? (
-                      <Eye
-                        size={19}
-                        className="text-emerald-400"
-                      />
-                    ) : (
-                      <EyeOff
-                        size={19}
-                        className="text-red-400"
-                      />
-                    )}
+                <Example
+                  source="$40^\\circ$"
+                  result="$40^\\circ$"
+                />
 
-                  </div>
-
-                  <div>
-
-                    <p className="font-black">
-                      Question Status
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-600">
-                      {question.active !==
-                      false
-                        ? "This question is available for students."
-                        : "This question is hidden from students."}
-                    </p>
-
-                  </div>
-
-                </div>
-
-                <button
-                  type="button"
-                  onClick={
-                    onToggleActive
-                  }
-                  disabled={
-                    activating
-                  }
-                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${
-                    question.active !==
-                    false
-                      ? "bg-red-400/10 text-red-400"
-                      : "bg-emerald-400/10 text-emerald-400"
-                  }`}
-                >
-
-                  {activating ? (
-                    <Loader2
-                      size={15}
-                      className="animate-spin"
-                    />
-                  ) : question.active !==
-                    false ? (
-                    <>
-                      <EyeOff
-                        size={15}
-                      />
-                      Deactivate
-                    </>
-                  ) : (
-                    <>
-                      <Power
-                        size={15}
-                      />
-                      Activate
-                    </>
-                  )}
-
-                </button>
+                <Example
+                  source="$\\frac{5}{2}$"
+                  result="$\\frac{5}{2}$"
+                />
 
               </div>
 
@@ -2913,60 +2863,348 @@ The length is $2\\text{ cm}$.`}
 
           </div>
 
-          {/* FOOTER */}
+          {/* OPTIONS */}
 
-          <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t border-white/10 bg-slate-950/95 p-5 backdrop-blur-xl sm:flex-row sm:justify-end sm:px-7">
+          <div className="mt-7">
 
-            <button
-              type="button"
-              onClick={
-                onClose
-              }
-              disabled={
-                saving
-              }
-              className="rounded-xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-black text-slate-400"
-            >
-              Cancel
-            </button>
+            <div className="mb-4 flex items-center justify-between">
 
-            <button
-              type="button"
-              onClick={
-                onSave
-              }
-              disabled={
-                saving
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-6 py-3 text-sm font-black text-white disabled:opacity-60"
-            >
+              <div>
 
-              {saving ? (
-                <>
-                  <Loader2
-                    size={17}
-                    className="animate-spin"
-                  />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save
-                    size={17}
-                  />
-                  Save Changes
-                </>
+                <p className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
+                  Answer Options
+                </p>
+
+                <p className="mt-1 text-xs text-slate-600">
+                  LaTeX works inside every option.
+                </p>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  onAddOption
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-400/15 bg-blue-400/10 px-3.5 py-2 text-xs font-black text-blue-400"
+              >
+                <Plus
+                  size={15}
+                />
+                Add Option
+              </button>
+
+            </div>
+
+            <div className="space-y-3">
+
+              {options.map(
+                (
+                  option,
+                  index
+                ) => {
+
+                  const letter =
+                    String.fromCharCode(
+                      65 +
+                        index
+                    );
+
+                  const isCorrect =
+                    String(
+                      question.answer ||
+                        ""
+                    )
+                      .trim()
+                      .toUpperCase() ===
+                    letter;
+
+                  return (
+                    <OptionEditor
+                      key={`${question.id}-${index}`}
+                      index={
+                        index
+                      }
+                      letter={
+                        letter
+                      }
+                      value={
+                        option
+                      }
+                      isCorrect={
+                        isCorrect
+                      }
+                      onChange={(
+                        value
+                      ) =>
+                        onOptionChange(
+                          index,
+                          value
+                        )
+                      }
+                      onRemove={() =>
+                        onRemoveOption(
+                          index
+                        )
+                      }
+                      onSetCorrect={() =>
+                        onFieldChange(
+                          "answer",
+                          letter
+                        )
+                      }
+                    />
+                  );
+                }
               )}
 
-            </button>
+            </div>
+
+          </div>
+
+          {/* REASON */}
+
+          <div className="mt-7">
+
+            <label className="mb-2 block text-xs font-black uppercase tracking-[0.15em] text-slate-500">
+              Reason / Explanation
+            </label>
+
+            <textarea
+              value={
+                reasonText
+              }
+              onChange={(
+                event
+              ) =>
+                updateReason(
+                  event.target
+                    .value
+                )
+              }
+              rows={6}
+              spellCheck={false}
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-sm leading-7 text-white outline-none focus:border-blue-400/30"
+              placeholder="Example: The sum of the exterior angles of any polygon is $360^\\circ$."
+            />
+
+            <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.02] p-4">
+
+              <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-600">
+                Explanation Preview
+              </p>
+
+              <div className="text-sm leading-7 text-slate-400">
+
+                <RichContent
+                  content={
+                    reasonText
+                  }
+                />
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* IMAGE */}
+
+          <div className="mt-7">
+
+            <label className="mb-2 block text-xs font-black uppercase tracking-[0.15em] text-slate-500">
+              Question Image
+            </label>
+
+            <div className="relative">
+
+              <ImageIcon
+                size={17}
+                className="absolute left-4 top-3.5 text-slate-600"
+              />
+
+              <input
+                type="text"
+                value={
+                  question.image ||
+                  ""
+                }
+                onChange={(
+                  event
+                ) =>
+                  onFieldChange(
+                    "image",
+                    event.target
+                      .value
+                  )
+                }
+                placeholder="Image URL (optional)"
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.025] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-700 focus:border-blue-400/30"
+              />
+
+            </div>
+
+            {question.image && (
+              <img
+                src={
+                  question.image
+                }
+                alt="Question preview"
+                className="mt-4 max-h-64 rounded-2xl border border-white/10 object-contain"
+              />
+            )}
+
+          </div>
+
+          {/* STATUS */}
+
+          <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <div className="flex items-center gap-3">
+
+                <div
+                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+                    question.active !==
+                    false
+                      ? "bg-emerald-400/10"
+                      : "bg-red-400/10"
+                  }`}
+                >
+
+                  {question.active !==
+                  false ? (
+                    <Eye
+                      size={19}
+                      className="text-emerald-400"
+                    />
+                  ) : (
+                    <EyeOff
+                      size={19}
+                      className="text-red-400"
+                    />
+                  )}
+
+                </div>
+
+                <div>
+
+                  <p className="font-black">
+                    Question Status
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-600">
+                    {question.active !==
+                    false
+                      ? "This question is available for students."
+                      : "This question is hidden from students."}
+                  </p>
+
+                </div>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  onToggleActive
+                }
+                disabled={
+                  activating
+                }
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${
+                  question.active !==
+                  false
+                    ? "bg-red-400/10 text-red-400"
+                    : "bg-emerald-400/10 text-emerald-400"
+                }`}
+              >
+
+                {activating ? (
+                  <Loader2
+                    size={15}
+                    className="animate-spin"
+                  />
+                ) : question.active !==
+                  false ? (
+                  <>
+                    <EyeOff
+                      size={15}
+                    />
+                    Deactivate
+                  </>
+                ) : (
+                  <>
+                    <Power
+                      size={15}
+                    />
+                    Activate
+                  </>
+                )}
+
+              </button>
+
+            </div>
 
           </div>
 
         </div>
 
+        {/* FOOTER */}
+
+        <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t border-white/10 bg-slate-950/95 p-5 backdrop-blur-xl sm:flex-row sm:justify-end sm:px-7">
+
+          <button
+            type="button"
+            onClick={
+              onClose
+            }
+            disabled={
+              saving
+            }
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-black text-slate-400"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={
+              onSave
+            }
+            disabled={
+              saving
+            }
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-6 py-3 text-sm font-black text-white disabled:opacity-60"
+          >
+
+            {saving ? (
+              <>
+                <Loader2
+                  size={17}
+                  className="animate-spin"
+                />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save
+                  size={17}
+                />
+                Save Changes
+              </>
+            )}
+
+          </button>
+
+        </div>
+
       </div>
-    );
-  };
+
+    </div>
+  );
+};
 
 /* ============================================================
    OPTION EDITOR

@@ -11,52 +11,43 @@ import {
 import { cbtSubjects } from "../../data/cbtSubjects";
 import Cog from "../../assets/cog.png";
 
-/* ============================================================================
-   SUBJECT SELECT
-============================================================================ */
-
 const SubjectSelect = () => {
   const { exam } = useParams();
   const navigate = useNavigate();
 
-  /* ==========================================================================
+  /* ============================================================
      EXAM
-  ========================================================================== */
+  ============================================================ */
 
   const examName = String(exam ?? "").trim();
 
-  const normalizedExam =
-    examName.toLowerCase();
+  const normalizedExam = examName
+    .toLowerCase()
+    .trim();
 
-  /* ==========================================================================
-     SUBJECTS AVAILABLE FOR THIS EXAM
-
-     These are only the subjects configured for this
-     particular exam in cbtSubjects.
-  ========================================================================== */
+  /* ============================================================
+     AVAILABLE SUBJECTS
+  ============================================================ */
 
   const subjects = useMemo(() => {
-    const available =
-      cbtSubjects?.[normalizedExam];
+    const available = cbtSubjects?.[normalizedExam];
 
     if (!Array.isArray(available)) {
       return [];
     }
 
-    /*
-      Remove duplicates while preserving order.
-    */
-
     const seen = new Set();
 
     return available.filter((subject) => {
-      const value =
-        String(subject ?? "").trim();
+      const clean = String(subject ?? "").trim();
 
-      const key =
-        value.toLowerCase();
+      if (!clean) {
+        return false;
+      }
 
-      if (!value || seen.has(key)) {
+      const key = clean.toLowerCase();
+
+      if (seen.has(key)) {
         return false;
       }
 
@@ -66,182 +57,164 @@ const SubjectSelect = () => {
     });
   }, [normalizedExam]);
 
-  /* ==========================================================================
+  /* ============================================================
      SELECTED SUBJECTS
+  ============================================================ */
 
-     IMPORTANT:
-     This array is the ONLY source of subjects that
-     will be sent to the CBT instruction/exam page.
-  ========================================================================== */
+  const [selected, setSelected] = useState([]);
 
-  const [selected, setSelected] =
-    useState([]);
-
-  /* ==========================================================================
+  /* ============================================================
      TOGGLE SUBJECT
-  ========================================================================== */
+  ============================================================ */
 
   const toggleSubject = (subject) => {
-    const cleanSubject =
-      String(subject ?? "").trim();
+    const cleanSubject = String(subject ?? "").trim();
 
     if (!cleanSubject) {
       return;
     }
 
-    const exists =
-      selected.some(
+    const key = cleanSubject.toLowerCase();
+
+    setSelected((previous) => {
+      const exists = previous.some(
         (item) =>
-          item.toLowerCase() ===
-          cleanSubject.toLowerCase()
+          String(item).trim().toLowerCase() === key
       );
 
-    /* ------------------------------------------------------------------------
-       REMOVE
-    ------------------------------------------------------------------------ */
-
-    if (exists) {
-      setSelected((previous) =>
-        previous.filter(
+      /* REMOVE */
+      if (exists) {
+        return previous.filter(
           (item) =>
-            item.toLowerCase() !==
-            cleanSubject.toLowerCase()
-        )
-      );
+            String(item).trim().toLowerCase() !== key
+        );
+      }
 
-      return;
-    }
+      /* MAXIMUM 4 */
+      if (previous.length >= 4) {
+        return previous;
+      }
 
-    /* ------------------------------------------------------------------------
-       MAXIMUM OF 4
-    ------------------------------------------------------------------------ */
-
-    if (selected.length >= 4) {
-      return;
-    }
-
-    /* ------------------------------------------------------------------------
-       ADD
-    ------------------------------------------------------------------------ */
-
-    setSelected((previous) => [
-      ...previous,
-      cleanSubject,
-    ]);
+      /* ADD */
+      return [...previous, cleanSubject];
+    });
   };
 
-  /* ==========================================================================
+  /* ============================================================
      START EXAM
-  ========================================================================== */
+  ============================================================ */
 
   const startExam = () => {
-    /*
-      Do not allow anything except exactly 4 subjects.
-    */
-
     if (selected.length !== 4) {
       return;
     }
 
     /*
-      Create a completely new array.
+     * Build a clean unique array.
+     */
+    const uniqueSubjects = [];
 
-      This prevents accidental mutation/reference problems
-      when the next page reads the subjects.
-    */
+    selected.forEach((subject) => {
+      const clean = String(subject ?? "").trim();
 
-    const subjectsForExam = [
-      ...selected,
-    ];
+      if (!clean) {
+        return;
+      }
 
-    /*
-      Remove duplicates one final time.
-    */
-
-    const uniqueSubjects =
-      Array.from(
-        new Map(
-          subjectsForExam.map(
-            (subject) => [
-              subject.toLowerCase(),
-              subject,
-            ]
-          )
-        ).values()
+      const alreadyExists = uniqueSubjects.some(
+        (item) =>
+          item.toLowerCase() === clean.toLowerCase()
       );
 
-    /*
-      Safety check.
-    */
+      if (!alreadyExists) {
+        uniqueSubjects.push(clean);
+      }
+    });
 
+    /*
+     * Must have exactly four different subjects.
+     */
     if (uniqueSubjects.length !== 4) {
       return;
     }
 
-    /* ------------------------------------------------------------------------
-       SAVE EXAM
-    ------------------------------------------------------------------------ */
+    /* ==========================================================
+       SAVE EXAM INFORMATION
+    ========================================================== */
 
     localStorage.setItem(
       "cbt_exam",
       examName
     );
 
-    /* ------------------------------------------------------------------------
-       SAVE EXACTLY THE 4 SELECTED SUBJECTS
-    ------------------------------------------------------------------------ */
-
+    /*
+     * MAIN SUBJECT STORAGE
+     */
     localStorage.setItem(
       "cbt_subjects",
-      JSON.stringify(
-        uniqueSubjects
-      )
+      JSON.stringify(uniqueSubjects)
     );
 
     /*
-      Also save a dedicated session object.
-
-      This makes it very clear which subjects belong
-      to this particular CBT session.
-    */
+     * SESSION STORAGE
+     */
+    const sessionData = {
+      exam: examName,
+      normalizedExam,
+      subjects: uniqueSubjects,
+      questionCountPerSubject: 40,
+      totalQuestions: uniqueSubjects.length * 40,
+      createdAt: Date.now(),
+    };
 
     localStorage.setItem(
       "cbt_selected_subjects",
-      JSON.stringify({
-        exam: examName,
-        subjects: uniqueSubjects,
-      })
+      JSON.stringify(sessionData)
     );
 
-    /* ------------------------------------------------------------------------
+    /*
+     * ALSO SAVE A COPY UNDER A SESSION KEY.
+     * This helps prevent another CBT session from
+     * accidentally using old subjects.
+     */
+    localStorage.setItem(
+      "cbt_current_session",
+      JSON.stringify(sessionData)
+    );
+
+    console.log(
+      "CBT SUBJECTS SELECTED:",
+      uniqueSubjects
+    );
+
+    console.log(
+      "CBT TOTAL QUESTIONS:",
+      uniqueSubjects.length * 40
+    );
+
+    /* ==========================================================
        NAVIGATE
-
-       ONLY uniqueSubjects are passed.
-
-       Nothing from cbtSubjects is passed here.
-       Nothing from Supabase is passed here.
-    ------------------------------------------------------------------------ */
+    ========================================================== */
 
     navigate("/cbt/instruction", {
       state: {
         exam: examName,
-
-        subjects: uniqueSubjects,
+        subjects: [...uniqueSubjects],
       },
     });
   };
 
-  /* ==========================================================================
-     GO BACK
-  ========================================================================== */
+  /* ============================================================
+     BACK
+  ============================================================ */
 
   const goBack = () => {
     navigate(-1);
   };
 
-  /* ==========================================================================
-     SELECTION PROGRESS
-  ========================================================================== */
+  /* ============================================================
+     PROGRESS
+  ============================================================ */
 
   const progress =
     (selected.length / 4) * 100;
@@ -249,16 +222,16 @@ const SubjectSelect = () => {
   const remaining =
     4 - selected.length;
 
-  /* ==========================================================================
-     UI
-  ========================================================================== */
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#030712] text-white">
 
-      {/* ======================================================================
-          BACKGROUND
-      ====================================================================== */}
+      {/* ==========================================================
+         BACKGROUND
+      ========================================================== */}
 
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
 
@@ -287,18 +260,15 @@ const SubjectSelect = () => {
         />
 
         <div className="absolute top-[18%] left-[12%] w-1 h-1 rounded-full bg-blue-400/50" />
-
         <div className="absolute top-[34%] right-[17%] w-1 h-1 rounded-full bg-purple-400/50" />
-
         <div className="absolute bottom-[25%] left-[22%] w-1 h-1 rounded-full bg-cyan-400/40" />
-
         <div className="absolute bottom-[18%] right-[30%] w-1 h-1 rounded-full bg-blue-400/40" />
 
       </div>
 
-      {/* ======================================================================
-          HEADER
-      ====================================================================== */}
+      {/* ==========================================================
+         HEADER
+      ========================================================== */}
 
       <header className="relative z-20 border-b border-white/[0.08] bg-[#030712]/70 backdrop-blur-2xl">
 
@@ -383,7 +353,6 @@ const SubjectSelect = () => {
                     : "bg-blue-500/10 border-blue-500/20"
                 }`}
               >
-
                 {selected.length === 4 ? (
                   <Check
                     size={19}
@@ -395,7 +364,6 @@ const SubjectSelect = () => {
                     className="text-blue-400"
                   />
                 )}
-
               </div>
 
             </div>
@@ -406,13 +374,11 @@ const SubjectSelect = () => {
 
       </header>
 
-      {/* ======================================================================
-          MAIN
-      ====================================================================== */}
+      {/* ==========================================================
+         MAIN
+      ========================================================== */}
 
       <main className="relative z-10 max-w-[1200px] mx-auto px-5 md:px-8 py-12 pb-40">
-
-        {/* TITLE */}
 
         <div className="text-center max-w-3xl mx-auto">
 
@@ -431,18 +397,16 @@ const SubjectSelect = () => {
 
         </div>
 
-        {/* ====================================================================
-            PROGRESS
-        ==================================================================== */}
+        {/* ========================================================
+           PROGRESS
+        ======================================================== */}
 
         <div className="max-w-2xl mx-auto mt-7">
 
           <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
 
             <motion.div
-              initial={{
-                width: 0,
-              }}
+              initial={{ width: 0 }}
               animate={{
                 width: `${progress}%`,
               }}
@@ -460,133 +424,123 @@ const SubjectSelect = () => {
 
         </div>
 
-        {/* ====================================================================
-            SUBJECT GRID
-        ==================================================================== */}
+        {/* ========================================================
+           SUBJECT GRID
+        ======================================================== */}
 
         <div className="relative z-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-10">
 
           {subjects.length > 0 ? (
 
-            subjects.map(
-              (subject, index) => {
+            subjects.map((subject, index) => {
 
-                const isSelected =
-                  selected.some(
-                    (item) =>
-                      item.toLowerCase() ===
-                      subject.toLowerCase()
-                  );
+              const isSelected =
+                selected.some(
+                  (item) =>
+                    item.toLowerCase() ===
+                    subject.toLowerCase()
+                );
 
-                const disabled =
-                  !isSelected &&
-                  selected.length >= 4;
+              const disabled =
+                !isSelected &&
+                selected.length >= 4;
 
-                return (
-                  <motion.button
-                    key={`${subject}-${index}`}
-                    type="button"
-                    disabled={disabled}
-                    whileHover={
-                      disabled
-                        ? {}
-                        : {
-                            y: -4,
-                          }
+              return (
+                <motion.button
+                  key={`${subject}-${index}`}
+                  type="button"
+                  disabled={disabled}
+                  whileHover={
+                    disabled
+                      ? {}
+                      : { y: -4 }
+                  }
+                  whileTap={
+                    disabled
+                      ? {}
+                      : { scale: 0.98 }
+                  }
+                  onClick={() =>
+                    toggleSubject(subject)
+                  }
+                  className={`
+                    relative cursor-pointer text-left
+                    rounded-2xl p-5
+                    border transition-all duration-300
+                    ${
+                      isSelected
+                        ? "bg-blue-600/20 border-blue-400/60 shadow-lg shadow-blue-500/10"
+                        : disabled
+                        ? "bg-white/[0.02] border-white/[0.06] opacity-40 cursor-not-allowed"
+                        : "bg-white/[0.035] border-white/10 hover:bg-white/[0.06] hover:border-blue-400/30"
                     }
-                    whileTap={
-                      disabled
-                        ? {}
-                        : {
-                            scale: 0.98,
-                          }
-                    }
-                    onClick={() =>
-                      toggleSubject(
-                        subject
-                      )
-                    }
+                  `}
+                >
+
+                  {/* CHECK */}
+
+                  <div
                     className={`
-                      relative cursor-pointer text-left
-                      rounded-2xl p-5
-                      border transition-all duration-300
+                      absolute top-4 right-4
+                      w-6 h-6 rounded-full
+                      flex items-center justify-center
+                      border
                       ${
                         isSelected
-                          ? "bg-blue-600/20 border-blue-400/60 shadow-lg shadow-blue-500/10"
-                          : disabled
-                          ? "bg-white/[0.02] border-white/[0.06] opacity-40 cursor-not-allowed"
-                          : "bg-white/[0.035] border-white/10 hover:bg-white/[0.06] hover:border-blue-400/30"
+                          ? "bg-blue-600 border-blue-400 text-white"
+                          : "border-white/15 bg-white/[0.03] text-transparent"
                       }
                     `}
                   >
+                    <Check
+                      size={14}
+                      strokeWidth={3}
+                    />
+                  </div>
 
-                    {/* CHECK */}
+                  {/* SUBJECT */}
 
-                    <div
-                      className={`
-                        absolute top-4 right-4
-                        w-6 h-6 rounded-full
-                        flex items-center justify-center
-                        border
-                        ${
-                          isSelected
-                            ? "bg-blue-600 border-blue-400 text-white"
-                            : "border-white/15 bg-white/[0.03] text-transparent"
-                        }
-                      `}
+                  <div className="pr-8">
+
+                    <h2
+                      className={`text-sm font-bold ${
+                        isSelected
+                          ? "text-blue-300"
+                          : "text-white"
+                      }`}
                     >
+                      {subject}
+                    </h2>
 
-                      <Check
-                        size={14}
-                        strokeWidth={3}
-                      />
+                    <p
+                      className={`text-[10px] mt-2 ${
+                        isSelected
+                          ? "text-blue-200/70"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      {isSelected
+                        ? "Selected ✓"
+                        : disabled
+                        ? "Maximum reached"
+                        : "Tap to select"}
+                    </p>
 
-                    </div>
+                  </div>
 
-                    {/* SUBJECT */}
+                  {/* NUMBER */}
 
-                    <div className="pr-8">
+                  <div className="mt-5 pt-3 border-t border-white/[0.06]">
 
-                      <h2
-                        className={`text-sm font-bold ${
-                          isSelected
-                            ? "text-blue-300"
-                            : "text-white"
-                        }`}
-                      >
-                        {subject}
-                      </h2>
+                    <span className="text-[9px] uppercase tracking-wider text-slate-600 font-semibold">
+                      Subject {index + 1}
+                    </span>
 
-                      <p
-                        className={`text-[10px] mt-2 ${
-                          isSelected
-                            ? "text-blue-200/70"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        {isSelected
-                          ? "Selected ✓"
-                          : disabled
-                          ? "Maximum reached"
-                          : "Tap to select"}
-                      </p>
+                  </div>
 
-                    </div>
-
-                    {/* NUMBER */}
-
-                    <div className="mt-5 pt-3 border-t border-white/[0.06]">
-
-                      <span className="text-[9px] uppercase tracking-wider text-slate-600 font-semibold">
-                        Subject {index + 1}
-                      </span>
-
-                    </div>
-
-                  </motion.button>
-                );
-              }
-            )
+                </motion.button>
+              );
+            })
 
           ) : (
 
@@ -609,17 +563,15 @@ const SubjectSelect = () => {
 
       </main>
 
-      {/* ======================================================================
-          FIXED START BAR
-      ====================================================================== */}
+      {/* ==========================================================
+         FIXED START BAR
+      ========================================================== */}
 
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-32px)] max-w-2xl">
 
         <div className="rounded-2xl border border-white/10 bg-[#07101f]/90 backdrop-blur-2xl shadow-2xl p-3">
 
           <div className="flex items-center gap-3">
-
-            {/* COUNT */}
 
             <div className="hidden sm:flex w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 items-center justify-center shrink-0">
 
@@ -629,18 +581,14 @@ const SubjectSelect = () => {
 
             </div>
 
-            {/* INFO */}
-
             <div className="flex-1 min-w-0">
 
               <p className="text-sm font-semibold text-white">
 
-                {selected.length ===
-                4
+                {selected.length === 4
                   ? "Your subjects are ready"
                   : `Select ${remaining} more ${
-                      remaining ===
-                      1
+                      remaining === 1
                         ? "subject"
                         : "subjects"
                     }`}
@@ -649,24 +597,17 @@ const SubjectSelect = () => {
 
               <p className="text-[10px] text-slate-500 mt-1 truncate">
 
-                {selected.length >
-                0
-                  ? selected.join(
-                      " • "
-                    )
+                {selected.length > 0
+                  ? selected.join(" • ")
                   : "Choose your subjects for this examination"}
 
               </p>
 
             </div>
 
-            {/* CONTINUE */}
-
             <button
               onClick={startExam}
-              disabled={
-                selected.length !== 4
-              }
+              disabled={selected.length !== 4}
               type="button"
               className={`
                 flex items-center gap-2
@@ -674,8 +615,7 @@ const SubjectSelect = () => {
                 text-sm font-bold
                 transition-all
                 ${
-                  selected.length ===
-                  4
+                  selected.length === 4
                     ? "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20"
                     : "bg-white/[0.06] text-slate-600 cursor-not-allowed"
                 }

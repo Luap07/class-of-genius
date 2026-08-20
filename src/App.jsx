@@ -6,10 +6,11 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import GrammarReader from "./pages/languages/GrammarReader";
+
 import { AnimatePresence, motion } from "framer-motion";
 
-/* =========================== CONDITION$ =========================== */
+/* =========================== CONDITIONS =========================== */
+
 import Terms from "./pages/Terms";
 import Help from "./pages/Help";
 import Privacy from "./pages/Privacy";
@@ -17,25 +18,31 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import EditProfile from "./pages/EditProfile";
 import LearningStats from "./pages/LearningStats";
+import ResetPassword from "./pages/ResetPassword";
+
 /* =========================== CONTEXTS =========================== */
 
 import { AuthContext } from "./context/AuthContext";
 import { CourseProvider } from "./context/LMSContext/CourseContext";
 import { SearchProvider } from "./context/SearchContext";
 import { DocumentProvider } from "./context/DocumentContext";
-import ResetPassword from "./pages/ResetPassword";
-/* ===========================LANGUAGE=========================== */
+
+/* =========================== LANGUAGE =========================== */
+
+import GrammarReader from "./pages/languages/GrammarReader";
 import LanguagesHome from "./pages/languages/LanguagesHome";
 import LanguageDetails from "./pages/languages/LanguageDetails";
 
-/* ===========================SCHOOLS=========================== */
+/* =========================== SCHOOLS =========================== */
+
 import Polytechnics from "./pages/Polytechnics/Polytechnics";
-import PolytechnicDetails from "./pages/Polytechnics/PolytechnicDetails"
-import Colleges from "./pages/colleges/Colleges"
+import PolytechnicDetails from "./pages/Polytechnics/PolytechnicDetails";
+import Colleges from "./pages/colleges/Colleges";
 import CollegeDetails from "./pages/colleges/CollegeDetails";
 import Universities from "./pages/universities/Universities";
 import UniversityDetails from "./pages/universities/UniversityDetails";
-/* ===========================ADMIN=========================== */
+
+/* =========================== ADMIN =========================== */
 
 import AdminRoutes from "./admin/AdminRoutes";
 import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
@@ -46,7 +53,7 @@ import Navbar from "./components/Navbar";
 import Login from "./components/Login";
 import Contact from "./components/Contact";
 
-/* =========================== GENERAL PAGES=========================== */
+/* =========================== GENERAL PAGES =========================== */
 
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
@@ -59,15 +66,15 @@ import Connections from "./pages/Connections";
 import Services from "./pages/Services";
 import ContactInbox from "./pages/ContactInbox";
 
-/* ===========================
-   NOVELS
-=========================== */
+/* =========================== NOVELS =========================== */
 
 import Novels from "./pages/Novels";
 import StoryReader from "./pages/StoryReader";
 import UploadNovel from "./pages/UploadNovel";
+import GenrePayment from "./pages/Payment";
 
-/* ===========================  LMS=========================== */
+/* =========================== LMS =========================== */
+
 import LMSPortal from "./pages/lms/LMSPortal";
 import Courses from "./pages/lms/Courses";
 import CourseDetails from "./pages/lms/CourseDetails";
@@ -81,19 +88,19 @@ import SubjectCourses from "./pages/courses/SubjectCourses";
 
 import BecomeInstructorForm from "./pages/instructor/BecomeInstructorForm";
 
-/* =========================== AI ========================== */
+/* =========================== AI =========================== */
 
 import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
 
-/* ===========================  CBT ========================== */
+/* =========================== CBT =========================== */
 
 import CBT from "./pages/cbt/CBT";
 import SubjectSelect from "./pages/cbt/SubjectSelect";
 import CBTExam from "./pages/cbt/CBTExam";
 import CBTInstruction from "./pages/cbt/CBTInstruction";
 
-/* =========================== VIRTUAL LAB ========================== */
+/* =========================== VIRTUAL LAB =========================== */
 
 import VirtualLabLanding from "./pages/VirtualLab";
 import PhysicsLab from "./pages/PhysicsLab";
@@ -103,17 +110,13 @@ import MathematicsLab from "./pages/MathematicsLab";
 import WorkEnergySimulation from "./pages/WorkEnergySimulation";
 import About from "./pages/VirtualLab/About";
 
-/* ===========================
-   SUPPORT
-=========================== */
+/* =========================== SUPPORT =========================== */
 
 import SupportHome from "./pages/support/SupportHome";
 import FAQ from "./pages/support/FAQ";
 import ChatSupport from "./pages/support/ChatSupport";
 
-/* ===========================
-   LAYOUT
-=========================== */
+/* =========================== LAYOUT =========================== */
 
 import DashboardLayout from "./layout/DashboardLayout";
 
@@ -142,10 +145,20 @@ const ProtectedRoute = ({ children }) => {
 const PageWrapper = ({ children }) => (
   <motion.div
     className="w-full"
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0 }}
-    transition={{ duration: 0.25 }}
+    initial={{
+      opacity: 0,
+      y: 10,
+    }}
+    animate={{
+      opacity: 1,
+      y: 0,
+    }}
+    exit={{
+      opacity: 0,
+    }}
+    transition={{
+      duration: 0.25,
+    }}
   >
     {children}
   </motion.div>
@@ -164,13 +177,17 @@ const AnimatedRoutes = () => {
         location={location}
         key={location.pathname}
       >
-                {/* ================= HOME ================= */}
+
+        {/* =====================================================
+            HOME
+        ===================================================== */}
 
         <Route
           path="/"
           element={
             <>
               <Navbar />
+
               <PageWrapper>
                 <Home />
               </PageWrapper>
@@ -178,31 +195,44 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* =====================================================
+            LOGIN
+        ===================================================== */}
+
         <Route
           path="/login"
           element={<Login />}
         />
 
+        {/* =====================================================
+            PROFILE
+        ===================================================== */}
+
         <Route
-  path="/profile"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <Profile />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
-<Route
-  path="/profile/edit"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <EditProfile />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <Profile />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile/edit"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <EditProfile />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            GENERAL
+        ===================================================== */}
 
         <Route
           path="/contact"
@@ -212,25 +242,41 @@ const AnimatedRoutes = () => {
             </PageWrapper>
           }
         />
+
         <Route
-  path="/learning-stats"
-  element={
-    <ProtectedRoute>
-      <LearningStats />
-    </ProtectedRoute>
-  }
-/>
-<Route path="/reset-password" element={<ResetPassword />} />
-  <Route path="/terms" element={<Terms />} />
-        <Route
-          path="/about"
+          path="/learning-stats"
           element={
-            <PageWrapper>
-              <About />
-            </PageWrapper>
+            <ProtectedRoute>
+              <LearningStats />
+            </ProtectedRoute>
           }
         />
-    <Route path="/help" element={<Help />} />
+
+        <Route
+          path="/reset-password"
+          element={<ResetPassword />}
+        />
+
+        <Route
+          path="/terms"
+          element={<Terms />}
+        />
+
+        <Route
+          path="/privacy"
+          element={<Privacy />}
+        />
+
+        <Route
+          path="/help"
+          element={<Help />}
+        />
+
+        <Route
+          path="/settings"
+          element={<Settings />}
+        />
+
         <Route
           path="/services"
           element={
@@ -240,31 +286,47 @@ const AnimatedRoutes = () => {
           }
         />
 
-<Route
-  path="/languages"
-  element={<LanguagesHome />}
-/>
+        <Route
+          path="/about"
+          element={
+            <PageWrapper>
+              <About />
+            </PageWrapper>
+          }
+        />
 
-<Route
-  path="/languages/:id"
-  element={
-    <PageWrapper>
-      <LanguageDetails />
-    </PageWrapper>
-  }
-/>
+        {/* =====================================================
+            LANGUAGE
+        ===================================================== */}
 
-<Route
-  path="/grammar/:id"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <GrammarReader />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
-        {/* ================= SUPPORT ================= */}
+        <Route
+          path="/languages"
+          element={<LanguagesHome />}
+        />
+
+        <Route
+          path="/languages/:id"
+          element={
+            <PageWrapper>
+              <LanguageDetails />
+            </PageWrapper>
+          }
+        />
+
+        <Route
+          path="/grammar/:id"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <GrammarReader />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            SUPPORT
+        ===================================================== */}
 
         <Route
           path="/support"
@@ -276,16 +338,14 @@ const AnimatedRoutes = () => {
           element={<ChatSupport />}
         />
 
-          <Route path="/privacy" element={<Privacy />} />
-          
         <Route
           path="/support/faq"
           element={<FAQ />}
         />
 
-        <Route path="/settings" element={<Settings />} />
-
-        {/* ================= AI ================= */}
+        {/* =====================================================
+            AI TUTOR
+        ===================================================== */}
 
         <Route
           path="/ai-tutor"
@@ -305,7 +365,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= NOVELS ================= */}
+        {/* =====================================================
+            NOVELS
+        ===================================================== */}
 
         <Route
           path="/novels"
@@ -316,6 +378,43 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* =====================================================
+            GENRE PAYMENT
+        =====================================================
+
+          THIS IS THE ROUTE YOUR NOVELS PAGE USES.
+
+          When the user clicks a story:
+
+              openStory()
+                    ↓
+              check localStorage
+                    ↓
+              no access
+                    ↓
+              /genre-payment/:genre
+
+          Examples:
+
+              /genre-payment/ROMANCE
+              /genre-payment/SCI_FIC
+              /genre-payment/FANTASY
+
+        ===================================================== */}
+
+        <Route
+          path="/genre-payment/:genre"
+          element={
+            <PageWrapper>
+              <GenrePayment />
+            </PageWrapper>
+          }
+        />
+
+        {/* =====================================================
+            STORY READER
+        ===================================================== */}
+
         <Route
           path="/story/:id"
           element={
@@ -324,6 +423,10 @@ const AnimatedRoutes = () => {
             </PageWrapper>
           }
         />
+
+        {/* =====================================================
+            UPLOAD NOVEL
+        ===================================================== */}
 
         <Route
           path="/upload-novel"
@@ -334,21 +437,27 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= INSTRUCTOR ================= */}
+        {/* =====================================================
+            INSTRUCTOR
+        ===================================================== */}
 
         <Route
           path="/become-instructor"
           element={<BecomeInstructorForm />}
         />
 
-        {/* ================= VERIFY CERTIFICATE ================= */}
+        {/* =====================================================
+            VERIFY CERTIFICATE
+        ===================================================== */}
 
         <Route
           path="/verify/:certificate_number"
           element={<VerifyCertificate />}
         />
 
-        {/* ================= CONTACT INBOX ================= */}
+        {/* =====================================================
+            CONTACT INBOX
+        ===================================================== */}
 
         <Route
           path="/contact-inbox"
@@ -361,7 +470,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= ADMIN ================= */}
+        {/* =====================================================
+            ADMIN
+        ===================================================== */}
 
         <Route
           path="/admin/*"
@@ -371,7 +482,10 @@ const AnimatedRoutes = () => {
             </ProtectedAdminRoute>
           }
         />
-                {/* ================= DASHBOARD LAYOUT ================= */}
+
+        {/* =====================================================
+            DASHBOARD LAYOUT
+        ===================================================== */}
 
         <Route
           element={
@@ -380,6 +494,7 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         >
+
           <Route
             path="/dashboard"
             element={<Dashboard />}
@@ -414,9 +529,12 @@ const AnimatedRoutes = () => {
             path="/connections"
             element={<Connections />}
           />
+
         </Route>
 
-        {/* ================= VIRTUAL LAB ================= */}
+        {/* =====================================================
+            VIRTUAL LAB
+        ===================================================== */}
 
         <Route
           path="/lab"
@@ -484,62 +602,70 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* PDF */}
+        {/* =====================================================
+            PDF
+        ===================================================== */}
+
         <Route
-  path="/pdf/:id"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <PDFReader />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
+          path="/pdf/:id"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <PDFReader />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
 
-        {/* ================= CBT ================= */}
+        {/* =====================================================
+            CBT
+        ===================================================== */}
 
-<Route
-  path="/cbt"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <CBT />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
-<Route
-  path="/cbt/instruction"
-  element={
-    <ProtectedRoute>
-      <CBTInstruction />
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/cbt"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <CBT />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/cbt/exam/:exam"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <SubjectSelect />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/cbt/instruction"
+          element={
+            <ProtectedRoute>
+              <CBTInstruction />
+            </ProtectedRoute>
+          }
+        />
 
+        <Route
+          path="/cbt/exam/:exam"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <SubjectSelect />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/cbt/start"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <CBTExam />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
-                {/* ================= LMS ================= */}
+        <Route
+          path="/cbt/start"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <CBTExam />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            LMS
+        ===================================================== */}
 
         <Route
           path="/lms"
@@ -597,15 +723,16 @@ const AnimatedRoutes = () => {
         />
 
         <Route
-  path="/courses/category/:categoryId"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <CategorySubjects />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
+          path="/courses/category/:categoryId"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <CategorySubjects />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/courses/:category/:subject"
           element={
@@ -661,23 +788,63 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* ================= Universities ================= */}
-         <Route path="/universities" element={<Universities />} />
-<Route path="/universities/:id" element={<UniversityDetails />} />
+        {/* =====================================================
+            UNIVERSITIES
+        ===================================================== */}
 
-<Route path="/colleges" element={<Colleges />} />
-<Route path="/colleges/:id" element={<CollegeDetails />} />
+        <Route
+          path="/universities"
+          element={<Universities />}
+        />
 
-<Route path="/polytechnics" element={<Polytechnics />} />
-<Route path="/polytechnics/:id" element={<PolytechnicDetails />} />
+        <Route
+          path="/universities/:id"
+          element={<UniversityDetails />}
+        />
 
-        {/* ================= 404 ================= */}
+        {/* =====================================================
+            COLLEGES
+        ===================================================== */}
+
+        <Route
+          path="/colleges"
+          element={<Colleges />}
+        />
+
+        <Route
+          path="/colleges/:id"
+          element={<CollegeDetails />}
+        />
+
+        {/* =====================================================
+            POLYTECHNICS
+        ===================================================== */}
+
+        <Route
+          path="/polytechnics"
+          element={<Polytechnics />}
+        />
+
+        <Route
+          path="/polytechnics/:id"
+          element={<PolytechnicDetails />}
+        />
+
+        {/* =====================================================
+            404
+        ===================================================== */}
 
         <Route
           path="*"
-          element={<Navigate to="/" replace />}
+          element={
+            <Navigate
+              to="/"
+              replace
+            />
+          }
         />
-              </Routes>
+
+      </Routes>
     </AnimatePresence>
   );
 };

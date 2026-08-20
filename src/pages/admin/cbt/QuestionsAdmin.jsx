@@ -30,6 +30,12 @@ import {
   EyeOff,
   Loader2,
   Check,
+  BookOpen,
+  FileText,
+  Layers3,
+  ChevronDown,
+  ChevronUp,
+  Copy,
 } from "lucide-react";
 
 /* ============================================================
@@ -85,34 +91,6 @@ const escapeHtml = (value = "") => {
 
 /* ============================================================
    NORMALIZE OPTIONS
-   ------------------------------------------------------------
-   IMPORTANT FIX
-
-   The database may contain options as:
-
-   1. Array:
-      ["A", "B", "C", "D"]
-
-   2. JSON string:
-      '["A","B","C","D"]'
-
-   3. Object:
-      {
-        A: "A",
-        B: "B",
-        C: "C",
-        D: "D"
-      }
-
-   4. Object with optionA/optionB/etc.
-
-   5. Separate database columns:
-      optionA
-      optionB
-      optionC
-      optionD
-
-   This function ALWAYS returns an array.
 ============================================================ */
 
 const normalizeOptions = (itemOrOptions) => {
@@ -123,20 +101,11 @@ const normalizeOptions = (itemOrOptions) => {
     return [];
   }
 
-  /*
-   * If the whole question object was supplied,
-   * first check the options field.
-   */
-
   if (
     typeof itemOrOptions === "object" &&
     !Array.isArray(itemOrOptions)
   ) {
     const item = itemOrOptions;
-
-    /*
-     * Existing options column
-     */
 
     if (
       item.options !== null &&
@@ -150,15 +119,6 @@ const normalizeOptions = (itemOrOptions) => {
         return normalized;
       }
     }
-
-    /*
-     * Support your CBT database format:
-     *
-     * optionA
-     * optionB
-     * optionC
-     * optionD
-     */
 
     const separateOptions = [
       item.optionA,
@@ -184,17 +144,6 @@ const normalizeOptions = (itemOrOptions) => {
             : String(option)
       );
     }
-
-    /*
-     * Object formats:
-     *
-     * {
-     *   A: "...",
-     *   B: "...",
-     *   C: "...",
-     *   D: "..."
-     * }
-     */
 
     const objectKeys = [
       "A",
@@ -230,10 +179,6 @@ const normalizeOptions = (itemOrOptions) => {
     return [];
   }
 
-  /*
-   * Already an array.
-   */
-
   if (Array.isArray(itemOrOptions)) {
     return itemOrOptions.map(
       (option) => {
@@ -243,11 +188,6 @@ const normalizeOptions = (itemOrOptions) => {
         ) {
           return "";
         }
-
-        /*
-         * Sometimes an option itself can
-         * accidentally be an object.
-         */
 
         if (
           typeof option === "object"
@@ -278,10 +218,6 @@ const normalizeOptions = (itemOrOptions) => {
     );
   }
 
-  /*
-   * JSON string.
-   */
-
   if (
     typeof itemOrOptions === "string"
   ) {
@@ -291,10 +227,6 @@ const normalizeOptions = (itemOrOptions) => {
     if (!value) {
       return [];
     }
-
-    /*
-     * Try JSON first.
-     */
 
     if (
       value.startsWith("[") ||
@@ -308,15 +240,9 @@ const normalizeOptions = (itemOrOptions) => {
           parsed
         );
       } catch {
-        /*
-         * Ignore and continue.
-         */
+        // Continue.
       }
     }
-
-    /*
-     * Support newline-separated options.
-     */
 
     if (
       value.includes("\n")
@@ -329,11 +255,6 @@ const normalizeOptions = (itemOrOptions) => {
         .filter(Boolean);
     }
 
-    /*
-     * If it is just one option,
-     * return it as an array.
-     */
-
     return [value];
   }
 
@@ -341,7 +262,7 @@ const normalizeOptions = (itemOrOptions) => {
 };
 
 /* ============================================================
-   NORMALIZE QUESTION RECORD
+   NORMALIZE QUESTION
 ============================================================ */
 
 const normalizeQuestionRecord = (
@@ -355,7 +276,45 @@ const normalizeQuestionRecord = (
     ...item,
     options:
       normalizeOptions(item),
+
+    question_type:
+      item.question_type ||
+      "objective",
+
+    passage_id:
+      item.passage_id ||
+      null,
+
+    passage_title:
+      item.passage_title ||
+      "",
+
+    passage:
+      item.passage ||
+      "",
+
+    passage_order:
+      Number(
+        item.passage_order || 0
+      ),
   };
+};
+
+/* ============================================================
+   QUESTION TYPE
+============================================================ */
+
+const isComprehensionQuestion = (
+  question
+) => {
+  return (
+    String(
+      question?.question_type ||
+        ""
+    ).toLowerCase() ===
+      "comprehension" ||
+    Boolean(question?.passage_id)
+  );
 };
 
 /* ============================================================
@@ -521,7 +480,7 @@ const containsLatex = (
 };
 
 /* ============================================================
-   NORMALIZE LATEX SOURCE
+   NORMALIZE LATEX
 ============================================================ */
 
 const normalizeLatexSource = (
@@ -555,7 +514,7 @@ const normalizeLatexSource = (
 };
 
 /* ============================================================
-   RENDER KATEX
+   KATEX
 ============================================================ */
 
 const renderKatex = (
@@ -776,7 +735,7 @@ const RichContent = memo(
 );
 
 /* ============================================================
-   CLEAN CONTENT BEFORE SAVE
+   CLEAN CONTENT
 ============================================================ */
 
 const cleanRichContent = (
@@ -890,10 +849,6 @@ const getTextFromContent = (
     .trim();
 };
 
-/* ============================================================
-   EDITOR VALUE
-============================================================ */
-
 const getEditorValue = (
   value = ""
 ) => {
@@ -904,6 +859,29 @@ const getEditorValue = (
   return cleanRichContent(
     value
   );
+};
+
+/* ============================================================
+   CREATE PASSAGE ID
+============================================================ */
+
+const createPassageId = () => {
+  if (
+    typeof crypto !==
+      "undefined" &&
+    crypto.randomUUID
+  ) {
+    return `COMP-${crypto
+      .randomUUID()
+      .replace(/-/g, "")
+      .slice(0, 12)
+      .toUpperCase()}`;
+  }
+
+  return `COMP-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)
+    .toUpperCase()}`;
 };
 
 /* ============================================================
@@ -932,6 +910,11 @@ const QuestionsAdmin = () => {
   ] = useState(1);
 
   const [
+    activeView,
+    setActiveView,
+  ] = useState("all");
+
+  const [
     editingQuestion,
     setEditingQuestion,
   ] = useState(null);
@@ -952,7 +935,7 @@ const QuestionsAdmin = () => {
   ] = useState(null);
 
   /* ==========================================================
-     FETCH QUESTIONS
+     FETCH
   ========================================================== */
 
   const fetchQuestions =
@@ -1000,20 +983,10 @@ const QuestionsAdmin = () => {
             const batch =
               data || [];
 
-            /*
-             * IMPORTANT:
-             *
-             * Normalize every database
-             * record immediately.
-             */
-
-            const normalizedBatch =
-              batch.map(
-                normalizeQuestionRecord
-              );
-
             allQuestions.push(
-              ...normalizedBatch
+              ...batch.map(
+                normalizeQuestionRecord
+              )
             );
 
             if (
@@ -1054,7 +1027,92 @@ const QuestionsAdmin = () => {
   ]);
 
   /* ==========================================================
-     SEARCH
+     COUNTS
+  ========================================================== */
+
+  const comprehensionQuestions =
+    useMemo(
+      () =>
+        questions.filter(
+          isComprehensionQuestion
+        ),
+      [questions]
+    );
+
+  const objectiveQuestions =
+    useMemo(
+      () =>
+        questions.filter(
+          (item) =>
+            !isComprehensionQuestion(
+              item
+            )
+        ),
+      [questions]
+    );
+
+  const passageGroups =
+    useMemo(() => {
+      const map =
+        new Map();
+
+      comprehensionQuestions.forEach(
+        (item) => {
+          const key =
+            item.passage_id ||
+            `legacy-${item.id}`;
+
+          if (!map.has(key)) {
+            map.set(key, {
+              passage_id:
+                key,
+              passage_title:
+                item.passage_title ||
+                "Untitled Passage",
+              passage:
+                item.passage ||
+                "",
+              exam:
+                item.exam ||
+                "",
+              subject:
+                item.subject ||
+                "",
+              questions: [],
+            });
+          }
+
+          map
+            .get(key)
+            .questions.push(
+              item
+            );
+        }
+      );
+
+      return Array.from(
+        map.values()
+      ).map((group) => ({
+        ...group,
+        questions:
+          group.questions.sort(
+            (a, b) =>
+              Number(
+                a.passage_order ||
+                  0
+              ) -
+              Number(
+                b.passage_order ||
+                  0
+              )
+          ),
+      }));
+    }, [
+      comprehensionQuestions,
+    ]);
+
+  /* ==========================================================
+     FILTER
   ========================================================== */
 
   const filteredQuestions =
@@ -1064,30 +1122,43 @@ const QuestionsAdmin = () => {
           .trim()
           .toLowerCase();
 
-      if (!query) {
-        return questions;
+      let source =
+        questions;
+
+      if (
+        activeView ===
+        "objective"
+      ) {
+        source =
+          objectiveQuestions;
       }
 
-      return questions.filter(
-        (item) => {
-          /*
-           * NEVER call .map directly
-           * on item.options.
-           *
-           * normalizeOptions ALWAYS
-           * returns an array.
-           */
+      if (
+        activeView ===
+        "comprehension"
+      ) {
+        source =
+          comprehensionQuestions;
+      }
 
+      if (!query) {
+        return source;
+      }
+
+      return source.filter(
+        (item) => {
           const options =
             normalizeOptions(
               item
-            )
-              .join(" ");
+            ).join(" ");
 
           const searchable = [
             item.exam || "",
             item.subject || "",
             item.question || "",
+            item.passage_title ||
+              "",
+            item.passage || "",
             options,
             item.answer || "",
             item.reason || "",
@@ -1105,16 +1176,18 @@ const QuestionsAdmin = () => {
       );
     }, [
       questions,
+      objectiveQuestions,
+      comprehensionQuestions,
       search,
+      activeView,
     ]);
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
-
-  /* ==========================================================
-     PAGINATION
-  ========================================================== */
+  }, [
+    search,
+    activeView,
+  ]);
 
   const totalPages =
     Math.max(
@@ -1190,6 +1263,18 @@ const QuestionsAdmin = () => {
                 ""
             ),
 
+          passage_title:
+            getEditorValue(
+              question.passage_title ||
+                ""
+            ),
+
+          passage:
+            getEditorValue(
+              question.passage ||
+                ""
+            ),
+
           answer:
             String(
               question.answer ||
@@ -1197,13 +1282,125 @@ const QuestionsAdmin = () => {
             )
               .trim()
               .toUpperCase(),
+
+          question_type:
+            isComprehensionQuestion(
+              question
+            )
+              ? "comprehension"
+              : "objective",
+
+          passage_id:
+            question.passage_id ||
+            null,
+
+          passage_order:
+            Number(
+              question.passage_order ||
+                1
+            ),
         });
       },
       []
     );
 
   /* ==========================================================
-     CLOSE EDITOR
+     NEW COMPREHENSION QUESTION
+  ========================================================== */
+
+  const createComprehensionQuestion =
+    useCallback(() => {
+      const passageId =
+        createPassageId();
+
+      setEditingQuestion({
+        id: null,
+
+        exam: "WAEC",
+
+        subject:
+          "English Language",
+
+        question_type:
+          "comprehension",
+
+        passage_id:
+          passageId,
+
+        passage_title:
+          "",
+
+        passage:
+          "",
+
+        passage_order:
+          1,
+
+        question:
+          "",
+
+        options: [
+          "",
+          "",
+          "",
+        ],
+
+        answer:
+          "",
+
+        reason:
+          "",
+
+        image:
+          null,
+
+        active:
+          true,
+      });
+    }, []);
+
+  /* ==========================================================
+     NEW OBJECTIVE QUESTION
+  ========================================================== */
+
+  const createObjectiveQuestion =
+    useCallback(() => {
+      setEditingQuestion({
+        id: null,
+
+        exam: "WAEC",
+
+        subject:
+          "",
+
+        question_type:
+          "objective",
+
+        question:
+          "",
+
+        options: [
+          "",
+          "",
+          "",
+        ],
+
+        answer:
+          "",
+
+        reason:
+          "",
+
+        image:
+          null,
+
+        active:
+          true,
+      });
+    }, []);
+
+  /* ==========================================================
+     CLOSE
   ========================================================== */
 
   const closeEditor =
@@ -1218,7 +1415,7 @@ const QuestionsAdmin = () => {
     }, [saving]);
 
   /* ==========================================================
-     UPDATE FIELD
+     FIELD
   ========================================================== */
 
   const updateField =
@@ -1245,7 +1442,7 @@ const QuestionsAdmin = () => {
     );
 
   /* ==========================================================
-     UPDATE OPTION
+     OPTION
   ========================================================== */
 
   const updateOption =
@@ -1290,16 +1487,13 @@ const QuestionsAdmin = () => {
             return previous;
           }
 
-          const options =
-            normalizeOptions(
-              previous
-            );
-
           return {
             ...previous,
 
             options: [
-              ...options,
+              ...normalizeOptions(
+                previous
+              ),
               "",
             ],
           };
@@ -1383,6 +1577,10 @@ const QuestionsAdmin = () => {
   const deleteQuestion =
     useCallback(
       async (id) => {
+        if (!id) {
+          return;
+        }
+
         const confirmed =
           window.confirm(
             "Delete this question permanently?"
@@ -1451,12 +1649,16 @@ const QuestionsAdmin = () => {
     );
 
   /* ==========================================================
-     ACTIVE
+     TOGGLE ACTIVE
   ========================================================== */
 
   const toggleActive =
     useCallback(
       async (question) => {
+        if (!question?.id) {
+          return;
+        }
+
         try {
           setActivating(
             question.id
@@ -1505,14 +1707,16 @@ const QuestionsAdmin = () => {
               )
           );
 
-          if (
-            editingQuestion?.id ===
-            question.id
-          ) {
-            setEditingQuestion(
-              normalizedData
-            );
-          }
+          setEditingQuestion(
+            (previous) =>
+              previous?.id ===
+              question.id
+                ? {
+                    ...previous,
+                    ...normalizedData,
+                  }
+                : previous
+          );
         } catch (error) {
           console.error(
             "Toggle Active Error:",
@@ -1529,9 +1733,7 @@ const QuestionsAdmin = () => {
           );
         }
       },
-      [
-        editingQuestion,
-      ]
+      []
     );
 
   /* ==========================================================
@@ -1541,24 +1743,25 @@ const QuestionsAdmin = () => {
   const saveQuestion =
     useCallback(
       async () => {
-        if (
-          !editingQuestion?.id
-        ) {
+        if (!editingQuestion) {
           return;
         }
 
         try {
           setSaving(true);
 
+          const isComp =
+            editingQuestion.question_type ===
+              "comprehension" ||
+            Boolean(
+              editingQuestion.passage_id
+            );
+
           const cleanedQuestion =
             cleanRichContent(
               editingQuestion.question ||
                 ""
             );
-
-          /*
-           * Always normalize before map.
-           */
 
           const currentOptions =
             normalizeOptions(
@@ -1569,8 +1772,7 @@ const QuestionsAdmin = () => {
             currentOptions.map(
               (option) =>
                 cleanRichContent(
-                  option ||
-                    ""
+                  option || ""
                 )
             );
 
@@ -1648,8 +1850,7 @@ const QuestionsAdmin = () => {
             ) - 65;
 
           if (
-            answerIndex <
-              0 ||
+            answerIndex < 0 ||
             answerIndex >=
               cleanedOptions.length
           ) {
@@ -1660,11 +1861,30 @@ const QuestionsAdmin = () => {
             return;
           }
 
-          /*
-           * Main payload.
-           *
-           * Keep options as an array.
-           */
+          let passageId =
+            editingQuestion.passage_id ||
+            null;
+
+          if (isComp && !passageId) {
+            passageId =
+              createPassageId();
+          }
+
+          if (isComp) {
+            const passageText =
+              getTextFromContent(
+                editingQuestion.passage ||
+                  ""
+              ).trim();
+
+            if (!passageText) {
+              alert(
+                "Please enter the comprehension passage."
+              );
+
+              return;
+            }
+          }
 
           const payload = {
             exam: String(
@@ -1691,27 +1911,55 @@ const QuestionsAdmin = () => {
             image:
               editingQuestion.image ||
               null,
+
+            question_type:
+              isComp
+                ? "comprehension"
+                : "objective",
+
+            active:
+              editingQuestion.active !==
+              false,
           };
 
-          if (
-            Object.prototype.hasOwnProperty.call(
-              editingQuestion,
-              "active"
-            )
-          ) {
-            payload.active =
-              editingQuestion.active !==
-              false;
+          if (isComp) {
+            payload.passage_id =
+              passageId;
+
+            payload.passage_title =
+              cleanRichContent(
+                editingQuestion.passage_title ||
+                  ""
+              );
+
+            payload.passage =
+              cleanRichContent(
+                editingQuestion.passage ||
+                  ""
+              );
+
+            payload.passage_order =
+              Number(
+                editingQuestion.passage_order ||
+                  1
+              );
+          } else {
+            payload.passage_id =
+              null;
+
+            payload.passage_title =
+              null;
+
+            payload.passage =
+              null;
+
+            payload.passage_order =
+              0;
           }
 
           /*
-           * If your database also has
-           * optionA-optionD columns,
-           * keep them synchronized.
-           *
-           * These fields are only added
-           * when they existed on the
-           * original question.
+           * Keep optionA-D synchronized
+           * when those columns exist.
            */
 
           if (
@@ -1749,64 +1997,151 @@ const QuestionsAdmin = () => {
               "";
           }
 
-          const {
-            data,
-            error,
-          } =
-            await supabase
-              .from(
-                "cbt_questions"
-              )
-              .update(
-                payload
-              )
-              .eq(
-                "id",
-                editingQuestion.id
-              )
-              .select()
-              .single();
+          let response;
 
-          if (error) {
-            throw error;
+          if (editingQuestion.id) {
+            response =
+              await supabase
+                .from(
+                  "cbt_questions"
+                )
+                .update(
+                  payload
+                )
+                .eq(
+                  "id",
+                  editingQuestion.id
+                )
+                .select()
+                .single();
+          } else {
+            response =
+              await supabase
+                .from(
+                  "cbt_questions"
+                )
+                .insert(
+                  payload
+                )
+                .select()
+                .single();
+          }
+
+          if (response.error) {
+            throw response.error;
           }
 
           const normalizedData =
             normalizeQuestionRecord(
-              data
+              response.data
             );
 
-          setQuestions(
-            (previous) =>
-              previous.map(
-                (item) =>
-                  item.id ===
-                  editingQuestion.id
-                    ? normalizedData
-                    : item
-              )
-          );
+          if (editingQuestion.id) {
+            setQuestions(
+              (previous) =>
+                previous.map(
+                  (item) =>
+                    item.id ===
+                    editingQuestion.id
+                      ? normalizedData
+                      : item
+                )
+            );
+          } else {
+            setQuestions(
+              (previous) => [
+                normalizedData,
+                ...previous,
+              ]
+            );
+          }
 
           setEditingQuestion(
             null
           );
         } catch (error) {
           console.error(
-            "Update Question Error:",
+            "Save Question Error:",
             error
           );
 
           alert(
             error?.message ||
-              "Failed to update question."
+              "Failed to save question."
           );
         } finally {
           setSaving(false);
         }
       },
-      [
-        editingQuestion,
-      ]
+      [editingQuestion]
+    );
+
+  /* ==========================================================
+     DUPLICATE COMPREHENSION QUESTION
+  ========================================================== */
+
+  const duplicateQuestion =
+    useCallback(
+      (question) => {
+        const options =
+          normalizeOptions(
+            question
+          );
+
+        setEditingQuestion({
+          ...question,
+
+          id: null,
+
+          question:
+            getEditorValue(
+              question.question ||
+                ""
+            ),
+
+          options:
+            options.map(
+              (option) =>
+                getEditorValue(
+                  option
+                )
+            ),
+
+          reason:
+            getEditorValue(
+              question.reason ||
+                ""
+            ),
+
+          passage_title:
+            getEditorValue(
+              question.passage_title ||
+                ""
+            ),
+
+          passage:
+            getEditorValue(
+              question.passage ||
+                ""
+            ),
+
+          answer:
+            String(
+              question.answer ||
+                ""
+            )
+              .trim()
+              .toUpperCase(),
+
+          passage_id:
+            isComprehensionQuestion(
+              question
+            )
+              ? question.passage_id
+              : null,
+        });
+      },
+      []
     );
 
   /* ==========================================================
@@ -1819,11 +2154,10 @@ const QuestionsAdmin = () => {
 
         {/* HEADER */}
 
-        <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-8 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
 
           <div>
             <div className="mb-2 flex items-center gap-2">
-
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10">
                 <Sigma
                   size={18}
@@ -1834,7 +2168,6 @@ const QuestionsAdmin = () => {
               <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-400">
                 CBT Question Bank
               </span>
-
             </div>
 
             <h1 className="text-3xl font-black tracking-tight">
@@ -1842,13 +2175,49 @@ const QuestionsAdmin = () => {
             </h1>
 
             <p className="mt-2 text-sm text-slate-500">
-              Edit, update, format,
-              activate and manage
-              your CBT questions.
+              Manage objective questions
+              and comprehension sets from
+              one question bank.
             </p>
           </div>
 
-          <div className="relative w-full lg:w-[360px]">
+          <div className="flex flex-col gap-3 sm:flex-row">
+
+            <button
+              type="button"
+              onClick={
+                createObjectiveQuestion
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-black text-slate-300 hover:bg-white/[0.07]"
+            >
+              <Plus
+                size={16}
+              />
+              Objective Question
+            </button>
+
+            <button
+              type="button"
+              onClick={
+                createComprehensionQuestion
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-xs font-black text-white hover:bg-blue-400"
+            >
+              <BookOpen
+                size={16}
+              />
+              Comprehension
+            </button>
+
+          </div>
+
+        </div>
+
+        {/* SEARCH */}
+
+        <div className="mb-5 flex flex-col gap-3 lg:flex-row">
+
+          <div className="relative flex-1">
 
             <Search
               size={18}
@@ -1857,7 +2226,7 @@ const QuestionsAdmin = () => {
 
             <input
               type="text"
-              placeholder="Search questions..."
+              placeholder="Search questions, passages, subjects..."
               value={search}
               onChange={(event) =>
                 setSearch(
@@ -1869,11 +2238,50 @@ const QuestionsAdmin = () => {
 
           </div>
 
+          <div className="flex rounded-2xl border border-white/10 bg-white/[0.025] p-1">
+
+            {[
+              [
+                "all",
+                "All",
+              ],
+              [
+                "objective",
+                "Objective",
+              ],
+              [
+                "comprehension",
+                "Comprehension",
+              ],
+            ].map(
+              ([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() =>
+                    setActiveView(
+                      value
+                    )
+                  }
+                  className={`rounded-xl px-4 py-2 text-xs font-black ${
+                    activeView ===
+                    value
+                      ? "bg-blue-500 text-white"
+                      : "text-slate-500 hover:text-white"
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            )}
+
+          </div>
+
         </div>
 
         {/* STATS */}
 
-        <div className="mb-7 grid gap-4 sm:grid-cols-3">
+        <div className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
           <StatCard
             label="Total Questions"
@@ -1884,29 +2292,27 @@ const QuestionsAdmin = () => {
           />
 
           <StatCard
-            label="Active"
+            label="Objective"
             value={
-              questions.filter(
-                (item) =>
-                  item.active !==
-                  false
-              ).length
+              objectiveQuestions.length
             }
-            icon={
-              CheckCircle2
-            }
+            icon={FileText}
           />
 
           <StatCard
-            label="Inactive"
+            label="Comprehension"
             value={
-              questions.filter(
-                (item) =>
-                  item.active ===
-                  false
-              ).length
+              comprehensionQuestions.length
             }
-            icon={EyeOff}
+            icon={BookOpen}
+          />
+
+          <StatCard
+            label="Passage Sets"
+            value={
+              passageGroups.length
+            }
+            icon={Layers3}
           />
 
         </div>
@@ -1915,24 +2321,17 @@ const QuestionsAdmin = () => {
 
         {loading ? (
           <div className="flex min-h-[300px] items-center justify-center">
-
             <div className="flex items-center gap-3 text-sm text-slate-500">
-
               <Loader2
                 size={18}
                 className="animate-spin"
               />
-
               Loading questions...
-
             </div>
-
           </div>
         ) : filteredQuestions.length ===
           0 ? (
-
           <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/[0.02] p-14 text-center">
-
             <Sigma
               size={35}
               className="mx-auto text-slate-700"
@@ -1943,19 +2342,16 @@ const QuestionsAdmin = () => {
             </h3>
 
             <p className="mt-2 text-sm text-slate-600">
-              No questions match
-              your current search.
+              No questions match your
+              current search or filter.
             </p>
-
           </div>
-
         ) : (
           <>
             <div className="mb-4 flex items-center justify-between">
 
               <p className="text-xs font-bold text-slate-500">
                 Showing{" "}
-
                 <span className="text-white">
                   {Math.min(
                     (page - 1) *
@@ -2025,6 +2421,11 @@ const QuestionsAdmin = () => {
                         item
                       )
                     }
+                    onDuplicate={() =>
+                      duplicateQuestion(
+                        item
+                      )
+                    }
                     deleting={
                       deleting ===
                       item.id
@@ -2041,99 +2442,19 @@ const QuestionsAdmin = () => {
 
             {totalPages >
               1 && (
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
-
-                <button
-                  type="button"
-                  disabled={
-                    page ===
-                    1
-                  }
-                  onClick={() =>
-                    setPage(
-                      (current) =>
-                        Math.max(
-                          1,
-                          current -
-                            1
-                        )
-                    )
-                  }
-                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-black text-slate-400 disabled:opacity-30"
-                >
-                  Previous
-                </button>
-
-                {Array.from(
-                  {
-                    length:
-                      totalPages,
-                  },
-                  (_, index) =>
-                    index + 1
-                )
-                  .filter(
-                    (number) =>
-                      number ===
-                        1 ||
-                      number ===
-                        totalPages ||
-                      Math.abs(
-                        number -
-                          page
-                      ) <= 2
-                  )
-                  .map(
-                    (number) => (
-                      <button
-                        key={
-                          number
-                        }
-                        type="button"
-                        onClick={() =>
-                          setPage(
-                            number
-                          )
-                        }
-                        className={`h-10 min-w-10 rounded-xl px-3 text-xs font-black ${
-                          page ===
-                          number
-                            ? "bg-blue-500 text-white"
-                            : "border border-white/10 bg-white/[0.03] text-slate-500"
-                        }`}
-                      >
-                        {
-                          number
-                        }
-                      </button>
-                    )
-                  )}
-
-                <button
-                  type="button"
-                  disabled={
-                    page ===
-                    totalPages
-                  }
-                  onClick={() =>
-                    setPage(
-                      (current) =>
-                        Math.min(
-                          totalPages,
-                          current +
-                            1
-                        )
-                    )
-                  }
-                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-black text-slate-400 disabled:opacity-30"
-                >
-                  Next
-                </button>
-
-              </div>
+              <Pagination
+                page={page}
+                totalPages={
+                  totalPages
+                }
+                setPage={
+                  setPage
+                }
+              />
             )}
           </>
         )}
+
       </div>
 
       {editingQuestion && (
@@ -2163,6 +2484,7 @@ const QuestionsAdmin = () => {
             removeOption
           }
           onToggleActive={() =>
+            editingQuestion.id &&
             toggleActive(
               editingQuestion
             )
@@ -2188,20 +2510,20 @@ const QuestionCard = memo(
     onEdit,
     onDelete,
     onToggleActive,
+    onDuplicate,
     deleting,
     activating,
   }) => {
     const isActive =
       item.active !== false;
 
-    /*
-     * IMPORTANT:
-     * Never assume item.options is
-     * an array.
-     */
-
     const options =
       normalizeOptions(
+        item
+      );
+
+    const isComp =
+      isComprehensionQuestion(
         item
       );
 
@@ -2213,6 +2535,8 @@ const QuestionCard = memo(
             : "border-red-500/10 bg-red-500/[0.015] opacity-75"
         }`}
       >
+
+        {/* HEADER */}
 
         <div className="flex flex-col gap-5 lg:flex-row lg:justify-between">
 
@@ -2230,6 +2554,15 @@ const QuestionCard = memo(
                   "Subject"}
               </span>
 
+              {isComp && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-amber-400">
+                  <BookOpen
+                    size={11}
+                  />
+                  Comprehension
+                </span>
+              )}
+
               <span
                 className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase ${
                   isActive
@@ -2244,10 +2577,51 @@ const QuestionCard = memo(
 
             </div>
 
+            {/* PASSAGE */}
+
+            {isComp && (
+              <div className="mb-6 rounded-2xl border border-amber-400/10 bg-amber-400/[0.025] p-5">
+
+                <div className="mb-3 flex items-center gap-2">
+
+                  <BookOpen
+                    size={16}
+                    className="text-amber-400"
+                  />
+
+                  <span className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-400">
+                    Comprehension Passage
+                  </span>
+
+                </div>
+
+                <h3 className="mb-3 text-lg font-black text-white">
+                  {item.passage_title ||
+                    "Untitled Passage"}
+                </h3>
+
+                <div className="max-h-56 overflow-y-auto text-sm leading-7 text-slate-400">
+                  <RichContent
+                    content={
+                      item.passage
+                    }
+                  />
+                </div>
+
+              </div>
+            )}
+
+            {/* QUESTION */}
+
             <div className="text-lg font-bold leading-8 text-white">
 
               <span className="mr-2 text-blue-400">
-                {index + 1}.
+                {isComp
+                  ? `Q${
+                      item.passage_order ||
+                      index + 1
+                    }.`
+                  : `${index + 1}.`}
               </span>
 
               <RichContent
@@ -2260,7 +2634,22 @@ const QuestionCard = memo(
 
           </div>
 
+          {/* ACTIONS */}
+
           <div className="flex shrink-0 items-start gap-2">
+
+            <button
+              type="button"
+              onClick={
+                onDuplicate
+              }
+              title="Duplicate"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-500 hover:text-white"
+            >
+              <Copy
+                size={15}
+              />
+            </button>
 
             <button
               type="button"
@@ -2336,7 +2725,6 @@ const QuestionCard = memo(
               option,
               optionIndex
             ) => {
-
               const letter =
                 String.fromCharCode(
                   65 +
@@ -2371,13 +2759,11 @@ const QuestionCard = memo(
                     </span>
 
                     <div className="min-w-0 flex-1">
-
                       <RichContent
                         content={
                           option
                         }
                       />
-
                     </div>
 
                     {isCorrect && (
@@ -2396,6 +2782,8 @@ const QuestionCard = memo(
 
         </div>
 
+        {/* ANSWER */}
+
         <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
 
           <span className="font-black text-slate-600">
@@ -2409,6 +2797,8 @@ const QuestionCard = memo(
 
         </div>
 
+        {/* REASON */}
+
         {item.reason && (
           <div className="mt-5 rounded-xl border border-white/5 bg-white/[0.02] p-4">
 
@@ -2417,21 +2807,20 @@ const QuestionCard = memo(
             </p>
 
             <div className="text-sm leading-7 text-slate-400">
-
               <RichContent
                 content={
                   item.reason
                 }
               />
-
             </div>
 
           </div>
         )}
 
+        {/* IMAGE */}
+
         {item.image && (
           <div className="mt-5">
-
             <img
               src={
                 item.image
@@ -2439,7 +2828,6 @@ const QuestionCard = memo(
               alt="Question"
               className="max-h-64 max-w-full rounded-2xl border border-white/10 object-contain"
             />
-
           </div>
         )}
 
@@ -2480,13 +2868,32 @@ const EditQuestionModal = ({
       ""
   );
 
-  /*
-   * Normalize options for the editor too.
-   */
+  const [
+    passageText,
+    setPassageText,
+  ] = useState(
+    question.passage ||
+      ""
+  );
+
+  const [
+    passageTitle,
+    setPassageTitle,
+  ] = useState(
+    question.passage_title ||
+      ""
+  );
 
   const options =
     normalizeOptions(
       question
+    );
+
+  const isComp =
+    question.question_type ===
+      "comprehension" ||
+    Boolean(
+      question.passage_id
     );
 
   useEffect(() => {
@@ -2499,10 +2906,22 @@ const EditQuestionModal = ({
       question.reason ||
         ""
     );
+
+    setPassageText(
+      question.passage ||
+        ""
+    );
+
+    setPassageTitle(
+      question.passage_title ||
+        ""
+    );
   }, [
     question.id,
     question.question,
     question.reason,
+    question.passage,
+    question.passage_title,
   ]);
 
   const updateQuestion =
@@ -2529,6 +2948,30 @@ const EditQuestionModal = ({
       );
     };
 
+  const updatePassage =
+    (value) => {
+      setPassageText(
+        value
+      );
+
+      onFieldChange(
+        "passage",
+        value
+      );
+    };
+
+  const updatePassageTitle =
+    (value) => {
+      setPassageTitle(
+        value
+      );
+
+      onFieldChange(
+        "passage_title",
+        value
+      );
+    };
+
   const insertLatex =
     (value) => {
       updateQuestion(
@@ -2539,7 +2982,7 @@ const EditQuestionModal = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md sm:p-8">
 
-      <div className="my-4 w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-2xl">
+      <div className="my-4 w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-2xl">
 
         {/* HEADER */}
 
@@ -2547,12 +2990,38 @@ const EditQuestionModal = ({
 
           <div>
 
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">
-              Question Editor
-            </p>
+            <div className="flex items-center gap-2">
+
+              {isComp ? (
+                <BookOpen
+                  size={16}
+                  className="text-amber-400"
+                />
+              ) : (
+                <Sigma
+                  size={16}
+                  className="text-blue-400"
+                />
+              )}
+
+              <p
+                className={`text-[10px] font-black uppercase tracking-[0.2em] ${
+                  isComp
+                    ? "text-amber-400"
+                    : "text-blue-400"
+                }`}
+              >
+                {isComp
+                  ? "Comprehension Editor"
+                  : "Question Editor"}
+              </p>
+
+            </div>
 
             <h2 className="mt-1 text-xl font-black">
-              Edit CBT Question
+              {question.id
+                ? "Edit CBT Question"
+                : "Create CBT Question"}
             </h2>
 
           </div>
@@ -2575,6 +3044,68 @@ const EditQuestionModal = ({
         </div>
 
         <div className="max-h-[calc(100vh-150px)] overflow-y-auto p-5 sm:p-7">
+
+          {/* TYPE */}
+
+          <div className="mb-7 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+
+              <div>
+
+                <p className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
+                  Question Type
+                </p>
+
+                <p className="mt-1 text-xs text-slate-600">
+                  Choose whether this is a
+                  normal CBT question or part
+                  of a comprehension passage.
+                </p>
+
+              </div>
+
+              <div className="flex rounded-xl border border-white/10 bg-black/20 p-1">
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    onFieldChange(
+                      "question_type",
+                      "objective"
+                    )
+                  }
+                  className={`rounded-lg px-4 py-2 text-xs font-black ${
+                    !isComp
+                      ? "bg-blue-500 text-white"
+                      : "text-slate-500"
+                  }`}
+                >
+                  Objective
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    onFieldChange(
+                      "question_type",
+                      "comprehension"
+                    )
+                  }
+                  className={`rounded-lg px-4 py-2 text-xs font-black ${
+                    isComp
+                      ? "bg-amber-500 text-slate-950"
+                      : "text-slate-500"
+                  }`}
+                >
+                  Comprehension
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
 
           {/* EXAM / SUBJECT */}
 
@@ -2611,10 +3142,135 @@ const EditQuestionModal = ({
                   value
                 )
               }
-              placeholder="e.g. Mathematics"
+              placeholder="e.g. English Language"
             />
 
           </div>
+
+          {/* ==================================================
+              COMPREHENSION PASSAGE
+          ================================================== */}
+
+          {isComp && (
+            <div className="mt-7 rounded-[1.75rem] border border-amber-400/10 bg-amber-400/[0.025] p-5 sm:p-6">
+
+              <div className="mb-5 flex items-start gap-3">
+
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/10">
+                  <BookOpen
+                    size={18}
+                    className="text-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.15em] text-amber-400">
+                    Comprehension Passage
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    This passage is shared by
+                    every question using the
+                    same Passage ID.
+                  </p>
+                </div>
+
+              </div>
+
+              <Field
+                label="Passage Title"
+                value={
+                  passageTitle
+                }
+                onChange={
+                  updatePassageTitle
+                }
+                placeholder="e.g. The Value of Education"
+              />
+
+              <div className="mt-5">
+
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.15em] text-slate-500">
+                  Passage
+                </label>
+
+                <textarea
+                  value={
+                    passageText
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updatePassage(
+                      event.target
+                        .value
+                    )
+                  }
+                  rows={12}
+                  spellCheck={false}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-[15px] leading-8 text-white outline-none focus:border-amber-400/30"
+                  placeholder="Paste or type the complete comprehension passage here..."
+                />
+
+                <div className="mt-4 rounded-2xl border border-white/5 bg-black/10 p-5">
+
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.15em] text-amber-400">
+                    Passage Preview
+                  </p>
+
+                  <div className="max-h-80 overflow-y-auto text-sm leading-8 text-slate-300">
+                    <RichContent
+                      content={
+                        passageText
+                      }
+                    />
+                  </div>
+
+                </div>
+
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+
+                <Field
+                  label="Passage ID"
+                  value={
+                    question.passage_id ||
+                    ""
+                  }
+                  onChange={
+                    (value) =>
+                      onFieldChange(
+                        "passage_id",
+                        value
+                      )
+                  }
+                  placeholder="Automatically generated"
+                />
+
+                <Field
+                  label="Question Number"
+                  value={
+                    question.passage_order ||
+                    1
+                  }
+                  onChange={(
+                    value
+                  ) =>
+                    onFieldChange(
+                      "passage_order",
+                      Number(
+                        value
+                      ) || 1
+                    )
+                  }
+                  placeholder="1"
+                />
+
+              </div>
+
+            </div>
+          )}
 
           {/* QUESTION */}
 
@@ -2682,96 +3338,68 @@ const EditQuestionModal = ({
 
               <ToolbarDivider />
 
-              <button
-                type="button"
+              <MathButton
                 title="Fraction"
-                onClick={() =>
-                  insertLatex(
-                    "$\\frac{5}{2}$"
-                  )
+                value="$\\frac{5}{2}$"
+                display="½"
+                onClick={
+                  insertLatex
                 }
-                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-              >
-                ½
-              </button>
+              />
 
-              <button
-                type="button"
+              <MathButton
                 title="Square root"
-                onClick={() =>
-                  insertLatex(
-                    "$\\sqrt{x}$"
-                  )
+                value="$\\sqrt{x}$"
+                display="√"
+                onClick={
+                  insertLatex
                 }
-                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-              >
-                √
-              </button>
+              />
 
-              <button
-                type="button"
+              <MathButton
                 title="Degree"
-                onClick={() =>
-                  insertLatex(
-                    "$40^\\circ$"
-                  )
+                value="$40^\\circ$"
+                display="°"
+                onClick={
+                  insertLatex
                 }
-                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-              >
-                °
-              </button>
+              />
 
-              <button
-                type="button"
+              <MathButton
                 title="Pi"
-                onClick={() =>
-                  insertLatex(
-                    "$\\pi$"
-                  )
+                value="$\\pi$"
+                display="π"
+                onClick={
+                  insertLatex
                 }
-                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-              >
-                π
-              </button>
+              />
 
-              <button
-                type="button"
+              <MathButton
                 title="Plus or minus"
-                onClick={() =>
-                  insertLatex(
-                    "$\\pm$"
-                  )
+                value="$\\pm$"
+                display="±"
+                onClick={
+                  insertLatex
                 }
-                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-              >
-                ±
-              </button>
+              />
 
-              <button
-                type="button"
+              <MathButton
                 title="Times"
-                onClick={() =>
-                  insertLatex(
-                    "$\\times$"
-                  )
+                value="$\\times$"
+                display="×"
+                onClick={
+                  insertLatex
                 }
-                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-              >
-                ×
-              </button>
+              />
 
-              <button
-                type="button"
+              <MathButton
                 title="Division"
-                onClick={() =>
-                  insertLatex(
-                    "$\\div$"
-                  )
+                value="$\\div$"
+                display="÷"
+                onClick={
+                  insertLatex
                 }
-                className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-              >
-                ÷
-              </button>
+              />
 
             </div>
 
@@ -2790,18 +3418,10 @@ const EditQuestionModal = ({
               rows={7}
               spellCheck={false}
               className="w-full rounded-b-2xl border-x border-b border-white/10 bg-white/[0.025] p-5 text-[15px] leading-8 text-white outline-none focus:border-blue-400/30"
-              placeholder={`Example:
-
-If the interior angle of a regular polygon is $140^\\circ$, how many sides does the polygon have?
-
-Another example:
-
-$n = \\frac{360^\\circ}{40^\\circ}$
-
-The length is $2\\text{ cm}$.`}
+              placeholder="Enter the question here..."
             />
 
-            {/* LIVE PREVIEW */}
+            {/* PREVIEW */}
 
             <div className="mt-4 rounded-2xl border border-blue-400/10 bg-blue-400/[0.03] p-5">
 
@@ -2809,10 +3429,6 @@ The length is $2\\text{ cm}$.`}
 
                 <span className="text-[10px] font-black uppercase tracking-[0.15em] text-blue-400">
                   Live Preview
-                </span>
-
-                <span className="text-[10px] text-slate-600">
-                  No custom math spans
                 </span>
 
               </div>
@@ -2829,38 +3445,6 @@ The length is $2\\text{ cm}$.`}
 
             </div>
 
-            <div className="mt-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-600">
-                Supported examples
-              </p>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-
-                <Example
-                  source="$PAB$"
-                  result="$PAB$"
-                />
-
-                <Example
-                  source="$2\\text{ cm}$"
-                  result="$2\\text{ cm}$"
-                />
-
-                <Example
-                  source="$40^\\circ$"
-                  result="$40^\\circ$"
-                />
-
-                <Example
-                  source="$\\frac{5}{2}$"
-                  result="$\\frac{5}{2}$"
-                />
-
-              </div>
-
-            </div>
-
           </div>
 
           {/* OPTIONS */}
@@ -2870,15 +3454,14 @@ The length is $2\\text{ cm}$.`}
             <div className="mb-4 flex items-center justify-between">
 
               <div>
-
                 <p className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
                   Answer Options
                 </p>
 
                 <p className="mt-1 text-xs text-slate-600">
-                  LaTeX works inside every option.
+                  Click a letter to set the
+                  correct answer.
                 </p>
-
               </div>
 
               <button
@@ -2903,7 +3486,6 @@ The length is $2\\text{ cm}$.`}
                   option,
                   index
                 ) => {
-
                   const letter =
                     String.fromCharCode(
                       65 +
@@ -2921,7 +3503,7 @@ The length is $2\\text{ cm}$.`}
 
                   return (
                     <OptionEditor
-                      key={`${question.id}-${index}`}
+                      key={`${question.id || "new"}-${index}`}
                       index={
                         index
                       }
@@ -2985,7 +3567,7 @@ The length is $2\\text{ cm}$.`}
               rows={6}
               spellCheck={false}
               className="w-full rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-sm leading-7 text-white outline-none focus:border-blue-400/30"
-              placeholder="Example: The sum of the exterior angles of any polygon is $360^\\circ$."
+              placeholder="Explain why the selected answer is correct..."
             />
 
             <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.02] p-4">
@@ -3072,7 +3654,6 @@ The length is $2\\text{ cm}$.`}
                       : "bg-red-400/10"
                   }`}
                 >
-
                   {question.active !==
                   false ? (
                     <Eye
@@ -3085,7 +3666,6 @@ The length is $2\\text{ cm}$.`}
                       className="text-red-400"
                     />
                   )}
-
                 </div>
 
                 <div>
@@ -3097,53 +3677,53 @@ The length is $2\\text{ cm}$.`}
                   <p className="mt-1 text-xs text-slate-600">
                     {question.active !==
                     false
-                      ? "This question is available for students."
-                      : "This question is hidden from students."}
+                      ? "Available to students."
+                      : "Hidden from students."}
                   </p>
 
                 </div>
 
               </div>
 
-              <button
-                type="button"
-                onClick={
-                  onToggleActive
-                }
-                disabled={
-                  activating
-                }
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${
-                  question.active !==
-                  false
-                    ? "bg-red-400/10 text-red-400"
-                    : "bg-emerald-400/10 text-emerald-400"
-                }`}
-              >
-
-                {activating ? (
-                  <Loader2
-                    size={15}
-                    className="animate-spin"
-                  />
-                ) : question.active !==
-                  false ? (
-                  <>
-                    <EyeOff
+              {question.id && (
+                <button
+                  type="button"
+                  onClick={
+                    onToggleActive
+                  }
+                  disabled={
+                    activating
+                  }
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${
+                    question.active !==
+                    false
+                      ? "bg-red-400/10 text-red-400"
+                      : "bg-emerald-400/10 text-emerald-400"
+                  }`}
+                >
+                  {activating ? (
+                    <Loader2
                       size={15}
+                      className="animate-spin"
                     />
-                    Deactivate
-                  </>
-                ) : (
-                  <>
-                    <Power
-                      size={15}
-                    />
-                    Activate
-                  </>
-                )}
-
-              </button>
+                  ) : question.active !==
+                    false ? (
+                    <>
+                      <EyeOff
+                        size={15}
+                      />
+                      Deactivate
+                    </>
+                  ) : (
+                    <>
+                      <Power
+                        size={15}
+                      />
+                      Activate
+                    </>
+                  )}
+                </button>
+              )}
 
             </div>
 
@@ -3192,7 +3772,9 @@ The length is $2\\text{ cm}$.`}
                 <Save
                   size={17}
                 />
-                Save Changes
+                {question.id
+                  ? "Save Changes"
+                  : "Create Question"}
               </>
             )}
 
@@ -3310,30 +3892,25 @@ const OptionEditor = ({
 };
 
 /* ============================================================
-   EXAMPLE
+   MATH BUTTON
 ============================================================ */
 
-const Example = ({
-  source,
-  result,
+const MathButton = ({
+  title,
+  value,
+  display,
+  onClick,
 }) => (
-  <div className="rounded-xl border border-white/5 bg-black/10 p-3">
-
-    <code className="block text-xs text-slate-500">
-      {source}
-    </code>
-
-    <div className="mt-2 text-sm text-slate-300">
-
-      <RichContent
-        content={
-          result
-        }
-      />
-
-    </div>
-
-  </div>
+  <button
+    type="button"
+    title={title}
+    onClick={() =>
+      onClick(value)
+    }
+    className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
+  >
+    {display}
+  </button>
 );
 
 /* ============================================================
@@ -3385,7 +3962,7 @@ const Field = ({
     <input
       type="text"
       value={
-        value || ""
+        value ?? ""
       }
       onChange={(
         event
@@ -3439,6 +4016,102 @@ const StatCard = ({
       </div>
 
     </div>
+
+  </div>
+);
+
+/* ============================================================
+   PAGINATION
+============================================================ */
+
+const Pagination = ({
+  page,
+  totalPages,
+  setPage,
+}) => (
+  <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+
+    <button
+      type="button"
+      disabled={
+        page === 1
+      }
+      onClick={() =>
+        setPage(
+          (current) =>
+            Math.max(
+              1,
+              current - 1
+            )
+        )
+      }
+      className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-black text-slate-400 disabled:opacity-30"
+    >
+      Previous
+    </button>
+
+    {Array.from(
+      {
+        length:
+          totalPages,
+      },
+      (_, index) =>
+        index + 1
+    )
+      .filter(
+        (number) =>
+          number === 1 ||
+          number ===
+            totalPages ||
+          Math.abs(
+            number - page
+          ) <= 2
+      )
+      .map(
+        (number) => (
+          <button
+            key={
+              number
+            }
+            type="button"
+            onClick={() =>
+              setPage(
+                number
+              )
+            }
+            className={`h-10 min-w-10 rounded-xl px-3 text-xs font-black ${
+              page ===
+              number
+                ? "bg-blue-500 text-white"
+                : "border border-white/10 bg-white/[0.03] text-slate-500"
+            }`}
+          >
+            {
+              number
+            }
+          </button>
+        )
+      )}
+
+    <button
+      type="button"
+      disabled={
+        page ===
+        totalPages
+      }
+      onClick={() =>
+        setPage(
+          (current) =>
+            Math.min(
+              totalPages,
+              current + 1
+            )
+        )
+      }
+      className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-black text-slate-400 disabled:opacity-30"
+    >
+      Next
+    </button>
 
   </div>
 );

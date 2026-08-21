@@ -1,1176 +1,3303 @@
-import React,{
-useEffect,
-useMemo,
-useRef,
-useState,
+// src/pages/StoryReader.jsx
+
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 
 import {
-useNavigate,
-useParams,
+  useNavigate,
+  useParams,
 } from "react-router-dom";
 
 import {
-motion,
-AnimatePresence,
+  motion,
+  AnimatePresence,
 } from "framer-motion";
 
 import {
-Menu,
-X,
-BookOpen,
-Bookmark,
-BookmarkCheck,
-ChevronLeft,
-ChevronRight,
-Moon,
-Sun,
-Play,
-Pause,
-Volume2,
-VolumeX,
-Clock3,
-Languages,
-PanelsTopLeft,
-Settings2,
-Type,
-Sparkles,
-Star,
-Search,
-Home,
-List,
-RotateCcw,
-Maximize2,
-Minimize2,
+  Menu,
+  X,
+  BookOpen,
+  Bookmark,
+  BookmarkCheck,
+  ChevronLeft,
+  ChevronRight,
+  Volume2,
+  VolumeX,
+  Clock3,
+  PanelsTopLeft,
+  Settings2,
+  Type,
+  Sparkles,
+  Star,
+  Search,
+  Home,
+  List,
+  RotateCcw,
+  Maximize2,
+  Minimize2,
+  Play,
+  Pause,
+  Sun,
+  Moon,
+  Leaf,
+  Coffee,
+  Check,
+  SlidersHorizontal,
+  ArrowLeft,
+  Save,
+  Eye,
+  LocateFixed,
 } from "lucide-react";
 
 import { supabase } from "../lib/supabaseClient";
 import ReaderReviews from "../components/ReaderReviews";
 import Cog from "../assets/cog.png";
 
-export default function StoryReader(){
+/* ============================================================
+   HELPERS
+============================================================ */
 
-const { id }=useParams();
+const clamp = (value, min, max) =>
+  Math.min(Math.max(value, min), max);
 
-const navigate=useNavigate();
-
-const contentRef=useRef(null);
-
-const speechRef=useRef(null);
-
-/* ===============================
-STATE
-=============================== */
-
-const [loading,setLoading]=useState(true);
-
-const [novel,setNovel]=useState(null);
-
-const [stepIndex,setStepIndex]=useState(0);
-
-const [sidebarOpen,setSidebarOpen]=useState(false);
-
-const [settingsOpen,setSettingsOpen]=useState(false);
-
-const [coverPage,setCoverPage]=useState(true);
-
-const [fontSize,setFontSize]=useState(18);
-
-const [lineHeight,setLineHeight]=useState(2);
-
-const [readingWidth,setReadingWidth]=useState("4xl");
-
-const [theme,setTheme]=useState(
-localStorage.getItem("reader-theme") ||
-"dark"
-);
-
-const [isSpeaking,setIsSpeaking]=useState(false);
-
-const [voices,setVoices]=useState([]);
-
-const [selectedVoice,setSelectedVoice]=useState("");
-
-const [voiceRate,setVoiceRate]=useState(1);
-
-const [voicePitch,setVoicePitch]=useState(1);
-
-const [progress,setProgress]=useState(0);
-
-const [bookmarks,setBookmarks]=useState([]);
-
-const [lastRead,setLastRead]=useState(null);
-
-const [search,setSearch]=useState("");
-
-/* ===============================
-LOAD BOOK
-=============================== */
-
-useEffect(()=>{
-
-fetchNovel();
-
-},[id]);
-
-const fetchNovel=async()=>{
-
-setLoading(true);
-
-const {data,error}=await supabase
-
-.from("novels")
-
-.select("*")
-
-.eq("id",id)
-
-.single();
-
-if(error){
-
-console.log(error);
-
-setLoading(false);
-
-return;
-
-}
-
-setNovel(data);
-
-setLoading(false);
-
-const saved=JSON.parse(
-localStorage.getItem(
-`reader-progress-${id}`
-)
-);
-
-if(saved){
-
-setLastRead(saved);
-
-}
-
+const safeParse = (value, fallback) => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
 };
 
-/* ===============================
-FLOW
-=============================== */
+const getReadingWidthClass = (width) => {
+  switch (width) {
+    case "3xl":
+      return "max-w-3xl";
 
-const chapters=novel?.chapters || [];
+    case "4xl":
+      return "max-w-4xl";
 
-const flow=useMemo(()=>{
+    case "5xl":
+      return "max-w-5xl";
 
-if(!novel) return[];
-
-return[
-
-{
-type:"cover",
-title:novel.title,
-description:novel.description,
-image:novel.cover_url,
-},
-
-{
-type:"intro",
-title:"Introduction",
-content:novel.introduction,
-},
-
-...chapters.map((chapter,index)=>({
-
-type:"chapter",
-
-number:index+1,
-
-title:chapter.title,
-
-content:chapter.content,
-
-}))
-
-];
-
-},[novel]);
-
-const current=flow[stepIndex] || {};
-
-/* ===========================
-   THEME COLORS
-=========================== */
-
-const themeStyles = useMemo(() => {
-  switch (theme) {
-    case "light":
-      return {
-        page: "bg-white text-slate-900",
-        card: "bg-white border border-slate-200 shadow-lg",
-        sidebar: "bg-white/95 backdrop-blur-xl border-r border-slate-200 text-slate-900",
-        nav: "bg-white/90 backdrop-blur-xl border-b border-slate-200",
-        input: "bg-slate-100 text-slate-900",
-        secondary: "text-slate-600",
-        progress: "bg-slate-200",
-      };
-
-    case "sepia":
-      return {
-        page: "bg-[#F7F1E3] text-[#2D2418]",
-        card: "bg-[#FFF8EC] border border-[#E5D7B8]",
-        sidebar: "bg-[#FFF8EC]/95 backdrop-blur-xl border-r border-[#E5D7B8] text-[#2D2418]",
-        nav: "bg-[#FFF8EC]/95 backdrop-blur-xl border-b border-[#E5D7B8]",
-        input: "bg-[#F1E6CE] text-[#2D2418]",
-        secondary: "text-[#6B5A43]",
-        progress: "bg-[#E5D7B8]",
-      };
-
-    case "forest":
-      return {
-        page: "bg-[#0E1B16] text-[#ECFDF5]",
-        card: "bg-[#16251F] border border-emerald-800/40",
-        sidebar: "bg-[#16251F]/95 backdrop-blur-xl border-r border-emerald-800/40 text-[#ECFDF5]",
-        nav: "bg-[#16251F]/95 backdrop-blur-xl border-b border-emerald-800/40",
-        input: "bg-[#22352D] text-white",
-        secondary: "text-emerald-200/80",
-        progress: "bg-[#22352D]",
-      };
+    case "6xl":
+      return "max-w-6xl";
 
     default:
-      return {
-        page: "bg-[#0B1220] text-slate-100",
-        card: "bg-[#131D31] border border-slate-700/60",
-        sidebar: "bg-[#101827]/95 backdrop-blur-xl border-r border-slate-700/60 text-white",
-        nav: "bg-[#101827]/95 backdrop-blur-xl border-b border-slate-700/60",
-        input: "bg-slate-800 text-white",
-        secondary: "text-slate-400",
-        progress: "bg-slate-800",
-      };
+      return "max-w-4xl";
   }
-}, [theme]);
-
-/* ===========================
-   COLLAPSIBLE SIDEBAR
-=========================== */
-
-const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-
-/* ===========================
-   READER REVIEW DROPDOWN
-=========================== */
-
-const [showReviews, setShowReviews] = useState(false);
-
-/* ===========================
-   SPEECH SYNTHESIS
-=========================== */
-
-useEffect(() => {
-  const loadVoices = () => {
-    const v = window.speechSynthesis.getVoices();
-    setVoices(v);
-    if (v.length && !selectedVoice) setSelectedVoice(v[0].name);
-  };
-  loadVoices();
-  window.speechSynthesis.onvoiceschanged = loadVoices;
-}, []);
-
-const speak = () => {
-  if (isSpeaking) {
-    window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-    return;
-  }
-  const text = current.content || current.description || current.title || "";
-  const utterance = new SpeechSynthesisUtterance(text);
-  const voice = voices.find(v => v.name === selectedVoice);
-  if (voice) utterance.voice = voice;
-  utterance.rate = voiceRate;
-  utterance.pitch = voicePitch;
-  utterance.onend = () => setIsSpeaking(false);
-  
-  speechRef.current = utterance;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
-  setIsSpeaking(true);
 };
 
-/* ===========================
-   AUTO SAVE
-=========================== */
+/* ============================================================
+   MAIN
+============================================================ */
 
-useEffect(() => {
-  if (!flow.length) return;
+export default function StoryReader() {
+  const { id } = useParams();
+  const navigate = useNavigate();
 
-  localStorage.setItem(
-    `reader-progress-${id}`,
-    JSON.stringify({
-      stepIndex,
-      scroll: contentRef.current?.scrollTop || 0,
-      updatedAt: Date.now(),
-    })
+  const readerRef = useRef(null);
+  const contentRef = useRef(null);
+  const speechRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  /* ==========================================================
+     BOOK
+  ========================================================== */
+
+  const [loading, setLoading] = useState(true);
+  const [novel, setNovel] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+
+  /* ==========================================================
+     READER NAVIGATION
+  ========================================================== */
+
+  const [stepIndex, setStepIndex] = useState(0);
+  const [coverPage, setCoverPage] = useState(true);
+
+  /* ==========================================================
+     SIDEBAR
+  ========================================================== */
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] =
+    useState(false);
+
+  /* ==========================================================
+     SETTINGS
+  ========================================================== */
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [fontSize, setFontSize] = useState(() =>
+    Number(
+      localStorage.getItem("reader-font-size") || 18
+    )
   );
 
-  setProgress(((stepIndex + 1) / flow.length) * 100);
-}, [stepIndex, id, flow.length]);
+  const [lineHeight, setLineHeight] = useState(() =>
+    Number(
+      localStorage.getItem("reader-line-height") || 2
+    )
+  );
 
-/* ===========================
-   RESTORE SCROLL
-=========================== */
+  const [readingWidth, setReadingWidth] = useState(
+    () =>
+      localStorage.getItem("reader-width") ||
+      "4xl"
+  );
 
-useEffect(() => {
-  if (!lastRead || !contentRef.current) return;
+  const [theme, setTheme] = useState(
+    () =>
+      localStorage.getItem("reader-theme") ||
+      "dark"
+  );
 
-  requestAnimationFrame(() => {
-    contentRef.current.scrollTop = lastRead.scroll || 0;
-  });
-}, [stepIndex]);
+  /* ==========================================================
+     SPEECH
+  ========================================================== */
 
-/* ===========================
-   STOP SPEECH
-=========================== */
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
-useEffect(() => {
-  window.speechSynthesis.cancel();
-  setIsSpeaking(false);
-}, [stepIndex]);
+  const [voices, setVoices] = useState([]);
 
-/* ===========================
-   HELPERS
-=========================== */
+  const [selectedVoice, setSelectedVoice] =
+    useState(
+      () =>
+        localStorage.getItem(
+          "reader-voice"
+        ) || ""
+    );
 
-const continueReading = () => {
-  setStepIndex(lastRead ? lastRead.stepIndex : 1);
-  setCoverPage(false);
-  if (contentRef.current) {
-    contentRef.current.scrollTop = 0;
+  const [voiceRate, setVoiceRate] = useState(() =>
+    Number(
+      localStorage.getItem(
+        "reader-voice-rate"
+      ) || 1
+    )
+  );
+
+  const [voicePitch, setVoicePitch] =
+    useState(() =>
+      Number(
+        localStorage.getItem(
+          "reader-voice-pitch"
+        ) || 1
+      )
+    );
+
+  /* ==========================================================
+     PROGRESS
+  ========================================================== */
+
+  const [progress, setProgress] = useState(0);
+
+  const [lastRead, setLastRead] =
+    useState(null);
+
+  /* ==========================================================
+     SEARCH
+  ========================================================== */
+
+  const [searchOpen, setSearchOpen] =
+    useState(false);
+
+  const [search, setSearch] = useState("");
+
+  const [searchResults, setSearchResults] =
+    useState([]);
+
+  /* ==========================================================
+     BOOKMARKS
+  ========================================================== */
+
+  const [bookmarks, setBookmarks] = useState(
+    () =>
+      safeParse(
+        localStorage.getItem(
+          `reader-bookmarks-${id}`
+        ),
+        []
+      )
+  );
+
+  const [bookmarksOpen, setBookmarksOpen] =
+    useState(false);
+
+  /* ==========================================================
+     REVIEWS
+  ========================================================== */
+
+  const [showReviews, setShowReviews] =
+    useState(false);
+
+  /* ==========================================================
+     FULLSCREEN
+  ========================================================== */
+
+  const [isFullscreen, setIsFullscreen] =
+    useState(false);
+
+  /* ==========================================================
+     LOAD NOVEL
+  ========================================================== */
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchNovel = async () => {
+      setLoading(true);
+      setLoadError(null);
+
+      const { data, error } =
+        await supabase
+          .from("novels")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error(
+          "StoryReader:",
+          error
+        );
+
+        setLoadError(error);
+        setLoading(false);
+        return;
+      }
+
+      setNovel(data);
+      setLoading(false);
+
+      const saved = safeParse(
+        localStorage.getItem(
+          `reader-progress-${id}`
+        ),
+        null
+      );
+
+      if (saved) {
+        setLastRead(saved);
+      }
+    };
+
+    fetchNovel();
+
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
+
+  /* ==========================================================
+     CHAPTERS
+  ========================================================== */
+
+  const chapters = useMemo(() => {
+    return Array.isArray(novel?.chapters)
+      ? novel.chapters
+      : [];
+  }, [novel]);
+
+  /* ==========================================================
+     READER FLOW
+  ========================================================== */
+
+  const flow = useMemo(() => {
+    if (!novel) return [];
+
+    return [
+      {
+        type: "cover",
+        title: novel.title,
+        description: novel.description,
+        image: novel.cover_url,
+      },
+
+      {
+        type: "intro",
+        title: "Introduction",
+        content:
+          novel.introduction ||
+          "No introduction available.",
+      },
+
+      ...chapters.map(
+        (chapter, index) => ({
+          type: "chapter",
+          number: index + 1,
+          title:
+            chapter?.title ||
+            `Chapter ${index + 1}`,
+          content:
+            chapter?.content || "",
+        })
+      ),
+    ];
+  }, [novel, chapters]);
+
+  const current =
+    flow[stepIndex] || flow[0] || {};
+
+  /* ==========================================================
+     THEME
+  ========================================================== */
+
+  const themeStyles = useMemo(() => {
+    switch (theme) {
+      case "light":
+        return {
+          page:
+            "bg-[#f8fafc] text-slate-900",
+
+          card:
+            "bg-white border border-slate-200 shadow-xl",
+
+          sidebar:
+            "bg-white/95 backdrop-blur-xl border-r border-slate-200 text-slate-900",
+
+          nav:
+            "bg-white/90 backdrop-blur-xl border-b border-slate-200",
+
+          input:
+            "bg-slate-100 text-slate-900 border-slate-200",
+
+          secondary:
+            "text-slate-500",
+
+          muted:
+            "text-slate-400",
+
+          progress:
+            "bg-slate-200",
+
+          button:
+            "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+
+          accent:
+            "bg-cyan-600 text-white hover:bg-cyan-500",
+
+          icon:
+            "text-slate-600",
+        };
+
+      case "sepia":
+        return {
+          page:
+            "bg-[#f7f1e3] text-[#2d2418]",
+
+          card:
+            "bg-[#fffaf0] border border-[#e5d7b8] shadow-xl",
+
+          sidebar:
+            "bg-[#fff8ec]/95 backdrop-blur-xl border-r border-[#e5d7b8] text-[#2d2418]",
+
+          nav:
+            "bg-[#fff8ec]/95 backdrop-blur-xl border-b border-[#e5d7b8]",
+
+          input:
+            "bg-[#f1e6ce] text-[#2d2418] border-[#e5d7b8]",
+
+          secondary:
+            "text-[#78654c]",
+
+          muted:
+            "text-[#a18c6d]",
+
+          progress:
+            "bg-[#e5d7b8]",
+
+          button:
+            "border-[#dfcfad] bg-[#fff8ec] text-[#5c4931] hover:bg-[#f4ead5]",
+
+          accent:
+            "bg-[#9a6b35] text-white hover:bg-[#80562b]",
+
+          icon:
+            "text-[#6b573c]",
+        };
+
+      case "forest":
+        return {
+          page:
+            "bg-[#0c1814] text-emerald-50",
+
+          card:
+            "bg-[#14231d] border border-emerald-900/50 shadow-xl",
+
+          sidebar:
+            "bg-[#101d18]/95 backdrop-blur-xl border-r border-emerald-900/50 text-emerald-50",
+
+          nav:
+            "bg-[#101d18]/95 backdrop-blur-xl border-b border-emerald-900/50",
+
+          input:
+            "bg-[#1c3027] text-emerald-50 border-emerald-900/50",
+
+          secondary:
+            "text-emerald-200/70",
+
+          muted:
+            "text-emerald-300/40",
+
+          progress:
+            "bg-[#1d342a]",
+
+          button:
+            "border-emerald-900/60 bg-[#162820] text-emerald-100 hover:bg-emerald-900/30",
+
+          accent:
+            "bg-emerald-600 text-white hover:bg-emerald-500",
+
+          icon:
+            "text-emerald-200",
+        };
+
+      default:
+        return {
+          page:
+            "bg-[#080d17] text-slate-100",
+
+          card:
+            "bg-[#111a2b] border border-slate-700/60 shadow-2xl",
+
+          sidebar:
+            "bg-[#0b1321]/95 backdrop-blur-xl border-r border-slate-700/60 text-white",
+
+          nav:
+            "bg-[#0b1321]/90 backdrop-blur-xl border-b border-slate-700/60",
+
+          input:
+            "bg-slate-800/80 text-white border-slate-700",
+
+          secondary:
+            "text-slate-400",
+
+          muted:
+            "text-slate-500",
+
+          progress:
+            "bg-slate-800",
+
+          button:
+            "border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-800",
+
+          accent:
+            "bg-cyan-600 text-white hover:bg-cyan-500",
+
+          icon:
+            "text-slate-300",
+        };
+    }
+  }, [theme]);
+
+  /* ==========================================================
+     SAVE SETTINGS
+  ========================================================== */
+
+  useEffect(() => {
+    localStorage.setItem(
+      "reader-font-size",
+      String(fontSize)
+    );
+  }, [fontSize]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "reader-line-height",
+      String(lineHeight)
+    );
+  }, [lineHeight]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "reader-width",
+      readingWidth
+    );
+  }, [readingWidth]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "reader-theme",
+      theme
+    );
+  }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "reader-voice",
+      selectedVoice
+    );
+  }, [selectedVoice]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "reader-voice-rate",
+      String(voiceRate)
+    );
+  }, [voiceRate]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "reader-voice-pitch",
+      String(voicePitch)
+    );
+  }, [voicePitch]);
+
+  /* ==========================================================
+     LOAD SPEECH VOICES
+  ========================================================== */
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      !("speechSynthesis" in window)
+    ) {
+      return;
+    }
+
+    const loadVoices = () => {
+      const available =
+        window.speechSynthesis.getVoices();
+
+      setVoices(available);
+
+      if (
+        available.length &&
+        !selectedVoice
+      ) {
+        const preferred =
+          available.find((voice) =>
+            /en[-_](NG|GB|US)/i.test(
+              voice.lang
+            )
+          ) ||
+          available.find((voice) =>
+            /^en/i.test(voice.lang)
+          ) ||
+          available[0];
+
+        if (preferred) {
+          setSelectedVoice(
+            preferred.name
+          );
+        }
+      }
+    };
+
+    loadVoices();
+
+    window.speechSynthesis.addEventListener(
+      "voiceschanged",
+      loadVoices
+    );
+
+    return () => {
+      window.speechSynthesis.removeEventListener(
+        "voiceschanged",
+        loadVoices
+      );
+    };
+  }, [selectedVoice]);
+
+  /* ==========================================================
+     STOP SPEECH
+  ========================================================== */
+
+  const stopSpeech = useCallback(() => {
+    if (
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window
+    ) {
+      window.speechSynthesis.cancel();
+    }
+
+    speechRef.current = null;
+    setIsSpeaking(false);
+  }, []);
+
+  /* ==========================================================
+     SPEAK
+  ========================================================== */
+
+  const speak = useCallback(() => {
+    if (
+      typeof window === "undefined" ||
+      !("speechSynthesis" in window)
+    ) {
+      return;
+    }
+
+    if (isSpeaking) {
+      stopSpeech();
+      return;
+    }
+
+    const text =
+      current.content ||
+      current.description ||
+      current.title ||
+      "";
+
+    if (!text.trim()) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance =
+      new SpeechSynthesisUtterance(
+        text
+      );
+
+    const voice = voices.find(
+      (item) =>
+        item.name === selectedVoice
+    );
+
+    if (voice) {
+      utterance.voice = voice;
+    }
+
+    utterance.rate = clamp(
+      Number(voiceRate),
+      0.5,
+      2
+    );
+
+    utterance.pitch = clamp(
+      Number(voicePitch),
+      0.5,
+      2
+    );
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      speechRef.current = null;
+    };
+
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      speechRef.current = null;
+    };
+
+    speechRef.current = utterance;
+
+    window.speechSynthesis.speak(
+      utterance
+    );
+
+    setIsSpeaking(true);
+  }, [
+    current,
+    isSpeaking,
+    selectedVoice,
+    stopSpeech,
+    voicePitch,
+    voiceRate,
+    voices,
+  ]);
+
+  /* ==========================================================
+     STOP SPEECH ON PAGE CHANGE
+  ========================================================== */
+
+  useEffect(() => {
+    stopSpeech();
+  }, [stepIndex, stopSpeech]);
+
+  /* ==========================================================
+     PROGRESS
+  ========================================================== */
+
+  useEffect(() => {
+    if (!flow.length) return;
+
+    const calculated =
+      ((stepIndex + 1) /
+        flow.length) *
+      100;
+
+    setProgress(
+      clamp(calculated, 0, 100)
+    );
+  }, [stepIndex, flow.length]);
+
+  /* ==========================================================
+     SAVE READING POSITION
+  ========================================================== */
+
+  useEffect(() => {
+    if (!flow.length || !novel) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      const saved = {
+        stepIndex,
+        scroll:
+          contentRef.current?.scrollTop ||
+          0,
+        updatedAt: Date.now(),
+      };
+
+      localStorage.setItem(
+        `reader-progress-${id}`,
+        JSON.stringify(saved)
+      );
+
+      setLastRead(saved);
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [
+    stepIndex,
+    id,
+    flow.length,
+    novel,
+  ]);
+
+  /* ==========================================================
+     SAVE SCROLL POSITION
+  ========================================================== */
+
+  useEffect(() => {
+    const element =
+      contentRef.current;
+
+    if (!element) return;
+
+    let timeout;
+
+    const handleScroll = () => {
+      clearTimeout(timeout);
+
+      timeout = setTimeout(() => {
+        const saved = safeParse(
+          localStorage.getItem(
+            `reader-progress-${id}`
+          ),
+          {}
+        );
+
+        const updated = {
+          ...saved,
+          stepIndex,
+          scroll: element.scrollTop,
+          updatedAt: Date.now(),
+        };
+
+        localStorage.setItem(
+          `reader-progress-${id}`,
+          JSON.stringify(updated)
+        );
+
+        setLastRead(updated);
+      }, 300);
+    };
+
+    element.addEventListener(
+      "scroll",
+      handleScroll,
+      { passive: true }
+    );
+
+    return () => {
+      clearTimeout(timeout);
+
+      element.removeEventListener(
+        "scroll",
+        handleScroll
+      );
+    };
+  }, [id, stepIndex]);
+
+  /* ==========================================================
+     RESTORE SCROLL
+  ========================================================== */
+
+  useEffect(() => {
+    if (
+      !lastRead ||
+      !contentRef.current
+    ) {
+      return;
+    }
+
+    if (
+      lastRead.stepIndex !==
+      stepIndex
+    ) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      if (contentRef.current) {
+        contentRef.current.scrollTop =
+          Number(lastRead.scroll) || 0;
+      }
+    });
+  }, [stepIndex, lastRead]);
+
+  /* ==========================================================
+     SCROLL TOP
+  ========================================================== */
+
+  const scrollTop = useCallback(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }
+  }, []);
+
+  /* ==========================================================
+     GO TO STEP
+  ========================================================== */
+
+  const goToStep = useCallback(
+    (index) => {
+      const safeIndex = clamp(
+        index,
+        0,
+        Math.max(flow.length - 1, 0)
+      );
+
+      setStepIndex(safeIndex);
+      setCoverPage(safeIndex === 0);
+      setSidebarOpen(false);
+
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          contentRef.current.scrollTop = 0;
+        }
+      });
+    },
+    [flow.length]
+  );
+
+  /* ==========================================================
+     NEXT
+  ========================================================== */
+
+  const nextPage = useCallback(() => {
+    if (
+      stepIndex <
+      flow.length - 1
+    ) {
+      goToStep(stepIndex + 1);
+    } else {
+      setCoverPage(true);
+      goToStep(0);
+    }
+  }, [
+    flow.length,
+    goToStep,
+    stepIndex,
+  ]);
+
+  /* ==========================================================
+     PREVIOUS
+  ========================================================== */
+
+  const previousPage =
+    useCallback(() => {
+      if (stepIndex > 0) {
+        goToStep(stepIndex - 1);
+      }
+    }, [goToStep, stepIndex]);
+
+  /* ==========================================================
+     CONTINUE
+  ========================================================== */
+
+  const continueReading = () => {
+    const savedStep =
+      lastRead?.stepIndex;
+
+    if (
+      typeof savedStep === "number" &&
+      savedStep >= 0 &&
+      savedStep < flow.length
+    ) {
+      setStepIndex(savedStep);
+      setCoverPage(savedStep === 0);
+
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          contentRef.current.scrollTop =
+            Number(
+              lastRead?.scroll
+            ) || 0;
+        }
+      });
+    } else {
+      goToStep(1);
+    }
+  };
+
+  /* ==========================================================
+     RESTART
+  ========================================================== */
+
+  const restartBook = () => {
+    localStorage.removeItem(
+      `reader-progress-${id}`
+    );
+
+    const reset = {
+      stepIndex: 1,
+      scroll: 0,
+      updatedAt: Date.now(),
+    };
+
+    setLastRead(reset);
+    setStepIndex(1);
+    setCoverPage(false);
+
+    requestAnimationFrame(() => {
+      if (contentRef.current) {
+        contentRef.current.scrollTop = 0;
+      }
+    });
+  };
+
+  /* ==========================================================
+     BOOKMARK
+  ========================================================== */
+
+  const currentBookmark =
+    bookmarks.find(
+      (bookmark) =>
+        bookmark.stepIndex ===
+        stepIndex
+    );
+
+  const toggleBookmark = () => {
+    setBookmarks((previous) => {
+      const exists = previous.some(
+        (bookmark) =>
+          bookmark.stepIndex ===
+          stepIndex
+      );
+
+      let updated;
+
+      if (exists) {
+        updated = previous.filter(
+          (bookmark) =>
+            bookmark.stepIndex !==
+            stepIndex
+        );
+      } else {
+        updated = [
+          ...previous,
+          {
+            stepIndex,
+            title:
+              current.title ||
+              `Page ${stepIndex + 1}`,
+            type: current.type,
+            createdAt: Date.now(),
+          },
+        ];
+      }
+
+      localStorage.setItem(
+        `reader-bookmarks-${id}`,
+        JSON.stringify(updated)
+      );
+
+      return updated;
+    });
+  };
+
+  /* ==========================================================
+     FULLSCREEN
+  ========================================================== */
+
+  const toggleFullscreen = async () => {
+    try {
+      if (
+        !document.fullscreenElement
+      ) {
+        await readerRef.current?.requestFullscreen?.();
+      } else {
+        await document.exitFullscreen?.();
+      }
+    } catch (error) {
+      console.error(
+        "Fullscreen error:",
+        error
+      );
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreen =
+      () => {
+        setIsFullscreen(
+          Boolean(
+            document.fullscreenElement
+          )
+        );
+      };
+
+    document.addEventListener(
+      "fullscreenchange",
+      handleFullscreen
+    );
+
+    return () =>
+      document.removeEventListener(
+        "fullscreenchange",
+        handleFullscreen
+      );
+  }, []);
+
+  /* ==========================================================
+     SEARCH
+  ========================================================== */
+
+  useEffect(() => {
+    const term =
+      search.trim().toLowerCase();
+
+    if (!term) {
+      setSearchResults([]);
+      return;
+    }
+
+    const results = flow
+      .map((item, index) => {
+        const searchable = [
+          item.title,
+          item.description,
+          item.content,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        if (!searchable.includes(term)) {
+          return null;
+        }
+
+        return {
+          ...item,
+          index,
+        };
+      })
+      .filter(Boolean);
+
+    setSearchResults(results);
+  }, [flow, search]);
+
+  const handleSearchSubmit = (
+    event
+  ) => {
+    event.preventDefault();
+
+    if (
+      searchResults.length > 0
+    ) {
+      goToStep(
+        searchResults[0].index
+      );
+    }
+  };
+
+  /* ==========================================================
+     KEYBOARD CONTROLS
+  ========================================================== */
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const tag =
+        event.target?.tagName;
+
+      const isTyping =
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT";
+
+      if (isTyping) return;
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        nextPage();
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        previousPage();
+      }
+
+      if (event.key === " ") {
+        event.preventDefault();
+
+        if (current.content) {
+          speak();
+        }
+      }
+
+      if (
+        event.key.toLowerCase() ===
+        "b"
+      ) {
+        toggleBookmark();
+      }
+
+      if (
+        event.key.toLowerCase() ===
+        "f"
+      ) {
+        toggleFullscreen();
+      }
+
+      if (
+        event.key.toLowerCase() ===
+        "s"
+      ) {
+        setSettingsOpen(
+          (value) => !value
+        );
+      }
+
+      if (event.key === "Escape") {
+        setSettingsOpen(false);
+        setSearchOpen(false);
+        setBookmarksOpen(false);
+      }
+    };
+
+    window.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
+
+    return () =>
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+  }, [
+    current.content,
+    nextPage,
+    previousPage,
+    speak,
+  ]);
+
+  /* ==========================================================
+     CLEANUP
+  ========================================================== */
+
+  useEffect(() => {
+    return () => {
+      if (
+        "speechSynthesis" in window
+      ) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  /* ==========================================================
+     LOADING
+  ========================================================== */
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#050912] text-white">
+        <div className="text-center">
+          <div className="relative mx-auto h-16 w-16">
+            <motion.div
+              animate={{
+                rotate: 360,
+              }}
+              transition={{
+                duration: 1,
+                repeat: Infinity,
+                ease: "linear",
+              }}
+              className="absolute inset-0 rounded-full border-4 border-cyan-500/20 border-t-cyan-400"
+            />
+
+            <div className="absolute inset-0 flex items-center justify-center">
+              <BookOpen
+                size={22}
+                className="text-cyan-400"
+              />
+            </div>
+          </div>
+
+          <p className="mt-5 text-sm font-bold text-slate-400">
+            Preparing your reading experience...
+          </p>
+        </div>
+      </div>
+    );
   }
-};
 
-const restartBook = () => {
-  localStorage.removeItem(`reader-progress-${id}`);
-  setLastRead(null);
-  setStepIndex(1);
-  setCoverPage(false);
-  if (contentRef.current) {
-    contentRef.current.scrollTop = 0;
+  /* ==========================================================
+     ERROR
+  ========================================================== */
+
+  if (loadError || !novel) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#050912] px-6 text-white">
+        <div className="w-full max-w-lg rounded-[32px] border border-slate-800 bg-slate-900/80 p-8 text-center shadow-2xl backdrop-blur-xl">
+          <BookOpen
+            size={50}
+            className="mx-auto text-cyan-400"
+          />
+
+          <h1 className="mt-5 text-2xl font-black">
+            Book unavailable
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-slate-400">
+            We couldn't load this novel.
+            Please try again or return to
+            the previous page.
+          </p>
+
+          {loadError?.message && (
+            <p className="mt-4 rounded-xl bg-black/30 p-3 text-xs text-red-300">
+              {loadError.message}
+            </p>
+          )}
+
+          <button
+            onClick={() => navigate(-1)}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-6 py-3 font-bold text-white hover:bg-cyan-500"
+          >
+            <ArrowLeft size={17} />
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
   }
-};
 
-/* ===========================
-   LOADING
-=========================== */
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
-if (loading) {
   return (
-    <div className="flex h-screen items-center justify-center bg-slate-100">
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{
-          duration: 1,
-          repeat: Infinity,
-          ease: "linear",
+    <div
+      ref={readerRef}
+      className={`relative flex h-screen overflow-hidden transition-colors duration-500 ${themeStyles.page}`}
+    >
+      {/* ======================================================
+          PREMIUM BACKGROUND
+      ====================================================== */}
+
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {theme === "dark" && (
+          <>
+            <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[150px]" />
+
+            <div className="absolute -right-40 top-1/3 h-[600px] w-[600px] rounded-full bg-blue-600/10 blur-[170px]" />
+
+            <div className="absolute bottom-0 left-1/3 h-[400px] w-[400px] rounded-full bg-violet-600/5 blur-[160px]" />
+          </>
+        )}
+
+        {theme === "forest" && (
+          <>
+            <div className="absolute -left-40 top-0 h-[500px] w-[500px] rounded-full bg-emerald-500/10 blur-[160px]" />
+
+            <div className="absolute -right-40 bottom-0 h-[500px] w-[500px] rounded-full bg-green-500/10 blur-[160px]" />
+          </>
+        )}
+
+        {theme === "sepia" && (
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#fff9ed,transparent_60%)]" />
+        )}
+      </div>
+
+      {/* ======================================================
+          DESKTOP SIDEBAR
+      ====================================================== */}
+
+      <motion.aside
+        animate={{
+          width: sidebarCollapsed
+            ? 76
+            : 300,
         }}
-        className="h-16 w-16 rounded-full border-4 border-cyan-500 border-t-transparent"
-      />
+        transition={{
+          duration: 0.25,
+        }}
+        className={`${themeStyles.sidebar} relative z-40 hidden h-full shrink-0 flex-col md:flex`}
+      >
+        {/* BRAND */}
+
+        <div className="flex h-[74px] items-center justify-between border-b border-black/10 px-4 dark:border-white/10">
+          {!sidebarCollapsed ? (
+            <div className="flex min-w-0 items-center gap-3">
+              <img
+                src={Cog}
+                alt="Scholiqen"
+                className="h-10 w-10 rounded-xl object-cover"
+              />
+
+              <div className="min-w-0">
+                <h2 className="truncate font-black">
+                  Scholiqen Reader
+                </h2>
+
+                <p
+                  className={`text-[11px] ${themeStyles.secondary}`}
+                >
+                  Premium Reading
+                </p>
+              </div>
+            </div>
+          ) : (
+            <img
+              src={Cog}
+              alt="Scholiqen"
+              className="mx-auto h-10 w-10 rounded-xl object-cover"
+            />
+          )}
+
+          {!sidebarCollapsed && (
+            <button
+              onClick={() =>
+                setSidebarCollapsed(
+                  true
+                )
+              }
+              className={`rounded-xl p-2 ${themeStyles.button}`}
+              title="Collapse sidebar"
+            >
+              <PanelsTopLeft
+                size={18}
+              />
+            </button>
+          )}
+        </div>
+
+        {/* COLLAPSED TOGGLE */}
+
+        {sidebarCollapsed && (
+          <button
+            onClick={() =>
+              setSidebarCollapsed(
+                false
+              )
+            }
+            className={`mx-auto mt-3 rounded-xl p-2 ${themeStyles.button}`}
+            title="Expand sidebar"
+          >
+            <PanelsTopLeft
+              size={18}
+            />
+          </button>
+        )}
+
+        {/* NAVIGATION */}
+
+        <div className="flex-1 overflow-y-auto px-3 py-4">
+          {/* COVER */}
+
+          <SidebarButton
+            collapsed={
+              sidebarCollapsed
+            }
+            icon={<BookOpen size={18} />}
+            label="Book Cover"
+            active={coverPage}
+            themeStyles={
+              themeStyles
+            }
+            onClick={() =>
+              goToStep(0)
+            }
+          />
+
+          {/* INTRO */}
+
+          <SidebarButton
+            collapsed={
+              sidebarCollapsed
+            }
+            icon={<Star size={18} />}
+            label="Introduction"
+            active={
+              !coverPage &&
+              stepIndex === 1
+            }
+            themeStyles={
+              themeStyles
+            }
+            onClick={() =>
+              goToStep(1)
+            }
+          />
+
+          {/* CHAPTERS */}
+
+          {!sidebarCollapsed && (
+            <div
+              className={`mb-3 mt-7 px-3 text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.secondary}`}
+            >
+              Chapters
+            </div>
+          )}
+
+          {chapters.map(
+            (chapter, index) => (
+              <SidebarButton
+                key={index}
+                collapsed={
+                  sidebarCollapsed
+                }
+                icon={
+                  <List size={17} />
+                }
+                label={
+                  chapter.title ||
+                  `Chapter ${
+                    index + 1
+                  }`
+                }
+                subtitle={`Chapter ${
+                  index + 1
+                }`}
+                active={
+                  !coverPage &&
+                  stepIndex ===
+                    index + 2
+                }
+                themeStyles={
+                  themeStyles
+                }
+                onClick={() =>
+                  goToStep(
+                    index + 2
+                  )
+                }
+              />
+            )
+          )}
+
+          {/* BOOKMARKS */}
+
+          <div className="mt-6 border-t border-black/10 pt-4 dark:border-white/10">
+            <SidebarButton
+              collapsed={
+                sidebarCollapsed
+              }
+              icon={
+                <Bookmark
+                  size={18}
+                />
+              }
+              label={`Bookmarks ${
+                bookmarks.length
+                  ? `(${bookmarks.length})`
+                  : ""
+              }`}
+              active={
+                bookmarksOpen
+              }
+              themeStyles={
+                themeStyles
+              }
+              onClick={() =>
+                setBookmarksOpen(
+                  (value) => !value
+                )
+              }
+            />
+
+            <AnimatePresence>
+              {bookmarksOpen &&
+                !sidebarCollapsed && (
+                  <motion.div
+                    initial={{
+                      opacity: 0,
+                      height: 0,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      height: "auto",
+                    }}
+                    exit={{
+                      opacity: 0,
+                      height: 0,
+                    }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-2 px-1 pt-2">
+                      {bookmarks.length ===
+                      0 ? (
+                        <p
+                          className={`rounded-xl p-3 text-xs ${themeStyles.secondary}`}
+                        >
+                          No bookmarks yet.
+                        </p>
+                      ) : (
+                        bookmarks.map(
+                          (
+                            bookmark
+                          ) => (
+                            <button
+                              key={
+                                bookmark.stepIndex
+                              }
+                              onClick={() =>
+                                goToStep(
+                                  bookmark.stepIndex
+                                )
+                              }
+                              className={`w-full rounded-xl p-3 text-left text-xs transition hover:bg-cyan-500/10 ${
+                                bookmark.stepIndex ===
+                                stepIndex
+                                  ? "bg-cyan-500/10"
+                                  : ""
+                              }`}
+                            >
+                              <p className="truncate font-bold">
+                                {
+                                  bookmark.title
+                                }
+                              </p>
+
+                              <p
+                                className={`mt-1 ${themeStyles.secondary}`}
+                              >
+                                {bookmark.type ===
+                                "chapter"
+                                  ? `Chapter ${
+                                      current.number ||
+                                      ""
+                                    }`
+                                  : "Saved location"}
+                              </p>
+                            </button>
+                          )
+                        )
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* PROGRESS */}
+
+        <div className="border-t border-black/10 p-4 dark:border-white/10">
+          {!sidebarCollapsed ? (
+            <>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-bold">
+                  Reading progress
+                </span>
+
+                <span className="text-xs font-black text-cyan-500">
+                  {Math.round(
+                    progress
+                  )}
+                  %
+                </span>
+              </div>
+
+              <div
+                className={`h-2 overflow-hidden rounded-full ${themeStyles.progress}`}
+              >
+                <motion.div
+                  className="h-full rounded-full bg-cyan-500"
+                  animate={{
+                    width: `${progress}%`,
+                  }}
+                  transition={{
+                    duration: 0.4,
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="mx-auto h-2 w-8 overflow-hidden rounded-full bg-slate-800">
+              <motion.div
+                className="h-full rounded-full bg-cyan-500"
+                animate={{
+                  height: `${progress}%`,
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </motion.aside>
+
+      {/* ======================================================
+          MOBILE SIDEBAR
+      ====================================================== */}
+
+      <AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <motion.div
+              initial={{
+                opacity: 0,
+              }}
+              animate={{
+                opacity: 1,
+              }}
+              exit={{
+                opacity: 0,
+              }}
+              onClick={() =>
+                setSidebarOpen(
+                  false
+                )
+              }
+              className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm md:hidden"
+            />
+
+            <motion.aside
+              initial={{
+                x: -340,
+              }}
+              animate={{
+                x: 0,
+              }}
+              exit={{
+                x: -340,
+              }}
+              transition={{
+                duration: 0.25,
+              }}
+              className={`fixed left-0 top-0 z-[90] flex h-full w-[310px] flex-col ${themeStyles.sidebar} md:hidden`}
+            >
+              <div className="flex items-center justify-between border-b border-black/10 p-5 dark:border-white/10">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={Cog}
+                    alt="Scholiqen"
+                    className="h-10 w-10 rounded-xl"
+                  />
+
+                  <div>
+                    <h2 className="font-black">
+                      Scholiqen
+                    </h2>
+
+                    <p
+                      className={`text-xs ${themeStyles.secondary}`}
+                    >
+                      Reader
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() =>
+                    setSidebarOpen(
+                      false
+                    )
+                  }
+                  className="rounded-xl p-2 hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4">
+                <MobileNavButton
+                  icon={
+                    <BookOpen size={18} />
+                  }
+                  label="Book Cover"
+                  active={
+                    coverPage
+                  }
+                  onClick={() =>
+                    goToStep(0)
+                  }
+                />
+
+                <MobileNavButton
+                  icon={
+                    <Star size={18} />
+                  }
+                  label="Introduction"
+                  active={
+                    !coverPage &&
+                    stepIndex ===
+                      1
+                  }
+                  onClick={() =>
+                    goToStep(1)
+                  }
+                />
+
+                <p
+                  className={`mb-3 mt-7 px-3 text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.secondary}`}
+                >
+                  Chapters
+                </p>
+
+                {chapters.map(
+                  (
+                    chapter,
+                    index
+                  ) => (
+                    <MobileNavButton
+                      key={
+                        index
+                      }
+                      icon={
+                        <List
+                          size={
+                            17
+                          }
+                        />
+                      }
+                      label={
+                        chapter.title ||
+                        `Chapter ${
+                          index +
+                          1
+                        }`
+                      }
+                      active={
+                        stepIndex ===
+                        index +
+                          2
+                      }
+                      onClick={() =>
+                        goToStep(
+                          index +
+                            2
+                        )
+                      }
+                    />
+                  )
+                )}
+              </div>
+
+              <div className="border-t border-black/10 p-5 dark:border-white/10">
+                <div className="mb-2 flex justify-between text-xs font-bold">
+                  <span>
+                    Progress
+                  </span>
+
+                  <span className="text-cyan-500">
+                    {Math.round(
+                      progress
+                    )}
+                    %
+                  </span>
+                </div>
+
+                <div
+                  className={`h-2 rounded-full ${themeStyles.progress}`}
+                >
+                  <div
+                    className="h-full rounded-full bg-cyan-500"
+                    style={{
+                      width: `${progress}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================
+          MAIN
+      ====================================================== */}
+
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
+
+        <header
+          className={`relative z-50 flex min-h-[72px] shrink-0 items-center justify-between gap-3 px-4 sm:px-6 ${themeStyles.nav}`}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            {/* MOBILE MENU */}
+
+            <button
+              onClick={() =>
+                setSidebarOpen(true)
+              }
+              className={`rounded-xl p-2 md:hidden ${themeStyles.button}`}
+              title="Open menu"
+            >
+              <Menu size={20} />
+            </button>
+
+            {/* HOME */}
+
+            <button
+              onClick={() =>
+                navigate("/")
+              }
+              className={`hidden rounded-xl p-2 sm:block ${themeStyles.button}`}
+              title="Home"
+            >
+              <Home size={18} />
+            </button>
+
+            {/* TITLE */}
+
+            <div className="min-w-0">
+              <h1 className="max-w-[240px] truncate text-sm font-black sm:max-w-[420px] sm:text-base">
+                {novel.title}
+              </h1>
+
+              <div
+                className={`mt-0.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider ${themeStyles.secondary}`}
+              >
+                <span>
+                  Premium Reader
+                </span>
+
+                <span>•</span>
+
+                <span>
+                  {Math.round(
+                    progress
+                  )}
+                  %
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* HEADER ACTIONS */}
+
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* SEARCH */}
+
+            <button
+              onClick={() =>
+                setSearchOpen(
+                  (value) => !value
+                )
+              }
+              className={`rounded-xl p-2 ${themeStyles.button}`}
+              title="Search book"
+            >
+              <Search size={18} />
+            </button>
+
+            {/* BOOKMARK */}
+
+            <button
+              onClick={
+                toggleBookmark
+              }
+              className={`hidden rounded-xl p-2 sm:block ${themeStyles.button}`}
+              title={
+                currentBookmark
+                  ? "Remove bookmark"
+                  : "Bookmark page"
+              }
+            >
+              {currentBookmark ? (
+                <BookmarkCheck
+                  size={18}
+                  className="text-cyan-500"
+                />
+              ) : (
+                <Bookmark
+                  size={18}
+                />
+              )}
+            </button>
+
+            {/* SPEECH */}
+
+            <button
+              onClick={speak}
+              className={`rounded-xl p-2 ${themeStyles.button}`}
+              title={
+                isSpeaking
+                  ? "Stop reading"
+                  : "Read aloud"
+              }
+            >
+              {isSpeaking ? (
+                <VolumeX
+                  size={18}
+                  className="text-cyan-500"
+                />
+              ) : (
+                <Volume2
+                  size={18}
+                />
+              )}
+            </button>
+
+            {/* FONT SMALL */}
+
+            <button
+              onClick={() =>
+                setFontSize(
+                  (value) =>
+                    clamp(
+                      value - 1,
+                      14,
+                      32
+                    )
+                )
+              }
+              className={`hidden rounded-xl px-3 py-2 text-xs font-black sm:block ${themeStyles.button}`}
+              title="Decrease text size"
+            >
+              A−
+            </button>
+
+            {/* FONT LARGE */}
+
+            <button
+              onClick={() =>
+                setFontSize(
+                  (value) =>
+                    clamp(
+                      value + 1,
+                      14,
+                      32
+                    )
+                )
+              }
+              className={`hidden rounded-xl px-3 py-2 text-sm font-black sm:block ${themeStyles.button}`}
+              title="Increase text size"
+            >
+              A+
+            </button>
+
+            {/* SETTINGS */}
+
+            <button
+              onClick={() =>
+                setSettingsOpen(
+                  (value) => !value
+                )
+              }
+              className={`rounded-xl p-2 ${
+                settingsOpen
+                  ? "bg-cyan-500/15 text-cyan-500"
+                  : ""
+              } ${themeStyles.button}`}
+              title="Reader settings"
+            >
+              <Settings2
+                size={18}
+              />
+            </button>
+
+            {/* FULLSCREEN */}
+
+            <button
+              onClick={
+                toggleFullscreen
+              }
+              className={`hidden rounded-xl p-2 sm:block ${themeStyles.button}`}
+              title={
+                isFullscreen
+                  ? "Exit fullscreen"
+                  : "Fullscreen"
+              }
+            >
+              {isFullscreen ? (
+                <Minimize2
+                  size={18}
+                />
+              ) : (
+                <Maximize2
+                  size={18}
+                />
+              )}
+            </button>
+          </div>
+        </header>
+
+        {/* ====================================================
+            SEARCH PANEL
+        ==================================================== */}
+
+        <AnimatePresence>
+          {searchOpen && (
+            <motion.div
+              initial={{
+                opacity: 0,
+                y: -12,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+              exit={{
+                opacity: 0,
+                y: -12,
+              }}
+              className={`relative z-40 border-b ${themeStyles.nav}`}
+            >
+              <div className="mx-auto max-w-5xl px-4 py-4">
+                <form
+                  onSubmit={
+                    handleSearchSubmit
+                  }
+                  className={`flex items-center gap-3 rounded-2xl border p-2 ${themeStyles.card}`}
+                >
+                  <Search
+                    size={19}
+                    className="ml-2 shrink-0 text-cyan-500"
+                  />
+
+                  <input
+                    ref={
+                      searchInputRef
+                    }
+                    autoFocus
+                    value={search}
+                    onChange={(event) =>
+                      setSearch(
+                        event.target
+                          .value
+                      )
+                    }
+                    placeholder="Search chapters and book content..."
+                    className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-slate-500"
+                  />
+
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSearch("")
+                      }
+                      className={`rounded-xl p-2 ${themeStyles.button}`}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={
+                      !searchResults.length
+                    }
+                    className="rounded-xl bg-cyan-600 px-4 py-2 text-xs font-black text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Find
+                  </button>
+                </form>
+
+                {search.trim() && (
+                  <div className="mt-3">
+                    {searchResults.length ===
+                    0 ? (
+                      <div
+                        className={`rounded-2xl p-4 text-sm ${themeStyles.card} ${themeStyles.secondary}`}
+                      >
+                        No matches found.
+                      </div>
+                    ) : (
+                      <div className="max-h-64 space-y-2 overflow-y-auto">
+                        {searchResults.map(
+                          (
+                            result
+                          ) => (
+                            <button
+                              key={
+                                result.index
+                              }
+                              onClick={() =>
+                                goToStep(
+                                  result.index
+                                )
+                              }
+                              className={`w-full rounded-2xl p-4 text-left transition hover:border-cyan-500 ${themeStyles.card}`}
+                            >
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-black">
+                                    {
+                                      result.title
+                                    }
+                                  </p>
+
+                                  <p
+                                    className={`mt-1 text-xs ${themeStyles.secondary}`}
+                                  >
+                                    {result.type ===
+                                    "chapter"
+                                      ? `Chapter ${
+                                          result.number
+                                        }`
+                                      : result.type ===
+                                        "intro"
+                                      ? "Introduction"
+                                      : "Book Cover"}
+                                  </p>
+                                </div>
+
+                                <LocateFixed
+                                  size={
+                                    16
+                                  }
+                                  className="shrink-0 text-cyan-500"
+                                />
+                              </div>
+                            </button>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ====================================================
+            SETTINGS
+        ==================================================== */}
+
+        <AnimatePresence>
+          {settingsOpen && (
+            <motion.div
+              initial={{
+                opacity: 0,
+                height: 0,
+                y: -10,
+              }}
+              animate={{
+                opacity: 1,
+                height: "auto",
+                y: 0,
+              }}
+              exit={{
+                opacity: 0,
+                height: 0,
+                y: -10,
+              }}
+              className="relative z-40 overflow-hidden"
+            >
+              <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
+                <div
+                  className={`${themeStyles.card} overflow-hidden rounded-[28px]`}
+                >
+                  {/* SETTINGS HEADER */}
+
+                  <div className="flex items-center justify-between border-b border-black/10 px-5 py-4 dark:border-white/10 sm:px-6">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-500">
+                        <SlidersHorizontal
+                          size={19}
+                        />
+                      </div>
+
+                      <div>
+                        <h2 className="font-black">
+                          Reader Settings
+                        </h2>
+
+                        <p
+                          className={`text-xs ${themeStyles.secondary}`}
+                        >
+                          Customize your reading experience
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        setSettingsOpen(
+                          false
+                        )
+                      }
+                      className={`rounded-xl p-2 ${themeStyles.button}`}
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* SETTINGS BODY */}
+
+                  <div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4 sm:p-6">
+                    {/* THEME */}
+
+                    <SettingCard
+                      icon={
+                        theme ===
+                        "light" ? (
+                          <Sun
+                            size={
+                              17
+                            }
+                          />
+                        ) : theme ===
+                          "sepia" ? (
+                          <Coffee
+                            size={
+                              17
+                            }
+                          />
+                        ) : theme ===
+                          "forest" ? (
+                          <Leaf
+                            size={
+                              17
+                            }
+                          />
+                        ) : (
+                          <Moon
+                            size={
+                              17
+                            }
+                          />
+                        )
+                      }
+                      title="Theme"
+                    >
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          {
+                            value:
+                              "dark",
+                            label:
+                              "Dark",
+                            icon: (
+                              <Moon
+                                size={
+                                  15
+                                }
+                              />
+                            ),
+                          },
+                          {
+                            value:
+                              "light",
+                            label:
+                              "Light",
+                            icon: (
+                              <Sun
+                                size={
+                                  15
+                                }
+                              />
+                            ),
+                          },
+                          {
+                            value:
+                              "sepia",
+                            label:
+                              "Sepia",
+                            icon: (
+                              <Coffee
+                                size={
+                                  15
+                                }
+                              />
+                            ),
+                          },
+                          {
+                            value:
+                              "forest",
+                            label:
+                              "Forest",
+                            icon: (
+                              <Leaf
+                                size={
+                                  15
+                                }
+                              />
+                            ),
+                          },
+                        ].map(
+                          (
+                            item
+                          ) => (
+                            <button
+                              key={
+                                item.value
+                              }
+                              onClick={() =>
+                                setTheme(
+                                  item.value
+                                )
+                              }
+                              className={`flex items-center gap-2 rounded-xl border p-2.5 text-xs font-bold transition ${
+                                theme ===
+                                item.value
+                                  ? "border-cyan-500 bg-cyan-500/10 text-cyan-500"
+                                  : themeStyles.button
+                              }`}
+                            >
+                              {
+                                item.icon
+                              }
+
+                              {
+                                item.label
+                              }
+
+                              {theme ===
+                                item.value && (
+                                <Check
+                                  size={
+                                    14
+                                  }
+                                  className="ml-auto"
+                                />
+                              )}
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </SettingCard>
+
+                    {/* FONT */}
+
+                    <SettingCard
+                      icon={
+                        <Type
+                          size={
+                            17
+                          }
+                        />
+                      }
+                      title={`Text Size • ${fontSize}px`}
+                    >
+                      <input
+                        type="range"
+                        min="14"
+                        max="32"
+                        step="1"
+                        value={
+                          fontSize
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setFontSize(
+                            Number(
+                              event
+                                .target
+                                .value
+                            )
+                          )
+                        }
+                        className="w-full accent-cyan-500"
+                      />
+
+                      <div className="mt-2 flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>
+                          Small
+                        </span>
+
+                        <span>
+                          Large
+                        </span>
+                      </div>
+                    </SettingCard>
+
+                    {/* LINE HEIGHT */}
+
+                    <SettingCard
+                      icon={
+                        <List
+                          size={
+                            17
+                          }
+                        />
+                      }
+                      title={`Line Spacing • ${lineHeight.toFixed(
+                        1
+                      )}`}
+                    >
+                      <input
+                        type="range"
+                        min="1.4"
+                        max="2.6"
+                        step="0.1"
+                        value={
+                          lineHeight
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setLineHeight(
+                            Number(
+                              event
+                                .target
+                                .value
+                            )
+                          )
+                        }
+                        className="w-full accent-cyan-500"
+                      />
+
+                      <div className="mt-2 flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>
+                          Compact
+                        </span>
+
+                        <span>
+                          Relaxed
+                        </span>
+                      </div>
+                    </SettingCard>
+
+                    {/* WIDTH */}
+
+                    <SettingCard
+                      icon={
+                        <PanelsTopLeft
+                          size={
+                            17
+                          }
+                        />
+                      }
+                      title="Reading Width"
+                    >
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          [
+                            "3xl",
+                            "Compact",
+                          ],
+                          [
+                            "4xl",
+                            "Comfort",
+                          ],
+                          [
+                            "5xl",
+                            "Wide",
+                          ],
+                          [
+                            "6xl",
+                            "Extra Wide",
+                          ],
+                        ].map(
+                          ([
+                            value,
+                            label,
+                          ]) => (
+                            <button
+                              key={
+                                value
+                              }
+                              onClick={() =>
+                                setReadingWidth(
+                                  value
+                                )
+                              }
+                              className={`rounded-xl border px-2 py-2 text-[10px] font-black transition ${
+                                readingWidth ===
+                                value
+                                  ? "border-cyan-500 bg-cyan-500/10 text-cyan-500"
+                                  : themeStyles.button
+                              }`}
+                            >
+                              {
+                                label
+                              }
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </SettingCard>
+
+                    {/* VOICE */}
+
+                    <div className="lg:col-span-2">
+                      <SettingCard
+                        icon={
+                          <Volume2
+                            size={
+                              17
+                            }
+                          />
+                        }
+                        title="Voice"
+                      >
+                        {voices.length >
+                        0 ? (
+                          <select
+                            value={
+                              selectedVoice
+                            }
+                            onChange={(
+                              event
+                            ) =>
+                              setSelectedVoice(
+                                event
+                                  .target
+                                  .value
+                              )
+                            }
+                            className={`w-full rounded-xl border p-3 text-xs outline-none ${themeStyles.input}`}
+                          >
+                            {voices.map(
+                              (
+                                voice
+                              ) => (
+                                <option
+                                  key={`${voice.name}-${voice.lang}`}
+                                  value={
+                                    voice.name
+                                  }
+                                >
+                                  {
+                                    voice.name
+                                  }{" "}
+                                  •{" "}
+                                  {
+                                    voice.lang
+                                  }
+                                </option>
+                              )
+                            )}
+                          </select>
+                        ) : (
+                          <div
+                            className={`rounded-xl p-3 text-xs ${themeStyles.progress} ${themeStyles.secondary}`}
+                          >
+                            Browser voices are
+                            still loading or
+                            speech synthesis is
+                            unavailable.
+                          </div>
+                        )}
+                      </SettingCard>
+                    </div>
+
+                    {/* SPEED */}
+
+                    <SettingCard
+                      icon={
+                        <Play
+                          size={
+                            17
+                          }
+                        />
+                      }
+                      title={`Speech Speed • ${voiceRate.toFixed(
+                        1
+                      )}x`}
+                    >
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="2"
+                        step="0.1"
+                        value={
+                          voiceRate
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setVoiceRate(
+                            Number(
+                              event
+                                .target
+                                .value
+                            )
+                          )
+                        }
+                        className="w-full accent-cyan-500"
+                      />
+
+                      <div className="mt-2 flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>
+                          Slow
+                        </span>
+
+                        <span>
+                          Fast
+                        </span>
+                      </div>
+                    </SettingCard>
+
+                    {/* PITCH */}
+
+                    <SettingCard
+                      icon={
+                        <Volume2
+                          size={
+                            17
+                          }
+                        />
+                      }
+                      title={`Voice Pitch • ${voicePitch.toFixed(
+                        1
+                      )}`}
+                    >
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="2"
+                        step="0.1"
+                        value={
+                          voicePitch
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setVoicePitch(
+                            Number(
+                              event
+                                .target
+                                .value
+                            )
+                          )
+                        }
+                        className="w-full accent-cyan-500"
+                      />
+
+                      <div className="mt-2 flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>
+                          Low
+                        </span>
+
+                        <span>
+                          High
+                        </span>
+                      </div>
+                    </SettingCard>
+                  </div>
+
+                  {/* SHORTCUTS */}
+
+                  <div className="border-t border-black/10 px-5 py-4 dark:border-white/10 sm:px-6">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] font-bold text-slate-500">
+                      <span>
+                        ← → Navigate
+                      </span>
+
+                      <span>
+                        Space Read aloud
+                      </span>
+
+                      <span>
+                        B Bookmark
+                      </span>
+
+                      <span>
+                        F Fullscreen
+                      </span>
+
+                      <span>
+                        S Settings
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ====================================================
+            PROGRESS BAR
+        ==================================================== */}
+
+        <div
+          className={`relative z-30 h-1 shrink-0 ${themeStyles.progress}`}
+        >
+          <motion.div
+            className="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500"
+            animate={{
+              width: `${progress}%`,
+            }}
+            transition={{
+              duration: 0.5,
+            }}
+          />
+        </div>
+
+        {/* ====================================================
+            READING AREA
+        ==================================================== */}
+
+        <main
+          ref={contentRef}
+          className="flex-1 overflow-y-auto scroll-smooth px-3 py-6 sm:px-6 sm:py-10"
+        >
+          <div
+            className={`mx-auto w-full transition-all duration-300 ${getReadingWidthClass(
+              readingWidth
+            )}`}
+          >
+            {/* =================================================
+                COVER
+            ================================================= */}
+
+            {coverPage ? (
+              <motion.div
+                initial={{
+                  opacity: 0,
+                  y: 25,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                transition={{
+                  duration: 0.45,
+                }}
+                className={`${themeStyles.card} overflow-hidden rounded-[32px]`}
+              >
+                {/* COVER IMAGE */}
+
+                {novel.cover_url ? (
+                  <div className="relative">
+                    <img
+                      src={
+                        novel.cover_url
+                      }
+                      alt={
+                        novel.title
+                      }
+                      className="h-[360px] w-full object-cover sm:h-[520px]"
+                    />
+
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+
+                    <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
+                      <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-4 py-2 text-xs font-black text-cyan-300 backdrop-blur-xl">
+                        <Sparkles
+                          size={
+                            15
+                          }
+                        />
+
+                        PREMIUM READER
+                      </div>
+
+                      <h1 className="text-3xl font-black text-white sm:text-5xl">
+                        {
+                          novel.title
+                        }
+                      </h1>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-[360px] items-center justify-center bg-gradient-to-br from-cyan-600/20 to-violet-600/20 sm:h-[520px]">
+                    <BookOpen
+                      size={80}
+                      className="text-cyan-500"
+                    />
+                  </div>
+                )}
+
+                {/* COVER CONTENT */}
+
+                <div className="p-6 sm:p-10">
+                  <p
+                    className={`max-w-3xl text-base leading-8 sm:text-lg ${themeStyles.secondary}`}
+                  >
+                    {novel.description ||
+                      "Begin your reading journey."}
+                  </p>
+
+                  <div className="mt-8 flex flex-wrap gap-3">
+                    <button
+                      onClick={
+                        continueReading
+                      }
+                      className={`inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-4 font-black shadow-lg shadow-cyan-500/10 transition hover:-translate-y-0.5 ${themeStyles.accent}`}
+                    >
+                      <Play
+                        size={18}
+                        fill="currentColor"
+                      />
+
+                      {lastRead
+                        ? "Continue Reading"
+                        : "Start Reading"}
+                    </button>
+
+                    <button
+                      onClick={
+                        restartBook
+                      }
+                      className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-6 py-4 font-bold transition ${themeStyles.button}`}
+                    >
+                      <RotateCcw
+                        size={18}
+                      />
+
+                      Restart
+                    </button>
+                  </div>
+
+                  {lastRead && (
+                    <div
+                      className={`mt-7 flex flex-wrap items-center gap-3 text-xs font-semibold ${themeStyles.secondary}`}
+                    >
+                      <Clock3
+                        size={16}
+                        className="text-cyan-500"
+                      />
+
+                      Last opened{" "}
+                      {new Date(
+                        lastRead.updatedAt
+                      ).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              /* =================================================
+                 CONTENT
+              ================================================= */
+
+              <motion.article
+                key={stepIndex}
+                initial={{
+                  opacity: 0,
+                  y: 18,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                transition={{
+                  duration: 0.35,
+                }}
+                className={`${themeStyles.card} rounded-[32px] p-6 sm:p-10 lg:p-14`}
+              >
+                {/* CHAPTER LABEL */}
+
+                {current.type ===
+                  "chapter" && (
+                  <div className="mb-5 flex items-center justify-between">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-4 py-2 text-xs font-black text-cyan-500">
+                      <BookOpen
+                        size={14}
+                      />
+
+                      Chapter{" "}
+                      {
+                        current.number
+                      }
+                    </div>
+
+                    <button
+                      onClick={
+                        toggleBookmark
+                      }
+                      className={`rounded-xl p-2 ${themeStyles.button}`}
+                      title={
+                        currentBookmark
+                          ? "Remove bookmark"
+                          : "Bookmark"
+                      }
+                    >
+                      {currentBookmark ? (
+                        <BookmarkCheck
+                          size={
+                            18
+                          }
+                          className="text-cyan-500"
+                        />
+                      ) : (
+                        <Bookmark
+                          size={
+                            18
+                          }
+                        />
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* INTRO LABEL */}
+
+                {current.type ===
+                  "intro" && (
+                  <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-4 py-2 text-xs font-black text-cyan-500">
+                    <Sparkles
+                      size={14}
+                    />
+
+                    Introduction
+                  </div>
+                )}
+
+                {/* TITLE */}
+
+                <h1 className="mb-10 text-center text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
+                  {
+                    current.title
+                  }
+                </h1>
+
+                {/* CONTENT */}
+
+                <div
+                  style={{
+                    fontSize: `${fontSize}px`,
+                    lineHeight:
+                      lineHeight,
+                  }}
+                  className={`whitespace-pre-wrap break-words font-serif tracking-[0.01em] transition-all duration-300 ${themeStyles.secondary}`}
+                >
+                  {current.content ||
+                    "No content available for this section."}
+                </div>
+
+                {/* NAVIGATION */}
+
+                <div className="mt-16 grid grid-cols-2 gap-3 border-t border-black/10 pt-8 dark:border-white/10">
+                  <button
+                    disabled={
+                      stepIndex <= 1
+                    }
+                    onClick={
+                      previousPage
+                    }
+                    className={`group flex min-w-0 items-center gap-2 rounded-2xl border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-30 ${themeStyles.button}`}
+                  >
+                    <ChevronLeft
+                      size={19}
+                      className="shrink-0 transition group-hover:-translate-x-1"
+                    />
+
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Previous
+                      </p>
+
+                      <p className="truncate text-xs font-black sm:text-sm">
+                        {stepIndex >
+                        1
+                          ? flow[
+                              stepIndex -
+                                1
+                            ]
+                              ?.title
+                          : "Beginning"}
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={
+                      nextPage
+                    }
+                    className={`group flex min-w-0 items-center justify-end gap-2 rounded-2xl px-4 py-4 text-right transition ${themeStyles.accent}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+                        {stepIndex <
+                        flow.length -
+                          1
+                          ? "Next"
+                          : "Finished"}
+                      </p>
+
+                      <p className="truncate text-xs font-black sm:text-sm">
+                        {stepIndex <
+                        flow.length -
+                          1
+                          ? flow[
+                              stepIndex +
+                                1
+                            ]
+                              ?.title
+                          : "Back to Cover"}
+                      </p>
+                    </div>
+
+                    <ChevronRight
+                      size={19}
+                      className="shrink-0 transition group-hover:translate-x-1"
+                    />
+                  </button>
+                </div>
+
+                {/* POSITION */}
+
+                <div className="mt-5 text-center">
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-[0.2em] ${themeStyles.muted}`}
+                  >
+                    Section{" "}
+                    {stepIndex + 1}{" "}
+                    of {flow.length}
+                  </span>
+                </div>
+              </motion.article>
+            )}
+
+            {/* =================================================
+                REVIEWS
+            ================================================= */}
+
+            <div className="mt-10">
+              <button
+                onClick={() =>
+                  setShowReviews(
+                    (value) =>
+                      !value
+                  )
+                }
+                className={`${themeStyles.card} flex w-full items-center justify-between rounded-2xl p-5 text-left transition hover:border-cyan-500/40`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Star
+                      size={18}
+                      className="text-cyan-500"
+                    />
+
+                    <h2 className="font-black">
+                      Reader Reviews
+                    </h2>
+                  </div>
+
+                  <p
+                    className={`mt-1 text-xs ${themeStyles.secondary}`}
+                  >
+                    See what other readers think
+                  </p>
+                </div>
+
+                <motion.div
+                  animate={{
+                    rotate:
+                      showReviews
+                        ? 90
+                        : 0,
+                  }}
+                >
+                  <ChevronRight
+                    size={19}
+                  />
+                </motion.div>
+              </button>
+
+              <AnimatePresence>
+                {showReviews && (
+                  <motion.div
+                    initial={{
+                      height: 0,
+                      opacity: 0,
+                    }}
+                    animate={{
+                      height: "auto",
+                      opacity: 1,
+                    }}
+                    exit={{
+                      height: 0,
+                      opacity: 0,
+                    }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-5">
+                      <ReaderReviews
+                        novelId={id}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* =================================================
+                FOOT READER CONTROLS
+            ================================================= */}
+
+            <div className="flex flex-wrap items-center justify-center gap-3 py-10">
+              <button
+                onClick={
+                  scrollTop
+                }
+                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold ${themeStyles.button}`}
+              >
+                <ArrowLeft
+                  size={15}
+                  className="rotate-90"
+                />
+                Top
+              </button>
+
+              <button
+                onClick={
+                  toggleBookmark
+                }
+                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold ${themeStyles.button}`}
+              >
+                {currentBookmark ? (
+                  <BookmarkCheck
+                    size={15}
+                    className="text-cyan-500"
+                  />
+                ) : (
+                  <Bookmark
+                    size={15}
+                  />
+                )}
+
+                {currentBookmark
+                  ? "Bookmarked"
+                  : "Bookmark"}
+              </button>
+
+              <button
+                onClick={speak}
+                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold ${themeStyles.button}`}
+              >
+                {isSpeaking ? (
+                  <>
+                    <Pause
+                      size={15}
+                    />
+                    Stop Reading
+                  </>
+                ) : (
+                  <>
+                    <Volume2
+                      size={15}
+                    />
+                    Read Aloud
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
 
-/* ===========================
-   MAIN LAYOUT
-=========================== */
-
-return(
-<div className={`flex h-screen overflow-hidden transition-all duration-300 ${themeStyles.page}`}>
-
-{/* ===========================
-    CHATGPT STYLE SIDEBAR
-=========================== */}
-
-<motion.aside
-animate={{
-width:sidebarCollapsed?72:300
-}}
-transition={{
-duration:.25
-}}
-className={`${themeStyles.sidebar} hidden md:flex flex-col`}>
-
-<div className="flex items-center justify-between border-b border-white/10 p-4">
-
-{!sidebarCollapsed&&(
-<div className="flex items-center gap-3">
-
-<img
-src={Cog}
-alt=""
-className="h-9 w-9 rounded-xl"
-/>
-
-<div>
-
-<h2 className="font-black">
-Scholiqen Reader
-</h2>
-
-<p className={`text-xs ${themeStyles.secondary}`}>
-Premium Reader
-</p>
-
-</div>
-
-</div>
-)}
-
-<button
-onClick={()=>setSidebarCollapsed(!sidebarCollapsed)}
-className="rounded-xl p-2 transition hover:bg-cyan-500/10">
-
-<PanelsTopLeft size={20}/>
-
-</button>
-
-</div>
-
-<div className="flex-1 overflow-y-auto py-3">
-
-<button
-onClick={()=>{
-setCoverPage(true);
-setSidebarOpen(false);
-if(contentRef.current) contentRef.current.scrollTop = 0;
-}}
-className={`mx-3 mb-2 flex w-[calc(100%-24px)] items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-cyan-500/10`}>
-
-<BookOpen size={18}/>
-
-{!sidebarCollapsed&&(
-<span>
-Book Cover
-</span>
-)}
-
-</button>
-
-<button
-onClick={()=>{
-setStepIndex(1);
-setCoverPage(false);
-if(contentRef.current) contentRef.current.scrollTop = 0;
-}}
-className="mx-3 mb-2 flex w-[calc(100%-24px)] items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-cyan-500/10">
-
-<Star size={18}/>
-
-{!sidebarCollapsed&&(
-<span>
-Introduction
-</span>
-)}
-
-</button>
-
-<div className="mt-4 px-3">
-
-{!sidebarCollapsed&&(
-
-<p className={`mb-3 text-xs font-bold uppercase ${themeStyles.secondary}`}>
-Chapters
-</p>
-
-)}
-
-{chapters.map((chapter,index)=>(
-
-<button
-key={index}
-onClick={()=>{
-setStepIndex(index+2);
-setCoverPage(false);
-if(contentRef.current) contentRef.current.scrollTop = 0;
-}}
-className={`mb-2 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-cyan-500/10 ${stepIndex===index+2?"bg-cyan-500/20":""}`}>
-
-<List size={17}/>
-
-{!sidebarCollapsed&&(
-
-<div className="overflow-hidden">
-
-<p className="truncate font-semibold">
-
-{chapter.title||`Chapter ${index+1}`}
-
-</p>
-
-<p className={`truncate text-xs ${themeStyles.secondary}`}>
-
-Chapter {index+1}
-
-</p>
-
-</div>
-
-)}
-
-</button>
-
-))}
-
-</div>
-
-</div>
-
-<div className="border-t border-white/10 p-4">
-
-{!sidebarCollapsed&&(
-
-<>
-
-<div className="mb-2 flex items-center justify-between">
-
-<span className="text-sm font-semibold">
-
-Progress
-
-</span>
-
-<span className="text-sm">
-
-{Math.round(progress)}%
-
-</span>
-
-</div>
-
-<div className={`h-2 overflow-hidden rounded-full ${themeStyles.progress}`}>
-
-<div
-className="h-full rounded-full bg-cyan-500 transition-all"
-style={{
-width:`${progress}%`
-}}
-/>
-
-</div>
-
-</>
-
-)}
-
-</div>
-
-</motion.aside>
-
-{/* ===========================
-    MOBILE SIDEBAR
-=========================== */}
-
-<AnimatePresence>
-
-{sidebarOpen&&(
-
-<>
-
-<motion.div
-initial={{opacity:0}}
-animate={{opacity:1}}
-exit={{opacity:0}}
-onClick={()=>setSidebarOpen(false)}
-className="fixed inset-0 z-40 bg-black/40"
-/>
-
-<motion.aside
-initial={{x:-320}}
-animate={{x:0}}
-exit={{x:-320}}
-transition={{duration:.25}}
-className={`fixed left-0 top-0 z-50 flex h-full w-80 flex-col ${themeStyles.sidebar}`}>
-
-<div className="flex items-center justify-between border-b border-white/10 p-5">
-
-<div className="flex items-center gap-3">
-
-<img
-src={Cog}
-className="h-9 w-9"
-/>
-
-<h2 className="font-black">
-
-Scholiqen Reader
-
-</h2>
-
-</div>
-
-<button
-onClick={()=>setSidebarOpen(false)}>
-
-<X/>
-
-</button>
-
-</div>
-
-<div className="flex-1 overflow-y-auto p-4">
-
-<button
-onClick={()=>{
-setCoverPage(true);
-setSidebarOpen(false);
-if(contentRef.current) contentRef.current.scrollTop = 0;
-}}
-className="mb-3 w-full rounded-xl p-3 text-left hover:bg-cyan-500/10">
-
-📘 Cover
-
-</button>
-
-<button
-onClick={()=>{
-setStepIndex(1);
-setCoverPage(false);
-setSidebarOpen(false);
-if(contentRef.current) contentRef.current.scrollTop = 0;
-}}
-className="mb-3 w-full rounded-xl p-3 text-left hover:bg-cyan-500/10">
-
-📖 Introduction
-
-</button>
-
-{chapters.map((chapter,index)=>(
-
-<button
-key={index}
-onClick={()=>{
-setStepIndex(index+2);
-setCoverPage(false);
-setSidebarOpen(false);
-if(contentRef.current) contentRef.current.scrollTop = 0;
-}}
-className="mb-2 w-full rounded-xl p-3 text-left hover:bg-cyan-500/10">
-
-{chapter.title||`Chapter ${index+1}`}
-
-</button>
-
-))}
-
-</div>
-
-</motion.aside>
-
-</>
-
-)}
-
-</AnimatePresence>
-
-{/* ===========================
-    MAIN READER
-=========================== */}
-
-<div className="flex flex-1 flex-col overflow-hidden">
-
-{/* ===========================
-    TOP BAR
-=========================== */}
-
-<header className={`${themeStyles.nav} sticky top-0 z-30 flex items-center justify-between px-5 py-3`}>
-
-<div className="flex items-center gap-3">
-
-<button
-onClick={()=>setSidebarOpen(true)}
-className="rounded-xl p-2 transition hover:bg-cyan-500/10 md:hidden">
-
-<Menu size={20}/>
-
-</button>
-
-<div>
-
-<h2 className="text-lg font-black">
-
-{novel?.title}
-
-</h2>
-
-<p className={`text-xs ${themeStyles.secondary}`}>
-
-Premium Story Reader
-
-</p>
-
-</div>
-
-</div>
-
-<div className="flex items-center gap-2">
-
-<button
-onClick={speak}
-className="rounded-xl p-2 transition hover:bg-cyan-500/10">
-
-{isSpeaking?<VolumeX size={18}/>:<Volume2 size={18}/>}
-
-</button>
-
-<button
-onClick={()=>setFontSize(v=>Math.max(14,v-1))}
-className="rounded-xl p-2 transition hover:bg-cyan-500/10">
-
-A-
-
-</button>
-
-<button
-onClick={()=>setFontSize(v=>Math.min(30,v+1))}
-className="rounded-xl p-2 transition hover:bg-cyan-500/10">
-
-A+
-
-</button>
-
-<button
-onClick={()=>setSettingsOpen(!settingsOpen)}
-className="rounded-xl p-2 transition hover:bg-cyan-500/10">
-
-<Settings2 size={18}/>
-
-</button>
-
-</div>
-
-</header>
-
-{/* ===========================
-    SETTINGS PANEL
-=========================== */}
-
-<AnimatePresence>
-
-{settingsOpen&&(
-
-<motion.div
-initial={{opacity:0,y:-15}}
-animate={{opacity:1,y:0}}
-exit={{opacity:0,y:-15}}
-className={`${themeStyles.card} m-5 rounded-2xl p-6`}>
-
-<h3 className="mb-5 text-xl font-black">
-
-Reader Settings
-
-</h3>
-
-<div className="grid gap-5 md:grid-cols-2">
-
-<div>
-
-<label className="mb-2 block font-semibold">
-
-Theme
-
-</label>
-
-<select
-value={theme}
-onChange={(e)=>{
-setTheme(e.target.value);
-localStorage.setItem("reader-theme", e.target.value);
-}}
-className={`${themeStyles.input} w-full rounded-xl p-3`}>
-
-<option value="dark">Dark</option>
-
-<option value="light">Light</option>
-
-<option value="sepia">Sepia</option>
-
-<option value="forest">Forest</option>
-
-</select>
-
-</div>
-
-<div>
-
-<label className="mb-2 block font-semibold">
-
-Reading Width
-
-</label>
-
-<select
-value={readingWidth}
-onChange={(e)=>setReadingWidth(e.target.value)}
-className={`${themeStyles.input} w-full rounded-xl p-3`}>
-
-<option value="3xl">Compact</option>
-
-<option value="4xl">Comfort</option>
-
-<option value="5xl">Wide</option>
-
-<option value="6xl">Extra Wide</option>
-
-</select>
-
-</div>
-
-<div>
-
-<label className="mb-2 block font-semibold">
-
-Voice Speed
-
-</label>
-
-<input
-type="range"
-min="0.5"
-max="2"
-step="0.1"
-value={voiceRate}
-onChange={(e)=>setVoiceRate(Number(e.target.value))}
-className="w-full"
-/>
-
-</div>
-
-<div>
-
-<label className="mb-2 block font-semibold">
-
-Voice Pitch
-
-</label>
-
-<input
-type="range"
-min="0.5"
-max="2"
-step="0.1"
-value={voicePitch}
-onChange={(e)=>setVoicePitch(Number(e.target.value))}
-className="w-full"
-/>
-
-</div>
-
-<div className="md:col-span-2">
-
-<label className="mb-2 block font-semibold">
-
-Voice
-
-</label>
-
-<select
-value={selectedVoice}
-onChange={(e)=>setSelectedVoice(e.target.value)}
-className={`${themeStyles.input} w-full rounded-xl p-3`}>
-
-{voices.map((voice)=>(
-
-<option
-key={voice.name}
-value={voice.name}>
-
-{voice.name}
-
-</option>
-
-))}
-
-</select>
-
-</div>
-
-</div>
-
-</motion.div>
-
-)}
-
-</AnimatePresence>
-
-{/* ===========================
-    PROGRESS BAR
-=========================== */}
-
-<div className={`h-1 ${themeStyles.progress}`}>
-
-<div
-className="h-full bg-cyan-500 transition-all duration-500"
-style={{
-width:`${progress}%`
-}}
-/>
-
-</div>
-
-{/* ===========================
-    READING AREA
-=========================== */}
-
-<div
-ref={contentRef}
-className="flex-1 overflow-y-auto px-6 py-8">
-
-<div
-className={`mx-auto ${
-  readingWidth==="3xl"
-    ? "max-w-3xl"
-    : readingWidth==="4xl"
-    ? "max-w-4xl"
-    : readingWidth==="5xl"
-    ? "max-w-5xl"
-    : "max-w-6xl"
-}`}
->
-  {/* ===========================
-    COVER PAGE
-=========================== */}
-
-{coverPage ? (
-
-<motion.div
-initial={{opacity:0,y:30}}
-animate={{opacity:1,y:0}}
-className={`${themeStyles.card} overflow-hidden rounded-3xl`}>
-
-<img
-src={novel.cover_url}
-alt={novel.title}
-className="h-[520px] w-full object-cover"
-/>
-
-<div className="p-10">
-
-<div className="mb-5 inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-4 py-2 text-cyan-500">
-
-<Sparkles size={18}/>
-
-Premium Reader
-
-</div>
-
-<h1 className="text-5xl font-black">
-
-{novel.title}
-
-</h1>
-
-<p className={`mt-6 text-lg leading-9 ${themeStyles.secondary}`}>
-
-{novel.description}
-
-</p>
-
-<div className="mt-10 flex flex-wrap gap-4">
-
-<button
-onClick={continueReading}
-className="rounded-2xl bg-cyan-600 px-8 py-4 font-bold text-white transition hover:bg-cyan-500">
-
-<Play className="mr-2 inline"/>
-
-{lastRead?"Continue Reading":"Start Reading"}
-
-</button>
-
-<button
-onClick={restartBook}
-className="rounded-2xl border border-cyan-500/20 px-8 py-4 font-bold transition hover:bg-cyan-500/10">
-
-<RotateCcw className="mr-2 inline"/>
-
-Restart Book
-
-</button>
-
-</div>
-
-{lastRead&&(
-
-<div className="mt-8 flex items-center gap-2 text-sm text-cyan-400">
-
-<Clock3 size={17}/>
-
-Last opened
-
-{" "}
-
-{new Date(lastRead.updatedAt).toLocaleString()}
-
-</div>
-
-)}
-
-</div>
-
-</motion.div>
-
-):(
-
-<motion.div
-initial={{opacity:0}}
-animate={{opacity:1}}
-className={`${themeStyles.card} rounded-3xl p-10`}>
-
-{current.type==="chapter"&&(
-
-<p className={`mb-3 ${themeStyles.secondary}`}>
-
-Chapter {current.number}
-
-</p>
-
-)}
-
-<h1 className="mb-8 text-center text-4xl font-black">
-
-{current.title}
-
-</h1>
-
-<div
-style={{
-fontSize,
-lineHeight,
-whiteSpace:"pre-wrap"
-}}
-className="leading-loose">
-
-{current.content}
-
-</div>
-
-<div className="mt-16 flex items-center justify-between">
-
-<button
-onClick={()=>{
-if(stepIndex>0) {
-  setStepIndex(stepIndex-1);
-  if(contentRef.current) contentRef.current.scrollTop = 0;
+/* ============================================================
+   SIDEBAR BUTTON
+============================================================ */
+
+function SidebarButton({
+  collapsed,
+  icon,
+  label,
+  subtitle,
+  active,
+  themeStyles,
+  onClick,
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={
+        collapsed ? label : undefined
+      }
+      className={`mb-1.5 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
+        active
+          ? "bg-cyan-500/15 text-cyan-500"
+          : ""
+      } ${
+        collapsed
+          ? "justify-center"
+          : ""
+      } hover:bg-cyan-500/10`}
+    >
+      <span
+        className={
+          active
+            ? "text-cyan-500"
+            : themeStyles.icon
+        }
+      >
+        {icon}
+      </span>
+
+      {!collapsed && (
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold">
+            {label}
+          </p>
+
+          {subtitle && (
+            <p
+              className={`mt-0.5 truncate text-[10px] ${themeStyles.secondary}`}
+            >
+              {subtitle}
+            </p>
+          )}
+        </div>
+      )}
+    </button>
+  );
 }
-}}
-className="rounded-xl border border-cyan-500/20 px-6 py-3 transition hover:bg-cyan-500/10">
 
-<ChevronLeft className="mr-2 inline"/>
+/* ============================================================
+   MOBILE NAV BUTTON
+============================================================ */
 
-Previous
+function MobileNavButton({
+  icon,
+  label,
+  active,
+  onClick,
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`mb-2 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-bold transition ${
+        active
+          ? "bg-cyan-500/15 text-cyan-500"
+          : "hover:bg-cyan-500/10"
+      }`}
+    >
+      {icon}
 
-</button>
-
-<button
-onClick={()=>{
-if(stepIndex<flow.length-1){
-  setStepIndex(stepIndex+1);
-}else{
-  setCoverPage(true);
+      <span className="truncate">
+        {label}
+      </span>
+    </button>
+  );
 }
-if(contentRef.current) {
-  contentRef.current.scrollTop = 0;
-}
-}}
-className="rounded-xl bg-cyan-600 px-6 py-3 font-bold text-white">
 
-Next
+/* ============================================================
+   SETTING CARD
+============================================================ */
 
-<ChevronRight className="ml-2 inline"/>
+function SettingCard({
+  icon,
+  title,
+  children,
+}) {
+  return (
+    <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4 dark:border-white/10 dark:bg-white/[0.02]">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-500">
+          {icon}
+        </div>
 
-</button>
+        <p className="text-xs font-black">
+          {title}
+        </p>
+      </div>
 
-</div>
-
-</motion.div>
-
-)}
-
-{/* ===========================
-    READER REVIEWS
-=========================== */}
-
-<div className="mt-12">
-
-<button
-onClick={()=>setShowReviews(!showReviews)}
-className={`${themeStyles.card} flex w-full items-center justify-between rounded-2xl p-5 transition hover:border-cyan-500`}>
-
-<div>
-
-<h2 className="text-xl font-black">
-
-Reader Reviews
-
-</h2>
-
-<p className={`text-sm ${themeStyles.secondary}`}>
-
-Read what other readers think
-
-</p>
-
-</div>
-
-<motion.div
-animate={{
-rotate:showReviews?180:0
-}}>
-
-<ChevronRight/>
-
-</motion.div>
-
-</button>
-
-<AnimatePresence>
-
-{showReviews&&(
-
-<motion.div
-initial={{
-height:0,
-opacity:0
-}}
-animate={{
-height:"auto",
-opacity:1
-}}
-exit={{
-height:0,
-opacity:0
-}}
-className="overflow-hidden">
-
-<div className="mt-5">
-
-<ReaderReviews novelId={id}/>
-
-</div>
-
-</motion.div>
-
-)}
-
-</AnimatePresence>
-
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-);
+      {children}
+    </div>
+  );
 }

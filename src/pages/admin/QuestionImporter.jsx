@@ -1039,14 +1039,6 @@ async function extractImageText(
       outputs.push(text);
     }
   }
-
-  /*
-   * Return all OCR results.
-   *
-   * We intentionally do NOT just use
-   * the first result.
-   */
-
   return outputs.join(
     "\n\n"
   );

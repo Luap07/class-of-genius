@@ -6,10 +6,14 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
+import {
+  AnimatePresence,
+  motion,
+} from "framer-motion";
 
-import { AnimatePresence, motion } from "framer-motion";
-
-/* =========================== CONDITIONS =========================== */
+/* ===========================
+   CONDITIONS
+=========================== */
 
 import Terms from "./pages/Terms";
 import Help from "./pages/Help";
@@ -20,40 +24,54 @@ import EditProfile from "./pages/EditProfile";
 import LearningStats from "./pages/LearningStats";
 import ResetPassword from "./pages/ResetPassword";
 
-/* =========================== CONTEXTS =========================== */
+/* ===========================
+   CONTEXTS
+=========================== */
 
 import { AuthContext } from "./context/AuthContext";
 import { CourseProvider } from "./context/LMSContext/CourseContext";
 import { SearchProvider } from "./context/SearchContext";
 import { DocumentProvider } from "./context/DocumentContext";
 
-/* =========================== LANGUAGE =========================== */
+/* ===========================
+   LANGUAGE
+=========================== */
 
 import GrammarReader from "./pages/languages/GrammarReader";
 import LanguagesHome from "./pages/languages/LanguagesHome";
 import LanguageDetails from "./pages/languages/LanguageDetails";
 
-/* =========================== SCHOOLS =========================== */
+/* ===========================
+   SCHOOLS
+=========================== */
 
 import Polytechnics from "./pages/Polytechnics/Polytechnics";
 import PolytechnicDetails from "./pages/Polytechnics/PolytechnicDetails";
+
 import Colleges from "./pages/colleges/Colleges";
 import CollegeDetails from "./pages/colleges/CollegeDetails";
+
 import Universities from "./pages/universities/Universities";
 import UniversityDetails from "./pages/universities/UniversityDetails";
 
-/* =========================== ADMIN =========================== */
+/* ===========================
+   ADMIN
+=========================== */
 
 import AdminRoutes from "./admin/AdminRoutes";
 import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 
-/* =========================== COMPONENTS =========================== */
+/* ===========================
+   COMPONENTS
+=========================== */
 
 import Navbar from "./components/Navbar";
 import Login from "./components/Login";
 import Contact from "./components/Contact";
 
-/* =========================== GENERAL PAGES =========================== */
+/* ===========================
+   GENERAL PAGES
+=========================== */
 
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
@@ -66,41 +84,61 @@ import Connections from "./pages/Connections";
 import Services from "./pages/Services";
 import ContactInbox from "./pages/ContactInbox";
 
-/* =========================== NOVELS =========================== */
+/* ===========================
+   NOVELS
+=========================== */
 
 import Novels from "./pages/Novels";
 import StoryReader from "./pages/StoryReader";
 import UploadNovel from "./pages/UploadNovel";
 import GenrePayment from "./pages/Payment";
 
-/* =========================== LMS =========================== */
+/* ===========================
+   LMS
+=========================== */
 
 import LMSPortal from "./pages/lms/LMSPortal";
 import Courses from "./pages/lms/Courses";
 import CourseDetails from "./pages/lms/CourseDetails";
 import Lesson from "./pages/lms/Lesson";
 import VerifyCertificate from "./pages/lms/VerifyCertificate";
-import PDFReader from "./pages/courses/PDFReader";
+
 import ExploreCategories from "./pages/courses/ExploreCategories";
 import ExploreCourses from "./pages/courses/ExploreCourses";
 import CategorySubjects from "./pages/courses/CategorySubjects";
 import SubjectCourses from "./pages/courses/SubjectCourses";
 
+/* ===========================
+   PDF READER
+=========================== */
+
+import PDFReader from "./pages/courses/PDFReader";
+
+/* ===========================
+   INSTRUCTOR
+=========================== */
+
 import BecomeInstructorForm from "./pages/instructor/BecomeInstructorForm";
 
-/* =========================== AI =========================== */
+/* ===========================
+   AI
+=========================== */
 
 import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
 
-/* =========================== CBT =========================== */
+/* ===========================
+   CBT
+=========================== */
 
 import CBT from "./pages/cbt/CBT";
 import SubjectSelect from "./pages/cbt/SubjectSelect";
 import CBTExam from "./pages/cbt/CBTExam";
 import CBTInstruction from "./pages/cbt/CBTInstruction";
 
-/* =========================== VIRTUAL LAB =========================== */
+/* ===========================
+   VIRTUAL LAB
+=========================== */
 
 import VirtualLabLanding from "./pages/VirtualLab";
 import PhysicsLab from "./pages/PhysicsLab";
@@ -110,13 +148,17 @@ import MathematicsLab from "./pages/MathematicsLab";
 import WorkEnergySimulation from "./pages/WorkEnergySimulation";
 import About from "./pages/VirtualLab/About";
 
-/* =========================== SUPPORT =========================== */
+/* ===========================
+   SUPPORT
+=========================== */
 
 import SupportHome from "./pages/support/SupportHome";
 import FAQ from "./pages/support/FAQ";
 import ChatSupport from "./pages/support/ChatSupport";
 
-/* =========================== LAYOUT =========================== */
+/* ===========================
+   LAYOUT
+=========================== */
 
 import DashboardLayout from "./layout/DashboardLayout";
 
@@ -125,47 +167,67 @@ import DashboardLayout from "./layout/DashboardLayout";
 ============================================================ */
 
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useContext(AuthContext);
+  const { user, loading } =
+    useContext(AuthContext);
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950 text-white">
-        Loading...
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="text-center">
+
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-700 border-t-cyan-400" />
+
+          <p className="mt-4 text-sm font-semibold text-slate-400">
+            Loading...
+          </p>
+
+        </div>
       </div>
     );
   }
 
-  return user ? children : <Navigate to="/login" replace />;
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
+  }
+
+  return children;
 };
 
 /* ============================================================
    PAGE WRAPPER
 ============================================================ */
 
-const PageWrapper = ({ children }) => (
-  <motion.div
-    className="w-full"
-    initial={{
-      opacity: 0,
-      y: 10,
-    }}
-    animate={{
-      opacity: 1,
-      y: 0,
-    }}
-    exit={{
-      opacity: 0,
-    }}
-    transition={{
-      duration: 0.25,
-    }}
-  >
-    {children}
-  </motion.div>
-);
+const PageWrapper = ({ children }) => {
+  return (
+    <motion.div
+      className="w-full"
+      initial={{
+        opacity: 0,
+        y: 10,
+      }}
+      animate={{
+        opacity: 1,
+        y: 0,
+      }}
+      exit={{
+        opacity: 0,
+      }}
+      transition={{
+        duration: 0.25,
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+};
 
 /* ============================================================
-   ROUTES
+   ANIMATED ROUTES
 ============================================================ */
 
 const AnimatedRoutes = () => {
@@ -173,6 +235,7 @@ const AnimatedRoutes = () => {
 
   return (
     <AnimatePresence mode="wait">
+
       <Routes
         location={location}
         key={location.pathname}
@@ -254,27 +317,37 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/reset-password"
-          element={<ResetPassword />}
+          element={
+            <ResetPassword />
+          }
         />
 
         <Route
           path="/terms"
-          element={<Terms />}
+          element={
+            <Terms />
+          }
         />
 
         <Route
           path="/privacy"
-          element={<Privacy />}
+          element={
+            <Privacy />
+          }
         />
 
         <Route
           path="/help"
-          element={<Help />}
+          element={
+            <Help />
+          }
         />
 
         <Route
           path="/settings"
-          element={<Settings />}
+          element={
+            <Settings />
+          }
         />
 
         <Route
@@ -301,7 +374,9 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/languages"
-          element={<LanguagesHome />}
+          element={
+            <LanguagesHome />
+          }
         />
 
         <Route
@@ -330,17 +405,23 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/support"
-          element={<SupportHome />}
+          element={
+            <SupportHome />
+          }
         />
 
         <Route
           path="/support/chat"
-          element={<ChatSupport />}
+          element={
+            <ChatSupport />
+          }
         />
 
         <Route
           path="/support/faq"
-          element={<FAQ />}
+          element={
+            <FAQ />
+          }
         />
 
         {/* =====================================================
@@ -378,30 +459,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            GENRE PAYMENT
-        =====================================================
-
-          THIS IS THE ROUTE YOUR NOVELS PAGE USES.
-
-          When the user clicks a story:
-
-              openStory()
-                    ↓
-              check localStorage
-                    ↓
-              no access
-                    ↓
-              /genre-payment/:genre
-
-          Examples:
-
-              /genre-payment/ROMANCE
-              /genre-payment/SCI_FIC
-              /genre-payment/FANTASY
-
-        ===================================================== */}
-
         <Route
           path="/genre-payment/:genre"
           element={
@@ -411,10 +468,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            STORY READER
-        ===================================================== */}
-
         <Route
           path="/story/:id"
           element={
@@ -423,10 +476,6 @@ const AnimatedRoutes = () => {
             </PageWrapper>
           }
         />
-
-        {/* =====================================================
-            UPLOAD NOVEL
-        ===================================================== */}
 
         <Route
           path="/upload-novel"
@@ -443,16 +492,20 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/become-instructor"
-          element={<BecomeInstructorForm />}
+          element={
+            <BecomeInstructorForm />
+          }
         />
 
         {/* =====================================================
-            VERIFY CERTIFICATE
+            CERTIFICATE
         ===================================================== */}
 
         <Route
           path="/verify/:certificate_number"
-          element={<VerifyCertificate />}
+          element={
+            <VerifyCertificate />
+          }
         />
 
         {/* =====================================================
@@ -497,37 +550,51 @@ const AnimatedRoutes = () => {
 
           <Route
             path="/dashboard"
-            element={<Dashboard />}
+            element={
+              <Dashboard />
+            }
           />
 
           <Route
             path="/libraries"
-            element={<Libraries />}
+            element={
+              <Libraries />
+            }
           />
 
           <Route
             path="/downloads"
-            element={<Downloads />}
+            element={
+              <Downloads />
+            }
           />
 
           <Route
             path="/history"
-            element={<History />}
+            element={
+              <History />
+            }
           />
 
           <Route
             path="/connects"
-            element={<Connects />}
+            element={
+              <Connects />
+            }
           />
 
           <Route
             path="/requests"
-            element={<Requests />}
+            element={
+              <Requests />
+            }
           />
 
           <Route
             path="/connections"
-            element={<Connections />}
+            element={
+              <Connections />
+            }
           />
 
         </Route>
@@ -603,7 +670,7 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            PDF
+            PDF READER
         ===================================================== */}
 
         <Route
@@ -794,12 +861,16 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/universities"
-          element={<Universities />}
+          element={
+            <Universities />
+          }
         />
 
         <Route
           path="/universities/:id"
-          element={<UniversityDetails />}
+          element={
+            <UniversityDetails />
+          }
         />
 
         {/* =====================================================
@@ -808,12 +879,16 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/colleges"
-          element={<Colleges />}
+          element={
+            <Colleges />
+          }
         />
 
         <Route
           path="/colleges/:id"
-          element={<CollegeDetails />}
+          element={
+            <CollegeDetails />
+          }
         />
 
         {/* =====================================================
@@ -822,12 +897,16 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/polytechnics"
-          element={<Polytechnics />}
+          element={
+            <Polytechnics />
+          }
         />
 
         <Route
           path="/polytechnics/:id"
-          element={<PolytechnicDetails />}
+          element={
+            <PolytechnicDetails />
+          }
         />
 
         {/* =====================================================
@@ -845,22 +924,25 @@ const AnimatedRoutes = () => {
         />
 
       </Routes>
+
     </AnimatePresence>
   );
 };
 
-/* ==========================================================
+/* ============================================================
    APP
-========================================================== */
+============================================================ */
 
 function App() {
   return (
     <SearchProvider>
       <CourseProvider>
         <DocumentProvider>
+
           <Router>
             <AnimatedRoutes />
           </Router>
+
         </DocumentProvider>
       </CourseProvider>
     </SearchProvider>

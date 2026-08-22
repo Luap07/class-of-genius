@@ -1,3 +1,5 @@
+// src/pages/cbt/CBTExam.jsx
+
 import React, {
   useCallback,
   useEffect,
@@ -25,7 +27,6 @@ import {
   Flag,
   Grid3X3,
   Menu,
-  RefreshCw,
   RotateCcw,
   Trophy,
   X,
@@ -33,10 +34,11 @@ import {
 
 import { supabase } from "../../lib/supabaseClient";
 
-
-/* ==========================================================================
-   CONFIG
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| CONFIGURATION
+|--------------------------------------------------------------------------
+*/
 
 const QUESTIONS_PER_SUBJECT = 40;
 
@@ -45,132 +47,105 @@ const EXAM_DURATION_MINUTES = 120;
 const FORCE_FRESH_EXAM = false;
 
 
-/* ==========================================================================
-   NORMALIZATION
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| NORMALIZATION
+|--------------------------------------------------------------------------
+*/
 
 const normalize = (value) => {
   return String(value ?? "")
-    .replace(/\u00a0/g, " ")
+    .replace(/\u00A0/g, " ")
     .trim()
     .replace(/\s+/g, " ")
     .toLowerCase();
 };
 
 
-/* ==========================================================================
-   SUBJECT MATCHING
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| EXAM MATCHING
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+| No exam bodies are hardcoded here.
+|
+| The selected exam is compared directly with the
+| exam value stored in Supabase after normalization.
+|
+|--------------------------------------------------------------------------
+*/
 
-const canonicalSubject = (subject) => {
-  const value = normalize(subject);
+const examsMatch = (first, second) => {
+  const a = normalize(first);
+  const b = normalize(second);
 
-  const aliases = {
-    "use of english": "use of english",
-    english: "use of english",
-    "english language": "use of english",
-
-    mathematics: "mathematics",
-    maths: "mathematics",
-
-    physics: "physics",
-
-    chemistry: "chemistry",
-
-    biology: "biology",
-
-    agriculture: "agricultural science",
-    "agricultural science": "agricultural science",
-
-    "economics": "economics",
-
-    commerce: "commerce",
-
-    accounting: "accounting",
-
-    "government": "government",
-
-    "literature": "literature in english",
-    "literature in english": "literature in english",
-
-    geography: "geography",
-
-    "civic education": "civic education",
-
-    "christian religious studies":
-      "christian religious studies",
-
-    crs: "christian religious studies",
-
-    "islamic religious studies":
-      "islamic religious studies",
-
-    irs: "islamic religious studies",
-  };
-
-  return aliases[value] || value;
-};
-
-
-const subjectsMatch = (
-  subjectA,
-  subjectB
-) => {
-  return (
-    canonicalSubject(subjectA) ===
-    canonicalSubject(subjectB)
-  );
-};
-
-
-const getSubjectDisplayName = (
-  subject
-) => {
-  const value = String(
-    subject ?? ""
-  ).trim();
-
-  if (!value) {
-    return "Subject";
+  if (!a || !b) {
+    return false;
   }
 
-  if (
-    canonicalSubject(value) ===
-    "use of english"
-  ) {
-    return "Use of English";
-  }
-
-  return value;
+  return a === b;
 };
 
 
-/* ==========================================================================
-   SHUFFLE
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| SUBJECT MATCHING
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+| No subjects are hardcoded here.
+|
+| The selected subject is compared directly with
+| the subject stored in Supabase.
+|
+|--------------------------------------------------------------------------
+*/
 
-const shuffleQuestions = (
-  questions
-) => {
-  const array = Array.isArray(
-    questions
-  )
+const subjectsMatch = (first, second) => {
+  const a = normalize(first);
+  const b = normalize(second);
+
+  if (!a || !b) {
+    return false;
+  }
+
+  return a === b;
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| SUBJECT DISPLAY NAME
+|--------------------------------------------------------------------------
+|
+| The database value is displayed directly.
+|
+|--------------------------------------------------------------------------
+*/
+
+const getSubjectDisplayName = (subject) => {
+  return String(subject ?? "").trim();
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| SHUFFLE
+|--------------------------------------------------------------------------
+*/
+
+const shuffleQuestions = (questions) => {
+  const array = Array.isArray(questions)
     ? [...questions]
     : [];
 
-  for (
-    let i = array.length - 1;
-    i > 0;
-    i--
-  ) {
+  for (let i = array.length - 1; i > 0; i -= 1) {
     const j = Math.floor(
       Math.random() * (i + 1)
     );
 
-    [
-      array[i],
-      array[j],
-    ] = [
+    [array[i], array[j]] = [
       array[j],
       array[i],
     ];
@@ -180,215 +155,194 @@ const shuffleQuestions = (
 };
 
 
-/* ==========================================================================
-   JSON PARSER
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| QUESTION TEXT
+|--------------------------------------------------------------------------
+*/
 
-const safeJsonParse = (
-  value
-) => {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return null;
+const getQuestionText = (question) => {
+  if (!question) {
+    return "";
   }
 
-  if (
-    typeof value === "object"
-  ) {
-    return value;
-  }
-
-  if (
-    typeof value !== "string"
-  ) {
-    return null;
-  }
-
-  const trimmed =
-    value.trim();
-
-  if (!trimmed) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(
-      trimmed
-    );
-  } catch {
-    return null;
-  }
+  return String(
+    question.question ??
+      question.question_text ??
+      question.questionText ??
+      ""
+  ).trim();
 };
 
-
-/* ==========================================================================
-   QUESTION OPTIONS
-============================================================================ */
 
 /*
- * Your Supabase database uses:
- *
- * options = [
- *   "option one",
- *   "option two",
- *   "option three",
- *   "option four"
- * ]
- *
- * This helper handles:
- *
- * 1. PostgreSQL JSON/JSONB already returned as an array
- * 2. JSON stored as a string
- * 3. { A: "...", B: "...", C: "...", D: "..." }
- * 4. { optionA: "...", ... }
- * 5. Old optionA/B/C/D columns as fallback
- */
+|--------------------------------------------------------------------------
+| QUESTION OPTIONS
+|--------------------------------------------------------------------------
+|
+| PRIMARY DATABASE FORMAT:
+|
+| options = {
+|   A: "Noise",
+|   B: "Resonance",
+|   C: "Harmonic chord",
+|   D: "Musical note"
+| }
+|
+| This function supports:
+|
+| 1. JSONB object
+| 2. JSON string containing an object
+| 3. Legacy optionA/optionB/optionC/optionD
+| 4. Legacy options array
+|
+|--------------------------------------------------------------------------
+*/
 
-const getQuestionOptions = (
-  question
-) => {
+const getQuestionOptionsMap = (question) => {
   if (!question) {
-    return [];
+    return {};
   }
 
-  /* ------------------------------------------------------------
-     PRIMARY SOURCE: options
-  ------------------------------------------------------------ */
+  let options = question.options;
 
-  const rawOptions =
-    question.options;
-
+  /*
+   * JSONB object from Supabase
+   */
   if (
-    Array.isArray(
-      rawOptions
-    )
+    options &&
+    typeof options === "object" &&
+    !Array.isArray(options)
   ) {
-    return rawOptions
-      .map((option) =>
-        String(
-          option ?? ""
-        ).trim()
-      )
-      .filter(Boolean);
+    return {
+      A: String(options.A ?? "").trim(),
+      B: String(options.B ?? "").trim(),
+      C: String(options.C ?? "").trim(),
+      D: String(options.D ?? "").trim(),
+    };
   }
 
-  if (
-    typeof rawOptions ===
-    "string"
-  ) {
-    const parsed =
-      safeJsonParse(
-        rawOptions
+  /*
+   * JSON stored as text
+   */
+  if (typeof options === "string") {
+    try {
+      const parsed = JSON.parse(options);
+
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+      ) {
+        return {
+          A: String(parsed.A ?? "").trim(),
+          B: String(parsed.B ?? "").trim(),
+          C: String(parsed.C ?? "").trim(),
+          D: String(parsed.D ?? "").trim(),
+        };
+      }
+
+      /*
+       * Support JSON arrays if any old record has one.
+       */
+      if (Array.isArray(parsed)) {
+        return {
+          A: String(parsed[0] ?? "").trim(),
+          B: String(parsed[1] ?? "").trim(),
+          C: String(parsed[2] ?? "").trim(),
+          D: String(parsed[3] ?? "").trim(),
+        };
+      }
+    } catch (error) {
+      console.error(
+        "Unable to parse question.options:",
+        error
       );
-
-    if (
-      Array.isArray(parsed)
-    ) {
-      return parsed
-        .map((option) =>
-          String(
-            option ?? ""
-          ).trim()
-        )
-        .filter(Boolean);
-    }
-
-    if (
-      parsed &&
-      typeof parsed ===
-        "object"
-    ) {
-      const values = [
-        parsed.A,
-        parsed.B,
-        parsed.C,
-        parsed.D,
-        parsed.a,
-        parsed.b,
-        parsed.c,
-        parsed.d,
-        parsed.optionA,
-        parsed.optionB,
-        parsed.optionC,
-        parsed.optionD,
-      ];
-
-      return values
-        .map((option) =>
-          String(
-            option ?? ""
-          ).trim()
-        )
-        .filter(Boolean);
     }
   }
+
+  /*
+   * Legacy database columns.
+   */
+  const legacyOptions = {
+    A: String(question.optionA ?? "").trim(),
+    B: String(question.optionB ?? "").trim(),
+    C: String(question.optionC ?? "").trim(),
+    D: String(question.optionD ?? "").trim(),
+  };
 
   if (
-    rawOptions &&
-    typeof rawOptions ===
-      "object"
+    Object.values(legacyOptions).some(Boolean)
   ) {
-    const values = [
-      rawOptions.A,
-      rawOptions.B,
-      rawOptions.C,
-      rawOptions.D,
-      rawOptions.a,
-      rawOptions.b,
-      rawOptions.c,
-      rawOptions.d,
-      rawOptions.optionA,
-      rawOptions.optionB,
-      rawOptions.optionC,
-      rawOptions.optionD,
-    ];
-
-    const result =
-      values
-        .map((option) =>
-          String(
-            option ?? ""
-          ).trim()
-        )
-        .filter(Boolean);
-
-    if (
-      result.length > 0
-    ) {
-      return result;
-    }
+    return legacyOptions;
   }
 
-  /* ------------------------------------------------------------
-     FALLBACK: OLD DATABASE COLUMNS
-  ------------------------------------------------------------ */
+  /*
+   * Legacy options array.
+   */
+  if (Array.isArray(question.options)) {
+    return {
+      A: String(
+        typeof question.options[0] === "object"
+          ? question.options[0]?.text ??
+              question.options[0]?.value ??
+              ""
+          : question.options[0] ?? ""
+      ).trim(),
 
-  const fallback = [
-    question.optionA,
-    question.optionB,
-    question.optionC,
-    question.optionD,
-  ]
-    .map((option) =>
-      String(
-        option ?? ""
-      ).trim()
-    )
-    .filter(Boolean);
+      B: String(
+        typeof question.options[1] === "object"
+          ? question.options[1]?.text ??
+              question.options[1]?.value ??
+              ""
+          : question.options[1] ?? ""
+      ).trim(),
 
-  return fallback;
+      C: String(
+        typeof question.options[2] === "object"
+          ? question.options[2]?.text ??
+              question.options[2]?.value ??
+              ""
+          : question.options[2] ?? ""
+      ).trim(),
+
+      D: String(
+        typeof question.options[3] === "object"
+          ? question.options[3]?.text ??
+              question.options[3]?.value ??
+              ""
+          : question.options[3] ?? ""
+      ).trim(),
+    };
+  }
+
+  return {};
 };
 
 
-/* ==========================================================================
-   CORRECT ANSWER
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| QUESTION OPTIONS ARRAY
+|--------------------------------------------------------------------------
+*/
 
-const getCorrectAnswerValue = (
-  question
-) => {
+const getQuestionOptions = (question) => {
+  const optionMap =
+    getQuestionOptionsMap(question);
+
+  return ["A", "B", "C", "D"]
+    .map((letter) => optionMap[letter])
+    .filter(Boolean);
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| CORRECT ANSWER
+|--------------------------------------------------------------------------
+*/
+
+const getCorrectAnswerValue = (question) => {
   if (!question) {
     return "";
   }
@@ -397,225 +351,164 @@ const getCorrectAnswerValue = (
     question.answer ??
       question.correct_answer ??
       question.correctAnswer ??
+      question.correct_option ??
+      question.correctOption ??
       ""
   ).trim();
 };
 
 
-/* ==========================================================================
-   QUESTION CONTENT
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| ANSWER LETTER
+|--------------------------------------------------------------------------
+*/
 
-const parseQuestionContent = (
-  value
-) => {
-  const text = String(
-    value ?? ""
-  ).trim();
-
-  if (!text) {
-    return {
-      isComprehension: false,
-      passage: "",
-      question: "",
-    };
-  }
-
-  /*
-   * Supports JSON question content if your database
-   * contains something like:
-   *
-   * {
-   *   "passage": "...",
-   *   "question": "..."
-   * }
-   */
-
-  const parsed =
-    safeJsonParse(text);
-
-  if (
-    parsed &&
-    typeof parsed ===
-      "object"
-  ) {
-    const passage =
-      parsed.passage ??
-      parsed.comprehension ??
-      parsed.passage_text ??
-      "";
-
-    const question =
-      parsed.question ??
-      parsed.question_text ??
-      parsed.text ??
-      "";
-
-    if (
-      passage ||
-      question
-    ) {
-      return {
-        isComprehension:
-          Boolean(passage),
-        passage: String(
-          passage ?? ""
-        ).trim(),
-        question: String(
-          question || text
-        ).trim(),
-      };
-    }
-  }
-
-  return {
-    isComprehension: false,
-    passage: "",
-    question: text,
-  };
+const normalizeAnswerLetter = (value) => {
+  return normalize(value)
+    .replace(/^option\s*/i, "")
+    .replace(
+      /^[\(\[]?([abcd])[\)\].:\-\s]*$/i,
+      "$1"
+    );
 };
 
 
-/* ==========================================================================
-   COMPREHENSION HELPERS
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| COMPREHENSION HELPERS
+|--------------------------------------------------------------------------
+*/
 
-const getComprehensionId = (
-  question
-) => {
+const getComprehensionId = (question) => {
   if (!question) {
     return "";
   }
 
   return String(
-    question.passage_id ??
-      question.comprehension_id ??
+    question.comprehension_id ??
       question.comprehensionId ??
+      question.passage_id ??
       question.passageId ??
-      question.group_id ??
-      question.comprehension_group ??
+      question.comprehension_group_id ??
       ""
   ).trim();
 };
 
 
-const getDatabasePassage = (
-  question
-) => {
+const getComprehensionName = (question) => {
   if (!question) {
     return "";
   }
 
-  const possiblePassage =
-    question.passage ??
-    question.comprehension_passage ??
-    question.comprehension ??
-    question.passage_text ??
-    question.passageText ??
-    "";
-
   return String(
-    possiblePassage ?? ""
+    question.comprehension_name ??
+      question.comprehensionName ??
+      question.passage_name ??
+      question.passageName ??
+      question.comprehension_title ??
+      question.comprehensionTitle ??
+      ""
   ).trim();
 };
 
 
-const isComprehensionQuestion = (
-  question
-) => {
+const getPassageValue = (question) => {
+  if (!question) {
+    return "";
+  }
+
+  return String(
+    question.passage ??
+      question.comprehension_passage ??
+      question.comprehensionPassage ??
+      question.passage_text ??
+      question.passageText ??
+      ""
+  ).trim();
+};
+
+
+const isComprehensionQuestion = (question) => {
   if (!question) {
     return false;
   }
 
-  const passage =
-    getDatabasePassage(
-      question
-    );
-
-  const comprehensionId =
-    getComprehensionId(
-      question
-    );
-
-  if (
-    passage ||
-    comprehensionId
-  ) {
-    return true;
-  }
-
-  const parsed =
-    parseQuestionContent(
-      question.question
-    );
-
   return Boolean(
-    parsed?.isComprehension
+    getPassageValue(question) ||
+      getComprehensionId(question) ||
+      getComprehensionName(question) ||
+      normalize(question.question_type) ===
+        "comprehension" ||
+      normalize(question.questionType) ===
+        "comprehension"
+  );
+};
+
+
+const comprehensionNamesMatch = (
+  first,
+  second
+) => {
+  return (
+    normalize(first) !== "" &&
+    normalize(first) === normalize(second)
   );
 };
 
 
 const getComprehensionPassage = (
   question,
-  questions = []
+  questions
 ) => {
   if (!question) {
     return "";
   }
 
   const directPassage =
-    getDatabasePassage(
-      question
-    );
+    getPassageValue(question);
 
   if (directPassage) {
     return directPassage;
   }
 
-  const parsed =
-    parseQuestionContent(
-      question.question
-    );
-
-  if (
-    parsed?.isComprehension &&
-    parsed?.passage
-  ) {
-    return String(
-      parsed.passage
-    ).trim();
-  }
-
   const comprehensionId =
-    getComprehensionId(
-      question
-    );
+    getComprehensionId(question);
 
   if (
     comprehensionId &&
-    Array.isArray(
-      questions
-    )
+    Array.isArray(questions)
   ) {
-    const groupedQuestion =
-      questions.find(
-        (item) =>
-          item &&
-          getComprehensionId(
-            item
-          ) ===
-            comprehensionId &&
-          getDatabasePassage(
-            item
-          )
-      );
+    const matching = questions.find(
+      (item) =>
+        getComprehensionId(item) ===
+          comprehensionId &&
+        getPassageValue(item)
+    );
 
-    if (
-      groupedQuestion
-    ) {
-      return getDatabasePassage(
-        groupedQuestion
-      );
+    if (matching) {
+      return getPassageValue(matching);
+    }
+  }
+
+  const comprehensionName =
+    getComprehensionName(question);
+
+  if (
+    comprehensionName &&
+    Array.isArray(questions)
+  ) {
+    const matching = questions.find(
+      (item) =>
+        comprehensionNamesMatch(
+          getComprehensionName(item),
+          comprehensionName
+        ) &&
+        getPassageValue(item)
+    );
+
+    if (matching) {
+      return getPassageValue(matching);
     }
   }
 
@@ -626,90 +519,187 @@ const getComprehensionPassage = (
 const getComprehensionQuestionText = (
   question
 ) => {
-  if (!question) {
-    return "";
-  }
-
-  const parsed =
-    parseQuestionContent(
-      question.question
-    );
-
-  if (
-    parsed?.isComprehension &&
-    parsed?.question
-  ) {
-    return parsed.question;
-  }
-
-  return String(
-    question.question ?? ""
-  ).trim();
+  return getQuestionText(question)
+    .replace(
+      /^\s*passage\s*:/i,
+      ""
+    )
+    .trim();
 };
 
 
-/* ==========================================================================
-   TEXT COMPONENT
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| COMPREHENSION GROUP SELECTION
+|--------------------------------------------------------------------------
+|
+| This is kept generic.
+| It does not depend on JAMB, WAEC, NECO or any
+| particular examination body.
+|
+|--------------------------------------------------------------------------
+*/
+
+const selectQuestionsKeepingComprehensionGroups = (
+  questions,
+  count
+) => {
+  if (
+    !Array.isArray(questions) ||
+    questions.length === 0 ||
+    count <= 0
+  ) {
+    return [];
+  }
+
+  const comprehensionGroups = new Map();
+
+  const standalone = [];
+
+  questions.forEach((question) => {
+    const id =
+      getComprehensionId(question);
+
+    const name =
+      getComprehensionName(question);
+
+    const key = id
+      ? `id:${id}`
+      : name
+      ? `name:${normalize(name)}`
+      : "";
+
+    if (key) {
+      if (
+        !comprehensionGroups.has(key)
+      ) {
+        comprehensionGroups.set(
+          key,
+          []
+        );
+      }
+
+      comprehensionGroups
+        .get(key)
+        .push(question);
+    } else {
+      standalone.push(question);
+    }
+  });
+
+  const groups = shuffleQuestions(
+    Array.from(
+      comprehensionGroups.values()
+    )
+  );
+
+  const result = [];
+
+  /*
+   * Add complete comprehension groups
+   * whenever they fit.
+   */
+  for (const group of groups) {
+    if (
+      result.length + group.length <=
+      count
+    ) {
+      result.push(
+        ...shuffleQuestions(group)
+      );
+    }
+  }
+
+  /*
+   * Fill with standalone questions.
+   */
+  const shuffledStandalone =
+    shuffleQuestions(standalone);
+
+  for (
+    const question of
+      shuffledStandalone
+  ) {
+    if (result.length >= count) {
+      break;
+    }
+
+    result.push(question);
+  }
+
+  /*
+   * If there are still spaces, use any
+   * unused questions.
+   */
+  if (result.length < count) {
+    const usedIds = new Set(
+      result.map((question) =>
+        String(question.id ?? "")
+      )
+    );
+
+    const remaining =
+      shuffleQuestions(
+        questions.filter(
+          (question) =>
+            !usedIds.has(
+              String(question.id ?? "")
+            )
+        )
+      );
+
+    for (
+      const question of remaining
+    ) {
+      if (result.length >= count) {
+        break;
+      }
+
+      result.push(question);
+    }
+  }
+
+  return shuffleQuestions(
+    result
+  ).slice(0, count);
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| MATH TEXT
+|--------------------------------------------------------------------------
+*/
 
 const MathText = ({
   children,
   className = "",
 }) => {
   return (
-    <span
-      className={className}
-    >
-      {String(
-        children ?? ""
-      )}
+    <span className={className}>
+      {children}
     </span>
   );
 };
 
 
-/* ==========================================================================
-   STORAGE
-============================================================================ */
-
-const createStorageKey = (
-  exam,
-  subjects
-) => {
-  const examKey =
-    normalize(exam);
-
-  const subjectKey =
-    Array.isArray(
-      subjects
-    )
-      ? subjects
-          .map(
-            canonicalSubject
-          )
-          .sort()
-          .join("|")
-      : "";
-
-  return `scholiqen-cbt-session-${examKey}-${subjectKey}`;
-};
-
-
-/* ==========================================================================
-   RESULT CARD
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| RESULT CARD
+|--------------------------------------------------------------------------
+*/
 
 const ResultCard = ({
   label,
   value,
 }) => {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
       <p className="text-xs uppercase tracking-wider text-slate-500">
         {label}
       </p>
 
-      <p className="text-2xl font-bold mt-2 text-blue-400">
+      <p className="text-2xl font-bold text-blue-400 mt-2">
         {value}
       </p>
     </div>
@@ -717,121 +707,68 @@ const ResultCard = ({
 };
 
 
-/* ==========================================================================
-   MAIN COMPONENT
-============================================================================ */
+/*
+|--------------------------------------------------------------------------
+| COMPONENT
+|--------------------------------------------------------------------------
+*/
 
 const CBTExam = () => {
-  const location =
-    useLocation();
+  const navigate = useNavigate();
 
-  const navigate =
-    useNavigate();
+  const location = useLocation();
 
-  const params =
-    useParams();
+  const params = useParams();
 
-
-  /* ========================================================================
-     LOCATION DATA
-  ======================================================================== */
-
-  const locationState =
-    location.state || {};
-
-  const exam =
-    locationState.exam ??
-    params.exam ??
-    "JAMB";
 
   /*
-   * IMPORTANT:
-   * Subjects are NOT hardcoded.
-   *
-   * The page can receive:
-   *
-   * state:
-   * {
-   *   exam: "JAMB",
-   *   subjects: ["Use of English"]
-   * }
-   *
-   * OR:
-   *
-   * state:
-   * {
-   *   exam: "JAMB",
-   *   selectedSubjects: ["Use of English"]
-   * }
+   |--------------------------------------------------------------------------
+   | SELECTED EXAM
+   |--------------------------------------------------------------------------
+   |
+   | Comes directly from the page that opened this examination.
+   |
+   */
+
+  const exam =
+    location.state?.exam ??
+    params.exam ??
+    "";
+
+
+  /*
+   |--------------------------------------------------------------------------
+   | SELECTED SUBJECTS
+   |--------------------------------------------------------------------------
+   |
+   | Comes directly from the examination selection page.
+   |
    */
 
   const suppliedSubjects =
-    useMemo(() => {
-      const source =
-        locationState.subjects ??
-        locationState.selectedSubjects ??
-        locationState.selectedSubject ??
-        [];
-
-      if (
-        Array.isArray(source)
-      ) {
-        return source
-          .map((subject) =>
-            String(
-              subject ?? ""
-            ).trim()
-          )
-          .filter(Boolean);
-      }
-
-      if (
-        typeof source ===
-        "string"
-      ) {
-        return source
-          .split(",")
-          .map((subject) =>
-            subject.trim()
-          )
-          .filter(Boolean);
-      }
-
-      return [];
-    }, [
-      locationState.subjects,
-      locationState.selectedSubjects,
-      locationState.selectedSubject,
-    ]);
+    Array.isArray(
+      location.state?.subjects
+    )
+      ? location.state.subjects
+      : [];
 
 
-  const initialStorageKey =
-    createStorageKey(
-      exam,
-      suppliedSubjects
+  /*
+   |--------------------------------------------------------------------------
+   | STATE
+   |--------------------------------------------------------------------------
+   */
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [loadingMessage, setLoadingMessage] =
+    useState(
+      "Loading your examination..."
     );
 
-
-  /* ========================================================================
-     STATE
-  ======================================================================== */
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    loadingMessage,
-    setLoadingMessage,
-  ] = useState(
-    "Preparing examination..."
-  );
-
-  const [
-    fetchError,
-    setFetchError,
-  ] = useState("");
+  const [fetchError, setFetchError] =
+    useState("");
 
   const [
     questionsBySubject,
@@ -843,605 +780,770 @@ const CBTExam = () => {
     setSelectedSubjects,
   ] = useState([]);
 
-  const [
-    activeSubject,
-    setActiveSubject,
-  ] = useState("");
+  const [activeSubject, setActiveSubject] =
+    useState("");
 
-  const [
-    currentIndex,
-    setCurrentIndex,
-  ] = useState(0);
+  const [currentIndex, setCurrentIndex] =
+    useState(0);
 
-  const [
-    answers,
-    setAnswers,
-  ] = useState({});
+  const [answers, setAnswers] =
+    useState({});
 
-  const [
-    marked,
-    setMarked,
-  ] = useState({});
+  const [marked, setMarked] =
+    useState({});
 
-  const [
-    submitted,
-    setSubmitted,
-  ] = useState(false);
+  const [submitted, setSubmitted] =
+    useState(false);
 
-  const [
-    endTime,
-    setEndTime,
-  ] = useState(null);
+  const [endTime, setEndTime] =
+    useState(null);
 
-  const [
-    timeLeft,
-    setTimeLeft,
-  ] = useState(
-    EXAM_DURATION_MINUTES *
-      60
-  );
+  const [timeLeft, setTimeLeft] =
+    useState(
+      EXAM_DURATION_MINUTES * 60
+    );
 
-  const [
-    showNavigator,
-    setShowNavigator,
-  ] = useState(false);
+  const [showNavigator, setShowNavigator] =
+    useState(false);
 
-  const [
-    showCalculator,
-    setShowCalculator,
-  ] = useState(false);
+  const [showCalculator, setShowCalculator] =
+    useState(false);
 
-  const [
-    calculatorValue,
-    setCalculatorValue,
-  ] = useState("");
-
-  const storageKey =
-    initialStorageKey;
+  const [calculatorValue, setCalculatorValue] =
+    useState("");
 
 
-  /* ========================================================================
-     LOAD EXAM
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | STORAGE KEY
+   |--------------------------------------------------------------------------
+   */
+
+  const storageKey = useMemo(() => {
+    if (!exam) {
+      return "";
+    }
+
+    const subjectPart =
+      suppliedSubjects
+        .map((subject) =>
+          normalize(subject)
+            .replace(/[^a-z0-9]+/g, "-")
+        )
+        .filter(Boolean)
+        .sort()
+        .join("-");
+
+    const examPart =
+      normalize(exam)
+        .replace(/[^a-z0-9]+/g, "-");
+
+    return `scholiqen-cbt-session-${examPart}-${subjectPart || "all"}`;
+  }, [
+    exam,
+    suppliedSubjects,
+  ]);
+
+
+  /*
+   |--------------------------------------------------------------------------
+   | LOAD QUESTIONS
+   |--------------------------------------------------------------------------
+   */
 
   useEffect(() => {
     let mounted = true;
 
-    const loadQuestions =
-      async () => {
-        try {
-          setLoading(true);
-          setFetchError(
-            ""
-          );
-          setLoadingMessage(
-            "Loading examination questions..."
-          );
+    const loadQuestions = async () => {
+      try {
+        setLoading(true);
+
+        setLoadingMessage(
+          "Loading examination questions..."
+        );
+
+        setFetchError("");
 
 
-          /* ================================================================
-             FETCH DATABASE QUESTIONS
-          ================================================================ */
+        /*
+         * ================================================================
+         * FETCH ALL CBT QUESTIONS
+         * ================================================================
+         */
+
+        const PAGE_SIZE = 1000;
+
+        let allDatabaseQuestions = [];
+
+        let from = 0;
+
+        while (true) {
+          const to =
+            from +
+            PAGE_SIZE -
+            1;
+
+          console.log(
+            `Fetching CBT questions ${from} - ${to}`
+          );
 
           const {
-            data,
-            error,
+            data: pageData,
+            error: pageError,
           } = await supabase
-            .from(
-              "cbt_questions"
-            )
+            .from("cbt_questions")
             .select("*")
-            .eq(
-              "exam",
-              exam
-            )
-            .limit(5000);
+            .range(from, to);
 
-          if (error) {
-            throw error;
+          if (pageError) {
+            throw pageError;
           }
 
-          if (!mounted) {
-            return;
-          }
-
-          const examQuestions =
-            Array.isArray(data)
-              ? data
+          const rows =
+            Array.isArray(pageData)
+              ? pageData
               : [];
 
-
-          console.log(
-            "TOTAL QUESTIONS FETCHED:",
-            examQuestions.length
+          allDatabaseQuestions.push(
+            ...rows
           );
 
-
-          /* ================================================================
-             DATABASE SUBJECTS
-          ================================================================ */
-
-          const databaseSubjects =
-            [
-              ...new Set(
-                examQuestions
-                  .map(
-                    (row) =>
-                      String(
-                        row.subject ??
-                          ""
-                      ).trim()
-                  )
-                  .filter(
-                    Boolean
-                  )
-              ),
-            ];
-
-
           console.log(
-            "DATABASE SUBJECTS:",
-            databaseSubjects
+            `Fetched ${rows.length} questions from ${from}-${to}`
           );
-
-
-          /* ================================================================
-             DETERMINE SUBJECTS
-          ================================================================ */
-
-          let subjectsToLoad;
-
-          /*
-           * If Admin/CBT page supplied subjects,
-           * use them directly.
-           *
-           * Otherwise detect every subject
-           * directly from the database.
-           */
 
           if (
-            suppliedSubjects.length >
-            0
+            rows.length < PAGE_SIZE
           ) {
-            subjectsToLoad = [
-              ...suppliedSubjects,
-            ];
-          } else {
-            subjectsToLoad = [
-              ...databaseSubjects,
-            ];
+            break;
           }
 
+          from += PAGE_SIZE;
+        }
 
-          /* ================================================================
-             REMOVE DUPLICATES
-          ================================================================ */
+        if (!mounted) {
+          return;
+        }
 
-          const uniqueSubjects =
-            [];
+        console.log(
+          "TOTAL DATABASE QUESTIONS:",
+          allDatabaseQuestions.length
+        );
 
-          subjectsToLoad.forEach(
-            (subject) => {
-              const cleanSubject =
-                String(
-                  subject ?? ""
-                ).trim();
 
-              if (!cleanSubject) {
-                return;
-              }
+        /*
+         * ================================================================
+         * NO DATABASE RECORDS
+         * ================================================================
+         */
 
-              const exists =
-                uniqueSubjects.some(
-                  (
-                    existing
-                  ) =>
-                    subjectsMatch(
-                      existing,
-                      cleanSubject
-                    )
-                );
-
-              if (!exists) {
-                uniqueSubjects.push(
-                  cleanSubject
-                );
-              }
-            }
+        if (
+          allDatabaseQuestions.length ===
+          0
+        ) {
+          setFetchError(
+            "The cbt_questions table returned no questions."
           );
 
+          setQuestionsBySubject({});
+          setSelectedSubjects([]);
+          setLoading(false);
 
-          console.log(
-            "FINAL SUBJECTS:",
-            uniqueSubjects
-          );
-
-
-          /* ================================================================
-             CHECK SAVED SESSION
-          ================================================================ */
-
-          let savedSession =
-            null;
-
-          if (
-            !FORCE_FRESH_EXAM &&
-            storageKey
-          ) {
-            try {
-              const saved =
-                localStorage.getItem(
-                  storageKey
-                );
-
-              if (saved) {
-                savedSession =
-                  JSON.parse(
-                    saved
-                  );
-              }
-            } catch (storageError) {
-              console.error(
-                "READ SAVED SESSION ERROR:",
-                storageError
-              );
-
-              savedSession =
-                null;
-            }
-          }
+          return;
+        }
 
 
-          /* ================================================================
-             RESTORE EXISTING SESSION
-          ================================================================ */
+        /*
+         * ================================================================
+         * SELECTED EXAM
+         * ================================================================
+         */
 
-          if (
-            savedSession &&
-            savedSession.questionsBySubject &&
-            savedSession.endTime
-          ) {
-            console.log(
-              "RESTORING EXISTING CBT SESSION"
-            );
-
-            const savedSubjects =
-              Array.isArray(
-                savedSession.subjects
+        const examQuestions =
+          allDatabaseQuestions.filter(
+            (row) =>
+              examsMatch(
+                row.exam,
+                exam
               )
-                ? savedSession.subjects
-                : Object.keys(
-                    savedSession.questionsBySubject
-                  );
+          );
 
-            const savedQuestions =
-              savedSession.questionsBySubject;
+        console.log(
+          "SELECTED EXAM:",
+          exam
+        );
 
-
-            /*
-             * Make sure the saved session actually
-             * contains questions.
-             */
-
-            const savedQuestionCount =
-              savedSubjects.reduce(
-                (
-                  total,
-                  subject
-                ) =>
-                  total +
-                  (
-                    savedQuestions[
-                      subject
-                    ] || []
-                  ).length,
-                0
-              );
+        console.log(
+          "EXAM QUESTIONS:",
+          examQuestions.length
+        );
 
 
-            if (
-              savedQuestionCount >
-              0
-            ) {
-              setQuestionsBySubject(
-                savedQuestions
-              );
+        /*
+         * ================================================================
+         * NO QUESTIONS FOR EXAM
+         * ================================================================
+         */
 
-              setSelectedSubjects(
-                savedSubjects
-              );
-
-              setActiveSubject(
-                savedSession.activeSubject ||
-                  savedSubjects[0]
-              );
-
-              setCurrentIndex(
-                Math.max(
-                  0,
-                  Number(
-                    savedSession.currentIndex ??
-                      0
-                  )
+        if (
+          examQuestions.length === 0
+        ) {
+          const availableExams = [
+            ...new Set(
+              allDatabaseQuestions
+                .map((row) =>
+                  String(
+                    row.exam ?? ""
+                  ).trim()
                 )
-              );
+                .filter(Boolean)
+            ),
+          ];
 
-              setAnswers(
-                savedSession.answers ||
-                  {}
-              );
+          setFetchError(
+            `No questions were found for "${exam}". Available exams: ${
+              availableExams.join(", ") ||
+              "None"
+            }`
+          );
 
-              setMarked(
-                savedSession.marked ||
-                  {}
-              );
+          setQuestionsBySubject({});
+          setSelectedSubjects([]);
+          setLoading(false);
 
-              setSubmitted(
-                Boolean(
-                  savedSession.submitted
-                )
-              );
+          return;
+        }
 
-              const savedEndTime =
-                Number(
-                  savedSession.endTime
-                );
 
-              const remaining =
-                Math.max(
-                  0,
-                  Math.floor(
-                    (
-                      savedEndTime -
-                      Date.now()
-                    ) / 1000
-                  )
-                );
+        /*
+         * ================================================================
+         * DATABASE SUBJECTS
+         * ================================================================
+         */
 
-              setEndTime(
-                savedEndTime
-              );
+        const databaseSubjects = [
+          ...new Set(
+            examQuestions
+              .map((row) =>
+                String(
+                  row.subject ?? ""
+                ).trim()
+              )
+              .filter(Boolean)
+          ),
+        ];
 
-              setTimeLeft(
-                remaining
-              );
+        console.log(
+          "DATABASE SUBJECTS FOR SELECTED EXAM:",
+          databaseSubjects
+        );
 
-              setLoadingMessage(
-                "Restoring your examination..."
-              );
 
-              setLoading(
-                false
-              );
+        /*
+         * ================================================================
+         * SUBJECT SELECTION
+         * ================================================================
+         *
+         * If the previous page supplied subjects,
+         * use exactly those subjects.
+         *
+         * Otherwise load every subject belonging
+         * to the selected examination body.
+         *
+         * ================================================================
+         */
 
+        const subjectsToLoad =
+          suppliedSubjects.length > 0
+            ? suppliedSubjects
+            : databaseSubjects;
+
+        console.log(
+          "SUPPLIED SUBJECTS:",
+          suppliedSubjects
+        );
+
+        console.log(
+          "FINAL SUBJECTS TO LOAD:",
+          subjectsToLoad
+        );
+
+
+        /*
+         * ================================================================
+         * CLEAN SUBJECTS
+         * ================================================================
+         */
+
+        const uniqueSubjects = [];
+
+        subjectsToLoad.forEach(
+          (subject) => {
+            const cleanSubject =
+              String(
+                subject ?? ""
+              ).trim();
+
+            if (!cleanSubject) {
               return;
             }
-          }
 
-
-          /* ================================================================
-             CREATE NEW SESSION
-          ================================================================ */
-
-          const grouped = {};
-
-          const finalSubjects =
-            [];
-
-
-          uniqueSubjects.forEach(
-            (selectedSubject) => {
-              const matchingQuestions =
-                examQuestions.filter(
-                  (row) =>
-                    subjectsMatch(
-                      row.subject,
-                      selectedSubject
-                    )
-                );
-
-
-              console.log(
-                "SUBJECT:",
-                selectedSubject
+            const exists =
+              uniqueSubjects.some(
+                (existing) =>
+                  subjectsMatch(
+                    existing,
+                    cleanSubject
+                  )
               );
 
-              console.log(
-                "MATCHING QUESTIONS:",
-                matchingQuestions.length
+            if (!exists) {
+              uniqueSubjects.push(
+                cleanSubject
               );
-
-
-              const selectedQuestions =
-                shuffleQuestions(
-                  matchingQuestions
-                ).slice(
-                  0,
-                  QUESTIONS_PER_SUBJECT
-                );
-
-
-              grouped[
-                selectedSubject
-              ] =
-                selectedQuestions;
-
-
-              if (
-                selectedQuestions.length >
-                0
-              ) {
-                finalSubjects.push(
-                  selectedSubject
-                );
-              }
             }
-          );
+          }
+        );
 
 
-          const totalFinalQuestions =
-            finalSubjects.reduce(
-              (
-                total,
-                subject
-              ) =>
+        /*
+         * ================================================================
+         * RESTORE SESSION
+         * ================================================================
+         */
+
+        let savedSession = null;
+
+        if (
+          !FORCE_FRESH_EXAM &&
+          storageKey
+        ) {
+          try {
+            const saved =
+              localStorage.getItem(
+                storageKey
+              );
+
+            if (saved) {
+              savedSession =
+                JSON.parse(saved);
+            }
+          } catch (storageError) {
+            console.error(
+              "READ SAVED SESSION ERROR:",
+              storageError
+            );
+
+            savedSession = null;
+          }
+        }
+
+
+        /*
+         * ================================================================
+         * RESTORE EXISTING SESSION
+         * ================================================================
+         */
+
+        if (
+          savedSession &&
+          savedSession.questionsBySubject &&
+          savedSession.endTime
+        ) {
+          const savedSubjects =
+            Array.isArray(
+              savedSession.subjects
+            )
+              ? savedSession.subjects
+              : Object.keys(
+                  savedSession.questionsBySubject
+                );
+
+          const savedQuestions =
+            savedSession.questionsBySubject;
+
+          const savedQuestionCount =
+            savedSubjects.reduce(
+              (total, subject) =>
                 total +
                 (
-                  grouped[
+                  savedQuestions[
                     subject
                   ] || []
                 ).length,
               0
             );
 
+          const savedEndTime =
+            Number(
+              savedSession.endTime
+            );
+
+          const sessionExpired =
+            savedEndTime <=
+            Date.now();
 
           if (
-            finalSubjects.length ===
-              0 ||
-            totalFinalQuestions ===
-              0
+            savedQuestionCount > 0 &&
+            !sessionExpired
           ) {
+            console.log(
+              "RESTORING EXISTING CBT SESSION"
+            );
+
             setQuestionsBySubject(
-              {}
+              savedQuestions
             );
 
             setSelectedSubjects(
-              []
+              savedSubjects
             );
 
-            setFetchError(
-              `No questions were found for the selected subjects: ${
-                uniqueSubjects.join(
-                  ", "
+            setActiveSubject(
+              savedSession.activeSubject ||
+                savedSubjects[0]
+            );
+
+            setCurrentIndex(
+              Math.max(
+                0,
+                Number(
+                  savedSession.currentIndex ??
+                    0
                 )
-              }`
+              )
             );
 
-            setLoading(
-              false
+            setAnswers(
+              savedSession.answers ||
+                {}
             );
+
+            setMarked(
+              savedSession.marked ||
+                {}
+            );
+
+            setSubmitted(
+              Boolean(
+                savedSession.submitted
+              )
+            );
+
+            const remaining =
+              Math.max(
+                0,
+                Math.floor(
+                  (
+                    savedEndTime -
+                    Date.now()
+                  ) /
+                    1000
+                )
+              );
+
+            setEndTime(
+              savedEndTime
+            );
+
+            setTimeLeft(
+              remaining
+            );
+
+            setLoadingMessage(
+              "Restoring your examination..."
+            );
+
+            setLoading(false);
 
             return;
           }
 
+          if (storageKey) {
+            localStorage.removeItem(
+              storageKey
+            );
+          }
 
-          /* ================================================================
-             NEW TIMER
-          ================================================================ */
-
-          const newEndTime =
-            Date.now() +
-            EXAM_DURATION_MINUTES *
-              60 *
-              1000;
+          savedSession = null;
+        }
 
 
-          /* ================================================================
-             SAVE NEW SESSION
-          ================================================================ */
+        /*
+         * ================================================================
+         * CREATE NEW QUESTION SET
+         * ================================================================
+         */
 
-          const newSession = {
-            exam,
-            subjects:
-              finalSubjects,
-            questionsBySubject:
-              grouped,
-            activeSubject:
-              finalSubjects[0],
-            currentIndex: 0,
-            answers: {},
-            marked: {},
-            endTime:
-              newEndTime,
-            submitted: false,
-          };
+        const grouped = {};
+
+        const finalSubjects = [];
 
 
-          if (
-            storageKey
-          ) {
+        uniqueSubjects.forEach(
+          (selectedSubject) => {
+
+            /*
+             * IMPORTANT:
+             *
+             * The question must belong to:
+             *
+             * 1. The selected exam
+             * 2. The selected subject
+             */
+
+            const matchingQuestions =
+              examQuestions.filter(
+                (row) =>
+                  examsMatch(
+                    row.exam,
+                    exam
+                  ) &&
+                  subjectsMatch(
+                    row.subject,
+                    selectedSubject
+                  )
+              );
+
+            console.log(
+              "--------------------------------"
+            );
+
+            console.log(
+              "SELECTED EXAM:",
+              exam
+            );
+
+            console.log(
+              "SELECTED SUBJECT:",
+              selectedSubject
+            );
+
+            console.log(
+              "MATCHING QUESTIONS:",
+              matchingQuestions.length
+            );
+
+
+            /*
+             * Keep comprehension groups together
+             * for every examination body.
+             */
+            const selectedQuestions =
+              selectQuestionsKeepingComprehensionGroups(
+                matchingQuestions,
+                QUESTIONS_PER_SUBJECT
+              );
+
+
+            console.log(
+              "SELECTED QUESTIONS:",
+              selectedQuestions.length
+            );
+
+
+            /*
+             * Only add subjects that actually
+             * contain questions.
+             */
+
+            if (
+              selectedQuestions.length >
+              0
+            ) {
+              grouped[
+                selectedSubject
+              ] = selectedQuestions;
+
+              finalSubjects.push(
+                selectedSubject
+              );
+            }
+          }
+        );
+
+
+        /*
+         * ================================================================
+         * TOTAL QUESTIONS
+         * ================================================================
+         */
+
+        const totalFinalQuestions =
+          finalSubjects.reduce(
+            (total, subject) =>
+              total +
+              (
+                grouped[
+                  subject
+                ] || []
+              ).length,
+            0
+          );
+
+
+        console.log(
+          "FINAL SUBJECTS:",
+          finalSubjects
+        );
+
+        console.log(
+          "FINAL QUESTION COUNT:",
+          totalFinalQuestions
+        );
+
+
+        /*
+         * ================================================================
+         * NO QUESTIONS
+         * ================================================================
+         */
+
+        if (
+          finalSubjects.length === 0 ||
+          totalFinalQuestions === 0
+        ) {
+          setQuestionsBySubject({});
+          setSelectedSubjects([]);
+
+          setFetchError(
+            `No questions were found for the selected subjects under ${exam}: ${
+              uniqueSubjects.join(", ") ||
+              "None selected"
+            }`
+          );
+
+          setLoading(false);
+
+          return;
+        }
+
+
+        /*
+         * ================================================================
+         * NEW TIMER
+         * ================================================================
+         */
+
+        const newEndTime =
+          Date.now() +
+          EXAM_DURATION_MINUTES *
+            60 *
+            1000;
+
+
+        /*
+         * ================================================================
+         * NEW SESSION
+         * ================================================================
+         */
+
+        const newSession = {
+          exam,
+
+          subjects:
+            finalSubjects,
+
+          questionsBySubject:
+            grouped,
+
+          activeSubject:
+            finalSubjects[0],
+
+          currentIndex: 0,
+
+          answers: {},
+
+          marked: {},
+
+          endTime:
+            newEndTime,
+
+          submitted: false,
+        };
+
+
+        /*
+         * ================================================================
+         * SAVE NEW SESSION
+         * ================================================================
+         */
+
+        if (storageKey) {
+          try {
             localStorage.setItem(
               storageKey,
               JSON.stringify(
                 newSession
               )
             );
-          }
-
-
-          /* ================================================================
-             UPDATE STATE
-          ================================================================ */
-
-          setQuestionsBySubject(
-            grouped
-          );
-
-          setSelectedSubjects(
-            finalSubjects
-          );
-
-          setActiveSubject(
-            finalSubjects[0]
-          );
-
-          setCurrentIndex(
-            0
-          );
-
-          setAnswers(
-            {}
-          );
-
-          setMarked(
-            {}
-          );
-
-          setSubmitted(
-            false
-          );
-
-          setEndTime(
-            newEndTime
-          );
-
-          setTimeLeft(
-            EXAM_DURATION_MINUTES *
-              60
-          );
-
-        } catch (error) {
-          console.error(
-            "CBT LOAD ERROR:",
-            error
-          );
-
-          if (mounted) {
-            setFetchError(
-              error?.message ||
-                "Unable to load CBT questions."
-            );
-
-            setQuestionsBySubject(
-              {}
-            );
-
-            setSelectedSubjects(
-              []
-            );
-          }
-        } finally {
-          if (mounted) {
-            setLoading(
-              false
+          } catch (storageError) {
+            console.error(
+              "INITIAL SESSION SAVE ERROR:",
+              storageError
             );
           }
         }
-      };
 
+
+        /*
+         * ================================================================
+         * UPDATE STATE
+         * ================================================================
+         */
+
+        setQuestionsBySubject(
+          grouped
+        );
+
+        setSelectedSubjects(
+          finalSubjects
+        );
+
+        setActiveSubject(
+          finalSubjects[0]
+        );
+
+        setCurrentIndex(0);
+
+        setAnswers({});
+
+        setMarked({});
+
+        setSubmitted(false);
+
+        setEndTime(
+          newEndTime
+        );
+
+        setTimeLeft(
+          EXAM_DURATION_MINUTES *
+            60
+        );
+
+      } catch (error) {
+        console.error(
+          "CBT LOAD ERROR:",
+          error
+        );
+
+        if (mounted) {
+          setFetchError(
+            error?.message ||
+              "Unable to load CBT questions."
+          );
+
+          setQuestionsBySubject({});
+          setSelectedSubjects([]);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
 
     loadQuestions();
-
 
     return () => {
       mounted = false;
@@ -1449,23 +1551,22 @@ const CBTExam = () => {
   }, [
     exam,
     storageKey,
-    suppliedSubjects.join(
-      "|"
-    ),
+    suppliedSubjects,
   ]);
 
 
-  /* ========================================================================
-     SAVE SESSION AUTOMATICALLY
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | SAVE SESSION AUTOMATICALLY
+   |--------------------------------------------------------------------------
+   */
 
   useEffect(() => {
     if (
       FORCE_FRESH_EXAM ||
       loading ||
       !storageKey ||
-      selectedSubjects.length ===
-        0 ||
+      selectedSubjects.length === 0 ||
       Object.keys(
         questionsBySubject
       ).length === 0
@@ -1518,9 +1619,11 @@ const CBTExam = () => {
   ]);
 
 
-  /* ========================================================================
-     TIMER
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | TIMER
+   |--------------------------------------------------------------------------
+   */
 
   useEffect(() => {
     if (
@@ -1531,45 +1634,32 @@ const CBTExam = () => {
       return undefined;
     }
 
-    const updateTimer =
-      () => {
-        const remaining =
-          Math.max(
-            0,
-            Math.floor(
-              (
-                endTime -
-                Date.now()
-              ) / 1000
-            )
-          );
-
-        setTimeLeft(
-          remaining
+    const updateTimer = () => {
+      const remaining =
+        Math.max(
+          0,
+          Math.floor(
+            (
+              endTime -
+              Date.now()
+            ) / 1000
+          )
         );
 
+      setTimeLeft(
+        remaining
+      );
 
-        if (
-          remaining <=
-          0
-        ) {
-          setSubmitted(
-            true
-          );
+      if (remaining <= 0) {
+        setSubmitted(true);
 
-          setShowNavigator(
-            false
-          );
+        setShowNavigator(false);
 
-          setShowCalculator(
-            false
-          );
-        }
-      };
-
+        setShowCalculator(false);
+      }
+    };
 
     updateTimer();
-
 
     const timer =
       setInterval(
@@ -1577,11 +1667,8 @@ const CBTExam = () => {
         1000
       );
 
-
     return () =>
-      clearInterval(
-        timer
-      );
+      clearInterval(timer);
   }, [
     loading,
     submitted,
@@ -1589,26 +1676,32 @@ const CBTExam = () => {
   ]);
 
 
-  /* ========================================================================
-     FORMAT TIME
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | FORMAT TIME
+   |--------------------------------------------------------------------------
+   */
 
-  const formatTime = (
-    seconds
-  ) => {
+  const formatTime = (seconds) => {
+    const safeSeconds =
+      Math.max(
+        0,
+        Number(seconds) || 0
+      );
+
     const hours =
       Math.floor(
-        seconds / 3600
+        safeSeconds / 3600
       );
 
     const minutes =
       Math.floor(
-        (seconds % 3600) /
+        (safeSeconds % 3600) /
           60
       );
 
     const secs =
-      seconds % 60;
+      safeSeconds % 60;
 
     return [
       hours,
@@ -1616,9 +1709,7 @@ const CBTExam = () => {
       secs,
     ]
       .map((value) =>
-        String(
-          value
-        ).padStart(
+        String(value).padStart(
           2,
           "0"
         )
@@ -1628,23 +1719,22 @@ const CBTExam = () => {
 
 
   const timerDanger =
-    timeLeft <=
-    10 * 60;
+    timeLeft <= 10 * 60;
 
   const timerCritical =
-    timeLeft <=
-    5 * 60;
+    timeLeft <= 5 * 60;
 
 
-  /* ========================================================================
-     CURRENT QUESTIONS
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | CURRENT QUESTIONS
+   |--------------------------------------------------------------------------
+   */
 
   const currentQuestions =
     questionsBySubject[
       activeSubject
     ] || [];
-
 
   const currentQuestion =
     currentQuestions[
@@ -1652,9 +1742,11 @@ const CBTExam = () => {
     ];
 
 
-  /* ========================================================================
-     CURRENT QUESTION CONTENT
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | CURRENT QUESTION CONTENT
+   |--------------------------------------------------------------------------
+   */
 
   const currentQuestionContent =
     useMemo(() => {
@@ -1666,12 +1758,10 @@ const CBTExam = () => {
         };
       }
 
-
-      const parsed =
-        parseQuestionContent(
-          currentQuestion.question
+      const directPassage =
+        getPassageValue(
+          currentQuestion
         );
-
 
       const sharedPassage =
         getComprehensionPassage(
@@ -1679,22 +1769,15 @@ const CBTExam = () => {
           currentQuestions
         );
 
-
-      const comprehension =
-        isComprehensionQuestion(
-          currentQuestion
-        );
-
-
       return {
-        ...parsed,
-
         isComprehension:
-          comprehension,
+          isComprehensionQuestion(
+            currentQuestion
+          ),
 
         passage:
           sharedPassage ||
-          parsed?.passage ||
+          directPassage ||
           "",
 
         question:
@@ -1708,17 +1791,16 @@ const CBTExam = () => {
     ]);
 
 
-  /* ========================================================================
-     TOTAL QUESTIONS
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | TOTAL QUESTIONS
+   |--------------------------------------------------------------------------
+   */
 
   const totalQuestions =
     useMemo(() => {
       return selectedSubjects.reduce(
-        (
-          total,
-          subject
-        ) =>
+        (total, subject) =>
           total +
           (
             questionsBySubject[
@@ -1733,55 +1815,54 @@ const CBTExam = () => {
     ]);
 
 
-  /* ========================================================================
-     GLOBAL QUESTION NUMBER
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | GLOBAL QUESTION NUMBER
+   |--------------------------------------------------------------------------
+   */
 
-  const getGlobalQuestionNumber =
-    (
-      subject,
-      index
-    ) => {
-      let number = 0;
+  const getGlobalQuestionNumber = (
+    subject,
+    index
+  ) => {
+    let number = 0;
 
-      for (
-        const selectedSubject of
-          selectedSubjects
+    for (
+      const selectedSubject of
+        selectedSubjects
+    ) {
+      if (
+        subjectsMatch(
+          selectedSubject,
+          subject
+        )
       ) {
-        if (
-          subjectsMatch(
-            selectedSubject,
-            subject
-          )
-        ) {
-          return (
-            number +
-            index +
-            1
-          );
-        }
-
-        number +=
-          (
-            questionsBySubject[
-              selectedSubject
-            ] || []
-          ).length;
+        return (
+          number +
+          index +
+          1
+        );
       }
 
-      return (
-        index + 1
-      );
-    };
+      number +=
+        (
+          questionsBySubject[
+            selectedSubject
+          ] || []
+        ).length;
+    }
+
+    return index + 1;
+  };
 
 
-  /* ========================================================================
-     SELECT ANSWER
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | SELECT ANSWER
+   |--------------------------------------------------------------------------
+   */
 
-  const selectAnswer = (
-    option
-  ) => {
+  const selectAnswer = (option) => {
     if (
       !currentQuestion ||
       submitted
@@ -1789,527 +1870,515 @@ const CBTExam = () => {
       return;
     }
 
-    setAnswers(
-      (previous) => ({
-        ...previous,
+    /*
+     * Save the actual option text.
+     *
+     * Example:
+     * "Resonance"
+     *
+     * This makes answer checking work whether
+     * Supabase stores "B" or "Resonance".
+     */
 
-        [currentQuestion.id]:
-          option,
-      })
+    setAnswers((previous) => ({
+      ...previous,
+
+      [currentQuestion.id]:
+        option,
+    }));
+  };
+
+
+  /*
+   |--------------------------------------------------------------------------
+   | MARK QUESTION
+   |--------------------------------------------------------------------------
+   */
+
+  const toggleMark = () => {
+    if (
+      !currentQuestion ||
+      submitted
+    ) {
+      return;
+    }
+
+    setMarked((previous) => ({
+      ...previous,
+
+      [currentQuestion.id]:
+        !previous[
+          currentQuestion.id
+        ],
+    }));
+  };
+
+
+  /*
+   |--------------------------------------------------------------------------
+   | NEXT QUESTION
+   |--------------------------------------------------------------------------
+   */
+
+  const nextQuestion = () => {
+    if (
+      currentIndex <
+      currentQuestions.length - 1
+    ) {
+      setCurrentIndex(
+        (previous) =>
+          previous + 1
+      );
+
+      return;
+    }
+
+    const position =
+      selectedSubjects.findIndex(
+        (subject) =>
+          subjectsMatch(
+            subject,
+            activeSubject
+          )
+      );
+
+    const nextSubject =
+      selectedSubjects[
+        position + 1
+      ];
+
+    if (nextSubject) {
+      setActiveSubject(
+        nextSubject
+      );
+
+      setCurrentIndex(0);
+
+      setShowCalculator(false);
+    }
+  };
+
+
+  /*
+   |--------------------------------------------------------------------------
+   | PREVIOUS QUESTION
+   |--------------------------------------------------------------------------
+   */
+
+  const previousQuestion = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(
+        (previous) =>
+          previous - 1
+      );
+
+      return;
+    }
+
+    const position =
+      selectedSubjects.findIndex(
+        (subject) =>
+          subjectsMatch(
+            subject,
+            activeSubject
+          )
+      );
+
+    const previousSubject =
+      selectedSubjects[
+        position - 1
+      ];
+
+    if (previousSubject) {
+      const previousQuestions =
+        questionsBySubject[
+          previousSubject
+        ] || [];
+
+      setActiveSubject(
+        previousSubject
+      );
+
+      setCurrentIndex(
+        Math.max(
+          previousQuestions.length -
+            1,
+          0
+        )
+      );
+
+      setShowCalculator(false);
+    }
+  };
+
+
+  /*
+   |--------------------------------------------------------------------------
+   | CHANGE SUBJECT
+   |--------------------------------------------------------------------------
+   */
+
+  const changeSubject = (
+    subject
+  ) => {
+    setActiveSubject(subject);
+
+    setCurrentIndex(0);
+
+    /*
+     * Calculator only remains open for
+     * Mathematics.
+     *
+     * This does NOT control which subjects
+     * are loaded.
+     */
+
+    if (
+      normalize(subject) !==
+      "mathematics"
+    ) {
+      setShowCalculator(false);
+    }
+  };
+
+
+  /*
+   |--------------------------------------------------------------------------
+   | CALCULATOR
+   |--------------------------------------------------------------------------
+   */
+
+  const calculatorPress = (
+    value
+  ) => {
+    if (value === "C") {
+      setCalculatorValue("");
+
+      return;
+    }
+
+    if (value === "DEL") {
+      setCalculatorValue(
+        (previous) =>
+          previous.slice(0, -1)
+      );
+
+      return;
+    }
+
+    if (value === "=") {
+      try {
+        const expression =
+          calculatorValue
+            .replace(/×/g, "*")
+            .replace(/÷/g, "/")
+            .replace(/−/g, "-");
+
+        if (!expression.trim()) {
+          return;
+        }
+
+        if (
+          !/^[0-9+\-*/().\s]+$/.test(
+            expression
+          )
+        ) {
+          setCalculatorValue("Error");
+
+          return;
+        }
+
+        /*
+         * eslint-disable-next-line
+         * no-new-func
+         */
+
+        const result =
+          Function(
+            `"use strict"; return (${expression})`
+          )();
+
+        if (
+          typeof result === "number" &&
+          Number.isFinite(result)
+        ) {
+          setCalculatorValue(
+            String(
+              Number(
+                result.toFixed(10)
+              )
+            )
+          );
+        } else {
+          setCalculatorValue("Error");
+        }
+      } catch {
+        setCalculatorValue("Error");
+      }
+
+      return;
+    }
+
+    setCalculatorValue(
+      (previous) =>
+        previous === "Error"
+          ? value
+          : previous + value
     );
   };
 
 
-  /* ========================================================================
-     MARK QUESTION
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | SUBMIT
+   |--------------------------------------------------------------------------
+   */
 
-  const toggleMark =
-    () => {
-      if (
-        !currentQuestion ||
-        submitted
-      ) {
-        return;
-      }
-
-      setMarked(
-        (previous) => ({
-          ...previous,
-
-          [currentQuestion.id]:
-            !previous[
-              currentQuestion.id
-            ],
-        })
-      );
-    };
-
-
-  /* ========================================================================
-     NEXT QUESTION
-  ======================================================================== */
-
-  const nextQuestion =
-    () => {
-      if (
-        currentIndex <
-        currentQuestions.length -
-          1
-      ) {
-        setCurrentIndex(
-          (previous) =>
-            previous + 1
-        );
-
-        return;
-      }
-
-
-      const position =
-        selectedSubjects.findIndex(
-          (subject) =>
-            subjectsMatch(
-              subject,
-              activeSubject
-            )
-        );
-
-
-      const nextSubject =
-        selectedSubjects[
-          position + 1
-        ];
-
-
-      if (
-        nextSubject
-      ) {
-        setActiveSubject(
-          nextSubject
-        );
-
-        setCurrentIndex(
-          0
-        );
-
-        setShowCalculator(
-          false
-        );
-      }
-    };
-
-
-  /* ========================================================================
-     PREVIOUS QUESTION
-  ======================================================================== */
-
-  const previousQuestion =
-    () => {
-      if (
-        currentIndex >
-        0
-      ) {
-        setCurrentIndex(
-          (previous) =>
-            previous - 1
-        );
-
-        return;
-      }
-
-
-      const position =
-        selectedSubjects.findIndex(
-          (subject) =>
-            subjectsMatch(
-              subject,
-              activeSubject
-            )
-        );
-
-
-      const previousSubject =
-        selectedSubjects[
-          position - 1
-        ];
-
-
-      if (
-        previousSubject
-      ) {
-        const previousQuestions =
-          questionsBySubject[
-            previousSubject
-          ] || [];
-
-
-        setActiveSubject(
-          previousSubject
-        );
-
-        setCurrentIndex(
-          Math.max(
-            previousQuestions.length -
-              1,
-            0
-          )
-        );
-
-        setShowCalculator(
-          false
-        );
-      }
-    };
-
-
-  /* ========================================================================
-     CHANGE SUBJECT
-  ======================================================================== */
-
-  const changeSubject =
-    (subject) => {
-      setActiveSubject(
-        subject
+  const submitExam = () => {
+    const confirmed =
+      window.confirm(
+        "Are you sure you want to submit this examination?"
       );
 
-      setCurrentIndex(
-        0
-      );
+    if (!confirmed) {
+      return;
+    }
+
+    setSubmitted(true);
+
+    setShowNavigator(false);
+
+    setShowCalculator(false);
+  };
 
 
-      if (
-        !subjectsMatch(
-          subject,
-          "Mathematics"
-        )
-      ) {
-        setShowCalculator(
-          false
-        );
-      }
-    };
-
-
-  /* ========================================================================
-     CALCULATOR
-  ======================================================================== */
-
-  const calculatorPress =
-    (value) => {
-      if (
-        value === "C"
-      ) {
-        setCalculatorValue(
-          ""
-        );
-
-        return;
-      }
-
-
-      if (
-        value === "DEL"
-      ) {
-        setCalculatorValue(
-          (previous) =>
-            previous.slice(
-              0,
-              -1
-            )
-        );
-
-        return;
-      }
-
-
-      if (
-        value === "="
-      ) {
-        try {
-          const expression =
-            calculatorValue
-              .replace(
-                /×/g,
-                "*"
-              )
-              .replace(
-                /÷/g,
-                "/"
-              )
-              .replace(
-                /−/g,
-                "-"
-              );
-
-
-          if (
-            !expression.trim()
-          ) {
-            return;
-          }
-
-
-          if (
-            !/^[0-9+\-*/().\s]+$/.test(
-              expression
-            )
-          ) {
-            setCalculatorValue(
-              "Error"
-            );
-
-            return;
-          }
-
-
-          // eslint-disable-next-line no-new-func
-          const result =
-            Function(
-              `"use strict"; return (${expression})`
-            )();
-
-
-          if (
-            typeof result ===
-              "number" &&
-            Number.isFinite(
-              result
-            )
-          ) {
-            setCalculatorValue(
-              String(
-                Number(
-                  result.toFixed(
-                    10
-                  )
-                )
-              )
-            );
-          } else {
-            setCalculatorValue(
-              "Error"
-            );
-          }
-        } catch {
-          setCalculatorValue(
-            "Error"
-          );
-        }
-
-        return;
-      }
-
-
-      setCalculatorValue(
-        (previous) =>
-          previous ===
-            "Error"
-            ? value
-            : previous + value
-      );
-    };
-
-
-  /* ========================================================================
-     SUBMIT
-  ======================================================================== */
-
-  const submitExam =
-    () => {
-      const confirmed =
-        window.confirm(
-          "Are you sure you want to submit this examination?"
-        );
-
-
-      if (!confirmed) {
-        return;
-      }
-
-
-      setSubmitted(
-        true
-      );
-
-      setShowNavigator(
-        false
-      );
-
-      setShowCalculator(
-        false
-      );
-    };
-
-
-  /* ========================================================================
-     ANSWER CHECK
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | ANSWER CHECK
+   |--------------------------------------------------------------------------
+   */
 
   const isAnswerCorrect =
-    (question) => {
-      if (!question) {
-        return false;
-      }
+    useCallback(
+      (question) => {
+        if (!question) {
+          return false;
+        }
 
+        const selectedAnswer =
+          answers[
+            question.id
+          ];
 
-      const selectedAnswer =
-        answers[
-          question.id
-        ];
-
-
-      const correctAnswer =
-        getCorrectAnswerValue(
-          question
-        );
-
-
-      if (
-        selectedAnswer ===
-          undefined ||
-        selectedAnswer ===
-          null ||
-        !correctAnswer
-      ) {
-        return false;
-      }
-
-
-      const selected =
-        normalize(
-          selectedAnswer
-        );
-
-
-      const correct =
-        normalize(
-          correctAnswer
-        );
-
-
-      if (
-        selected ===
-        correct
-      ) {
-        return true;
-      }
-
-
-      const options =
-        getQuestionOptions(
-          question
-        );
-
-
-      /*
-       * Selected answer may be:
-       *
-       * A
-       * B
-       * C
-       * D
-       *
-       * or the actual option text.
-       */
-
-
-      const selectedIndex =
-        options.findIndex(
-          (option) =>
-            normalize(
-              option
-            ) ===
-            selected
-        );
-
-
-      if (
-        selectedIndex !==
-        -1
-      ) {
-        const selectedLetter =
-          String.fromCharCode(
-            65 +
-              selectedIndex
-          ).toLowerCase();
-
+        const correctAnswer =
+          getCorrectAnswerValue(
+            question
+          );
 
         if (
-          selectedLetter ===
-          correct
+          selectedAnswer ===
+            undefined ||
+          selectedAnswer === null ||
+          !correctAnswer
+        ) {
+          return false;
+        }
+
+        const selected =
+          normalize(
+            selectedAnswer
+          );
+
+        const correct =
+          normalize(
+            correctAnswer
+          );
+
+        /*
+         * Exact match.
+         */
+        if (
+          selected === correct
         ) {
           return true;
         }
-      }
 
+        const optionMap =
+          getQuestionOptionsMap(
+            question
+          );
 
-      const correctIndex =
-        options.findIndex(
-          (option) =>
+        /*
+         * Convert selected text to letter.
+         *
+         * Example:
+         * selected = "Resonance"
+         * options.B = "Resonance"
+         * result = "b"
+         */
+
+        let selectedLetter = "";
+
+        for (
+          const letter of [
+            "A",
+            "B",
+            "C",
+            "D",
+          ]
+        ) {
+          if (
             normalize(
-              option
-            ) ===
+              optionMap[letter]
+            ) === selected
+          ) {
+            selectedLetter =
+              letter.toLowerCase();
+
+            break;
+          }
+        }
+
+        /*
+         * If selected answer is already B,
+         * normalize it.
+         */
+
+        if (!selectedLetter) {
+          selectedLetter =
+            normalizeAnswerLetter(
+              selected
+            );
+        }
+
+        /*
+         * Correct answer may be B.
+         */
+
+        let correctLetter =
+          normalizeAnswerLetter(
             correct
-        );
+          );
 
-
-      if (
-        correctIndex !==
-        -1
-      ) {
-        const correctLetter =
-          String.fromCharCode(
-            65 +
-              correctIndex
-          ).toLowerCase();
-
+        /*
+         * Correct answer may instead be
+         * the actual option text.
+         *
+         * Example:
+         * answer = "Resonance"
+         */
 
         if (
-          correctLetter ===
-          selected
+          !["a", "b", "c", "d"].includes(
+            correctLetter
+          )
         ) {
-          return true;
+          for (
+            const letter of [
+              "A",
+              "B",
+              "C",
+              "D",
+            ]
+          ) {
+            if (
+              normalize(
+                optionMap[letter]
+              ) === correct
+            ) {
+              correctLetter =
+                letter.toLowerCase();
+
+              break;
+            }
+          }
         }
-      }
 
-
-      return false;
-    };
-
-
-  /* ========================================================================
-     ALL QUESTIONS
-  ======================================================================== */
-
-  const allQuestions =
-    selectedSubjects.flatMap(
-      (subject) =>
-        questionsBySubject[
-          subject
-        ] || []
+        return (
+          selectedLetter !== "" &&
+          correctLetter !== "" &&
+          selectedLetter ===
+            correctLetter
+        );
+      },
+      [answers]
     );
 
 
-  /* ========================================================================
-     SCORE
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | ALL QUESTIONS
+   |--------------------------------------------------------------------------
+   */
 
-  const score =
-    allQuestions.filter(
+  const allQuestions =
+    useMemo(() => {
+      return selectedSubjects.flatMap(
+        (subject) =>
+          questionsBySubject[
+            subject
+          ] || []
+      );
+    }, [
+      selectedSubjects,
+      questionsBySubject,
+    ]);
+
+
+  /*
+   |--------------------------------------------------------------------------
+   | SCORE
+   |--------------------------------------------------------------------------
+   */
+
+  const score = useMemo(() => {
+    return allQuestions.filter(
       (question) =>
         isAnswerCorrect(
           question
         )
     ).length;
+  }, [
+    allQuestions,
+    isAnswerCorrect,
+  ]);
 
 
-  /* ========================================================================
-     ANSWERED COUNT
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | ANSWERED COUNT
+   |--------------------------------------------------------------------------
+   */
 
   const answeredCount =
-    allQuestions.filter(
-      (question) => {
-        const answer =
-          answers[
-            question.id
-          ];
+    useMemo(() => {
+      return allQuestions.filter(
+        (question) => {
+          const answer =
+            answers[
+              question.id
+            ];
 
-        return (
-          answer !== undefined &&
-          answer !== null &&
-          String(
-            answer
-          ).trim() !== ""
-        );
-      }
-    ).length;
+          return (
+            answer !== undefined &&
+            answer !== null &&
+            String(
+              answer
+            ).trim() !== ""
+          );
+        }
+      ).length;
+    }, [
+      allQuestions,
+      answers,
+    ]);
 
 
-  /* ========================================================================
-     LOCATION CHECK
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | LOCATION CHECK
+   |--------------------------------------------------------------------------
+   */
 
   if (
     !location.state &&
@@ -2324,14 +2393,15 @@ const CBTExam = () => {
   }
 
 
-  /* ========================================================================
-     LOADING
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | LOADING
+   |--------------------------------------------------------------------------
+   */
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#071426] text-white flex items-center justify-center px-6">
-
         <div className="text-center max-w-xl w-full">
 
           <div className="relative w-16 h-16 mx-auto mb-6">
@@ -2342,32 +2412,29 @@ const CBTExam = () => {
 
           </div>
 
-
           <p className="text-xl font-bold">
             {loadingMessage}
           </p>
 
-
           <p className="text-sm text-slate-500 mt-2">
-            Restoring your questions,
-            answers and examination time.
+            Loading your questions,
+            examination settings
+            and saved progress.
           </p>
 
         </div>
-
       </div>
     );
   }
 
 
-  /* ========================================================================
-     NO QUESTIONS
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | NO QUESTIONS
+   |--------------------------------------------------------------------------
+   */
 
-  if (
-    totalQuestions ===
-    0
-  ) {
+  if (totalQuestions === 0) {
     return (
       <div className="min-h-screen bg-[#071426] text-white flex items-center justify-center px-6">
 
@@ -2384,18 +2451,16 @@ const CBTExam = () => {
 
             </div>
 
-
             <h1 className="text-2xl md:text-3xl font-bold mt-6">
               No Questions Found
             </h1>
 
-
             <p className="text-slate-400 mt-3 leading-7">
               No questions could
               be found for the
-              selected subjects.
+              selected subjects
+              under {exam}.
             </p>
-
 
             {fetchError && (
               <div className="mt-5 p-4 rounded-xl bg-red-500/5 border border-red-500/10 text-left">
@@ -2404,29 +2469,22 @@ const CBTExam = () => {
                   Database Response
                 </p>
 
-                <p className="text-sm text-slate-300 mt-2">
+                <p className="text-sm text-slate-300 mt-2 break-words">
                   {fetchError}
                 </p>
 
               </div>
             )}
 
-
             <button
               onClick={() =>
-                navigate(
-                  "/cbt"
-                )
+                navigate("/cbt")
               }
               className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold transition"
             >
-
-              <ArrowLeft
-                size={17}
-              />
+              <ArrowLeft size={17} />
 
               Back to CBT
-
             </button>
 
           </div>
@@ -2438,21 +2496,21 @@ const CBTExam = () => {
   }
 
 
-  /* ========================================================================
-     RESULT
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | RESULT
+   |--------------------------------------------------------------------------
+   */
 
   if (submitted) {
     const percentage =
-      totalQuestions >
-      0
+      totalQuestions > 0
         ? Math.round(
             (score /
               totalQuestions) *
               100
           )
         : 0;
-
 
     return (
       <div className="min-h-screen bg-[#071426] text-white px-4 py-10">
@@ -2470,16 +2528,13 @@ const CBTExam = () => {
 
             </div>
 
-
             <h1 className="text-3xl md:text-4xl font-bold mt-5">
               Examination Complete
             </h1>
 
-
             <p className="text-slate-400 mt-2">
               {exam} CBT Examination
             </p>
-
 
             <p className="text-blue-400 text-sm mt-2">
               {selectedSubjects.join(
@@ -2487,18 +2542,17 @@ const CBTExam = () => {
               )}
             </p>
 
-
             <p className="text-slate-500 text-xs mt-3">
-              {totalQuestions} total questions
+              {totalQuestions} total
+              questions
             </p>
 
-
-            {timeLeft ===
-              0 && (
+            {timeLeft === 0 && (
               <p className="mt-3 text-red-400 text-sm font-semibold">
                 Time expired. Your
                 examination was
-                submitted automatically.
+                submitted
+                automatically.
               </p>
             )}
 
@@ -2542,41 +2596,32 @@ const CBTExam = () => {
                     subject
                   ] || [];
 
-
                 const subjectScore =
                   subjectQuestions.filter(
-                    (
-                      question
-                    ) =>
+                    (question) =>
                       isAnswerCorrect(
                         question
                       )
                   ).length;
 
-
                 return (
                   <div
-                    key={
-                      subject
-                    }
+                    key={subject}
                     className="rounded-2xl border border-white/10 bg-white/[0.03] p-5"
                   >
 
                     <p className="text-sm text-slate-400">
-                      {subject}
+                      {getSubjectDisplayName(
+                        subject
+                      )}
                     </p>
 
-
                     <p className="text-2xl font-bold text-blue-400 mt-2">
-                      {
-                        subjectScore
-                      }
-                      /
+                      {subjectScore}/
                       {
                         subjectQuestions.length
                       }
                     </p>
-
 
                     <p className="text-xs text-slate-500 mt-1">
                       {subjectQuestions.length
@@ -2612,24 +2657,20 @@ const CBTExam = () => {
                     question
                   );
 
-
                 const selectedAnswer =
                   answers[
                     question.id
                   ];
-
 
                 const correctAnswer =
                   getCorrectAnswerValue(
                     question
                   );
 
-
-                const options =
-                  getQuestionOptions(
+                const optionMap =
+                  getQuestionOptionsMap(
                     question
                   );
-
 
                 const resultPassage =
                   getComprehensionPassage(
@@ -2637,12 +2678,10 @@ const CBTExam = () => {
                     allQuestions
                   );
 
-
                 const resultIsComprehension =
                   isComprehensionQuestion(
                     question
                   );
-
 
                 return (
                   <div
@@ -2672,28 +2711,23 @@ const CBTExam = () => {
                             size={20}
                           />
                         ) : (
-                          <X
-                            size={20}
-                          />
+                          <X size={20} />
                         )}
 
                       </div>
 
-
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
 
                         <p className="text-xs text-slate-500 mb-2">
                           Question{" "}
-                          {index +
-                            1}
+                          {index + 1}
                         </p>
-
 
                         {question.subject && (
                           <p className="text-xs text-blue-400 mb-2">
-                            {
+                            {getSubjectDisplayName(
                               question.subject
-                            }
+                            )}
                           </p>
                         )}
 
@@ -2710,18 +2744,16 @@ const CBTExam = () => {
                                 />
 
                                 <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
-                                  Comprehension Passage
+                                  Comprehension
+                                  Passage
                                 </span>
 
                               </div>
 
-
                               <div className="p-5 max-h-[420px] overflow-y-auto">
 
                                 <MathText className="block text-sm md:text-base leading-7 text-slate-300 whitespace-pre-wrap">
-                                  {
-                                    resultPassage
-                                  }
+                                  {resultPassage}
                                 </MathText>
 
                               </div>
@@ -2731,13 +2763,11 @@ const CBTExam = () => {
 
 
                         <h2 className="font-semibold text-lg leading-7">
-
                           <MathText>
                             {getComprehensionQuestionText(
                               question
                             )}
                           </MathText>
-
                         </h2>
 
 
@@ -2767,17 +2797,13 @@ const CBTExam = () => {
                                   : "text-red-400"
                               }
                             >
-
                               {selectedAnswer ? (
                                 <MathText>
-                                  {
-                                    selectedAnswer
-                                  }
+                                  {selectedAnswer}
                                 </MathText>
                               ) : (
                                 "Not answered"
                               )}
-
                             </span>
 
                           </p>
@@ -2794,9 +2820,7 @@ const CBTExam = () => {
 
                                 {correctAnswer ? (
                                   <MathText>
-                                    {
-                                      correctAnswer
-                                    }
+                                    {correctAnswer}
                                   </MathText>
                                 ) : (
                                   "Not provided"
@@ -2808,42 +2832,48 @@ const CBTExam = () => {
                           )}
 
 
-                          {options.length >
-                            0 && (
-                            <div className="mt-4 space-y-2">
+                          <div className="mt-4 space-y-2">
 
-                              {options.map(
-                                (
-                                  option,
-                                  optionIndex
-                                ) => (
+                            {[
+                              "A",
+                              "B",
+                              "C",
+                              "D",
+                            ].map(
+                              (letter) => {
+                                const option =
+                                  optionMap[
+                                    letter
+                                  ];
+
+                                if (
+                                  !option
+                                ) {
+                                  return null;
+                                }
+
+                                return (
                                   <div
                                     key={
-                                      optionIndex
+                                      letter
                                     }
                                     className="flex gap-3 text-sm text-slate-400"
                                   >
 
                                     <span className="font-bold text-slate-500">
-                                      {String.fromCharCode(
-                                        65 +
-                                          optionIndex
-                                      )}
-                                      .
+                                      {letter}.
                                     </span>
 
                                     <MathText>
-                                      {
-                                        option
-                                      }
+                                      {option}
                                     </MathText>
 
                                   </div>
-                                )
-                              )}
+                                );
+                              }
+                            )}
 
-                            </div>
-                          )}
+                          </div>
 
 
                           {question.reason && (
@@ -2854,9 +2884,7 @@ const CBTExam = () => {
                               </p>
 
                               <MathText className="text-sm text-slate-300 leading-6">
-                                {
-                                  question.reason
-                                }
+                                {question.reason}
                               </MathText>
 
                             </div>
@@ -2880,9 +2908,7 @@ const CBTExam = () => {
 
             <button
               onClick={() => {
-                if (
-                  storageKey
-                ) {
+                if (storageKey) {
                   localStorage.removeItem(
                     storageKey
                   );
@@ -2910,16 +2936,17 @@ const CBTExam = () => {
   }
 
 
-  /* ========================================================================
-     CURRENT DATA
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | CURRENT DATA
+   |--------------------------------------------------------------------------
+   */
 
   const globalNumber =
     getGlobalQuestionNumber(
       activeSubject,
       currentIndex
     );
-
 
   const currentAnswer =
     currentQuestion
@@ -2928,12 +2955,10 @@ const CBTExam = () => {
         ]
       : null;
 
-
-  const currentOptions =
-    getQuestionOptions(
+  const currentOptionMap =
+    getQuestionOptionsMap(
       currentQuestion
     );
-
 
   const activeSubjectPosition =
     selectedSubjects.findIndex(
@@ -2945,32 +2970,35 @@ const CBTExam = () => {
     );
 
 
+  /*
+   * Calculator is based on the actual selected
+   * subject value.
+   *
+   * This does not affect question loading.
+   */
+
   const isMathematics =
-    subjectsMatch(
-      activeSubject,
-      "Mathematics"
-    );
+    normalize(activeSubject) ===
+    "mathematics";
 
 
   const isLastQuestionOfExam =
     activeSubjectPosition ===
-      selectedSubjects.length -
-        1 &&
+      selectedSubjects.length - 1 &&
     currentIndex ===
-      currentQuestions.length -
-        1;
+      currentQuestions.length - 1;
 
 
-  /* ========================================================================
-     RENDER
-  ======================================================================== */
+  /*
+   |--------------------------------------------------------------------------
+   | RENDER
+   |--------------------------------------------------------------------------
+   */
 
   return (
     <div className="min-h-screen bg-[#071426] text-white">
 
-      {/* ====================================================================
-          BACKGROUND
-      ==================================================================== */}
+      {/* BACKGROUND */}
 
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
 
@@ -2991,9 +3019,7 @@ const CBTExam = () => {
       </div>
 
 
-      {/* ====================================================================
-          HEADER
-      ==================================================================== */}
+      {/* HEADER */}
 
       <header className="sticky top-0 z-50 bg-[#071426]/95 backdrop-blur-2xl border-b border-white/[0.08] shadow-2xl">
 
@@ -3012,7 +3038,6 @@ const CBTExam = () => {
                   </div>
 
                 </div>
-
 
                 <div className="hidden sm:block">
 
@@ -3052,7 +3077,6 @@ const CBTExam = () => {
                       : "text-blue-400"
                   }
                 />
-
 
                 <div className="leading-none">
 
@@ -3104,9 +3128,7 @@ const CBTExam = () => {
                   }`}
                 >
 
-                  <Calculator
-                    size={18}
-                  />
+                  <Calculator size={18} />
 
                 </button>
               )}
@@ -3114,25 +3136,19 @@ const CBTExam = () => {
 
               <button
                 onClick={() =>
-                  setShowNavigator(
-                    true
-                  )
+                  setShowNavigator(true)
                 }
                 title="Question Navigator"
                 className="w-10 h-10 rounded-xl border border-white/10 bg-white/[0.035] text-slate-300 hover:text-white hover:bg-white/[0.07] transition flex items-center justify-center"
               >
 
-                <Grid3X3
-                  size={18}
-                />
+                <Grid3X3 size={18} />
 
               </button>
 
 
               <button
-                onClick={
-                  submitExam
-                }
+                onClick={submitExam}
                 className="hidden sm:flex items-center gap-2 px-4 md:px-5 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 transition font-semibold text-sm"
               >
 
@@ -3147,16 +3163,12 @@ const CBTExam = () => {
 
               <button
                 onClick={() =>
-                  setShowNavigator(
-                    true
-                  )
+                  setShowNavigator(true)
                 }
                 className="sm:hidden w-10 h-10 rounded-xl border border-white/10 bg-white/[0.035] flex items-center justify-center"
               >
 
-                <Menu
-                  size={18}
-                />
+                <Menu size={18} />
 
               </button>
 
@@ -3169,9 +3181,7 @@ const CBTExam = () => {
       </header>
 
 
-      {/* ====================================================================
-          MAIN
-      ==================================================================== */}
+      {/* MAIN */}
 
       <main className="relative z-10 max-w-[1400px] mx-auto px-4 md:px-7 py-7">
 
@@ -3191,7 +3201,6 @@ const CBTExam = () => {
                       subject
                     ] || [];
 
-
                   const subjectAnswered =
                     subjectQuestions.filter(
                       (question) => {
@@ -3201,18 +3210,14 @@ const CBTExam = () => {
                           ];
 
                         return (
-                          answer !==
-                            undefined &&
-                          answer !==
-                            null &&
+                          answer !== undefined &&
+                          answer !== null &&
                           String(
                             answer
-                          ).trim() !==
-                            ""
+                          ).trim() !== ""
                         );
                       }
                     ).length;
-
 
                   const active =
                     subjectsMatch(
@@ -3220,12 +3225,9 @@ const CBTExam = () => {
                       subject
                     );
 
-
                   return (
                     <button
-                      key={
-                        subject
-                      }
+                      key={subject}
                       onClick={() =>
                         changeSubject(
                           subject
@@ -3241,13 +3243,10 @@ const CBTExam = () => {
                       <div className="flex items-center justify-center gap-2">
 
                         <span>
-                          {
-                            getSubjectDisplayName(
-                              subject
-                            )
-                          }
+                          {getSubjectDisplayName(
+                            subject
+                          )}
                         </span>
-
 
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded-md ${
@@ -3256,19 +3255,13 @@ const CBTExam = () => {
                               : "bg-white/[0.05] text-slate-500"
                           }`}
                         >
-
-                          {
-                            subjectAnswered
-                          }
-                          /
+                          {subjectAnswered}/
                           {
                             subjectQuestions.length
                           }
-
                         </span>
 
                       </div>
-
 
                       {active && (
                         <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 rounded-full bg-blue-400" />
@@ -3302,19 +3295,17 @@ const CBTExam = () => {
                     ] || []
                   ).length;
 
-
                 return (
                   <div
-                    key={
-                      `summary-${subject}`
-                    }
+                    key={`summary-${subject}`}
                     className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3"
                   >
 
                     <p className="text-xs text-slate-500 truncate">
-                      {subject}
+                      {getSubjectDisplayName(
+                        subject
+                      )}
                     </p>
-
 
                     <p className="text-lg font-bold text-blue-400 mt-1">
                       {count}{" "}
@@ -3345,18 +3336,17 @@ const CBTExam = () => {
                 Current Subject
               </p>
 
-
               <h2 className="text-lg font-bold mt-1">
-                {activeSubject}
+                {getSubjectDisplayName(
+                  activeSubject
+                )}
               </h2>
 
             </div>
 
 
             <button
-              onClick={
-                toggleMark
-              }
+              onClick={toggleMark}
               className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold ${
                 marked[
                   currentQuestion?.id
@@ -3366,9 +3356,7 @@ const CBTExam = () => {
               }`}
             >
 
-              <Flag
-                size={15}
-              />
+              <Flag size={15} />
 
               {marked[
                 currentQuestion?.id
@@ -3402,7 +3390,6 @@ const CBTExam = () => {
 
                   </div>
 
-
                   <div>
 
                     <p className="text-sm font-bold">
@@ -3420,16 +3407,12 @@ const CBTExam = () => {
 
                 <button
                   onClick={() =>
-                    setShowCalculator(
-                      false
-                    )
+                    setShowCalculator(false)
                   }
                   className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white"
                 >
 
-                  <X
-                    size={17}
-                  />
+                  <X size={17} />
 
                 </button>
 
@@ -3439,9 +3422,7 @@ const CBTExam = () => {
               <div className="p-5">
 
                 <input
-                  value={
-                    calculatorValue
-                  }
+                  value={calculatorValue}
                   readOnly
                   className="w-full h-16 bg-[#04101f] border border-white/10 rounded-2xl px-4 text-right text-2xl font-mono text-white outline-none"
                   placeholder="0"
@@ -3474,22 +3455,17 @@ const CBTExam = () => {
                   ].map(
                     (value) => (
                       <button
-                        key={
-                          value
-                        }
+                        key={value}
                         onClick={() =>
                           calculatorPress(
                             value
                           )
                         }
                         className={`h-12 rounded-xl border font-semibold ${
-                          value ===
-                          "="
+                          value === "="
                             ? "bg-blue-600 hover:bg-blue-500 border-blue-400 text-white"
-                            : value ===
-                                "C" ||
-                              value ===
-                                "DEL"
+                            : value === "C" ||
+                              value === "DEL"
                             ? "bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-300"
                             : "bg-white/[0.035] hover:bg-white/[0.08] border-white/10 text-slate-200"
                         }`}
@@ -3498,9 +3474,7 @@ const CBTExam = () => {
                         {value ===
                         "DEL" ? (
                           <Delete
-                            size={
-                              17
-                            }
+                            size={17}
                             className="mx-auto"
                           />
                         ) : (
@@ -3532,11 +3506,8 @@ const CBTExam = () => {
                 <div className="flex items-center gap-3">
 
                   <div className="w-11 h-11 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold">
-                    {
-                      globalNumber
-                    }
+                    {globalNumber}
                   </div>
-
 
                   <div>
 
@@ -3545,9 +3516,9 @@ const CBTExam = () => {
                     </p>
 
                     <p className="text-sm font-semibold">
-                      {
+                      {getSubjectDisplayName(
                         activeSubject
-                      }
+                      )}
                     </p>
 
                   </div>
@@ -3562,9 +3533,7 @@ const CBTExam = () => {
                   </p>
 
                   <p className="text-sm font-semibold mt-1">
-                    {currentIndex +
-                      1}{" "}
-                    /{" "}
+                    {currentIndex + 1} /{" "}
                     {
                       currentQuestions.length
                     }
@@ -3600,7 +3569,6 @@ const CBTExam = () => {
 
               {currentQuestionContent.isComprehension &&
                 currentQuestionContent.passage && (
-
                   <div className="mb-8 rounded-2xl border border-blue-500/20 bg-[#091a2e]/80 overflow-hidden shadow-xl">
 
                     <div className="px-5 md:px-6 py-4 border-b border-blue-500/10 bg-blue-500/[0.06]">
@@ -3618,7 +3586,6 @@ const CBTExam = () => {
 
                           </div>
 
-
                           <div>
 
                             <p className="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-bold">
@@ -3626,7 +3593,8 @@ const CBTExam = () => {
                             </p>
 
                             <p className="text-sm font-semibold text-white mt-0.5">
-                              Comprehension Passage
+                              Comprehension
+                              Passage
                             </p>
 
                           </div>
@@ -3637,9 +3605,9 @@ const CBTExam = () => {
                         <div className="text-right shrink-0">
 
                           <p className="text-[9px] uppercase tracking-wider text-slate-500">
-                            Related Questions
+                            Related
+                            Questions
                           </p>
-
 
                           <p className="text-xs text-blue-400 font-semibold mt-1">
 
@@ -3649,32 +3617,56 @@ const CBTExam = () => {
                                   currentQuestion
                                 );
 
+                              const currentName =
+                                getComprehensionName(
+                                  currentQuestion
+                                );
 
                               if (
-                                !comprehensionId
+                                comprehensionId
                               ) {
-                                return "Passage";
+                                const related =
+                                  currentQuestions.filter(
+                                    (
+                                      question
+                                    ) =>
+                                      getComprehensionId(
+                                        question
+                                      ) ===
+                                      comprehensionId
+                                  ).length;
+
+                                return `${related} question${
+                                  related === 1
+                                    ? ""
+                                    : "s"
+                                }`;
                               }
 
-
-                              const related =
-                                currentQuestions.filter(
-                                  (
-                                    question
-                                  ) =>
-                                    getComprehensionId(
+                              if (
+                                currentName
+                              ) {
+                                const related =
+                                  currentQuestions.filter(
+                                    (
                                       question
-                                    ) ===
-                                    comprehensionId
-                                ).length;
+                                    ) =>
+                                      comprehensionNamesMatch(
+                                        getComprehensionName(
+                                          question
+                                        ),
+                                        currentName
+                                      )
+                                  ).length;
 
+                                return `${related} question${
+                                  related === 1
+                                    ? ""
+                                    : "s"
+                                }`;
+                              }
 
-                              return `${related} question${
-                                related ===
-                                1
-                                  ? ""
-                                  : "s"
-                              }`;
+                              return "Passage";
                             })()}
 
                           </p>
@@ -3699,7 +3691,6 @@ const CBTExam = () => {
                     </div>
 
                   </div>
-
                 )}
 
 
@@ -3733,18 +3724,22 @@ const CBTExam = () => {
 
               <div className="mt-8 space-y-3">
 
-                {currentOptions.map(
-                  (
-                    option,
-                    index
-                  ) => {
+                {[
+                  "A",
+                  "B",
+                  "C",
+                  "D",
+                ].map(
+                  (letter) => {
 
-                    const letter =
-                      String.fromCharCode(
-                        65 +
-                          index
-                      );
+                    const option =
+                      currentOptionMap[
+                        letter
+                      ];
 
+                    if (!option) {
+                      return null;
+                    }
 
                     const selected =
                       normalize(
@@ -3754,10 +3749,9 @@ const CBTExam = () => {
                         option
                       );
 
-
                     return (
                       <button
-                        key={`${currentQuestion?.id}-${index}`}
+                        key={`${currentQuestion?.id}-${letter}`}
                         onClick={() =>
                           selectAnswer(
                             option
@@ -3777,11 +3771,8 @@ const CBTExam = () => {
                               : "bg-[#102238] text-slate-400"
                           }`}
                         >
-                          {
-                            letter
-                          }
+                          {letter}
                         </span>
-
 
                         <MathText
                           className={
@@ -3790,18 +3781,13 @@ const CBTExam = () => {
                               : "text-slate-300"
                           }
                         >
-                          {
-                            option
-                          }
+                          {option}
                         </MathText>
-
 
                         {selected && (
                           <CheckCircle2
                             className="ml-auto text-blue-400 shrink-0"
-                            size={
-                              20
-                            }
+                            size={20}
                           />
                         )}
 
@@ -3815,7 +3801,9 @@ const CBTExam = () => {
 
               {/* NO OPTIONS */}
 
-              {currentOptions.length ===
+              {Object.values(
+                currentOptionMap
+              ).filter(Boolean).length ===
                 0 && (
                 <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
 
@@ -3826,22 +3814,32 @@ const CBTExam = () => {
                       className="text-red-400 shrink-0"
                     />
 
-
                     <div>
 
                       <p className="font-semibold text-red-300">
                         No options found
                       </p>
 
-
                       <p className="text-sm text-red-300/70 mt-1">
                         This database
-                        question
-                        has no
-                        readable
+                        question has
+                        no readable
                         options.
                       </p>
 
+                      <p className="text-xs text-slate-500 mt-2">
+                        Expected database
+                        format:
+                      </p>
+
+                      <pre className="mt-2 text-[10px] text-blue-300 bg-black/20 rounded-lg p-3 overflow-auto">
+{`{
+  "A": "Option A",
+  "B": "Option B",
+  "C": "Option C",
+  "D": "Option D"
+}`}
+                      </pre>
 
                       <details className="mt-3">
 
@@ -3849,7 +3847,6 @@ const CBTExam = () => {
                           View database
                           record
                         </summary>
-
 
                         <pre className="mt-3 text-[10px] text-slate-500 overflow-auto whitespace-pre-wrap">
                           {JSON.stringify(
@@ -3882,17 +3879,13 @@ const CBTExam = () => {
                 previousQuestion
               }
               disabled={
-                currentIndex ===
-                  0 &&
-                activeSubjectPosition ===
-                  0
+                currentIndex === 0 &&
+                activeSubjectPosition === 0
               }
               className="flex items-center gap-2 px-5 py-3 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] disabled:opacity-30 disabled:cursor-not-allowed transition font-semibold text-sm"
             >
 
-              <ChevronLeft
-                size={18}
-              />
+              <ChevronLeft size={18} />
 
               Previous
 
@@ -3901,16 +3894,12 @@ const CBTExam = () => {
 
             <button
               onClick={() =>
-                setShowNavigator(
-                  true
-                )
+                setShowNavigator(true)
               }
               className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] transition text-sm font-semibold"
             >
 
-              <Grid3X3
-                size={17}
-              />
+              <Grid3X3 size={17} />
 
               Questions
 
@@ -3920,34 +3909,26 @@ const CBTExam = () => {
             {isLastQuestionOfExam ? (
 
               <button
-                onClick={
-                  submitExam
-                }
+                onClick={submitExam}
                 className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition font-semibold text-sm"
               >
 
                 Submit Exam
 
-                <CheckCircle2
-                  size={18}
-                />
+                <CheckCircle2 size={18} />
 
               </button>
 
             ) : (
 
               <button
-                onClick={
-                  nextQuestion
-                }
+                onClick={nextQuestion}
                 className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition font-semibold text-sm"
               >
 
                 Next
 
-                <ChevronRight
-                  size={18}
-                />
+                <ChevronRight size={18} />
 
               </button>
 
@@ -3960,24 +3941,20 @@ const CBTExam = () => {
       </main>
 
 
-      {/* ====================================================================
-          QUESTION NAVIGATOR
-      ==================================================================== */}
+      {/* QUESTION NAVIGATOR */}
 
       {showNavigator && (
         <>
 
           <div
             onClick={() =>
-              setShowNavigator(
-                false
-              )
+              setShowNavigator(false)
             }
             className="fixed inset-0 z-[55] bg-black/40 backdrop-blur-[2px]"
           />
 
 
-          <aside className="fixed right-4 top-20 z-[60] w-[330px] max-h-[calc(100vh-105px)] overflow-y-auto rounded-2xl border border-white/10 bg-[#0a1b30]/98 backdrop-blur-2xl shadow-2xl">
+          <aside className="fixed right-4 top-20 z-[60] w-[330px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-105px)] overflow-y-auto rounded-2xl border border-white/10 bg-[#0a1b30]/98 backdrop-blur-2xl shadow-2xl">
 
             <div className="sticky top-0 z-10 bg-[#0a1b30]/98 backdrop-blur-xl border-b border-white/10 p-4 flex items-center justify-between">
 
@@ -3988,13 +3965,8 @@ const CBTExam = () => {
                 </h3>
 
                 <p className="text-xs text-slate-500 mt-1">
-                  {
-                    answeredCount
-                  }
-                  /
-                  {
-                    totalQuestions
-                  }{" "}
+                  {answeredCount}/
+                  {totalQuestions}{" "}
                   answered
                 </p>
 
@@ -4003,16 +3975,12 @@ const CBTExam = () => {
 
               <button
                 onClick={() =>
-                  setShowNavigator(
-                    false
-                  )
+                  setShowNavigator(false)
                 }
                 className="p-2 rounded-lg hover:bg-white/10"
               >
 
-                <X
-                  size={18}
-                />
+                <X size={18} />
 
               </button>
 
@@ -4029,54 +3997,40 @@ const CBTExam = () => {
                       subject
                     ] || [];
 
-
                   const subjectAnswered =
                     subjectQuestions.filter(
                       (question) => {
-
                         const answer =
                           answers[
                             question.id
                           ];
 
-
                         return (
-                          answer !==
-                            undefined &&
-                          answer !==
-                            null &&
+                          answer !== undefined &&
+                          answer !== null &&
                           String(
                             answer
-                          ).trim() !==
-                            ""
+                          ).trim() !== ""
                         );
-
                       }
                     ).length;
 
-
                   return (
                     <div
-                      key={
-                        subject
-                      }
+                      key={subject}
                       className="mb-6"
                     >
 
                       <div className="flex items-center justify-between mb-3">
 
                         <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                          {
+                          {getSubjectDisplayName(
                             subject
-                          }
+                          )}
                         </p>
 
-
                         <span className="text-[10px] text-slate-600">
-                          {
-                            subjectAnswered
-                          }
-                          /
+                          {subjectAnswered}/
                           {
                             subjectQuestions.length
                           }
@@ -4098,12 +4052,10 @@ const CBTExam = () => {
                                 question.id
                               ];
 
-
                             const markedQuestion =
                               marked[
                                 question.id
                               ];
-
 
                             const isCurrent =
                               subjectsMatch(
@@ -4113,12 +4065,10 @@ const CBTExam = () => {
                               index ===
                                 currentIndex;
 
-
                             const isComprehension =
                               isComprehensionQuestion(
                                 question
                               );
-
 
                             return (
                               <button
@@ -4155,18 +4105,11 @@ const CBTExam = () => {
                                 }`}
                               >
 
-                                {
-                                  index +
-                                    1
-                                }
-
+                                {index + 1}
 
                                 {isComprehension && (
-                                  <span
-                                    className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-400"
-                                  />
+                                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-400" />
                                 )}
-
 
                                 {markedQuestion && (
                                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-yellow-400" />
@@ -4196,24 +4139,20 @@ const CBTExam = () => {
                   Current
                 </div>
 
-
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/30" />
                   Answered
                 </div>
-
 
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded bg-[#102238] border border-white/10" />
                   Unanswered
                 </div>
 
-
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-yellow-400" />
                   Marked
                 </div>
-
 
                 <div className="flex items-center gap-2 col-span-2">
                   <span className="w-3 h-3 rounded-full bg-blue-400" />

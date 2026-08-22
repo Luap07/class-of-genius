@@ -61,21 +61,6 @@ const normalize = (value) => {
     .toLowerCase();
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| EXAM MATCHING
-|--------------------------------------------------------------------------
-|
-| IMPORTANT:
-| No exam bodies are hardcoded here.
-|
-| The selected exam is compared directly with the
-| exam value stored in Supabase after normalization.
-|
-|--------------------------------------------------------------------------
-*/
-
 const examsMatch = (first, second) => {
   const a = normalize(first);
   const b = normalize(second);
@@ -86,21 +71,6 @@ const examsMatch = (first, second) => {
 
   return a === b;
 };
-
-
-/*
-|--------------------------------------------------------------------------
-| SUBJECT MATCHING
-|--------------------------------------------------------------------------
-|
-| IMPORTANT:
-| No subjects are hardcoded here.
-|
-| The selected subject is compared directly with
-| the subject stored in Supabase.
-|
-|--------------------------------------------------------------------------
-*/
 
 const subjectsMatch = (first, second) => {
   const a = normalize(first);
@@ -3034,7 +3004,7 @@ const CBTExam = () => {
                 <div className="w-10 h-10 rounded-xl bg-blue-500/[0.08] border border-blue-400/20 flex items-center justify-center">
 
                   <div className="font-black text-blue-400">
-                    C
+                    COG
                   </div>
 
                 </div>

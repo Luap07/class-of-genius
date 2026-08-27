@@ -26,12 +26,51 @@ import {
   Zap,
   FolderOpen,
   Crown,
-  Star,
-  Eye,
-  Rocket,
+  Lock,
+  CreditCard,
 } from "lucide-react";
 
 import { useCourses } from "../../context/LMSContext/CourseContext";
+
+/* =========================================================
+   PAYMENT CONFIGURATION
+========================================================= */
+
+/*
+  IMPORTANT:
+
+  PAYMENT IS PER DOCUMENT.
+
+  There is NO category-wide unlock.
+
+  Example:
+
+  Document A → ₦4,000 → purchased
+  Document B → ₦4,000 → still locked
+  Document C → ₦4,000 → still locked
+
+  Purchasing Document A does NOT unlock B or C.
+*/
+
+const DOCUMENT_PRICE = 4000;
+
+/*
+  Change this ONLY if your actual payment route is different.
+
+  Example route:
+
+  /payment
+
+  The document ID is passed through the query string:
+
+  /payment?documentId=DOCUMENT_ID&categoryId=CATEGORY_ID&amount=4000
+
+  Your payment page should read:
+
+  documentId
+  categoryId
+  amount
+*/
 
 /* =========================================================
    ANIMATION SYSTEM
@@ -94,11 +133,24 @@ export default function CategorySubjects() {
   const navigate = useNavigate();
   const { categoryId } = useParams();
 
+  const courseContext = useCourses() || {};
+
   const {
     categories = [],
     documents = [],
-    loading,
-  } = useCourses();
+    loading = false,
+  } = courseContext;
+
+  /*
+    Support different purchase property names from the context.
+  */
+
+  const purchaseSource =
+    courseContext.documentPurchases ??
+    courseContext.userPurchases ??
+    courseContext.purchases ??
+    courseContext.purchasedDocuments ??
+    [];
 
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -116,6 +168,73 @@ export default function CategorySubjects() {
   }, [categories, categoryId]);
 
   /* =======================================================
+     PURCHASED DOCUMENT IDS
+  ======================================================= */
+
+  /*
+    ONLY DOCUMENT IDS are stored here.
+
+    There is deliberately NO category purchase logic.
+
+    Example:
+
+    purchaseSource:
+
+    {
+      document_id: "abc",
+      status: "paid"
+    }
+
+    becomes:
+
+    Set(["abc"])
+
+    Every other document remains locked.
+  */
+
+  const purchasedDocumentIds = useMemo(() => {
+    const ids = new Set();
+
+    if (!Array.isArray(purchaseSource)) {
+      return ids;
+    }
+
+    purchaseSource.forEach((purchase) => {
+      if (!purchase) return;
+
+      const documentId =
+        purchase.document_id ??
+        purchase.documentId ??
+        purchase.resource_id ??
+        purchase.resourceId;
+
+      if (!documentId) return;
+
+      const status = String(
+        purchase.status ??
+          purchase.payment_status ??
+          purchase.paymentStatus ??
+          "paid"
+      ).toLowerCase();
+
+      const isPaid =
+        status === "paid" ||
+        status === "successful" ||
+        status === "success" ||
+        status === "completed" ||
+        status === "approved" ||
+        purchase.paid === true ||
+        purchase.is_paid === true;
+
+      if (isPaid) {
+        ids.add(String(documentId));
+      }
+    });
+
+    return ids;
+  }, [purchaseSource]);
+
+  /* =======================================================
      CATEGORY DOCUMENTS
   ======================================================= */
 
@@ -124,6 +243,8 @@ export default function CategorySubjects() {
       (doc) =>
         String(doc.category_id) === String(categoryId)
     );
+
+    /* FILTER */
 
     if (activeFilter === "pdf") {
       list = list.filter(
@@ -138,6 +259,8 @@ export default function CategorySubjects() {
           doc.file_type?.toLowerCase() !== "pdf"
       );
     }
+
+    /* SEARCH */
 
     if (search.trim()) {
       const keyword = search.toLowerCase().trim();
@@ -156,6 +279,8 @@ export default function CategorySubjects() {
         );
       });
     }
+
+    /* SORT */
 
     list = [...list].sort((a, b) => {
       if (sortBy === "latest") {
@@ -247,6 +372,110 @@ export default function CategorySubjects() {
   };
 
   /* =======================================================
+     PAYMENT HANDLER
+  ======================================================= */
+
+  const handlePaymentRedirect = (doc) => {
+    if (!doc?.id) return;
+
+    /*
+      IMPORTANT:
+
+      We ONLY send the selected document ID.
+
+      There is NO:
+
+      category purchase
+      unlock-all
+      unlock-everything
+      bulk purchase
+
+      The payment page receives ONE document.
+    */
+
+    const params = new URLSearchParams();
+
+    params.set(
+      "documentId",
+      String(doc.id)
+    );
+
+    if (categoryId) {
+      params.set(
+        "categoryId",
+        String(categoryId)
+      );
+    }
+
+    params.set(
+      "amount",
+      String(DOCUMENT_PRICE)
+    );
+
+    /*
+      Navigate directly to the payment page.
+
+      React Router should have a route similar to:
+
+      <Route
+        path="/payment"
+        element={<Payment />}
+      />
+
+      If your payment component has another route,
+      change ONLY "/payment" here.
+    */
+
+    navigate(`/payment?${params.toString()}`);
+  };
+
+  /* =======================================================
+     DOCUMENT ACCESS
+  ======================================================= */
+
+  const hasDocumentAccess = (doc) => {
+    if (!doc?.id) return false;
+
+    /*
+      ACCESS IS BASED ONLY ON DOCUMENT ID.
+    */
+
+    return purchasedDocumentIds.has(
+      String(doc.id)
+    );
+  };
+
+  /* =======================================================
+     OPEN DOCUMENT
+  ======================================================= */
+
+  const handleOpenDocument = (doc) => {
+    if (!doc?.id) return;
+
+    const hasAccess =
+      hasDocumentAccess(doc);
+
+    /*
+      Never allow an unpaid document to open.
+    */
+
+    if (!hasAccess) {
+      handlePaymentRedirect(doc);
+      return;
+    }
+
+    /*
+      Purchased document only.
+    */
+
+    navigate(
+      `/pdf/${encodeURIComponent(
+        String(doc.id)
+      )}`
+    );
+  };
+
+  /* =======================================================
      RENDER
   ======================================================= */
 
@@ -265,7 +494,7 @@ export default function CategorySubjects() {
       "
     >
       {/* =====================================================
-          ANIME PREMIUM BACKGROUND
+          BACKGROUND
       ===================================================== */}
 
       <div
@@ -277,8 +506,6 @@ export default function CategorySubjects() {
           overflow-hidden
         "
       >
-        {/* Main atmospheric gradient */}
-
         <div
           className="
             absolute
@@ -286,8 +513,6 @@ export default function CategorySubjects() {
             bg-[radial-gradient(circle_at_20%_0%,#172b59_0%,transparent_38%),radial-gradient(circle_at_85%_15%,#321b61_0%,transparent_36%),radial-gradient(circle_at_50%_100%,#102e55_0%,transparent_42%)]
           "
         />
-
-        {/* Blue anime aura */}
 
         <motion.div
           animate={{
@@ -312,8 +537,6 @@ export default function CategorySubjects() {
           "
         />
 
-        {/* Purple anime aura */}
-
         <motion.div
           animate={{
             x: [0, -70, 20, 0],
@@ -337,8 +560,6 @@ export default function CategorySubjects() {
           "
         />
 
-        {/* Bottom blue aura */}
-
         <motion.div
           animate={{
             x: [0, 100, -30, 0],
@@ -361,61 +582,6 @@ export default function CategorySubjects() {
           "
         />
 
-        {/* Anime energy beam */}
-
-        <motion.div
-          animate={{
-            x: ["-120%", "130%"],
-            opacity: [0, 0.35, 0],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: "linear",
-            delay: 2,
-          }}
-          className="
-            absolute
-            left-0
-            top-[18%]
-            h-[1px]
-            w-[45%]
-            rotate-[-18deg]
-            bg-gradient-to-r
-            from-transparent
-            via-cyan-300
-            to-transparent
-            blur-[1px]
-          "
-        />
-
-        <motion.div
-          animate={{
-            x: ["120%", "-130%"],
-            opacity: [0, 0.25, 0],
-          }}
-          transition={{
-            duration: 11,
-            repeat: Infinity,
-            ease: "linear",
-            delay: 4,
-          }}
-          className="
-            absolute
-            right-0
-            top-[48%]
-            h-[1px]
-            w-[40%]
-            rotate-[20deg]
-            bg-gradient-to-r
-            from-transparent
-            via-violet-300
-            to-transparent
-          "
-        />
-
-        {/* Grid */}
-
         <div
           className="
             absolute
@@ -427,11 +593,7 @@ export default function CategorySubjects() {
           "
         />
 
-        {/* Stars / particles */}
-
         <AnimeParticles />
-
-        {/* Soft vignette */}
 
         <div
           className="
@@ -470,7 +632,9 @@ export default function CategorySubjects() {
           "
         >
           <button
-            onClick={() => navigate("/subjects")}
+            onClick={() =>
+              navigate("/subjects")
+            }
             className="
               group
               inline-flex
@@ -486,7 +650,6 @@ export default function CategorySubjects() {
               font-black
               text-slate-300
               shadow-lg
-              shadow-black/10
               backdrop-blur-xl
               transition-all
               hover:-translate-y-0.5
@@ -520,8 +683,6 @@ export default function CategorySubjects() {
               text-xs
               font-black
               text-cyan-300
-              shadow-lg
-              shadow-cyan-500/10
               sm:flex
             "
           >
@@ -575,8 +736,6 @@ export default function CategorySubjects() {
               md:p-10
             "
           >
-            {/* Anime glow */}
-
             <motion.div
               animate={{
                 scale: [1, 1.2, 1],
@@ -623,55 +782,7 @@ export default function CategorySubjects() {
               "
             />
 
-            {/* Decorative rings */}
-
-            <motion.div
-              animate={{
-                rotate: 360,
-              }}
-              transition={{
-                duration: 35,
-                repeat: Infinity,
-                ease: "linear",
-              }}
-              className="
-                pointer-events-none
-                absolute
-                -right-24
-                top-10
-                h-72
-                w-72
-                rounded-full
-                border
-                border-cyan-300/[0.08]
-              "
-            />
-
-            <motion.div
-              animate={{
-                rotate: -360,
-              }}
-              transition={{
-                duration: 45,
-                repeat: Infinity,
-                ease: "linear",
-              }}
-              className="
-                pointer-events-none
-                absolute
-                -right-10
-                top-24
-                h-56
-                w-56
-                rounded-full
-                border
-                border-violet-300/[0.07]
-              "
-            />
-
             <div className="relative z-10">
-              {/* Badge */}
-
               <motion.div
                 initial={{
                   opacity: 0,
@@ -696,8 +807,6 @@ export default function CategorySubjects() {
                   uppercase
                   tracking-[0.18em]
                   text-cyan-300
-                  shadow-lg
-                  shadow-cyan-500/10
                 "
               >
                 <Sparkles size={13} />
@@ -718,8 +827,6 @@ export default function CategorySubjects() {
               >
                 <div className="max-w-3xl">
                   <div className="flex items-center gap-4">
-                    {/* Animated icon */}
-
                     <motion.div
                       animate={{
                         y: [0, -5, 0],
@@ -747,16 +854,6 @@ export default function CategorySubjects() {
                         shadow-cyan-500/25
                       "
                     >
-                      <div
-                        className="
-                          absolute
-                          inset-0
-                          rounded-2xl
-                          bg-cyan-300/20
-                          blur-xl
-                        "
-                      />
-
                       <BookOpen
                         size={30}
                         className="relative text-white"
@@ -783,7 +880,6 @@ export default function CategorySubjects() {
                           font-black
                           tracking-tight
                           text-white
-                          drop-shadow-lg
                           md:text-5xl
                         "
                       >
@@ -810,8 +906,6 @@ export default function CategorySubjects() {
                   </p>
                 </div>
 
-                {/* Status */}
-
                 <motion.div
                   whileHover={{
                     y: -3,
@@ -828,44 +922,12 @@ export default function CategorySubjects() {
                     bg-emerald-400/[0.07]
                     px-5
                     py-4
-                    shadow-xl
-                    shadow-emerald-950/20
                   "
                 >
-                  <div
-                    className="
-                      relative
-                      flex
-                      h-10
-                      w-10
-                      items-center
-                      justify-center
-                      rounded-xl
-                      bg-emerald-400/10
-                    "
-                  >
-                    <motion.div
-                      animate={{
-                        scale: [1, 1.25, 1],
-                        opacity: [0.4, 0.1, 0.4],
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                      }}
-                      className="
-                        absolute
-                        inset-0
-                        rounded-xl
-                        bg-emerald-400
-                      "
-                    />
-
-                    <CheckCircle2
-                      size={20}
-                      className="relative text-emerald-400"
-                    />
-                  </div>
+                  <CheckCircle2
+                    size={20}
+                    className="text-emerald-400"
+                  />
 
                   <div>
                     <p className="text-xs text-slate-400">
@@ -873,13 +935,11 @@ export default function CategorySubjects() {
                     </p>
 
                     <p className="mt-0.5 text-sm font-black text-emerald-400">
-                      Verified Access
+                      Secure Access
                     </p>
                   </div>
                 </motion.div>
               </div>
-
-              {/* Stats */}
 
               <div
                 className="
@@ -940,7 +1000,6 @@ export default function CategorySubjects() {
               bg-[#111a34]/75
               p-3
               shadow-2xl
-              shadow-blue-950/20
               backdrop-blur-2xl
             "
           >
@@ -953,8 +1012,6 @@ export default function CategorySubjects() {
                 lg:items-center
               "
             >
-              {/* Search */}
-
               <div className="relative flex-1">
                 <Search
                   size={18}
@@ -986,7 +1043,6 @@ export default function CategorySubjects() {
                     text-sm
                     text-white
                     outline-none
-                    transition
                     placeholder:text-slate-500
                     focus:border-cyan-400/50
                     focus:ring-4
@@ -1001,14 +1057,10 @@ export default function CategorySubjects() {
                       absolute
                       right-3
                       top-1/2
-                      flex
                       -translate-y-1/2
-                      items-center
-                      justify-center
                       rounded-lg
                       p-1.5
                       text-slate-500
-                      transition
                       hover:bg-white/10
                       hover:text-white
                     "
@@ -1018,16 +1070,7 @@ export default function CategorySubjects() {
                 )}
               </div>
 
-              {/* Filters */}
-
-              <div
-                className="
-                  flex
-                  flex-wrap
-                  items-center
-                  gap-2
-                "
-              >
+              <div className="flex flex-wrap items-center gap-2">
                 <FilterButton
                   active={activeFilter === "all"}
                   onClick={() =>
@@ -1056,8 +1099,6 @@ export default function CategorySubjects() {
                 </FilterButton>
               </div>
 
-              {/* Sort */}
-
               <div className="relative">
                 <select
                   value={sortBy}
@@ -1077,8 +1118,6 @@ export default function CategorySubjects() {
                     font-bold
                     text-slate-300
                     outline-none
-                    transition
-                    focus:border-cyan-400/40
                   "
                 >
                   <option value="latest">
@@ -1095,8 +1134,6 @@ export default function CategorySubjects() {
                 </select>
               </div>
 
-              {/* View */}
-
               <div
                 className="
                   flex
@@ -1112,16 +1149,11 @@ export default function CategorySubjects() {
                   onClick={() =>
                     setViewMode("grid")
                   }
-                  className={`
-                    rounded-lg
-                    p-2
-                    transition
-                    ${
-                      viewMode === "grid"
-                        ? "bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-400/20"
-                        : "text-slate-500 hover:text-white"
-                    }
-                  `}
+                  className={`rounded-lg p-2 ${
+                    viewMode === "grid"
+                      ? "bg-cyan-400 text-slate-950"
+                      : "text-slate-500 hover:text-white"
+                  }`}
                 >
                   <Grid3X3 size={15} />
                 </button>
@@ -1130,16 +1162,11 @@ export default function CategorySubjects() {
                   onClick={() =>
                     setViewMode("list")
                   }
-                  className={`
-                    rounded-lg
-                    p-2
-                    transition
-                    ${
-                      viewMode === "list"
-                        ? "bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-400/20"
-                        : "text-slate-500 hover:text-white"
-                    }
-                  `}
+                  className={`rounded-lg p-2 ${
+                    viewMode === "list"
+                      ? "bg-cyan-400 text-slate-950"
+                      : "text-slate-500 hover:text-white"
+                  }`}
                 >
                   <List size={15} />
                 </button>
@@ -1147,24 +1174,14 @@ export default function CategorySubjects() {
             </div>
           </div>
 
-          <div
-            className="
-              mt-4
-              flex
-              flex-wrap
-              items-center
-              justify-between
-              gap-3
-              px-1
-            "
-          >
+          <div className="mt-4 flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <SlidersHorizontal
                 size={14}
                 className="text-cyan-400"
               />
 
-              <span className="text-xs font-semibold text-slate-400">
+              <span className="text-xs text-slate-400">
                 Showing
               </span>
 
@@ -1207,15 +1224,27 @@ export default function CategorySubjects() {
               }
             >
               {categoryDocuments.map(
-                (doc, index) => (
-                  <DocumentCard
-                    key={doc.id}
-                    doc={doc}
-                    navigate={navigate}
-                    index={index}
-                    viewMode={viewMode}
-                  />
-                )
+                (doc, index) => {
+                  const hasAccess =
+                    hasDocumentAccess(doc);
+
+                  return (
+                    <DocumentCard
+                      key={doc.id}
+                      doc={doc}
+                      index={index}
+                      viewMode={viewMode}
+                      hasAccess={hasAccess}
+                      documentPrice={DOCUMENT_PRICE}
+                      onPayment={
+                        handlePaymentRedirect
+                      }
+                      onRead={
+                        handleOpenDocument
+                      }
+                    />
+                  );
+                }
               )}
             </motion.div>
           ) : (
@@ -1227,7 +1256,7 @@ export default function CategorySubjects() {
         </section>
 
         {/* ===================================================
-            PREMIUM CTA
+            CTA
         =================================================== */}
 
         <motion.section
@@ -1243,9 +1272,6 @@ export default function CategorySubjects() {
             once: true,
             amount: 0.2,
           }}
-          transition={{
-            duration: 0.65,
-          }}
           className="
             relative
             mt-24
@@ -1259,63 +1285,10 @@ export default function CategorySubjects() {
             to-[#241747]/90
             p-8
             shadow-2xl
-            shadow-blue-950/40
-            backdrop-blur-3xl
             md:p-12
           "
         >
-          {/* Animated CTA glow */}
-
-          <motion.div
-            animate={{
-              x: [0, 100, 0],
-              y: [0, -30, 0],
-              scale: [1, 1.15, 1],
-            }}
-            transition={{
-              duration: 10,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            className="
-              pointer-events-none
-              absolute
-              -right-24
-              -top-24
-              h-80
-              w-80
-              rounded-full
-              bg-cyan-400/10
-              blur-[100px]
-            "
-          />
-
-          <div
-            className="
-              pointer-events-none
-              absolute
-              -bottom-32
-              left-20
-              h-72
-              w-72
-              rounded-full
-              bg-violet-500/10
-              blur-[100px]
-            "
-          />
-
-          <div
-            className="
-              relative
-              z-10
-              flex
-              flex-col
-              gap-8
-              md:flex-row
-              md:items-center
-              md:justify-between
-            "
-          >
+          <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
             <div className="max-w-2xl">
               <div
                 className="
@@ -1340,29 +1313,11 @@ export default function CategorySubjects() {
                 Keep Learning
               </div>
 
-              <h2
-                className="
-                  mt-5
-                  text-3xl
-                  font-black
-                  tracking-tight
-                  text-white
-                  md:text-4xl
-                "
-              >
+              <h2 className="mt-5 text-3xl font-black text-white md:text-4xl">
                 Build Your Knowledge Library
               </h2>
 
-              <p
-                className="
-                  mt-3
-                  max-w-xl
-                  text-sm
-                  leading-7
-                  text-slate-300/70
-                  md:text-base
-                "
-              >
+              <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300/70 md:text-base">
                 Continue exploring Scholiqen's
                 structured learning ecosystem and
                 discover more resources across your
@@ -1377,7 +1332,6 @@ export default function CategorySubjects() {
               className="
                 group
                 inline-flex
-                shrink-0
                 items-center
                 justify-center
                 gap-2
@@ -1391,13 +1345,8 @@ export default function CategorySubjects() {
                 font-black
                 text-slate-950
                 shadow-xl
-                shadow-cyan-500/20
                 transition-all
                 hover:-translate-y-1
-                hover:from-cyan-200
-                hover:to-blue-300
-                hover:shadow-cyan-500/30
-                active:scale-95
               "
             >
               <Compass size={18} />
@@ -1406,10 +1355,7 @@ export default function CategorySubjects() {
 
               <ChevronRight
                 size={17}
-                className="
-                  transition-transform
-                  group-hover:translate-x-1
-                "
+                className="transition-transform group-hover:translate-x-1"
               />
             </button>
           </div>
@@ -1420,200 +1366,80 @@ export default function CategorySubjects() {
 }
 
 /* =========================================================
-   ANIME PARTICLES
-========================================================= */
-
-function AnimeParticles() {
-  const particles = Array.from(
-    { length: 32 },
-    (_, index) => ({
-      id: index,
-      left: `${(index * 37) % 100}%`,
-      top: `${(index * 61) % 100}%`,
-      size: 2 + (index % 3),
-      delay: (index % 8) * 0.7,
-      duration: 4 + (index % 6),
-    })
-  );
-
-  return (
-    <>
-      {particles.map((particle) => (
-        <motion.span
-          key={particle.id}
-          className="
-            absolute
-            rounded-full
-            bg-cyan-200
-            shadow-[0_0_12px_rgba(103,232,249,0.8)]
-          "
-          style={{
-            left: particle.left,
-            top: particle.top,
-            width: particle.size,
-            height: particle.size,
-          }}
-          animate={{
-            opacity: [0, 0.8, 0],
-            y: [0, -35, -70],
-            x: [0, 8, -5],
-            scale: [0.5, 1, 0.3],
-          }}
-          transition={{
-            duration: particle.duration,
-            delay: particle.delay,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-      ))}
-    </>
-  );
-}
-
-/* =========================================================
-   PREMIUM STAT
-========================================================= */
-
-function PremiumStat({
-  icon,
-  label,
-  value,
-  accent = false,
-}) {
-  return (
-    <motion.div
-      whileHover={{
-        y: -4,
-        scale: 1.015,
-      }}
-      className="
-        group
-        relative
-        overflow-hidden
-        rounded-2xl
-        border
-        border-white/[0.08]
-        bg-[#0b142b]/75
-        p-4
-        shadow-lg
-        shadow-black/10
-        backdrop-blur-xl
-        transition
-        hover:border-cyan-400/20
-      "
-    >
-      <div
-        className="
-          absolute
-          -right-8
-          -top-8
-          h-20
-          w-20
-          rounded-full
-          bg-cyan-400/[0.05]
-          blur-2xl
-          transition
-          group-hover:bg-cyan-400/10
-        "
-      />
-
-      <div className="relative">
-        <div
-          className={`
-            flex
-            h-9
-            w-9
-            items-center
-            justify-center
-            rounded-xl
-            ${
-              accent
-                ? "bg-cyan-400/10 text-cyan-300"
-                : "bg-white/[0.05] text-slate-400"
-            }
-          `}
-        >
-          {icon}
-        </div>
-
-        <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-          {label}
-        </p>
-
-        <p
-          className={`
-            mt-1
-            text-2xl
-            font-black
-            ${
-              accent
-                ? "text-cyan-300"
-                : "text-white"
-            }
-          `}
-        >
-          {value}
-        </p>
-      </div>
-    </motion.div>
-  );
-}
-
-/* =========================================================
-   FILTER BUTTON
-========================================================= */
-
-function FilterButton({
-  children,
-  active,
-  onClick,
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        rounded-xl
-        px-4
-        py-2.5
-        text-xs
-        font-black
-        transition-all
-        ${
-          active
-            ? "bg-gradient-to-r from-cyan-300 to-blue-400 text-slate-950 shadow-lg shadow-cyan-400/20"
-            : "text-slate-400 hover:bg-white/[0.05] hover:text-white"
-        }
-      `}
-    >
-      {children}
-    </button>
-  );
-}
-
-/* =========================================================
    DOCUMENT CARD
 ========================================================= */
 
 function DocumentCard({
   doc,
-  navigate,
   index,
   viewMode,
+  hasAccess,
+  documentPrice,
+  onPayment,
+  onRead,
 }) {
+  const isLocked = !hasAccess;
+
+  /* =======================================================
+     READ
+  ======================================================= */
+
+  const handleRead = (e) => {
+    e?.stopPropagation();
+
+    if (!doc?.id) return;
+
+    /*
+      Locked → payment for THIS document.
+    */
+
+    if (isLocked) {
+      onPayment(doc);
+      return;
+    }
+
+    /*
+      Purchased → open THIS document.
+    */
+
+    onRead(doc);
+  };
+
+  /* =======================================================
+     DOWNLOAD
+  ======================================================= */
+
   const handleDownload = (e) => {
-    e.stopPropagation();
+    e?.stopPropagation();
+
+    if (!doc?.id) return;
+
+    /*
+      Locked → payment for THIS document.
+    */
+
+    if (isLocked) {
+      onPayment(doc);
+      return;
+    }
+
+    /*
+      Purchased → download THIS document.
+    */
 
     if (!doc.file_url) return;
 
-    const link =
-      document.createElement("a");
+    const link = document.createElement("a");
 
     link.href = doc.file_url;
+
     link.download =
       doc.title || "document";
+
     link.target = "_blank";
-    link.rel = "noopener noreferrer";
+
+    link.rel =
+      "noopener noreferrer";
 
     document.body.appendChild(link);
 
@@ -1622,11 +1448,9 @@ function DocumentCard({
     document.body.removeChild(link);
   };
 
-  const openPDFReader = () => {
-    if (!doc?.id) return;
-
-    navigate(`/pdf/${doc.id}`);
-  };
+  /* =======================================================
+     FILE SIZE
+  ======================================================= */
 
   const formatFileSize = (sizeInBytes) => {
     if (!sizeInBytes) return null;
@@ -1641,7 +1465,10 @@ function DocumentCard({
       )} KB`;
     }
 
-    if (sizeInBytes < 1024 * 1024 * 1024) {
+    if (
+      sizeInBytes <
+      1024 * 1024 * 1024
+    ) {
       return `${(
         sizeInBytes /
         (1024 * 1024)
@@ -1675,44 +1502,16 @@ function DocumentCard({
           bg-[#101a34]/80
           p-4
           shadow-xl
-          shadow-blue-950/20
           backdrop-blur-2xl
           transition-all
           hover:border-cyan-400/30
-          hover:bg-[#13203e]/90
         "
       >
-        {/* Hover aura */}
-
-        <div
-          className="
-            pointer-events-none
-            absolute
-            -right-20
-            -top-20
-            h-48
-            w-48
-            rounded-full
-            bg-cyan-400/[0.06]
-            blur-[70px]
-            transition
-            group-hover:bg-cyan-400/[0.12]
-          "
-        />
-
-        <div
-          className="
-            relative
-            flex
-            flex-col
-            gap-5
-            md:flex-row
-            md:items-center
-          "
-        >
+        <div className="relative flex flex-col gap-5 md:flex-row md:items-center">
           <DocumentThumbnail
             doc={doc}
             compact
+            locked={isLocked}
           />
 
           <div className="min-w-0 flex-1">
@@ -1734,37 +1533,56 @@ function DocumentCard({
                   "FILE"}
               </span>
 
-              {doc.created_at && (
-                <span className="text-[11px] text-slate-500">
-                  {new Date(
-                    doc.created_at
-                  ).toLocaleDateString()}
+              {isLocked ? (
+                <span
+                  className="
+                    inline-flex
+                    items-center
+                    gap-1
+                    rounded-full
+                    border
+                    border-amber-400/20
+                    bg-amber-400/10
+                    px-2.5
+                    py-1
+                    text-[10px]
+                    font-black
+                    text-amber-300
+                  "
+                >
+                  <Lock size={10} />
+
+                  LOCKED
+                </span>
+              ) : (
+                <span
+                  className="
+                    inline-flex
+                    items-center
+                    gap-1
+                    rounded-full
+                    border
+                    border-emerald-400/20
+                    bg-emerald-400/10
+                    px-2.5
+                    py-1
+                    text-[10px]
+                    font-black
+                    text-emerald-300
+                  "
+                >
+                  <CheckCircle2 size={10} />
+
+                  PURCHASED
                 </span>
               )}
             </div>
 
-            <h3
-              className="
-                mt-2
-                truncate
-                text-lg
-                font-black
-                text-white
-                transition
-                group-hover:text-cyan-300
-              "
-            >
+            <h3 className="mt-2 truncate text-lg font-black text-white">
               {doc.title}
             </h3>
 
-            <p
-              className="
-                mt-1
-                line-clamp-1
-                text-sm
-                text-slate-400
-              "
-            >
+            <p className="mt-1 line-clamp-1 text-sm text-slate-400">
               {doc.description ||
                 "No description provided for this resource."}
             </p>
@@ -1772,52 +1590,67 @@ function DocumentCard({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={openPDFReader}
-              className="
+              onClick={handleRead}
+              className={`
                 inline-flex
                 items-center
                 gap-2
                 rounded-xl
-                bg-gradient-to-r
-                from-cyan-300
-                to-blue-400
                 px-5
                 py-3
                 text-xs
                 font-black
-                text-slate-950
                 shadow-lg
-                shadow-cyan-400/10
                 transition
-                hover:-translate-y-0.5
-                hover:shadow-cyan-400/20
                 active:scale-95
-              "
+                ${
+                  isLocked
+                    ? "bg-gradient-to-r from-amber-300 to-orange-400 text-slate-950"
+                    : "bg-gradient-to-r from-cyan-300 to-blue-400 text-slate-950"
+                }
+              `}
             >
-              <BookOpen size={15} />
+              {isLocked ? (
+                <>
+                  <CreditCard size={15} />
 
-              Read
+                  Pay ₦
+                  {documentPrice.toLocaleString()}
+                </>
+              ) : (
+                <>
+                  <BookOpen size={15} />
+
+                  Read
+                </>
+              )}
             </button>
 
-            {doc.file_url && (
-              <button
-                onClick={handleDownload}
-                className="
-                  rounded-xl
-                  border
-                  border-white/[0.08]
-                  bg-[#0b142b]
-                  p-3
-                  text-slate-400
-                  transition
-                  hover:border-cyan-400/40
-                  hover:bg-cyan-400/10
-                  hover:text-cyan-300
-                "
-              >
+            <button
+              onClick={handleDownload}
+              title={
+                isLocked
+                  ? `Pay ₦${documentPrice.toLocaleString()} for this document`
+                  : "Download resource"
+              }
+              className="
+                rounded-xl
+                border
+                border-white/[0.08]
+                bg-[#0b142b]
+                p-3
+                text-slate-400
+                transition
+                hover:border-cyan-400/40
+                hover:text-cyan-300
+              "
+            >
+              {isLocked ? (
+                <Lock size={17} />
+              ) : (
                 <Download size={17} />
-              </button>
-            )}
+              )}
+            </button>
           </div>
         </div>
       </motion.div>
@@ -1837,7 +1670,7 @@ function DocumentCard({
           duration: 0.2,
         },
       }}
-      className="
+      className={`
         group
         relative
         flex
@@ -1846,86 +1679,85 @@ function DocumentCard({
         overflow-hidden
         rounded-[30px]
         border
-        border-white/[0.08]
         bg-gradient-to-b
         from-[#12203d]/90
         to-[#0d1730]/90
         p-4
         shadow-2xl
-        shadow-blue-950/20
         backdrop-blur-2xl
         transition-all
-        hover:border-cyan-400/30
-        hover:shadow-cyan-950/30
-      "
+        ${
+          isLocked
+            ? "border-amber-400/20 hover:border-amber-400/40"
+            : "border-white/[0.08] hover:border-cyan-400/30"
+        }
+      `}
     >
-      {/* ===================================================
-          CARD ANIME AURA
-      =================================================== */}
+      {/* LOCK OVERLAY */}
 
-      <motion.div
-        animate={{
-          scale: [1, 1.08, 1],
-          opacity: [0.35, 0.6, 0.35],
-        }}
-        transition={{
-          duration: 5 + (index % 3),
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        className="
-          pointer-events-none
-          absolute
-          -right-24
-          -top-24
-          h-56
-          w-56
-          rounded-full
-          bg-cyan-400/[0.07]
-          blur-[80px]
-        "
-      />
+      {isLocked && (
+        <div
+          className="
+            pointer-events-none
+            absolute
+            inset-0
+            z-20
+            bg-slate-950/10
+          "
+        />
+      )}
+
+      {/* STATUS BADGE */}
 
       <div
-        className="
-          pointer-events-none
+        className={`
           absolute
-          -bottom-24
-          -left-24
-          h-48
-          w-48
-          rounded-full
-          bg-violet-500/[0.06]
-          blur-[70px]
-        "
-      />
-
-      {/* Decorative line */}
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          left-6
           right-6
-          top-0
-          h-px
-          bg-gradient-to-r
-          from-transparent
-          via-cyan-400/40
-          to-transparent
-          opacity-0
-          transition
-          group-hover:opacity-100
-        "
-      />
+          top-6
+          z-30
+          flex
+          items-center
+          gap-1.5
+          rounded-full
+          border
+          px-3
+          py-1.5
+          text-[10px]
+          font-black
+          uppercase
+          tracking-wider
+          backdrop-blur-xl
+          ${
+            isLocked
+              ? "border-amber-400/30 bg-amber-400/10 text-amber-300"
+              : "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+          }
+        `}
+      >
+        {isLocked ? (
+          <>
+            <Lock size={11} />
+
+            Premium
+          </>
+        ) : (
+          <>
+            <CheckCircle2 size={11} />
+
+            Purchased
+          </>
+        )}
+      </div>
 
       <div className="relative z-10 flex h-full flex-col">
-        {/* Thumbnail */}
+        {/* THUMBNAIL */}
 
-        <DocumentThumbnail doc={doc} />
+        <DocumentThumbnail
+          doc={doc}
+          locked={isLocked}
+        />
 
-        {/* Meta */}
+        {/* META */}
 
         <div
           className="
@@ -1961,12 +1793,14 @@ function DocumentCard({
                 text-slate-400
               "
             >
-              {formatFileSize(doc.file_size)}
+              {formatFileSize(
+                doc.file_size
+              )}
             </span>
           )}
         </div>
 
-        {/* Title */}
+        {/* TITLE */}
 
         <h3
           className="
@@ -1983,7 +1817,7 @@ function DocumentCard({
           {doc.title}
         </h3>
 
-        {/* Description */}
+        {/* DESCRIPTION */}
 
         <p
           className="
@@ -1999,7 +1833,100 @@ function DocumentCard({
             "No description provided for this learning resource."}
         </p>
 
-        {/* Divider */}
+        {/* LOCKED MESSAGE */}
+
+        {isLocked && (
+          <div
+            className="
+              mt-4
+              flex
+              items-center
+              gap-3
+              rounded-2xl
+              border
+              border-amber-400/15
+              bg-amber-400/[0.06]
+              p-3
+            "
+          >
+            <div
+              className="
+                flex
+                h-9
+                w-9
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                bg-amber-400/10
+                text-amber-300
+              "
+            >
+              <Lock size={16} />
+            </div>
+
+            <div>
+              <p className="text-xs font-black text-amber-300">
+                Premium Resource
+              </p>
+
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                Unlock this document for{" "}
+                <span className="font-black text-amber-300">
+                  ₦
+                  {documentPrice.toLocaleString()}
+                </span>
+                .
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* PURCHASED MESSAGE */}
+
+        {!isLocked && (
+          <div
+            className="
+              mt-4
+              flex
+              items-center
+              gap-3
+              rounded-2xl
+              border
+              border-emerald-400/15
+              bg-emerald-400/[0.06]
+              p-3
+            "
+          >
+            <div
+              className="
+                flex
+                h-9
+                w-9
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                bg-emerald-400/10
+                text-emerald-300
+              "
+            >
+              <CheckCircle2 size={16} />
+            </div>
+
+            <div>
+              <p className="text-xs font-black text-emerald-300">
+                Access Granted
+              </p>
+
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                You purchased this document.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* DIVIDER */}
 
         <div
           className="
@@ -2012,12 +1939,12 @@ function DocumentCard({
           "
         />
 
-        {/* Actions */}
+        {/* ACTIONS */}
 
         <div className="flex gap-2">
           <button
-            onClick={openPDFReader}
-            className="
+            onClick={handleRead}
+            className={`
               group/read
               flex
               flex-1
@@ -2025,61 +1952,84 @@ function DocumentCard({
               justify-center
               gap-2
               rounded-xl
-              bg-gradient-to-r
-              from-cyan-300
-              via-blue-400
-              to-indigo-400
               px-4
               py-3
               text-xs
               font-black
-              text-slate-950
               shadow-lg
-              shadow-cyan-400/10
               transition-all
               hover:-translate-y-0.5
-              hover:shadow-cyan-400/20
+              active:scale-95
+              ${
+                isLocked
+                  ? "bg-gradient-to-r from-amber-300 to-orange-400 text-slate-950 shadow-amber-500/10"
+                  : "bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 text-slate-950 shadow-cyan-400/10"
+              }
+            `}
+          >
+            {isLocked ? (
+              <>
+                <CreditCard size={15} />
+
+                Pay ₦
+                {documentPrice.toLocaleString()}
+                {" "}to Unlock
+
+                <ChevronRight
+                  size={14}
+                  className="
+                    transition-transform
+                    group-hover/read:translate-x-1
+                  "
+                />
+              </>
+            ) : (
+              <>
+                <BookOpen size={15} />
+
+                Read Resource
+
+                <ExternalLink
+                  size={14}
+                  className="
+                    transition-transform
+                    group-hover/read:translate-x-0.5
+                  "
+                />
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleDownload}
+            title={
+              isLocked
+                ? `Pay ₦${documentPrice.toLocaleString()} for this document`
+                : "Download resource"
+            }
+            className="
+              inline-flex
+              items-center
+              justify-center
+              rounded-xl
+              border
+              border-white/[0.08]
+              bg-[#080f25]/80
+              p-3
+              text-slate-400
+              transition-all
+              hover:border-cyan-400/40
+              hover:bg-cyan-400/10
+              hover:text-cyan-300
               active:scale-95
             "
           >
-            <BookOpen size={15} />
-
-            Read Resource
-
-            <ExternalLink
-              size={14}
-              className="
-                transition-transform
-                group-hover/read:translate-x-0.5
-              "
-            />
-          </button>
-
-          {doc.file_url && (
-            <button
-              onClick={handleDownload}
-              title="Download resource"
-              className="
-                inline-flex
-                items-center
-                justify-center
-                rounded-xl
-                border
-                border-white/[0.08]
-                bg-[#080f25]/80
-                p-3
-                text-slate-400
-                transition-all
-                hover:-translate-y-0.5
-                hover:border-cyan-400/40
-                hover:bg-cyan-400/10
-                hover:text-cyan-300
-                active:scale-95
-              "
-            >
+            {isLocked ? (
+              <Lock size={17} />
+            ) : (
               <Download size={17} />
-            </button>
-          )}
+            )}
+          </button>
         </div>
       </div>
     </motion.article>
@@ -2093,6 +2043,7 @@ function DocumentCard({
 function DocumentThumbnail({
   doc,
   compact = false,
+  locked = false,
 }) {
   return (
     <div
@@ -2110,43 +2061,17 @@ function DocumentThumbnail({
         overflow-hidden
         rounded-2xl
         border
-        border-white/[0.08]
+        ${
+          locked
+            ? "border-amber-400/20"
+            : "border-white/[0.08]"
+        }
         bg-gradient-to-br
         from-[#14284b]
         via-[#0d1834]
         to-[#211840]
       `}
     >
-      {/* Thumbnail glow */}
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          -left-10
-          -top-10
-          h-32
-          w-32
-          rounded-full
-          bg-cyan-400/10
-          blur-3xl
-        "
-      />
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          -bottom-10
-          -right-10
-          h-32
-          w-32
-          rounded-full
-          bg-violet-500/10
-          blur-3xl
-        "
-      />
-
       {doc.thumbnail_url ||
       doc.thumbnail ? (
         <img
@@ -2154,15 +2079,23 @@ function DocumentThumbnail({
             doc.thumbnail_url ||
             doc.thumbnail
           }
-          alt={doc.title || "Document"}
-          className="
+          alt={
+            doc.title ||
+            "Document"
+          }
+          className={`
             h-full
             w-full
             object-cover
             transition-transform
             duration-700
             group-hover/thumb:scale-110
-          "
+            ${
+              locked
+                ? "brightness-[0.55] saturate-[0.65]"
+                : ""
+            }
+          `}
         />
       ) : (
         <motion.div
@@ -2185,17 +2118,6 @@ function DocumentThumbnail({
         >
           <div
             className="
-              absolute
-              h-24
-              w-24
-              rounded-full
-              bg-cyan-400/10
-              blur-2xl
-            "
-          />
-
-          <div
-            className="
               relative
               flex
               h-14
@@ -2209,8 +2131,6 @@ function DocumentThumbnail({
               from-cyan-400/15
               to-violet-500/15
               text-cyan-300
-              shadow-xl
-              shadow-cyan-500/10
             "
           >
             <FileText size={27} />
@@ -2233,21 +2153,41 @@ function DocumentThumbnail({
         </motion.div>
       )}
 
-      {/* Image overlay */}
+      {/* LOCK OVERLAY */}
 
-      <div
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-          bg-gradient-to-t
-          from-[#071024]/90
-          via-transparent
-          to-[#071024]/10
-        "
-      />
+      {locked && (
+        <div
+          className="
+            absolute
+            inset-0
+            flex
+            items-center
+            justify-center
+            bg-slate-950/45
+            backdrop-blur-[1px]
+          "
+        >
+          <div
+            className="
+              flex
+              h-16
+              w-16
+              items-center
+              justify-center
+              rounded-2xl
+              border
+              border-amber-300/30
+              bg-slate-950/80
+              text-amber-300
+              shadow-2xl
+            "
+          >
+            <Lock size={27} />
+          </div>
+        </div>
+      )}
 
-      {/* File badge */}
+      {/* FILE BADGE */}
 
       <div
         className="
@@ -2276,7 +2216,7 @@ function DocumentThumbnail({
           "FILE"}
       </div>
 
-      {/* Premium badge */}
+      {/* PREMIUM BADGE */}
 
       {!compact && (
         <div
@@ -2289,13 +2229,13 @@ function DocumentThumbnail({
             gap-1.5
             rounded-full
             border
-            border-violet-300/20
-            bg-[#071024]/80
+            border-amber-300/20
+            bg-[#071024]/85
             px-2.5
             py-1
             text-[10px]
             font-black
-            text-violet-200
+            text-amber-200
             shadow-lg
             backdrop-blur-xl
           "
@@ -2305,34 +2245,162 @@ function DocumentThumbnail({
           Premium
         </div>
       )}
-
-      {/* Anime shine */}
-
-      <motion.div
-        animate={{
-          x: ["-130%", "130%"],
-        }}
-        transition={{
-          duration: 5,
-          repeat: Infinity,
-          repeatDelay: 4,
-          ease: "easeInOut",
-        }}
-        className="
-          pointer-events-none
-          absolute
-          top-0
-          h-full
-          w-20
-          rotate-[18deg]
-          bg-gradient-to-r
-          from-transparent
-          via-white/[0.10]
-          to-transparent
-          blur-md
-        "
-      />
     </div>
+  );
+}
+
+/* =========================================================
+   PREMIUM STAT
+========================================================= */
+
+function PremiumStat({
+  icon,
+  label,
+  value,
+  accent = false,
+}) {
+  return (
+    <motion.div
+      whileHover={{
+        y: -4,
+        scale: 1.015,
+      }}
+      className="
+        rounded-2xl
+        border
+        border-white/[0.08]
+        bg-[#0b142b]/75
+        p-4
+        shadow-lg
+        backdrop-blur-xl
+      "
+    >
+      <div
+        className={`
+          flex
+          h-9
+          w-9
+          items-center
+          justify-center
+          rounded-xl
+          ${
+            accent
+              ? "bg-cyan-400/10 text-cyan-300"
+              : "bg-white/[0.05] text-slate-400"
+          }
+        `}
+      >
+        {icon}
+      </div>
+
+      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        {label}
+      </p>
+
+      <p
+        className={`
+          mt-1
+          text-2xl
+          font-black
+          ${
+            accent
+              ? "text-cyan-300"
+              : "text-white"
+          }
+        `}
+      >
+        {value}
+      </p>
+    </motion.div>
+  );
+}
+
+/* =========================================================
+   FILTER BUTTON
+========================================================= */
+
+function FilterButton({
+  children,
+  active,
+  onClick,
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        rounded-xl
+        px-4
+        py-2.5
+        text-xs
+        font-black
+        transition-all
+        ${
+          active
+            ? "bg-gradient-to-r from-cyan-300 to-blue-400 text-slate-950"
+            : "text-slate-400 hover:bg-white/[0.05] hover:text-white"
+        }
+      `}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* =========================================================
+   ANIME PARTICLES
+========================================================= */
+
+function AnimeParticles() {
+  const particles = Array.from(
+    {
+      length: 32,
+    },
+    (_, index) => ({
+      id: index,
+      left: `${(index * 37) % 100}%`,
+      top: `${(index * 61) % 100}%`,
+      size: 2 + (index % 3),
+      delay: (index % 8) * 0.7,
+      duration: 4 + (index % 6),
+    })
+  );
+
+  return (
+    <>
+      {particles.map(
+        (particle) => (
+          <motion.span
+            key={particle.id}
+            className="
+              absolute
+              rounded-full
+              bg-cyan-200
+              shadow-[0_0_12px_rgba(103,232,249,0.8)]
+            "
+            style={{
+              left: particle.left,
+              top: particle.top,
+              width: particle.size,
+              height: particle.size,
+            }}
+            animate={{
+              opacity: [0, 0.8, 0],
+              y: [0, -35, -70],
+              x: [0, 8, -5],
+              scale: [0.5, 1, 0.3],
+            }}
+            transition={{
+              duration:
+                particle.duration,
+              delay:
+                particle.delay,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        )
+      )}
+    </>
   );
 }
 
@@ -2342,98 +2410,38 @@ function DocumentThumbnail({
 
 function PremiumLoader() {
   return (
-    <div
-      className="
-        flex
-        min-h-[400px]
-        items-center
-        justify-center
-      "
-    >
+    <div className="flex min-h-[400px] items-center justify-center">
       <div className="flex flex-col items-center">
-        <div className="relative">
-          <motion.div
-            animate={{
-              scale: [1, 1.5, 1],
-              opacity: [0.4, 0, 0.4],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-            }}
-            className="
-              absolute
-              inset-0
-              rounded-full
-              bg-cyan-400/30
-              blur-xl
-            "
+        <motion.div
+          animate={{
+            rotate: 360,
+          }}
+          transition={{
+            duration: 3,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+          className="
+            flex
+            h-16
+            w-16
+            items-center
+            justify-center
+            rounded-2xl
+            border
+            border-cyan-400/30
+            bg-[#10203f]
+          "
+        >
+          <BookOpen
+            size={25}
+            className="text-cyan-300"
           />
-
-          <motion.div
-            animate={{
-              rotate: 360,
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-            className="
-              relative
-              flex
-              h-16
-              w-16
-              items-center
-              justify-center
-              rounded-2xl
-              border
-              border-cyan-400/30
-              bg-[#10203f]
-              shadow-xl
-              shadow-cyan-500/20
-            "
-          >
-            <BookOpen
-              size={25}
-              className="text-cyan-300"
-            />
-          </motion.div>
-        </div>
+        </motion.div>
 
         <p className="mt-5 text-sm font-bold text-slate-300">
           Preparing your learning workspace...
         </p>
-
-        <div
-          className="
-            mt-3
-            h-1
-            w-32
-            overflow-hidden
-            rounded-full
-            bg-slate-700/60
-          "
-        >
-          <motion.div
-            animate={{
-              x: ["-100%", "100%"],
-            }}
-            transition={{
-              duration: 1.2,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            className="
-              h-full
-              w-1/2
-              rounded-full
-              bg-gradient-to-r
-              from-cyan-300
-              to-violet-400
-            "
-          />
-        </div>
       </div>
     </div>
   );
@@ -2470,20 +2478,10 @@ function EmptyState({
         bg-[#101a34]/60
         p-10
         text-center
-        shadow-xl
-        shadow-blue-950/20
         backdrop-blur-2xl
       "
     >
-      <motion.div
-        animate={{
-          y: [0, -7, 0],
-          rotate: [0, 2, -2, 0],
-        }}
-        transition={{
-          duration: 4,
-          repeat: Infinity,
-        }}
+      <div
         className="
           flex
           h-20
@@ -2497,7 +2495,6 @@ function EmptyState({
           from-[#162b4d]
           to-[#211941]
           text-cyan-300/50
-          shadow-xl
         "
       >
         {searchQuery ? (
@@ -2505,33 +2502,18 @@ function EmptyState({
         ) : (
           <FolderOpen size={32} />
         )}
-      </motion.div>
+      </div>
 
-      <h2
-        className="
-          mt-6
-          text-2xl
-          font-black
-          text-white
-        "
-      >
+      <h2 className="mt-6 text-2xl font-black text-white">
         {searchQuery
           ? "No Matching Resources"
           : "No Learning Materials Yet"}
       </h2>
 
-      <p
-        className="
-          mt-3
-          max-w-md
-          text-sm
-          leading-7
-          text-slate-400
-        "
-      >
+      <p className="mt-3 max-w-md text-sm leading-7 text-slate-400">
         {searchQuery
           ? `Nothing matched "${searchQuery}". Try another keyword or clear your search.`
-          : "This category does not have any resources available yet. New learning materials will appear here when they are added."}
+          : "This category does not have any resources available yet."}
       </p>
 
       {searchQuery && (
@@ -2551,10 +2533,6 @@ function EmptyState({
             text-xs
             font-black
             text-slate-950
-            shadow-lg
-            shadow-cyan-400/10
-            transition
-            hover:-translate-y-0.5
           "
         >
           <X size={15} />

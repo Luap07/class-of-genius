@@ -9,6 +9,11 @@ import {
   ShieldCheck,
   Sparkles,
   FileText,
+  Download,
+  Zap,
+  BadgeCheck,
+  Crown,
+  ChevronRight,
 } from "lucide-react";
 import {
   useNavigate,
@@ -41,8 +46,7 @@ export default function CategorySubjectPayment() {
     if (!documentId) return null;
 
     return documents.find(
-      (doc) =>
-        String(doc.id) === String(documentId)
+      (doc) => String(doc.id) === String(documentId)
     );
   }, [documents, documentId]);
 
@@ -54,42 +58,22 @@ export default function CategorySubjectPayment() {
     if (!categoryId) return null;
 
     return categories.find(
-      (cat) =>
-        String(cat.id) === String(categoryId)
+      (cat) => String(cat.id) === String(categoryId)
     );
   }, [categories, categoryId]);
 
   /* =========================================================
      PAYMENT
+     
+     PAYSTACK WILL BE CONNECTED HERE NEXT.
   ========================================================= */
 
   const handlePayment = () => {
-    /*
-      IMPORTANT:
-
-      Put your real payment gateway initialization
-      here.
-
-      The payment must be tied to THIS document only.
-
-      documentId = the exact document being purchased.
-    */
-
     console.log("Starting payment:", {
       documentId,
       categoryId,
       amount: DOCUMENT_PRICE,
     });
-
-    /*
-      Example:
-
-      initializePayment({
-        amount: DOCUMENT_PRICE,
-        documentId,
-        categoryId,
-      });
-    */
   };
 
   /* =========================================================
@@ -98,9 +82,23 @@ export default function CategorySubjectPayment() {
 
   if (!documentId) {
     return (
-      <div className="min-h-screen bg-[#080d1d] px-6 py-20 text-white">
+      <div className="min-h-screen bg-[#060a16] px-6 py-20 text-white">
         <div className="mx-auto max-w-xl text-center">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-red-400/10 text-red-300">
+          <div
+            className="
+              mx-auto
+              flex
+              h-20
+              w-20
+              items-center
+              justify-center
+              rounded-3xl
+              border
+              border-red-400/20
+              bg-red-400/10
+              text-red-300
+            "
+          >
             <FileText size={32} />
           </div>
 
@@ -116,6 +114,9 @@ export default function CategorySubjectPayment() {
             onClick={() => navigate("/subjects")}
             className="
               mt-8
+              inline-flex
+              items-center
+              gap-2
               rounded-2xl
               bg-gradient-to-r
               from-cyan-300
@@ -125,8 +126,13 @@ export default function CategorySubjectPayment() {
               text-sm
               font-black
               text-slate-950
+              shadow-lg
+              shadow-cyan-500/20
+              transition
+              hover:-translate-y-1
             "
           >
+            <ArrowLeft size={16} />
             Back to Categories
           </button>
         </div>
@@ -140,37 +146,50 @@ export default function CategorySubjectPayment() {
         relative
         min-h-screen
         overflow-hidden
-        bg-[#080d1d]
+        bg-[#060a16]
         text-slate-100
       "
     >
       {/* =====================================================
-          BACKGROUND
+          PREMIUM BACKGROUND
       ===================================================== */}
 
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
           className="
             absolute
-            -left-40
-            -top-40
-            h-[600px]
-            w-[600px]
+            -left-60
+            -top-60
+            h-[700px]
+            w-[700px]
             rounded-full
-            bg-cyan-400/10
-            blur-[150px]
+            bg-cyan-500/[0.08]
+            blur-[160px]
           "
         />
 
         <div
           className="
             absolute
-            -right-40
-            top-20
-            h-[650px]
-            w-[650px]
+            -right-60
+            top-0
+            h-[700px]
+            w-[700px]
             rounded-full
-            bg-violet-500/10
+            bg-violet-600/[0.08]
+            blur-[170px]
+          "
+        />
+
+        <div
+          className="
+            absolute
+            bottom-[-300px]
+            left-[35%]
+            h-[600px]
+            w-[600px]
+            rounded-full
+            bg-blue-500/[0.06]
             blur-[160px]
           "
         />
@@ -179,8 +198,9 @@ export default function CategorySubjectPayment() {
           className="
             absolute
             inset-0
-            bg-[linear-gradient(to_right,rgba(56,189,248,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(56,189,248,0.05)_1px,transparent_1px)]
-            [background-size:4rem_4rem]
+            opacity-40
+            [background-image:radial-gradient(rgba(148,163,184,0.15)_1px,transparent_1px)]
+            [background-size:24px_24px]
           "
         />
       </div>
@@ -195,8 +215,8 @@ export default function CategorySubjectPayment() {
           top-0
           z-50
           border-b
-          border-white/[0.08]
-          bg-[#0a1022]/80
+          border-white/[0.07]
+          bg-[#070c1a]/75
           backdrop-blur-2xl
         "
       >
@@ -204,11 +224,12 @@ export default function CategorySubjectPayment() {
           className="
             mx-auto
             flex
-            max-w-6xl
+            max-w-7xl
             items-center
             justify-between
-            px-6
+            px-5
             py-4
+            md:px-8
           "
         >
           <button
@@ -221,21 +242,24 @@ export default function CategorySubjectPayment() {
               rounded-xl
               border
               border-white/[0.08]
-              bg-white/[0.04]
+              bg-white/[0.035]
               px-4
               py-2.5
               text-xs
               font-black
               text-slate-300
-              transition
+              transition-all
               hover:border-cyan-400/30
-              hover:bg-cyan-400/10
+              hover:bg-cyan-400/[0.08]
               hover:text-cyan-300
             "
           >
             <ArrowLeft
               size={15}
-              className="transition-transform group-hover:-translate-x-1"
+              className="
+                transition-transform
+                group-hover:-translate-x-1
+              "
             />
 
             Back
@@ -249,11 +273,13 @@ export default function CategorySubjectPayment() {
               rounded-full
               border
               border-emerald-400/20
-              bg-emerald-400/[0.07]
+              bg-emerald-400/[0.06]
               px-4
               py-2
-              text-[11px]
+              text-[10px]
               font-black
+              uppercase
+              tracking-wider
               text-emerald-300
             "
           >
@@ -268,11 +294,11 @@ export default function CategorySubjectPayment() {
           MAIN
       ===================================================== */}
 
-      <main className="relative z-10 mx-auto max-w-6xl px-6 py-12">
+      <main className="relative z-10 mx-auto max-w-7xl px-5 py-10 md:px-8 md:py-14">
         <motion.div
           initial={{
             opacity: 0,
-            y: 30,
+            y: 25,
           }}
           animate={{
             opacity: 1,
@@ -281,12 +307,24 @@ export default function CategorySubjectPayment() {
           transition={{
             duration: 0.5,
           }}
-          className="mx-auto max-w-4xl"
         >
-          {/* HEADER */}
+          {/* =================================================
+              PREMIUM HEADER
+          ================================================= */}
 
-          <div className="text-center">
-            <div
+          <div className="mx-auto max-w-3xl text-center">
+            <motion.div
+              initial={{
+                scale: 0.8,
+                opacity: 0,
+              }}
+              animate={{
+                scale: 1,
+                opacity: 1,
+              }}
+              transition={{
+                duration: 0.45,
+              }}
               className="
                 mx-auto
                 flex
@@ -294,20 +332,22 @@ export default function CategorySubjectPayment() {
                 w-16
                 items-center
                 justify-center
-                rounded-2xl
+                rounded-[22px]
+                border
+                border-cyan-300/20
                 bg-gradient-to-br
                 from-cyan-300
                 via-blue-500
                 to-violet-600
-                shadow-xl
+                shadow-2xl
                 shadow-cyan-500/20
               "
             >
-              <CreditCard
-                size={28}
+              <Crown
+                size={27}
                 className="text-white"
               />
-            </div>
+            </motion.div>
 
             <div
               className="
@@ -317,15 +357,15 @@ export default function CategorySubjectPayment() {
                 gap-2
                 rounded-full
                 border
-                border-cyan-400/20
-                bg-cyan-400/[0.07]
+                border-violet-400/20
+                bg-violet-400/[0.07]
                 px-4
                 py-2
                 text-[10px]
                 font-black
                 uppercase
-                tracking-[0.18em]
-                text-cyan-300
+                tracking-[0.2em]
+                text-violet-300
               "
             >
               <Sparkles size={13} />
@@ -333,199 +373,725 @@ export default function CategorySubjectPayment() {
               Premium Resource
             </div>
 
-            <h1 className="mt-5 text-3xl font-black text-white md:text-5xl">
-              Unlock This Document
+            <h1
+              className="
+                mt-5
+                text-3xl
+                font-black
+                tracking-tight
+                text-white
+                md:text-5xl
+              "
+            >
+              Unlock Premium Access
             </h1>
 
-            <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-slate-400 md:text-base">
-              Purchase access to this specific learning
-              resource. Your payment unlocks this document
-              only.
+            <p
+              className="
+                mx-auto
+                mt-4
+                max-w-2xl
+                text-sm
+                leading-7
+                text-slate-400
+                md:text-base
+              "
+            >
+              Get instant access to this premium learning
+              document with a secure one-time payment.
             </p>
           </div>
 
           {/* =================================================
-              PAYMENT CARD
+              CHECKOUT GRID
           ================================================= */}
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_380px]">
-            {/* DOCUMENT */}
+          <div
+            className="
+              mx-auto
+              mt-10
+              grid
+              max-w-6xl
+              gap-6
+              lg:grid-cols-[1fr_400px]
+            "
+          >
+            {/* =================================================
+                DOCUMENT CARD
+            ================================================= */}
 
-            <div
+            <motion.div
+              initial={{
+                opacity: 0,
+                x: -20,
+              }}
+              animate={{
+                opacity: 1,
+                x: 0,
+              }}
+              transition={{
+                delay: 0.1,
+              }}
               className="
+                relative
+                overflow-hidden
                 rounded-[30px]
                 border
                 border-white/[0.08]
-                bg-[#101a34]/80
+                bg-[#0d1529]/85
                 p-6
                 shadow-2xl
                 backdrop-blur-2xl
+                md:p-8
               "
             >
-              <div className="flex items-center gap-4">
+              {/* Top glow */}
+
+              <div
+                className="
+                  pointer-events-none
+                  absolute
+                  -right-24
+                  -top-24
+                  h-52
+                  w-52
+                  rounded-full
+                  bg-cyan-400/10
+                  blur-3xl
+                "
+              />
+
+              <div className="relative">
+                {/* DOCUMENT HEADER */}
+
+                <div className="flex items-start gap-4">
+                  <div
+                    className="
+                      flex
+                      h-16
+                      w-16
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-2xl
+                      border
+                      border-cyan-400/20
+                      bg-gradient-to-br
+                      from-cyan-400/15
+                      to-blue-500/10
+                      text-cyan-300
+                    "
+                  >
+                    <BookOpen size={28} />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p
+                        className="
+                          text-[10px]
+                          font-black
+                          uppercase
+                          tracking-[0.18em]
+                          text-cyan-300/60
+                        "
+                      >
+                        Selected Resource
+                      </p>
+
+                      <span
+                        className="
+                          inline-flex
+                          items-center
+                          gap-1
+                          rounded-full
+                          border
+                          border-emerald-400/20
+                          bg-emerald-400/[0.06]
+                          px-2.5
+                          py-1
+                          text-[9px]
+                          font-black
+                          uppercase
+                          text-emerald-300
+                        "
+                      >
+                        <BadgeCheck size={11} />
+
+                        Premium
+                      </span>
+                    </div>
+
+                    <h2
+                      className="
+                        mt-2
+                        break-words
+                        text-xl
+                        font-black
+                        leading-tight
+                        text-white
+                        md:text-2xl
+                      "
+                    >
+                      {document?.title ||
+                        "Learning Document"}
+                    </h2>
+                  </div>
+                </div>
+
+                {/* CATEGORY */}
+
+                {category?.name && (
+                  <div
+                    className="
+                      mt-6
+                      flex
+                      items-center
+                      justify-between
+                      rounded-2xl
+                      border
+                      border-white/[0.06]
+                      bg-white/[0.025]
+                      px-4
+                      py-3
+                    "
+                  >
+                    <span className="text-xs text-slate-500">
+                      Category
+                    </span>
+
+                    <span className="text-xs font-black text-cyan-300">
+                      {category.name}
+                    </span>
+                  </div>
+                )}
+
+                {/* DESCRIPTION */}
+
                 <div
                   className="
-                    flex
-                    h-14
-                    w-14
-                    shrink-0
-                    items-center
-                    justify-center
+                    mt-5
                     rounded-2xl
-                    bg-cyan-400/10
-                    text-cyan-300
+                    border
+                    border-white/[0.06]
+                    bg-[#070d1c]/70
+                    p-5
                   "
                 >
-                  <BookOpen size={25} />
-                </div>
+                  <div className="flex items-center gap-2">
+                    <FileText
+                      size={15}
+                      className="text-slate-500"
+                    />
 
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-cyan-300/60">
-                    Selected Resource
+                    <p
+                      className="
+                        text-[10px]
+                        font-black
+                        uppercase
+                        tracking-wider
+                        text-slate-500
+                      "
+                    >
+                      About this resource
+                    </p>
+                  </div>
+
+                  <p
+                    className="
+                      mt-3
+                      text-sm
+                      leading-7
+                      text-slate-300
+                    "
+                  >
+                    {document?.description ||
+                      "Premium educational material available for individual purchase."}
                   </p>
+                </div>
 
-                  <h2 className="mt-1 truncate text-xl font-black text-white">
-                    {document?.title ||
-                      "Learning Document"}
-                  </h2>
+                {/* PREMIUM BENEFITS */}
+
+                <div className="mt-7">
+                  <div className="flex items-center gap-2">
+                    <Zap
+                      size={16}
+                      className="text-cyan-300"
+                    />
+
+                    <h3 className="text-sm font-black text-white">
+                      Your premium access includes
+                    </h3>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <AccessItem>
+                      Individual document access
+                    </AccessItem>
+
+                    <AccessItem>
+                      Full document reading
+                    </AccessItem>
+
+                    <AccessItem>
+                      Download access
+                    </AccessItem>
+
+                    <AccessItem>
+                      Secure payment verification
+                    </AccessItem>
+                  </div>
+                </div>
+
+                {/* PURCHASE NOTICE */}
+
+                <div
+                  className="
+                    mt-7
+                    rounded-2xl
+                    border
+                    border-cyan-400/10
+                    bg-cyan-400/[0.035]
+                    p-4
+                  "
+                >
+                  <div className="flex gap-3">
+                    <div
+                      className="
+                        flex
+                        h-9
+                        w-9
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-xl
+                        bg-cyan-400/10
+                        text-cyan-300
+                      "
+                    >
+                      <Lock size={15} />
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-black text-cyan-300">
+                        One document. One purchase.
+                      </p>
+
+                      <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                        Your payment unlocks this selected
+                        document only. Other premium resources
+                        remain protected.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div className="mt-6 rounded-2xl border border-white/[0.06] bg-[#080f25]/70 p-5">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Description
-                </p>
-
-                <p className="mt-2 text-sm leading-7 text-slate-300">
-                  {document?.description ||
-                    "Premium educational material available for individual purchase."}
-                </p>
-              </div>
-
-              {category?.name && (
-                <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/[0.06] bg-[#080f25]/50 px-4 py-3">
-                  <span className="text-xs text-slate-500">
-                    Category
-                  </span>
-
-                  <span className="text-xs font-black text-cyan-300">
-                    {category.name}
-                  </span>
-                </div>
-              )}
-
-              <div className="mt-6 space-y-3">
-                <AccessItem>
-                  Individual document access
-                </AccessItem>
-
-                <AccessItem>
-                  Read the purchased resource
-                </AccessItem>
-
-                <AccessItem>
-                  Download access
-                </AccessItem>
-
-                <AccessItem>
-                  Secure payment verification
-                </AccessItem>
-              </div>
-            </div>
+            </motion.div>
 
             {/* =================================================
-                CHECKOUT
+                PREMIUM CHECKOUT CARD
             ================================================= */}
 
-            <div
+            <motion.div
+              initial={{
+                opacity: 0,
+                x: 20,
+              }}
+              animate={{
+                opacity: 1,
+                x: 0,
+              }}
+              transition={{
+                delay: 0.15,
+              }}
               className="
+                relative
                 h-fit
+                overflow-hidden
                 rounded-[30px]
                 border
                 border-cyan-400/20
                 bg-gradient-to-b
-                from-[#142b52]/90
-                via-[#101a35]/90
-                to-[#171331]/90
+                from-[#14294b]
+                via-[#0d1830]
+                to-[#12102a]
                 p-6
                 shadow-2xl
+                shadow-cyan-950/30
               "
             >
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-400">
-                  Document price
-                </span>
+              {/* PREMIUM GLOW */}
 
-                <span className="text-2xl font-black text-white">
-                  ₦
-                  {DOCUMENT_PRICE.toLocaleString()}
-                </span>
-              </div>
-
-              <div className="my-6 h-px bg-white/[0.08]" />
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-300">
-                  Total
-                </span>
-
-                <span className="text-3xl font-black text-cyan-300">
-                  ₦
-                  {DOCUMENT_PRICE.toLocaleString()}
-                </span>
-              </div>
-
-              <button
-                onClick={handlePayment}
+              <div
                 className="
-                  mt-7
+                  pointer-events-none
+                  absolute
+                  -right-20
+                  -top-20
+                  h-48
+                  w-48
+                  rounded-full
+                  bg-cyan-400/10
+                  blur-3xl
+                "
+              />
+
+              <div
+                className="
+                  pointer-events-none
+                  absolute
+                  -bottom-20
+                  -left-20
+                  h-48
+                  w-48
+                  rounded-full
+                  bg-violet-500/10
+                  blur-3xl
+                "
+              />
+
+              <div className="relative">
+                {/* CHECKOUT HEADER */}
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p
+                      className="
+                        text-[10px]
+                        font-black
+                        uppercase
+                        tracking-[0.18em]
+                        text-cyan-300/60
+                      "
+                    >
+                      Premium Checkout
+                    </p>
+
+                    <h3 className="mt-1 text-xl font-black text-white">
+                      Unlock Resource
+                    </h3>
+                  </div>
+
+                  <div
+                    className="
+                      flex
+                      h-11
+                      w-11
+                      items-center
+                      justify-center
+                      rounded-xl
+                      border
+                      border-cyan-400/20
+                      bg-cyan-400/10
+                      text-cyan-300
+                    "
+                  >
+                    <CreditCard size={19} />
+                  </div>
+                </div>
+
+                {/* PRICE */}
+
+                <div
+                  className="
+                    mt-7
+                    rounded-2xl
+                    border
+                    border-white/[0.07]
+                    bg-black/20
+                    p-5
+                  "
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-400">
+                      Document access
+                    </span>
+
+                    <span className="text-lg font-black text-white">
+                      ₦
+                      {DOCUMENT_PRICE.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="my-5 h-px bg-white/[0.07]" />
+
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Total payment
+                      </p>
+
+                      <p
+                        className="
+                          mt-1
+                          text-3xl
+                          font-black
+                          tracking-tight
+                          text-cyan-300
+                        "
+                      >
+                        ₦
+                        {DOCUMENT_PRICE.toLocaleString()}
+                      </p>
+                    </div>
+
+                    <span
+                      className="
+                        rounded-full
+                        border
+                        border-emerald-400/20
+                        bg-emerald-400/[0.07]
+                        px-3
+                        py-1.5
+                        text-[9px]
+                        font-black
+                        uppercase
+                        tracking-wider
+                        text-emerald-300
+                      "
+                    >
+                      One-time
+                    </span>
+                  </div>
+                </div>
+
+                {/* PAYMENT BUTTON */}
+
+                <button
+                  onClick={handlePayment}
+                  className="
+                    group
+                    mt-6
+                    flex
+                    w-full
+                    items-center
+                    justify-center
+                    gap-3
+                    rounded-2xl
+                    bg-gradient-to-r
+                    from-cyan-300
+                    via-blue-400
+                    to-indigo-500
+                    px-6
+                    py-4
+                    text-sm
+                    font-black
+                    text-slate-950
+                    shadow-xl
+                    shadow-cyan-500/15
+                    transition-all
+                    duration-300
+                    hover:-translate-y-1
+                    hover:shadow-2xl
+                    hover:shadow-cyan-500/20
+                    active:scale-[0.98]
+                  "
+                >
+                  <CreditCard size={18} />
+
+                  <span>
+                    Pay ₦
+                    {DOCUMENT_PRICE.toLocaleString()}
+                  </span>
+
+                  <ChevronRight
+                    size={17}
+                    className="
+                      transition-transform
+                      group-hover:translate-x-1
+                    "
+                  />
+                </button>
+
+                {/* PAYMENT PROVIDER AREA */}
+
+                <div
+                  className="
+                    mt-5
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                    text-[11px]
+                    text-slate-500
+                  "
+                >
+                  <Lock size={12} />
+
+                  Secure payment processing
+                </div>
+
+                {/* SECURITY */}
+
+                <div
+                  className="
+                    mt-6
+                    grid
+                    grid-cols-2
+                    gap-3
+                  "
+                >
+                  <TrustItem
+                    icon={<ShieldCheck size={15} />}
+                    title="Secure"
+                    text="Protected checkout"
+                  />
+
+                  <TrustItem
+                    icon={<BadgeCheck size={15} />}
+                    title="Verified"
+                    text="Payment verification"
+                  />
+                </div>
+
+                {/* IMPORTANT */}
+
+                <div
+                  className="
+                    mt-6
+                    rounded-2xl
+                    border
+                    border-amber-400/15
+                    bg-amber-400/[0.045]
+                    p-4
+                  "
+                >
+                  <div className="flex gap-3">
+                    <div
+                      className="
+                        mt-0.5
+                        h-2
+                        w-2
+                        shrink-0
+                        rounded-full
+                        bg-amber-300
+                        shadow-lg
+                        shadow-amber-300/30
+                      "
+                    />
+
+                    <div>
+                      <p className="text-xs font-black text-amber-300">
+                        Important
+                      </p>
+
+                      <p
+                        className="
+                          mt-1
+                          text-[11px]
+                          leading-5
+                          text-slate-500
+                        "
+                      >
+                        This purchase gives access only to
+                        the selected document. Other documents
+                        must be purchased separately.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* GUARANTEE */}
+
+                <div
+                  className="
+                    mt-5
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                    text-[10px]
+                    font-bold
+                    text-slate-600
+                  "
+                >
+                  <ShieldCheck size={13} />
+
+                  Your payment is handled securely
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* =================================================
+              BOTTOM PREMIUM MESSAGE
+          ================================================= */}
+
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 15,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            transition={{
+              delay: 0.25,
+            }}
+            className="
+              mx-auto
+              mt-8
+              flex
+              max-w-6xl
+              flex-col
+              items-center
+              justify-between
+              gap-4
+              rounded-2xl
+              border
+              border-white/[0.06]
+              bg-white/[0.02]
+              px-5
+              py-4
+              text-center
+              sm:flex-row
+              sm:text-left
+            "
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="
                   flex
-                  w-full
+                  h-9
+                  w-9
                   items-center
                   justify-center
-                  gap-2
-                  rounded-2xl
-                  bg-gradient-to-r
-                  from-cyan-300
-                  via-blue-400
-                  to-indigo-400
-                  px-6
-                  py-4
-                  text-sm
-                  font-black
-                  text-slate-950
-                  shadow-xl
-                  shadow-cyan-500/10
-                  transition-all
-                  hover:-translate-y-1
-                  active:scale-[0.98]
+                  rounded-xl
+                  bg-violet-400/10
+                  text-violet-300
                 "
               >
-                <CreditCard size={18} />
-
-                Pay ₦
-                {DOCUMENT_PRICE.toLocaleString()}
-              </button>
-
-              <div className="mt-5 flex items-center justify-center gap-2 text-[11px] text-slate-500">
-                <Lock size={12} />
-
-                Secure payment
+                <Sparkles size={15} />
               </div>
 
-              <div className="mt-6 rounded-2xl border border-amber-400/15 bg-amber-400/[0.05] p-4">
-                <p className="text-xs font-black text-amber-300">
-                  Important
+              <div>
+                <p className="text-xs font-black text-slate-300">
+                  Premium educational content
                 </p>
 
-                <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                  This payment unlocks only the selected
-                  document. Other documents in this category
-                  remain locked until purchased separately.
+                <p className="mt-0.5 text-[10px] text-slate-600">
+                  Access your purchased resource after successful
+                  payment.
                 </p>
               </div>
             </div>
-          </div>
+
+            <div
+              className="
+                flex
+                items-center
+                gap-2
+                text-[10px]
+                font-bold
+                text-slate-600
+              "
+            >
+              <Download size={13} />
+
+              Read & download
+            </div>
+          </motion.div>
         </motion.div>
       </main>
     </div>
@@ -538,7 +1104,19 @@ export default function CategorySubjectPayment() {
 
 function AccessItem({ children }) {
   return (
-    <div className="flex items-center gap-3">
+    <div
+      className="
+        flex
+        items-center
+        gap-3
+        rounded-xl
+        border
+        border-white/[0.04]
+        bg-white/[0.02]
+        px-3
+        py-3
+      "
+    >
       <div
         className="
           flex
@@ -558,6 +1136,38 @@ function AccessItem({ children }) {
       <span className="text-xs font-semibold text-slate-300">
         {children}
       </span>
+    </div>
+  );
+}
+
+/* =========================================================
+   TRUST ITEM
+========================================================= */
+
+function TrustItem({ icon, title, text }) {
+  return (
+    <div
+      className="
+        rounded-2xl
+        border
+        border-white/[0.06]
+        bg-white/[0.025]
+        p-3
+      "
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-cyan-300">
+          {icon}
+        </span>
+
+        <span className="text-[10px] font-black text-slate-300">
+          {title}
+        </span>
+      </div>
+
+      <p className="mt-1 text-[9px] text-slate-600">
+        {text}
+      </p>
     </div>
   );
 }

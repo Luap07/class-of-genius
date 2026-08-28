@@ -5,9 +5,9 @@ import {
   FlaskConical,
   Dna,
   TrendingUp,
-  ArrowRight,
+  Lock,
+  Sparkles,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 const experiments = [
   {
@@ -17,7 +17,6 @@ const experiments = [
     color: "from-cyan-500 to-blue-600",
     description:
       "Investigate velocity, acceleration and Newton's laws through live simulations.",
-    path: "/lab/physics/motion",
   },
   {
     title: "Chemical Reactions",
@@ -26,7 +25,6 @@ const experiments = [
     color: "from-green-500 to-emerald-600",
     description:
       "Mix compounds and observe reactions in a safe virtual environment.",
-    path: "/lab/chemistry/reaction",
   },
   {
     title: "Cell Structure",
@@ -35,7 +33,6 @@ const experiments = [
     color: "from-pink-500 to-purple-600",
     description:
       "Explore organelles and understand how living cells function.",
-    path: "/lab/biology/cell",
   },
   {
     title: "Graph Explorer",
@@ -44,47 +41,86 @@ const experiments = [
     color: "from-orange-500 to-red-600",
     description:
       "Visualize equations, curves and coordinate systems interactively.",
-    path: "/lab/mathematics/graph",
   },
 ];
 
 const ExperimentsSection = () => {
-  const navigate = useNavigate();
-
   return (
-    <section className="relative py-28 px-6 bg-[#020617] overflow-hidden">
+    <section className="relative overflow-hidden bg-[#020617] px-6 py-28 text-white">
 
-      {/* Background Glow */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-cyan-500/10 blur-[140px] rounded-full" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/10 blur-[140px] rounded-full" />
+      {/* =====================================================
+          BACKGROUND GLOW
+      ===================================================== */}
 
-      <div className="max-w-7xl mx-auto relative z-10">
+      <div className="pointer-events-none absolute left-0 top-0 h-96 w-96 rounded-full bg-cyan-500/10 blur-[140px]" />
 
-        {/* Header */}
+      <div className="pointer-events-none absolute bottom-0 right-0 h-96 w-96 rounded-full bg-purple-500/10 blur-[140px]" />
+
+      <div className="relative z-10 mx-auto max-w-7xl">
+
+        {/* =====================================================
+            HEADER
+        ===================================================== */}
+
         <motion.div
-          initial={{ opacity: 0, y: 25 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          initial={{
+            opacity: 0,
+            y: 30,
+          }}
+          whileInView={{
+            opacity: 1,
+            y: 0,
+          }}
+          viewport={{
+            once: true,
+          }}
+          transition={{
+            duration: 0.6,
+          }}
+          className="mb-16 text-center"
         >
-          <span className="text-cyan-400 uppercase tracking-widest text-sm">
-            Popular Simulations
-          </span>
+          <div
+            className="
+              inline-flex
+              items-center
+              gap-2
+              rounded-full
+              border
+              border-cyan-400/20
+              bg-cyan-400/[0.07]
+              px-4
+              py-2
+              text-xs
+              font-black
+              uppercase
+              tracking-widest
+              text-cyan-300
+            "
+          >
+            <Sparkles size={14} />
 
-          <h2 className="text-white text-4xl md:text-6xl font-black mt-4">
+            Premium Simulations
+          </div>
+
+          <h2 className="mt-5 text-4xl font-black md:text-6xl">
             Featured
-            <span className="text-cyan-400"> Experiments</span>
+            <span className="text-cyan-400">
+              {" "}Experiments
+            </span>
           </h2>
 
-          <p className="text-slate-400 max-w-2xl mx-auto mt-6">
-            Launch immersive simulations and discover scientific
-            concepts through hands-on virtual experimentation.
+          <p className="mx-auto mt-6 max-w-2xl text-slate-400">
+            Experience interactive simulations designed to make
+            complex scientific concepts easier to understand,
+            visualize and explore.
           </p>
         </motion.div>
 
-        {/* Experiment Cards */}
-        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-8">
+        {/* =====================================================
+            EXPERIMENT CARDS
+        ===================================================== */}
+
+        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
 
           {experiments.map((experiment, index) => {
             const Icon = experiment.icon;
@@ -92,62 +128,227 @@ const ExperimentsSection = () => {
             return (
               <motion.div
                 key={experiment.title}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
+                initial={{
+                  opacity: 0,
+                  y: 40,
+                }}
+                whileInView={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                viewport={{
+                  once: true,
+                }}
                 transition={{
-                  delay: index * 0.1,
                   duration: 0.5,
+                  delay: index * 0.1,
                 }}
                 whileHover={{
                   y: -10,
-                  scale: 1.03,
+                  scale: 1.02,
                 }}
-                className="group cursor-pointer"
-                onClick={() => navigate(experiment.path)}
+                className="group relative"
               >
-                <div className="relative h-full rounded-3xl border border-white/10 bg-slate-900/70 backdrop-blur-xl overflow-hidden">
+
+                {/* =================================================
+                    OUTER GLOW
+                ================================================= */}
+
+                <div
+                  className={`
+                    pointer-events-none
+                    absolute
+                    inset-0
+                    rounded-3xl
+                    bg-gradient-to-br
+                    ${experiment.color}
+                    opacity-10
+                    blur-2xl
+                    transition-all
+                    duration-500
+                    group-hover:opacity-30
+                  `}
+                />
+
+                {/* =================================================
+                    CARD
+                ================================================= */}
+
+                <div
+                  className="
+                    relative
+                    h-full
+                    overflow-hidden
+                    rounded-3xl
+                    border
+                    border-white/10
+                    bg-slate-900/80
+                    backdrop-blur-xl
+                    transition-all
+                    duration-300
+                    group-hover:border-white/20
+                  "
+                >
 
                   {/* Top Gradient */}
+
                   <div
-                    className={`h-2 bg-gradient-to-r ${experiment.color}`}
+                    className={`
+                      h-1.5
+                      w-full
+                      bg-gradient-to-r
+                      ${experiment.color}
+                    `}
                   />
 
-                  {/* Card Content */}
                   <div className="p-8">
 
+                    {/* =================================================
+                        PREMIUM BADGE
+                    ================================================= */}
+
                     <div
-                      className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${experiment.color} flex items-center justify-center`}
+                      className="
+                        absolute
+                        right-5
+                        top-5
+                        flex
+                        items-center
+                        gap-1.5
+                        rounded-full
+                        border
+                        border-amber-400/20
+                        bg-amber-400/[0.08]
+                        px-3
+                        py-1.5
+                        text-[10px]
+                        font-black
+                        uppercase
+                        tracking-wider
+                        text-amber-300
+                      "
                     >
-                      <Icon size={30} className="text-white" />
+                      <Lock size={11} />
+
+                      Premium
                     </div>
 
-                    <p className="text-cyan-400 text-sm mt-6">
+                    {/* =================================================
+                        ICON
+                    ================================================= */}
+
+                    <div
+                      className={`
+                        flex
+                        h-16
+                        w-16
+                        items-center
+                        justify-center
+                        rounded-2xl
+                        bg-gradient-to-br
+                        ${experiment.color}
+                        shadow-lg
+                        transition-transform
+                        duration-300
+                        group-hover:scale-110
+                      `}
+                    >
+                      <Icon
+                        size={30}
+                        className="text-white"
+                      />
+                    </div>
+
+                    {/* =================================================
+                        SUBJECT
+                    ================================================= */}
+
+                    <p className="mt-6 text-sm font-bold uppercase tracking-wider text-cyan-400">
                       {experiment.subject}
                     </p>
 
-                    <h3 className="text-white text-2xl font-bold mt-2">
+                    {/* =================================================
+                        TITLE
+                    ================================================= */}
+
+                    <h3 className="mt-2 text-2xl font-black text-white">
                       {experiment.title}
                     </h3>
 
-                    <p className="text-slate-400 mt-4 leading-relaxed">
+                    {/* =================================================
+                        DESCRIPTION
+                    ================================================= */}
+
+                    <p className="mt-4 min-h-[96px] leading-relaxed text-slate-400">
                       {experiment.description}
                     </p>
 
-                    <button
-                      className="mt-8 flex items-center gap-2 text-cyan-400 font-semibold group-hover:gap-3 transition-all"
-                    >
-                      Launch
-                      <ArrowRight size={18} />
-                    </button>
+                    {/* =================================================
+                        ACCESS INFO
+                    ================================================= */}
+
+                    <div className="mt-8 border-t border-white/[0.08] pt-6">
+
+                      <div className="flex items-center justify-between">
+
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                            Available inside
+                          </p>
+
+                          <p className="mt-1 text-sm font-bold text-slate-300">
+                            Premium Laboratory
+                          </p>
+                        </div>
+
+                        <div
+                          className="
+                            flex
+                            h-10
+                            w-10
+                            items-center
+                            justify-center
+                            rounded-xl
+                            border
+                            border-white/10
+                            bg-white/[0.04]
+                            text-slate-400
+                          "
+                        >
+                          <Lock size={16} />
+                        </div>
+
+                      </div>
+
+                    </div>
 
                   </div>
 
-                  {/* Hover Glow */}
+                  {/* =================================================
+                      BOTTOM GLOW
+                  ================================================= */}
+
                   <div
-                    className={`absolute -bottom-12 -right-12 w-40 h-40 rounded-full bg-gradient-to-br ${experiment.color} opacity-10 blur-3xl group-hover:opacity-25 transition duration-500`}
+                    className={`
+                      pointer-events-none
+                      absolute
+                      -bottom-16
+                      -right-16
+                      h-40
+                      w-40
+                      rounded-full
+                      bg-gradient-to-br
+                      ${experiment.color}
+                      opacity-10
+                      blur-3xl
+                      transition
+                      duration-500
+                      group-hover:opacity-25
+                    `}
                   />
+
                 </div>
+
               </motion.div>
             );
           })}

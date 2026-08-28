@@ -1,5 +1,4 @@
 import Cog from "../../assets/cog.png";
-
 import HeroSection from "../../components/HeroSection";
 import SubjectSection from "../../components/SubjectSection";
 import ExperimentsSection from "../../components/ExperimentsSection";

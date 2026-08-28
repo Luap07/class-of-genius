@@ -32,48 +32,10 @@ import {
 
 import { useCourses } from "../../context/LMSContext/CourseContext";
 
-/* =========================================================
-   PAYMENT CONFIGURATION
-========================================================= */
-
-/*
-  IMPORTANT:
-
-  PAYMENT IS PER DOCUMENT.
-
-  There is NO category-wide unlock.
-
-  Example:
-
-  Document A → ₦4,000 → purchased
-  Document B → ₦4,000 → still locked
-  Document C → ₦4,000 → still locked
-
-  Purchasing Document A does NOT unlock B or C.
-*/
-
 const DOCUMENT_PRICE = 4000;
 
-/*
-  Change this ONLY if your actual payment route is different.
-
-  Example route:
-
-  /payment
-
-  The document ID is passed through the query string:
-
-  /payment?documentId=DOCUMENT_ID&categoryId=CATEGORY_ID&amount=4000
-
-  Your payment page should read:
-
-  documentId
-  categoryId
-  amount
-*/
-
 /* =========================================================
-   ANIMATION SYSTEM
+   ANIMATIONS
 ========================================================= */
 
 const containerVariants = {
@@ -141,10 +103,6 @@ export default function CategorySubjects() {
     loading = false,
   } = courseContext;
 
-  /*
-    Support different purchase property names from the context.
-  */
-
   const purchaseSource =
     courseContext.documentPurchases ??
     courseContext.userPurchases ??
@@ -157,9 +115,9 @@ export default function CategorySubjects() {
   const [viewMode, setViewMode] = useState("grid");
   const [sortBy, setSortBy] = useState("latest");
 
-  /* =======================================================
+  /* =========================================================
      SELECTED CATEGORY
-  ======================================================= */
+  ========================================================= */
 
   const selectedCategory = useMemo(() => {
     return categories.find(
@@ -167,30 +125,9 @@ export default function CategorySubjects() {
     );
   }, [categories, categoryId]);
 
-  /* =======================================================
+  /* =========================================================
      PURCHASED DOCUMENT IDS
-  ======================================================= */
-
-  /*
-    ONLY DOCUMENT IDS are stored here.
-
-    There is deliberately NO category purchase logic.
-
-    Example:
-
-    purchaseSource:
-
-    {
-      document_id: "abc",
-      status: "paid"
-    }
-
-    becomes:
-
-    Set(["abc"])
-
-    Every other document remains locked.
-  */
+  ========================================================= */
 
   const purchasedDocumentIds = useMemo(() => {
     const ids = new Set();
@@ -234,9 +171,9 @@ export default function CategorySubjects() {
     return ids;
   }, [purchaseSource]);
 
-  /* =======================================================
+  /* =========================================================
      CATEGORY DOCUMENTS
-  ======================================================= */
+  ========================================================= */
 
   const categoryDocuments = useMemo(() => {
     let list = documents.filter(
@@ -244,43 +181,37 @@ export default function CategorySubjects() {
         String(doc.category_id) === String(categoryId)
     );
 
-    /* FILTER */
-
     if (activeFilter === "pdf") {
       list = list.filter(
         (doc) =>
-          doc.file_type?.toLowerCase() === "pdf"
+          String(doc.file_type || "").toLowerCase() === "pdf"
       );
     }
 
     if (activeFilter === "other") {
       list = list.filter(
         (doc) =>
-          doc.file_type?.toLowerCase() !== "pdf"
+          String(doc.file_type || "").toLowerCase() !== "pdf"
       );
     }
-
-    /* SEARCH */
 
     if (search.trim()) {
       const keyword = search.toLowerCase().trim();
 
       list = list.filter((item) => {
         return (
-          item.title
-            ?.toLowerCase()
+          String(item.title || "")
+            .toLowerCase()
             .includes(keyword) ||
-          item.description
-            ?.toLowerCase()
+          String(item.description || "")
+            .toLowerCase()
             .includes(keyword) ||
-          item.file_type
-            ?.toLowerCase()
+          String(item.file_type || "")
+            .toLowerCase()
             .includes(keyword)
         );
       });
     }
-
-    /* SORT */
 
     list = [...list].sort((a, b) => {
       if (sortBy === "latest") {
@@ -298,8 +229,8 @@ export default function CategorySubjects() {
       }
 
       if (sortBy === "name") {
-        return (a.title || "").localeCompare(
-          b.title || ""
+        return String(a.title || "").localeCompare(
+          String(b.title || "")
         );
       }
 
@@ -315,9 +246,9 @@ export default function CategorySubjects() {
     sortBy,
   ]);
 
-  /* =======================================================
-     CATEGORY STATS
-  ======================================================= */
+  /* =========================================================
+     STATS
+  ========================================================= */
 
   const stats = useMemo(() => {
     const categoryDocs = documents.filter(
@@ -327,7 +258,7 @@ export default function CategorySubjects() {
 
     const pdfs = categoryDocs.filter(
       (doc) =>
-        doc.file_type?.toLowerCase() === "pdf"
+        String(doc.file_type || "").toLowerCase() === "pdf"
     );
 
     const totalSize = categoryDocs.reduce(
@@ -344,9 +275,9 @@ export default function CategorySubjects() {
     };
   }, [documents, categoryId]);
 
-  /* =======================================================
-     FORMAT SIZE
-  ======================================================= */
+  /* =========================================================
+     SIZE
+  ========================================================= */
 
   const formatTotalSize = (bytes) => {
     if (!bytes) return "0 MB";
@@ -363,42 +294,36 @@ export default function CategorySubjects() {
     return `${mb.toFixed(1)} MB`;
   };
 
-  /* =======================================================
-     CLEAR SEARCH
-  ======================================================= */
+  /* =========================================================
+     ACCESS
+  ========================================================= */
 
-  const clearSearch = () => {
-    setSearch("");
+  const hasDocumentAccess = (doc) => {
+    if (!doc?.id) return false;
+
+    return purchasedDocumentIds.has(
+      String(doc.id)
+    );
   };
 
-  /* =======================================================
-     PAYMENT HANDLER
-  ======================================================= */
+  /* =========================================================
+     PAYMENT
+  ========================================================= */
 
   const handlePaymentRedirect = (doc) => {
-    if (!doc?.id) return;
+    if (!doc?.id) {
+      console.error(
+        "Payment failed: document has no ID",
+        doc
+      );
+      return;
+    }
 
-    /*
-      IMPORTANT:
-
-      We ONLY send the selected document ID.
-
-      There is NO:
-
-      category purchase
-      unlock-all
-      unlock-everything
-      bulk purchase
-
-      The payment page receives ONE document.
-    */
+    const documentId = String(doc.id);
 
     const params = new URLSearchParams();
 
-    params.set(
-      "documentId",
-      String(doc.id)
-    );
+    params.set("documentId", documentId);
 
     if (categoryId) {
       params.set(
@@ -412,52 +337,34 @@ export default function CategorySubjects() {
       String(DOCUMENT_PRICE)
     );
 
-    /*
-      Navigate directly to the payment page.
-
-      React Router should have a route similar to:
-
-      <Route
-        path="/payment"
-        element={<Payment />}
-      />
-
-      If your payment component has another route,
-      change ONLY "/payment" here.
-    */
-
-    navigate(`/payment?${params.toString()}`);
-  };
-
-  /* =======================================================
-     DOCUMENT ACCESS
-  ======================================================= */
-
-  const hasDocumentAccess = (doc) => {
-    if (!doc?.id) return false;
-
-    /*
-      ACCESS IS BASED ONLY ON DOCUMENT ID.
-    */
-
-    return purchasedDocumentIds.has(
-      String(doc.id)
+const paymentPath =
+  `/courses/category/${encodeURIComponent(
+    categoryId
+  )}/payment?${params.toString()}`;    console.log(
+      "Navigating to payment:",
+      paymentPath
     );
+
+    navigate(paymentPath);
   };
 
-  /* =======================================================
+  /* =========================================================
      OPEN DOCUMENT
-  ======================================================= */
+  ========================================================= */
 
   const handleOpenDocument = (doc) => {
-    if (!doc?.id) return;
+    if (!doc?.id) {
+      console.error(
+        "Cannot open document: missing ID",
+        doc
+      );
+      return;
+    }
+
+    const documentId = String(doc.id);
 
     const hasAccess =
       hasDocumentAccess(doc);
-
-    /*
-      Never allow an unpaid document to open.
-    */
 
     if (!hasAccess) {
       handlePaymentRedirect(doc);
@@ -465,19 +372,34 @@ export default function CategorySubjects() {
     }
 
     /*
-      Purchased document only.
+      IMPORTANT:
+      This route must exist in your React Router:
+
+      /pdf/:documentId
     */
 
-    navigate(
-      `/pdf/${encodeURIComponent(
-        String(doc.id)
-      )}`
+    const pdfPath =
+      `/pdf/${encodeURIComponent(documentId)}`;
+
+    console.log(
+      "Opening document:",
+      pdfPath
     );
+
+    navigate(pdfPath);
   };
 
-  /* =======================================================
+  /* =========================================================
+     CLEAR SEARCH
+  ========================================================= */
+
+  const clearSearch = () => {
+    setSearch("");
+  };
+
+  /* =========================================================
      RENDER
-  ======================================================= */
+  ========================================================= */
 
   return (
     <div
@@ -493,9 +415,7 @@ export default function CategorySubjects() {
         selection:text-slate-950
       "
     >
-      {/* =====================================================
-          BACKGROUND
-      ===================================================== */}
+      {/* BACKGROUND */}
 
       <div
         className="
@@ -604,9 +524,7 @@ export default function CategorySubjects() {
         />
       </div>
 
-      {/* =====================================================
-          NAVBAR
-      ===================================================== */}
+      {/* NAVBAR */}
 
       <header
         className="
@@ -632,6 +550,7 @@ export default function CategorySubjects() {
           "
         >
           <button
+            type="button"
             onClick={() =>
               navigate("/subjects")
             }
@@ -693,9 +612,7 @@ export default function CategorySubjects() {
         </div>
       </header>
 
-      {/* =====================================================
-          MAIN
-      ===================================================== */}
+      {/* MAIN */}
 
       <main
         className="
@@ -709,9 +626,7 @@ export default function CategorySubjects() {
           md:py-14
         "
       >
-        {/* ===================================================
-            HERO
-        =================================================== */}
+        {/* HERO */}
 
         <motion.section
           variants={fadeUp}
@@ -736,62 +651,8 @@ export default function CategorySubjects() {
               md:p-10
             "
           >
-            <motion.div
-              animate={{
-                scale: [1, 1.2, 1],
-                opacity: [0.4, 0.7, 0.4],
-              }}
-              transition={{
-                duration: 7,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="
-                pointer-events-none
-                absolute
-                -right-32
-                -top-32
-                h-96
-                w-96
-                rounded-full
-                bg-cyan-400/10
-                blur-[100px]
-              "
-            />
-
-            <motion.div
-              animate={{
-                scale: [1, 0.9, 1],
-                x: [0, -20, 0],
-              }}
-              transition={{
-                duration: 9,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="
-                pointer-events-none
-                absolute
-                -bottom-40
-                left-1/3
-                h-96
-                w-96
-                rounded-full
-                bg-violet-500/10
-                blur-[110px]
-              "
-            />
-
             <div className="relative z-10">
-              <motion.div
-                initial={{
-                  opacity: 0,
-                  scale: 0.9,
-                }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                }}
+              <div
                 className="
                   inline-flex
                   items-center
@@ -812,7 +673,7 @@ export default function CategorySubjects() {
                 <Sparkles size={13} />
 
                 Premium Learning Hub
-              </motion.div>
+              </div>
 
               <div
                 className="
@@ -827,18 +688,8 @@ export default function CategorySubjects() {
               >
                 <div className="max-w-3xl">
                   <div className="flex items-center gap-4">
-                    <motion.div
-                      animate={{
-                        y: [0, -5, 0],
-                        rotate: [0, 1, -1, 0],
-                      }}
-                      transition={{
-                        duration: 4,
-                        repeat: Infinity,
-                        ease: "easeInOut",
-                      }}
+                    <div
                       className="
-                        relative
                         flex
                         h-16
                         w-16
@@ -856,9 +707,9 @@ export default function CategorySubjects() {
                     >
                       <BookOpen
                         size={30}
-                        className="relative text-white"
+                        className="text-white"
                       />
-                    </motion.div>
+                    </div>
 
                     <div>
                       <p
@@ -906,11 +757,7 @@ export default function CategorySubjects() {
                   </p>
                 </div>
 
-                <motion.div
-                  whileHover={{
-                    y: -3,
-                    scale: 1.02,
-                  }}
+                <div
                   className="
                     flex
                     shrink-0
@@ -938,7 +785,7 @@ export default function CategorySubjects() {
                       Secure Access
                     </p>
                   </div>
-                </motion.div>
+                </div>
               </div>
 
               <div
@@ -979,17 +826,12 @@ export default function CategorySubjects() {
           </div>
         </motion.section>
 
-        {/* ===================================================
-            TOOLBAR
-        =================================================== */}
+        {/* TOOLBAR */}
 
         <motion.section
           variants={fadeUp}
           initial="hidden"
           animate="show"
-          transition={{
-            delay: 0.1,
-          }}
           className="mt-8"
         >
           <div
@@ -1052,6 +894,7 @@ export default function CategorySubjects() {
 
                 {search && (
                   <button
+                    type="button"
                     onClick={clearSearch}
                     className="
                       absolute
@@ -1099,40 +942,37 @@ export default function CategorySubjects() {
                 </FilterButton>
               </div>
 
-              <div className="relative">
-                <select
-                  value={sortBy}
-                  onChange={(e) =>
-                    setSortBy(e.target.value)
-                  }
-                  className="
-                    appearance-none
-                    rounded-xl
-                    border
-                    border-white/[0.08]
-                    bg-[#080f25]/80
-                    px-4
-                    py-3
-                    pr-9
-                    text-xs
-                    font-bold
-                    text-slate-300
-                    outline-none
-                  "
-                >
-                  <option value="latest">
-                    Latest
-                  </option>
+              <select
+                value={sortBy}
+                onChange={(e) =>
+                  setSortBy(e.target.value)
+                }
+                className="
+                  appearance-none
+                  rounded-xl
+                  border
+                  border-white/[0.08]
+                  bg-[#080f25]/80
+                  px-4
+                  py-3
+                  text-xs
+                  font-bold
+                  text-slate-300
+                  outline-none
+                "
+              >
+                <option value="latest">
+                  Latest
+                </option>
 
-                  <option value="oldest">
-                    Oldest
-                  </option>
+                <option value="oldest">
+                  Oldest
+                </option>
 
-                  <option value="name">
-                    Name
-                  </option>
-                </select>
-              </div>
+                <option value="name">
+                  Name
+                </option>
+              </select>
 
               <div
                 className="
@@ -1146,6 +986,7 @@ export default function CategorySubjects() {
                 "
               >
                 <button
+                  type="button"
                   onClick={() =>
                     setViewMode("grid")
                   }
@@ -1159,6 +1000,7 @@ export default function CategorySubjects() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() =>
                     setViewMode("list")
                   }
@@ -1205,9 +1047,7 @@ export default function CategorySubjects() {
           </div>
         </motion.section>
 
-        {/* ===================================================
-            DOCUMENTS
-        =================================================== */}
+        {/* DOCUMENTS */}
 
         <section className="mt-8">
           {loading ? (
@@ -1255,9 +1095,7 @@ export default function CategorySubjects() {
           )}
         </section>
 
-        {/* ===================================================
-            CTA
-        =================================================== */}
+        {/* CTA */}
 
         <motion.section
           initial={{
@@ -1326,6 +1164,7 @@ export default function CategorySubjects() {
             </div>
 
             <button
+              type="button"
               onClick={() =>
                 navigate("/subjects")
               }
@@ -1355,7 +1194,10 @@ export default function CategorySubjects() {
 
               <ChevronRight
                 size={17}
-                className="transition-transform group-hover:translate-x-1"
+                className="
+                  transition-transform
+                  group-hover:translate-x-1
+                "
               />
             </button>
           </div>
@@ -1380,66 +1222,46 @@ function DocumentCard({
 }) {
   const isLocked = !hasAccess;
 
-  /* =======================================================
-     READ
-  ======================================================= */
-
   const handleRead = (e) => {
+    e?.preventDefault();
     e?.stopPropagation();
 
     if (!doc?.id) return;
-
-    /*
-      Locked → payment for THIS document.
-    */
 
     if (isLocked) {
       onPayment(doc);
       return;
     }
-
-    /*
-      Purchased → open THIS document.
-    */
 
     onRead(doc);
   };
 
-  /* =======================================================
-     DOWNLOAD
-  ======================================================= */
-
   const handleDownload = (e) => {
+    e?.preventDefault();
     e?.stopPropagation();
 
     if (!doc?.id) return;
-
-    /*
-      Locked → payment for THIS document.
-    */
 
     if (isLocked) {
       onPayment(doc);
       return;
     }
 
-    /*
-      Purchased → download THIS document.
-    */
-
-    if (!doc.file_url) return;
+    if (!doc.file_url) {
+      console.warn(
+        "No file URL for document:",
+        doc
+      );
+      return;
+    }
 
     const link = document.createElement("a");
 
     link.href = doc.file_url;
-
     link.download =
       doc.title || "document";
-
     link.target = "_blank";
-
-    link.rel =
-      "noopener noreferrer";
+    link.rel = "noopener noreferrer";
 
     document.body.appendChild(link);
 
@@ -1447,10 +1269,6 @@ function DocumentCard({
 
     document.body.removeChild(link);
   };
-
-  /* =======================================================
-     FILE SIZE
-  ======================================================= */
 
   const formatFileSize = (sizeInBytes) => {
     if (!sizeInBytes) return null;
@@ -1481,17 +1299,15 @@ function DocumentCard({
     ).toFixed(1)} GB`;
   };
 
-  /* =======================================================
-     LIST VIEW
-  ======================================================= */
+  /* =========================================================
+     LIST
+  ========================================================= */
 
   if (viewMode === "list") {
     return (
       <motion.div
         variants={cardAnimationVariants}
-        whileHover={{
-          y: -4,
-        }}
+        whileHover={{ y: -4 }}
         className="
           group
           relative
@@ -1551,7 +1367,6 @@ function DocumentCard({
                   "
                 >
                   <Lock size={10} />
-
                   LOCKED
                 </span>
               ) : (
@@ -1572,7 +1387,6 @@ function DocumentCard({
                   "
                 >
                   <CheckCircle2 size={10} />
-
                   PURCHASED
                 </span>
               )}
@@ -1590,6 +1404,7 @@ function DocumentCard({
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handleRead}
               className={`
                 inline-flex
@@ -1613,20 +1428,19 @@ function DocumentCard({
               {isLocked ? (
                 <>
                   <CreditCard size={15} />
-
                   Pay ₦
                   {documentPrice.toLocaleString()}
                 </>
               ) : (
                 <>
                   <BookOpen size={15} />
-
                   Read
                 </>
               )}
             </button>
 
             <button
+              type="button"
               onClick={handleDownload}
               title={
                 isLocked
@@ -1657,9 +1471,9 @@ function DocumentCard({
     );
   }
 
-  /* =======================================================
-     GRID VIEW
-  ======================================================= */
+  /* =========================================================
+     GRID
+  ========================================================= */
 
   return (
     <motion.article
@@ -1693,8 +1507,6 @@ function DocumentCard({
         }
       `}
     >
-      {/* LOCK OVERLAY */}
-
       {isLocked && (
         <div
           className="
@@ -1706,8 +1518,6 @@ function DocumentCard({
           "
         />
       )}
-
-      {/* STATUS BADGE */}
 
       <div
         className={`
@@ -1737,27 +1547,21 @@ function DocumentCard({
         {isLocked ? (
           <>
             <Lock size={11} />
-
             Premium
           </>
         ) : (
           <>
             <CheckCircle2 size={11} />
-
             Purchased
           </>
         )}
       </div>
 
       <div className="relative z-10 flex h-full flex-col">
-        {/* THUMBNAIL */}
-
         <DocumentThumbnail
           doc={doc}
           locked={isLocked}
         />
-
-        {/* META */}
 
         <div
           className="
@@ -1800,8 +1604,6 @@ function DocumentCard({
           )}
         </div>
 
-        {/* TITLE */}
-
         <h3
           className="
             mt-3
@@ -1817,8 +1619,6 @@ function DocumentCard({
           {doc.title}
         </h3>
 
-        {/* DESCRIPTION */}
-
         <p
           className="
             mt-2
@@ -1832,8 +1632,6 @@ function DocumentCard({
           {doc.description ||
             "No description provided for this learning resource."}
         </p>
-
-        {/* LOCKED MESSAGE */}
 
         {isLocked && (
           <div
@@ -1882,8 +1680,6 @@ function DocumentCard({
           </div>
         )}
 
-        {/* PURCHASED MESSAGE */}
-
         {!isLocked && (
           <div
             className="
@@ -1926,8 +1722,6 @@ function DocumentCard({
           </div>
         )}
 
-        {/* DIVIDER */}
-
         <div
           className="
             my-5
@@ -1939,10 +1733,9 @@ function DocumentCard({
           "
         />
 
-        {/* ACTIONS */}
-
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={handleRead}
             className={`
               group/read
@@ -2001,6 +1794,7 @@ function DocumentCard({
           </button>
 
           <button
+            type="button"
             onClick={handleDownload}
             title={
               isLocked
@@ -2153,8 +1947,6 @@ function DocumentThumbnail({
         </motion.div>
       )}
 
-      {/* LOCK OVERLAY */}
-
       {locked && (
         <div
           className="
@@ -2187,8 +1979,6 @@ function DocumentThumbnail({
         </div>
       )}
 
-      {/* FILE BADGE */}
-
       <div
         className="
           absolute
@@ -2215,8 +2005,6 @@ function DocumentThumbnail({
         {doc.file_type?.toUpperCase() ||
           "FILE"}
       </div>
-
-      {/* PREMIUM BADGE */}
 
       {!compact && (
         <div
@@ -2326,6 +2114,7 @@ function FilterButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`
         rounded-xl
@@ -2347,7 +2136,7 @@ function FilterButton({
 }
 
 /* =========================================================
-   ANIME PARTICLES
+   PARTICLES
 ========================================================= */
 
 function AnimeParticles() {
@@ -2367,39 +2156,35 @@ function AnimeParticles() {
 
   return (
     <>
-      {particles.map(
-        (particle) => (
-          <motion.span
-            key={particle.id}
-            className="
-              absolute
-              rounded-full
-              bg-cyan-200
-              shadow-[0_0_12px_rgba(103,232,249,0.8)]
-            "
-            style={{
-              left: particle.left,
-              top: particle.top,
-              width: particle.size,
-              height: particle.size,
-            }}
-            animate={{
-              opacity: [0, 0.8, 0],
-              y: [0, -35, -70],
-              x: [0, 8, -5],
-              scale: [0.5, 1, 0.3],
-            }}
-            transition={{
-              duration:
-                particle.duration,
-              delay:
-                particle.delay,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          />
-        )
-      )}
+      {particles.map((particle) => (
+        <motion.span
+          key={particle.id}
+          className="
+            absolute
+            rounded-full
+            bg-cyan-200
+            shadow-[0_0_12px_rgba(103,232,249,0.8)]
+          "
+          style={{
+            left: particle.left,
+            top: particle.top,
+            width: particle.size,
+            height: particle.size,
+          }}
+          animate={{
+            opacity: [0, 0.8, 0],
+            y: [0, -35, -70],
+            x: [0, 8, -5],
+            scale: [0.5, 1, 0.3],
+          }}
+          transition={{
+            duration: particle.duration,
+            delay: particle.delay,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
     </>
   );
 }
@@ -2518,6 +2303,7 @@ function EmptyState({
 
       {searchQuery && (
         <button
+          type="button"
           onClick={clearSearch}
           className="
             mt-6

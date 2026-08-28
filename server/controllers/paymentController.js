@@ -7,9 +7,48 @@ import {
 
 import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 
-/* =========================================================
-   REFERENCE
-========================================================= */
+/* ============================================================
+   PAYMENT CONFIGURATION
+============================================================ */
+
+const PAYMENT_CURRENCY = "NGN";
+
+/*
+  EVERY PRODUCT CURRENTLY COSTS ₦100.
+
+  IMPORTANT:
+  The frontend cannot change this amount.
+
+  ₦100 = 10,000 kobo.
+*/
+
+const PAYMENT_AMOUNT = 100;
+
+const PAYMENT_AMOUNT_KOBO =
+  PAYMENT_AMOUNT * 100;
+
+
+/* ============================================================
+   SUPPORTED PRODUCT TYPES
+============================================================ */
+
+const SUPPORTED_PRODUCT_TYPES = [
+  "cbt",
+  "novel",
+  "multilingual",
+  "lms",
+  "lab",
+  "course",
+  "document",
+  "language",
+  "subscription",
+  "other",
+];
+
+
+/* ============================================================
+   GENERATE PAYMENT REFERENCE
+============================================================ */
 
 const generateReference = () => {
   return `SCHOLIQEN-${Date.now()}-${crypto
@@ -18,206 +57,539 @@ const generateReference = () => {
     .toUpperCase()}`;
 };
 
-/* =========================================================
+
+/* ============================================================
+   NORMALIZE PRODUCT TYPE
+============================================================ */
+
+const normalizeProductType = (value) => {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+};
+
+
+/* ============================================================
+   CLEAN STRING
+============================================================ */
+
+const cleanString = (value) => {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return null;
+  }
+
+  const cleaned = String(value).trim();
+
+  return cleaned || null;
+};
+
+
+/* ============================================================
+   CHECK EXISTING PAID ACCESS
+============================================================ */
+
+const findExistingPaidPayment = async ({
+  userId,
+  productType,
+  productId,
+}) => {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from("payments")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("product_type", productType)
+    .eq("product_id", productId)
+    .eq("status", "paid")
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+
+/* ============================================================
    INITIALIZE PAYMENT
    POST /api/payments/initialize
-========================================================= */
+============================================================ */
 
-export const initializePayment = async (req, res) => {
+export const initializePayment = async (
+  req,
+  res
+) => {
   try {
+    /* --------------------------------------------------------
+       AUTHENTICATED USER
+    -------------------------------------------------------- */
+
     const user = req.user;
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: "Authentication required.",
+        error:
+          "Authentication required.",
       });
     }
+
+
+    /* --------------------------------------------------------
+       REQUEST DATA
+    -------------------------------------------------------- */
 
     const {
       email,
-      amount,
       productType,
       productId,
       productName,
+
       storyId,
       storyTitle,
-    } = req.body;
 
-    /* -----------------------------------------------------
+      courseId,
+      courseTitle,
+
+      subject,
+      exam,
+
+      metadata: frontendMetadata,
+    } = req.body || {};
+
+
+    /* --------------------------------------------------------
+       CLEAN VALUES
+    -------------------------------------------------------- */
+
+    const normalizedProductType =
+      normalizeProductType(
+        productType
+      );
+
+    const normalizedProductId =
+      cleanString(productId);
+
+    const normalizedProductName =
+      cleanString(productName);
+
+    const customerEmail =
+      cleanString(user.email) ||
+      cleanString(email);
+
+
+    /* --------------------------------------------------------
        VALIDATION
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
-    if (!email && !user.email) {
+    if (!customerEmail) {
       return res.status(400).json({
         success: false,
-        error: "Email is required.",
+        error:
+          "A valid email address is required.",
       });
     }
 
-    if (!productType) {
+
+    if (!normalizedProductType) {
       return res.status(400).json({
         success: false,
-        error: "Product type is required.",
+        error:
+          "Product type is required.",
       });
     }
 
-    if (!productId) {
-      return res.status(400).json({
-        success: false,
-        error: "Product ID is required.",
-      });
-    }
-
-    const numericAmount = Number(amount);
 
     if (
-      !Number.isFinite(numericAmount) ||
-      numericAmount <= 0
+      !SUPPORTED_PRODUCT_TYPES.includes(
+        normalizedProductType
+      )
     ) {
       return res.status(400).json({
         success: false,
-        error: "Invalid payment amount.",
+
+        error:
+          "Unsupported product type.",
+
+        supportedProducts:
+          SUPPORTED_PRODUCT_TYPES,
       });
     }
 
-    /* -----------------------------------------------------
-       AMOUNT
-    ----------------------------------------------------- */
 
-    const amountInKobo = Math.round(
-      numericAmount * 100
-    );
+    if (!normalizedProductId) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Product ID is required.",
+      });
+    }
 
-    const reference = generateReference();
 
-    /* -----------------------------------------------------
+    /* --------------------------------------------------------
+       FIXED PRICE
+    -------------------------------------------------------- */
+
+    /*
+      DO NOT TRUST req.body.amount.
+
+      Even if someone sends:
+
+      {
+        amount: 1
+      }
+
+      or:
+
+      {
+        amount: 100000
+      }
+
+      the server still charges ₦100.
+    */
+
+    const numericAmount =
+      PAYMENT_AMOUNT;
+
+    const amountInKobo =
+      PAYMENT_AMOUNT_KOBO;
+
+
+    /* --------------------------------------------------------
        CHECK EXISTING PAID ACCESS
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
-    const {
-      data: existingPayment,
-      error: existingError,
-    } = await supabaseAdmin
-      .from("genre_payment_sessions")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("genre", productId)
-      .eq("status", "paid")
-      .limit(1)
-      .maybeSingle();
+    let existingPayment;
 
-    if (existingError) {
+    try {
+      existingPayment =
+        await findExistingPaidPayment({
+          userId: user.id,
+
+          productType:
+            normalizedProductType,
+
+          productId:
+            normalizedProductId,
+        });
+    } catch (lookupError) {
       console.error(
         "❌ Existing payment lookup error:",
-        existingError
+        lookupError
       );
 
       return res.status(500).json({
         success: false,
-        error: "Unable to check existing access.",
+        error:
+          "Unable to check existing access.",
       });
     }
+
 
     if (existingPayment) {
       return res.status(409).json({
         success: false,
+
         alreadyPaid: true,
+
+        paid: true,
+
         error:
           "You already have access to this product.",
+
+        product: {
+          type:
+            normalizedProductType,
+
+          id:
+            normalizedProductId,
+
+          name:
+            normalizedProductName,
+        },
+
+        amount:
+          PAYMENT_AMOUNT,
+
+        currency:
+          PAYMENT_CURRENCY,
       });
     }
 
-    /* -----------------------------------------------------
-       METADATA
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       GENERATE REFERENCE
+    -------------------------------------------------------- */
+
+    const reference =
+      generateReference();
+
+
+    /* --------------------------------------------------------
+       SAFE FRONTEND METADATA
+    -------------------------------------------------------- */
+
+    const safeFrontendMetadata =
+      frontendMetadata &&
+      typeof frontendMetadata === "object" &&
+      !Array.isArray(frontendMetadata)
+        ? frontendMetadata
+        : {};
+
+
+    /* --------------------------------------------------------
+       PAYMENT METADATA
+    -------------------------------------------------------- */
 
     const metadata = {
-      userId: user.id,
-      productType,
-      productId,
-      productName: productName || null,
-      storyId: storyId || null,
-      storyTitle: storyTitle || null,
-      platform: "Scholiqen",
+      ...safeFrontendMetadata,
+
+      userId:
+        user.id,
+
+      productType:
+        normalizedProductType,
+
+      productId:
+        normalizedProductId,
+
+      productName:
+        normalizedProductName,
+
+      storyId:
+        cleanString(storyId),
+
+      storyTitle:
+        cleanString(storyTitle),
+
+      courseId:
+        cleanString(courseId),
+
+      courseTitle:
+        cleanString(courseTitle),
+
+      subject:
+        cleanString(subject),
+
+      exam:
+        cleanString(exam),
+
+      platform:
+        "Scholiqen",
+
+      amount:
+        numericAmount,
+
+      currency:
+        PAYMENT_CURRENCY,
     };
 
-    /* -----------------------------------------------------
-       CALLBACK
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       CALLBACK URL
+    -------------------------------------------------------- */
 
     const callbackUrl =
       process.env.PAYSTACK_CALLBACK_URL ||
-      "http://localhost:5173/payment";
+      `${
+        process.env.FRONTEND_URL ||
+        "http://localhost:5173"
+      }/payment`;
 
-    /* -----------------------------------------------------
-       PAYSTACK
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       LOG PAYMENT INITIALIZATION
+    -------------------------------------------------------- */
+
+    console.log(
+      "=================================================="
+    );
+
+    console.log(
+      "💳 INITIALIZING PAYMENT"
+    );
+
+    console.log(
+      "=================================================="
+    );
+
+    console.log(
+      "Reference:",
+      reference
+    );
+
+    console.log(
+      "User:",
+      user.id
+    );
+
+    console.log(
+      "Product:",
+      normalizedProductType
+    );
+
+    console.log(
+      "Product ID:",
+      normalizedProductId
+    );
+
+    console.log(
+      "Amount:",
+      `₦${numericAmount}`
+    );
+
+    console.log(
+      "Currency:",
+      PAYMENT_CURRENCY
+    );
+
+    console.log(
+      "=================================================="
+    );
+
+
+    /* --------------------------------------------------------
+       INITIALIZE PAYSTACK
+    -------------------------------------------------------- */
 
     const result =
       await initializePaystackTransaction({
-        email: user.email || email,
-        amount: amountInKobo,
+        email:
+          customerEmail,
+
+        amount:
+          amountInKobo,
+
         reference,
+
         metadata,
-        callback_url: callbackUrl,
+
+        callback_url:
+          callbackUrl,
       });
 
+
+    /* --------------------------------------------------------
+       PAYSTACK RESPONSE VALIDATION
+    -------------------------------------------------------- */
+
     if (!result?.status) {
+      console.error(
+        "❌ Paystack initialization failed:",
+        result
+      );
+
       return res.status(502).json({
         success: false,
+
         error:
           "Paystack could not initialize the payment.",
-        details: result?.message || null,
+
+        details:
+          result?.message ||
+          null,
       });
     }
 
-    if (
-      !result?.data?.authorization_url
-    ) {
+
+    const authorizationUrl =
+      result?.data?.authorization_url;
+
+
+    if (!authorizationUrl) {
+      console.error(
+        "❌ Paystack returned no authorization URL:",
+        result
+      );
+
       return res.status(502).json({
         success: false,
+
         error:
           "Paystack did not return a payment authorization URL.",
       });
     }
 
-    /* -----------------------------------------------------
-       SAVE PAYMENT SESSION
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       SAVE PAYMENT
+    -------------------------------------------------------- */
 
     const {
+      data: paymentRecord,
       error: insertError,
     } = await supabaseAdmin
-      .from("genre_payment_sessions")
+      .from("payments")
       .insert({
-        user_id: user.id,
-        genre: productId,
-        amount: numericAmount,
+        user_id:
+          user.id,
+
+        product_type:
+          normalizedProductType,
+
+        product_id:
+          normalizedProductId,
+
+        product_name:
+          normalizedProductName,
+
+        amount:
+          numericAmount,
+
+        currency:
+          PAYMENT_CURRENCY,
+
         reference,
-        status: "pending",
-        story_id: storyId || null,
-        story_title: storyTitle || null,
+
+        status:
+          "pending",
+
+        story_id:
+          cleanString(storyId),
+
+        story_title:
+          cleanString(storyTitle),
+
         metadata,
-        currency: "NGN",
-      });
+      })
+      .select()
+      .single();
+
 
     if (insertError) {
       console.error(
-        "❌ Payment session insert error:",
+        "❌ Payment insert error:",
         insertError
       );
 
+      /*
+        Paystack has already created the transaction.
+
+        The transaction reference is returned so the payment
+        can still be reconciled manually if necessary.
+      */
+
       return res.status(500).json({
         success: false,
+
         error:
           "Payment was initialized but could not be recorded.",
+
+        reference,
       });
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        RESPONSE
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
     return res.status(200).json({
       success: true,
@@ -228,20 +600,34 @@ export const initializePayment = async (req, res) => {
       reference,
 
       authorization_url:
-        result.data.authorization_url,
+        authorizationUrl,
 
       access_code:
-        result.data.access_code || null,
+        result?.data?.access_code ||
+        null,
+
+      amount:
+        numericAmount,
+
+      amountInKobo:
+        amountInKobo,
+
+      currency:
+        PAYMENT_CURRENCY,
 
       product: {
-        type: productType,
-        id: productId,
-        name: productName || null,
+        type:
+          normalizedProductType,
+
+        id:
+          normalizedProductId,
+
+        name:
+          normalizedProductName,
       },
 
-      amount: numericAmount,
-
-      currency: "NGN",
+      payment:
+        paymentRecord,
     });
   } catch (error) {
     console.error(
@@ -249,12 +635,16 @@ export const initializePayment = async (req, res) => {
     );
 
     console.error(
-      error?.response?.data || error
+      error?.response?.data ||
+      error
     );
 
     return res.status(500).json({
       success: false,
-      error: "Unable to initialize payment.",
+
+      error:
+        "Unable to initialize payment.",
+
       details:
         error?.response?.data?.message ||
         error?.message ||
@@ -263,76 +653,126 @@ export const initializePayment = async (req, res) => {
   }
 };
 
-/* =========================================================
+
+/* ============================================================
    VERIFY PAYMENT
    GET /api/payments/verify/:reference
-========================================================= */
+============================================================ */
 
-export const verifyPayment = async (req, res) => {
+export const verifyPayment = async (
+  req,
+  res
+) => {
   try {
-    const user = req.user;
+    const user =
+      req.user;
 
-    const { reference } = req.params;
+    const reference =
+      cleanString(
+        req.params?.reference
+      );
+
+
+    /* --------------------------------------------------------
+       AUTHENTICATION
+    -------------------------------------------------------- */
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: "Authentication required.",
+
+        paid: false,
+
+        error:
+          "Authentication required.",
       });
     }
+
+
+    /* --------------------------------------------------------
+       REFERENCE
+    -------------------------------------------------------- */
 
     if (!reference) {
       return res.status(400).json({
         success: false,
+
+        paid: false,
+
         error:
           "Payment reference is required.",
       });
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        VERIFY WITH PAYSTACK
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
+
+    console.log(
+      "🔍 Verifying payment:",
+      reference
+    );
 
     const result =
       await verifyPaystackTransaction(
         reference
       );
 
+
     if (!result?.status) {
       return res.status(400).json({
         success: false,
+
         paid: false,
+
         error:
           "Unable to verify payment.",
+
         details:
-          result?.message || null,
+          result?.message ||
+          null,
       });
     }
 
-    const payment = result.data;
+
+    const payment =
+      result?.data;
+
 
     if (!payment) {
       return res.status(400).json({
         success: false,
+
         paid: false,
+
         error:
           "Paystack returned no payment data.",
       });
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        LOAD LOCAL PAYMENT
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
     const {
       data: localPayment,
       error: localError,
-    } = await supabaseAdmin
-      .from("genre_payment_sessions")
-      .select("*")
-      .eq("reference", reference)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    } =
+      await supabaseAdmin
+        .from("payments")
+        .select("*")
+        .eq(
+          "reference",
+          reference
+        )
+        .eq(
+          "user_id",
+          user.id
+        )
+        .maybeSingle();
+
 
     if (localError) {
       console.error(
@@ -342,103 +782,157 @@ export const verifyPayment = async (req, res) => {
 
       return res.status(500).json({
         success: false,
+
         error:
           "Unable to find payment record.",
       });
     }
 
+
     if (!localPayment) {
       return res.status(404).json({
         success: false,
+
+        paid: false,
+
         error:
           "Payment record not found.",
       });
     }
 
-    /* -----------------------------------------------------
-       VERIFY AMOUNT
-    ----------------------------------------------------- */
 
-    const expectedAmount = Math.round(
-      Number(localPayment.amount) * 100
-    );
+    /* --------------------------------------------------------
+       VERIFY AMOUNT
+    -------------------------------------------------------- */
+
+    const expectedAmount =
+      Math.round(
+        Number(
+          localPayment.amount
+        ) * 100
+      );
 
     const receivedAmount =
-      Number(payment.amount);
+      Number(
+        payment.amount
+      );
+
 
     if (
-      receivedAmount !== expectedAmount
+      receivedAmount !==
+      expectedAmount
     ) {
       console.error(
         "❌ Payment amount mismatch:",
         {
           reference,
+
           expectedAmount,
+
           receivedAmount,
         }
       );
 
       await supabaseAdmin
-        .from("genre_payment_sessions")
+        .from("payments")
         .update({
-          status: "failed",
-          metadata: payment,
+          status:
+            "failed",
+
+          metadata:
+            payment,
         })
-        .eq("id", localPayment.id);
+        .eq(
+          "id",
+          localPayment.id
+        );
+
 
       return res.status(400).json({
         success: false,
+
         paid: false,
+
         error:
           "Payment amount mismatch.",
       });
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        VERIFY CURRENCY
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
     const currency =
-      payment.currency || "NGN";
+      cleanString(
+        payment.currency
+      ) ||
+      PAYMENT_CURRENCY;
+
 
     if (
-      currency.toUpperCase() !== "NGN"
+      currency.toUpperCase() !==
+      PAYMENT_CURRENCY
     ) {
+      console.error(
+        "❌ Unsupported payment currency:",
+        currency
+      );
+
       return res.status(400).json({
         success: false,
+
         paid: false,
+
         error:
           "Unsupported payment currency.",
       });
     }
 
-    /* -----------------------------------------------------
-       SUCCESS
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       PAYMENT STATUS
+    -------------------------------------------------------- */
 
     const successful =
-      payment.status === "success";
+      payment.status ===
+      "success";
+
+
+    /* --------------------------------------------------------
+       SUCCESSFUL PAYMENT
+    -------------------------------------------------------- */
 
     if (successful) {
       const {
         data: updatedPayment,
+
         error: updateError,
-      } = await supabaseAdmin
-        .from("genre_payment_sessions")
-        .update({
-          status: "paid",
+      } =
+        await supabaseAdmin
+          .from("payments")
+          .update({
+            status:
+              "paid",
 
-          paid_at:
-            payment.paid_at ||
-            new Date().toISOString(),
+            paid_at:
+              payment.paid_at ||
+              new Date().toISOString(),
 
-          metadata: payment,
+            currency:
 
-          currency,
-        })
-        .eq("id", localPayment.id)
-        .select()
-        .single();
+              PAYMENT_CURRENCY,
+
+            metadata:
+              payment,
+          })
+          .eq(
+            "id",
+            localPayment.id
+          )
+          .select()
+          .single();
+
 
       if (updateError) {
         console.error(
@@ -448,10 +942,61 @@ export const verifyPayment = async (req, res) => {
 
         return res.status(500).json({
           success: false,
+
+          paid: true,
+
           error:
             "Payment was successful but access could not be updated.",
         });
       }
+
+
+      console.log(
+        "=================================================="
+      );
+
+      console.log(
+        "✅ PAYMENT VERIFIED"
+      );
+
+      console.log(
+        "=================================================="
+      );
+
+      console.log(
+        "Reference:",
+        reference
+      );
+
+      console.log(
+        "User:",
+        user.id
+      );
+
+      console.log(
+        "Product:",
+        localPayment.product_type
+      );
+
+      console.log(
+        "Product ID:",
+        localPayment.product_id
+      );
+
+      console.log(
+        "Amount:",
+        `₦${localPayment.amount}`
+      );
+
+      console.log(
+        "Status:",
+        "paid"
+      );
+
+      console.log(
+        "=================================================="
+      );
+
 
       return res.status(200).json({
         success: true,
@@ -467,7 +1012,8 @@ export const verifyPayment = async (req, res) => {
         amount:
           payment.amount,
 
-        currency,
+        currency:
+          PAYMENT_CURRENCY,
 
         email:
           payment.customer?.email ||
@@ -475,11 +1021,19 @@ export const verifyPayment = async (req, res) => {
 
         paidAt:
           payment.paid_at ||
-          null,
+          new Date().toISOString(),
 
-        metadata:
-          payment.metadata ||
-          null,
+        product: {
+          type:
+            localPayment.product_type,
+
+          id:
+            localPayment.product_id,
+
+          name:
+            localPayment.product_name ||
+            null,
+        },
 
         paymentRecord:
           updatedPayment,
@@ -489,22 +1043,32 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    /* -----------------------------------------------------
-       NOT SUCCESSFUL
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       PAYMENT NOT SUCCESSFUL
+    -------------------------------------------------------- */
 
     const newStatus =
-      payment.status === "failed"
+      payment.status ===
+      "failed"
         ? "failed"
         : "pending";
 
+
     await supabaseAdmin
-      .from("genre_payment_sessions")
+      .from("payments")
       .update({
-        status: newStatus,
-        metadata: payment,
+        status:
+          newStatus,
+
+        metadata:
+          payment,
       })
-      .eq("id", localPayment.id);
+      .eq(
+        "id",
+        localPayment.id
+      );
+
 
     return res.status(200).json({
       success: true,
@@ -520,7 +1084,8 @@ export const verifyPayment = async (req, res) => {
       amount:
         payment.amount,
 
-      currency,
+      currency:
+        PAYMENT_CURRENCY,
 
       email:
         payment.customer?.email ||
@@ -530,9 +1095,17 @@ export const verifyPayment = async (req, res) => {
         payment.paid_at ||
         null,
 
-      metadata:
-        payment.metadata ||
-        null,
+      product: {
+        type:
+          localPayment.product_type,
+
+        id:
+          localPayment.product_id,
+
+        name:
+          localPayment.product_name ||
+          null,
+      },
 
       message:
         "Payment has not been completed.",
@@ -543,13 +1116,18 @@ export const verifyPayment = async (req, res) => {
     );
 
     console.error(
-      error?.response?.data || error
+      error?.response?.data ||
+      error
     );
 
     return res.status(500).json({
       success: false,
+
+      paid: false,
+
       error:
         "Unable to verify payment.",
+
       details:
         error?.response?.data?.message ||
         error?.message ||
@@ -558,39 +1136,46 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
-/* =========================================================
+
+/* ============================================================
    PAYSTACK WEBHOOK
    POST /api/payments/webhook
-========================================================= */
+============================================================ */
 
 export const paystackWebhook = async (
   req,
   res
 ) => {
   try {
+    /* --------------------------------------------------------
+       SECRET
+    -------------------------------------------------------- */
+
     const secret =
-      process.env.PAYSTACK_SECRET_KEY?.trim();
+      process.env
+        .PAYSTACK_SECRET_KEY?.trim();
 
-    const signature =
-      req.headers[
-        "x-paystack-signature"
-      ];
-
-    /* -----------------------------------------------------
-       CHECK SECRET
-    ----------------------------------------------------- */
 
     if (!secret) {
       console.error(
         "❌ PAYSTACK_SECRET_KEY is missing."
       );
 
-      return res.sendStatus(500);
+      return res.sendStatus(
+        500
+      );
     }
 
-    /* -----------------------------------------------------
-       CHECK SIGNATURE
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       SIGNATURE
+    -------------------------------------------------------- */
+
+    const signature =
+      req.headers[
+        "x-paystack-signature"
+      ];
+
 
     if (!signature) {
       console.error(
@@ -599,27 +1184,29 @@ export const paystackWebhook = async (
 
       return res
         .status(401)
-        .send("Unauthorized");
+        .send(
+          "Unauthorized"
+        );
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        RAW BODY
-       
-       server.js uses express.raw() for this route.
-       Therefore req.body is a Buffer.
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
-    const rawBody = Buffer.isBuffer(
-      req.body
-    )
-      ? req.body
-      : Buffer.from(
-          JSON.stringify(req.body || {})
-        );
+    const rawBody =
+      Buffer.isBuffer(req.body)
+        ? req.body
+        : Buffer.from(
+            JSON.stringify(
+              req.body || {}
+            )
+          );
 
-    /* -----------------------------------------------------
-       GENERATE HMAC
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       CREATE HMAC
+    -------------------------------------------------------- */
 
     const hash =
       crypto
@@ -630,12 +1217,16 @@ export const paystackWebhook = async (
         .update(rawBody)
         .digest("hex");
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        SAFE SIGNATURE COMPARISON
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
     const hashBuffer =
-      Buffer.from(hash, "utf8");
+      Buffer.from(
+        hash,
+        "utf8"
+      );
 
     const signatureBuffer =
       Buffer.from(
@@ -643,14 +1234,18 @@ export const paystackWebhook = async (
         "utf8"
       );
 
+
     if (
       hashBuffer.length !==
       signatureBuffer.length
     ) {
       return res
         .status(401)
-        .send("Invalid signature");
+        .send(
+          "Invalid signature"
+        );
     }
+
 
     if (
       !crypto.timingSafeEqual(
@@ -664,19 +1259,25 @@ export const paystackWebhook = async (
 
       return res
         .status(401)
-        .send("Invalid signature");
+        .send(
+          "Invalid signature"
+        );
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        PARSE EVENT
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
     let event;
 
     try {
-      event = JSON.parse(
-        rawBody.toString("utf8")
-      );
+      event =
+        JSON.parse(
+          rawBody.toString(
+            "utf8"
+          )
+        );
     } catch (parseError) {
       console.error(
         "❌ Invalid Paystack webhook JSON:",
@@ -685,50 +1286,74 @@ export const paystackWebhook = async (
 
       return res
         .status(400)
-        .send("Invalid JSON");
+        .send(
+          "Invalid JSON"
+        );
     }
+
 
     console.log(
       "📦 Paystack webhook:",
       event?.event
     );
 
-    /* -----------------------------------------------------
-       SUCCESSFUL CHARGE
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       ONLY HANDLE SUCCESSFUL CHARGES
+    -------------------------------------------------------- */
 
     if (
       event?.event !==
       "charge.success"
     ) {
-      return res.sendStatus(200);
+      return res.sendStatus(
+        200
+      );
     }
 
-    const payment = event.data;
+
+    const payment =
+      event?.data;
+
 
     if (!payment) {
-      return res.sendStatus(200);
+      return res.sendStatus(
+        200
+      );
     }
+
 
     const reference =
-      payment.reference;
+      cleanString(
+        payment.reference
+      );
+
 
     if (!reference) {
-      return res.sendStatus(200);
+      return res.sendStatus(
+        200
+      );
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        FIND LOCAL PAYMENT
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
     const {
       data: localPayment,
+
       error: lookupError,
-    } = await supabaseAdmin
-      .from("genre_payment_sessions")
-      .select("*")
-      .eq("reference", reference)
-      .maybeSingle();
+    } =
+      await supabaseAdmin
+        .from("payments")
+        .select("*")
+        .eq(
+          "reference",
+          reference
+        )
+        .maybeSingle();
+
 
     if (lookupError) {
       console.error(
@@ -736,8 +1361,15 @@ export const paystackWebhook = async (
         lookupError
       );
 
-      return res.sendStatus(500);
+      return res.sendStatus(
+        500
+      );
     }
+
+
+    /* --------------------------------------------------------
+       PAYMENT NOT FOUND
+    -------------------------------------------------------- */
 
     if (!localPayment) {
       console.warn(
@@ -745,12 +1377,15 @@ export const paystackWebhook = async (
         reference
       );
 
-      return res.sendStatus(200);
+      return res.sendStatus(
+        200
+      );
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        IDEMPOTENCY
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
     if (
       localPayment.status ===
@@ -761,12 +1396,15 @@ export const paystackWebhook = async (
         reference
       );
 
-      return res.sendStatus(200);
+      return res.sendStatus(
+        200
+      );
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        VERIFY AMOUNT
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
     const expectedAmount =
       Math.round(
@@ -776,7 +1414,10 @@ export const paystackWebhook = async (
       );
 
     const receivedAmount =
-      Number(payment.amount);
+      Number(
+        payment.amount
+      );
+
 
     if (
       receivedAmount !==
@@ -786,74 +1427,114 @@ export const paystackWebhook = async (
         "❌ Webhook amount mismatch:",
         {
           reference,
+
           expectedAmount,
+
           receivedAmount,
         }
       );
 
       await supabaseAdmin
-        .from(
-          "genre_payment_sessions"
-        )
+        .from("payments")
         .update({
-          status: "failed",
-          metadata: payment,
+          status:
+            "failed",
+
+          metadata:
+            payment,
         })
         .eq(
           "id",
           localPayment.id
         );
 
-      return res.sendStatus(200);
+      return res.sendStatus(
+        200
+      );
     }
 
-    /* -----------------------------------------------------
+
+    /* --------------------------------------------------------
        VERIFY CURRENCY
-    ----------------------------------------------------- */
+    -------------------------------------------------------- */
 
     const currency =
-      payment.currency || "NGN";
+      cleanString(
+        payment.currency
+      ) ||
+      PAYMENT_CURRENCY;
+
 
     if (
       currency.toUpperCase() !==
-      "NGN"
+      PAYMENT_CURRENCY
     ) {
       console.error(
         "❌ Webhook currency mismatch:",
         {
           reference,
+
           currency,
         }
       );
 
-      return res.sendStatus(200);
+      return res.sendStatus(
+        200
+      );
     }
 
-    /* -----------------------------------------------------
-       MARK PAID
-    ----------------------------------------------------- */
+
+    /* --------------------------------------------------------
+       VERIFY PAYSTACK STATUS
+    -------------------------------------------------------- */
+
+    if (
+      payment.status !==
+      "success"
+    ) {
+      console.warn(
+        "⚠️ Webhook payment status is not success:",
+        payment.status
+      );
+
+      return res.sendStatus(
+        200
+      );
+    }
+
+
+    /* --------------------------------------------------------
+       MARK PAYMENT AS PAID
+    -------------------------------------------------------- */
 
     const {
+      data: updatedPayment,
+
       error: updateError,
-    } = await supabaseAdmin
-      .from(
-        "genre_payment_sessions"
-      )
-      .update({
-        status: "paid",
+    } =
+      await supabaseAdmin
+        .from("payments")
+        .update({
+          status:
+            "paid",
 
-        paid_at:
-          payment.paid_at ||
-          new Date().toISOString(),
+          paid_at:
+            payment.paid_at ||
+            new Date().toISOString(),
 
-        currency,
+          currency:
+            PAYMENT_CURRENCY,
 
-        metadata: payment,
-      })
-      .eq(
-        "id",
-        localPayment.id
-      );
+          metadata:
+            payment,
+        })
+        .eq(
+          "id",
+          localPayment.id
+        )
+        .select()
+        .single();
+
 
     if (updateError) {
       console.error(
@@ -861,22 +1542,83 @@ export const paystackWebhook = async (
         updateError
       );
 
-      return res.sendStatus(500);
+      return res.sendStatus(
+        500
+      );
     }
 
+
+    /* --------------------------------------------------------
+       SUCCESS LOG
+    -------------------------------------------------------- */
+
     console.log(
-      "✅ Payment marked paid:",
+      "=================================================="
+    );
+
+    console.log(
+      "✅ PAYMENT COMPLETED"
+    );
+
+    console.log(
+      "=================================================="
+    );
+
+    console.log(
+      "Reference:",
       reference
     );
 
-    return res.sendStatus(200);
+    console.log(
+      "User:",
+      localPayment.user_id
+    );
+
+    console.log(
+      "Product:",
+      localPayment.product_type
+    );
+
+    console.log(
+      "Product ID:",
+      localPayment.product_id
+    );
+
+    console.log(
+      "Amount:",
+      `₦${localPayment.amount}`
+    );
+
+    console.log(
+      "Currency:",
+      localPayment.currency
+    );
+
+    console.log(
+      "Status:",
+      updatedPayment?.status
+    );
+
+    console.log(
+      "=================================================="
+    );
+
+
+    return res.sendStatus(
+      200
+    );
   } catch (error) {
     console.error(
       "❌ PAYSTACK WEBHOOK ERROR"
     );
 
-    console.error(error);
+    console.error(
+      error?.response?.data ||
+      error
+    );
 
-    return res.sendStatus(500);
+    return res.sendStatus(
+      500
+    );
   }
 };

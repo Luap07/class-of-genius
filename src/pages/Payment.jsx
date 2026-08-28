@@ -1,5 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   AlertCircle,
@@ -24,7 +28,10 @@ import {
   CircleDollarSign,
   Layers3,
   GraduationCap,
+  ChevronDown,
 } from "lucide-react";
+
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { supabase } from "../lib/supabaseClient";
 
@@ -33,9 +40,100 @@ import { supabase } from "../lib/supabaseClient";
 ========================================================= */
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000";
 
-const DEFAULT_PRICE = 5;
+/*
+  ============================================================
+  TEST PAYMENT SETTINGS
+  ============================================================
+
+  For testing, we are using:
+
+  Currency: NGN
+  Amount:   ₦100
+
+  Change DEFAULT_PRICE back to your real price when testing
+  is complete.
+*/
+
+const DEFAULT_CURRENCY = "NGN";
+const DEFAULT_PRICE = 100;
+
+/*
+  Supported currencies.
+
+  IMPORTANT:
+  The frontend can display these currencies, but your
+  Paystack merchant account/backend must support the
+  currency you actually send to Paystack.
+
+  For now, NGN is the recommended testing currency.
+*/
+
+const CURRENCY_CONFIG = {
+  NGN: {
+    symbol: "₦",
+    name: "Nigerian Naira",
+    locale: "en-NG",
+    decimals: 0,
+  },
+
+  USD: {
+    symbol: "$",
+    name: "US Dollar",
+    locale: "en-US",
+    decimals: 2,
+  },
+
+  GHS: {
+    symbol: "GH₵",
+    name: "Ghanaian Cedi",
+    locale: "en-GH",
+    decimals: 2,
+  },
+
+  KES: {
+    symbol: "KSh",
+    name: "Kenyan Shilling",
+    locale: "en-KE",
+    decimals: 2,
+  },
+
+  ZAR: {
+    symbol: "R",
+    name: "South African Rand",
+    locale: "en-ZA",
+    decimals: 2,
+  },
+
+  XOF: {
+    symbol: "CFA",
+    name: "West African CFA Franc",
+    locale: "fr-FR",
+    decimals: 0,
+  },
+};
+
+/*
+  Only show currencies that you have enabled for testing.
+
+  For now we keep NGN only.
+
+  When your backend/payment account is ready for another
+  currency, add it here.
+
+  Example:
+
+  const ENABLED_CURRENCIES = [
+    "NGN",
+    "USD",
+  ];
+*/
+
+const ENABLED_CURRENCIES = [
+  "NGN",
+];
 
 /* =========================================================
    HELPERS
@@ -56,14 +154,67 @@ const formatValue = (value) =>
         .toString()
         .replace(/_/g, " ")
         .toLowerCase()
-        .replace(/\b\w/g, (char) => char.toUpperCase())
+        .replace(/\b\w/g, (char) =>
+          char.toUpperCase()
+        )
     : "Access";
 
-const formatNaira = (amount) =>
-  `₦${Number(amount || 0).toLocaleString("en-NG")}`;
+const normalizeCurrency = (value) => {
+  const currency =
+    value?.toString().trim().toUpperCase();
+
+  if (
+    currency &&
+    CURRENCY_CONFIG[currency] &&
+    ENABLED_CURRENCIES.includes(currency)
+  ) {
+    return currency;
+  }
+
+  return DEFAULT_CURRENCY;
+};
+
+const formatMoney = (
+  amount,
+  currency = DEFAULT_CURRENCY
+) => {
+  const config =
+    CURRENCY_CONFIG[currency] ||
+    CURRENCY_CONFIG[DEFAULT_CURRENCY];
+
+  return new Intl.NumberFormat(
+    config.locale,
+    {
+      style: "currency",
+      currency,
+      minimumFractionDigits:
+        config.decimals,
+      maximumFractionDigits:
+        config.decimals,
+    }
+  ).format(Number(amount || 0));
+};
+
+/*
+  Paystack expects amounts in subunits.
+
+  NGN:
+  ₦100 = 10,000 kobo
+
+  USD:
+  $5 = 500 cents
+*/
+
+const toPaystackSubunit = (
+  amount
+) =>
+  Math.round(
+    Number(amount || 0) * 100
+  );
 
 const getProductType = (value) => {
-  const type = value?.toString().trim().toLowerCase();
+  const type =
+    value?.toString().trim().toLowerCase();
 
   if (
     type === "subject" ||
@@ -85,38 +236,65 @@ const getProductConfig = (data) => {
     data.productType
   );
 
+  const currency = normalizeCurrency(
+    data.currency
+  );
+
   /* -------------------------------------------------------
      GENRE
   ------------------------------------------------------- */
 
   if (productType === "genre") {
-    const genre =
-      normalizeValue(data.genre || data.productId);
+    const genre = normalizeValue(
+      data.genre || data.productId
+    );
 
     return {
       type: "genre",
-      id: data.productId || genre,
+
+      id:
+        data.productId ||
+        genre,
+
       name:
         data.productName ||
-        `${formatValue(genre)} Genre Access`,
+        `${formatValue(
+          genre
+        )} Genre Access`,
+
       displayName:
         data.displayName ||
         formatValue(genre),
+
       description:
         data.description ||
         `Unlock unlimited access to the ${formatValue(
           genre
         )} collection.`,
+
+      /*
+        TEST PRICE
+
+        We intentionally use ₦100 while testing.
+      */
+
       price:
-        Number(data.amount) > 0
-          ? Number(data.amount)
-          : DEFAULT_PRICE,
+        DEFAULT_PRICE,
+
+      currency,
+
       icon: BookOpen,
-      label: "Premium Genre Access",
-      accessLabel: "Lifetime Genre Access",
-      benefitText: `All ${formatValue(
-        genre
-      )} stories`,
+
+      label:
+        "Premium Genre Access",
+
+      accessLabel:
+        "Lifetime Genre Access",
+
+      benefitText:
+        `All ${formatValue(
+          genre
+        )} stories`,
     };
   }
 
@@ -138,22 +316,34 @@ const getProductConfig = (data) => {
 
     return {
       type: "category",
+
       id: categoryId,
+
       name:
         data.productName ||
         `${categoryName} Category Access`,
+
       displayName: categoryName,
+
       description:
         data.description ||
         `Unlock complete access to the ${categoryName} category.`,
+
       price:
-        Number(data.amount) > 0
-          ? Number(data.amount)
-          : DEFAULT_PRICE,
+        DEFAULT_PRICE,
+
+      currency,
+
       icon: Layers3,
-      label: "Premium Category Access",
-      accessLabel: "Lifetime Category Access",
-      benefitText: `All ${categoryName} content`,
+
+      label:
+        "Premium Category Access",
+
+      accessLabel:
+        "Lifetime Category Access",
+
+      benefitText:
+        `All ${categoryName} content`,
     };
   }
 
@@ -174,22 +364,34 @@ const getProductConfig = (data) => {
 
   return {
     type: "subject",
+
     id: subjectId,
+
     name:
       data.productName ||
       `${subjectName} Subject Access`,
+
     displayName: subjectName,
+
     description:
       data.description ||
       `Unlock complete access to ${subjectName}.`,
+
     price:
-      Number(data.amount) > 0
-        ? Number(data.amount)
-        : DEFAULT_PRICE,
+      DEFAULT_PRICE,
+
+    currency,
+
     icon: GraduationCap,
-    label: "Premium Subject Access",
-    accessLabel: "Lifetime Subject Access",
-    benefitText: `All ${subjectName} materials`,
+
+    label:
+      "Premium Subject Access",
+
+    accessLabel:
+      "Lifetime Subject Access",
+
+    benefitText:
+      `All ${subjectName} materials`,
   };
 };
 
@@ -201,81 +403,177 @@ const Payment = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const paymentData = location.state || {};
+  const paymentData =
+    location.state || {};
 
-  const product = useMemo(
-    () => getProductConfig(paymentData),
+  /* =======================================================
+     PRODUCT
+  ======================================================= */
+
+  const initialProduct = useMemo(
+    () =>
+      getProductConfig(
+        paymentData
+      ),
     [paymentData]
   );
 
-  const ProductIcon = product.icon;
+  const ProductIcon =
+    initialProduct.icon;
+
+  /* =======================================================
+     NOVEL / STORY
+  ======================================================= */
 
   const storyId =
-    paymentData.storyId || null;
+    paymentData.storyId ||
+    null;
 
   const storyTitle =
-    paymentData.storyTitle || "";
+    paymentData.storyTitle ||
+    "";
+
+  /* =======================================================
+     ACCESS IDS
+  ======================================================= */
 
   const categoryId =
     paymentData.categoryId ||
-    (product.type === "category"
-      ? product.id
+    (initialProduct.type === "category"
+      ? initialProduct.id
       : null);
 
   const subjectId =
     paymentData.subjectId ||
-    (product.type === "subject"
-      ? product.id
+    (initialProduct.type === "subject"
+      ? initialProduct.id
       : null);
 
   const genre =
-    product.type === "genre"
+    initialProduct.type === "genre"
       ? normalizeValue(
           paymentData.genre ||
-            product.id
+            initialProduct.id
         )
       : "";
 
-  const amount = product.price;
+  /* =======================================================
+     CURRENCY
+  ======================================================= */
 
-  /* =========================================================
-     CALLBACK
-  ========================================================= */
+  const initialCurrency =
+    normalizeCurrency(
+      paymentData.currency
+    );
 
-  const queryParams = useMemo(
-    () =>
-      new URLSearchParams(
-        location.search
-      ),
-    [location.search]
+  const [
+    selectedCurrency,
+    setSelectedCurrency,
+  ] = useState(
+    initialCurrency
   );
 
+  /*
+    Keep the product currency synchronized
+    with the selected currency.
+  */
+
+  const currency =
+    normalizeCurrency(
+      selectedCurrency
+    );
+
+  /* =======================================================
+     PRICE
+  ======================================================= */
+
+  /*
+    TESTING:
+
+    Every payment is currently ₦100.
+
+    When testing is finished, replace this
+    with your real pricing logic.
+  */
+
+  const amount =
+    DEFAULT_PRICE;
+
+  const formattedAmount =
+    useMemo(
+      () =>
+        formatMoney(
+          amount,
+          currency
+        ),
+      [
+        amount,
+        currency,
+      ]
+    );
+
+  const paystackAmount =
+    useMemo(
+      () =>
+        toPaystackSubunit(
+          amount
+        ),
+      [amount]
+    );
+
+  /* =======================================================
+     CALLBACK
+  ======================================================= */
+
+  const queryParams =
+    useMemo(
+      () =>
+        new URLSearchParams(
+          location.search
+        ),
+      [location.search]
+    );
+
   const callbackReference =
-    queryParams.get("reference") ||
-    queryParams.get("trxref") ||
+    queryParams.get(
+      "reference"
+    ) ||
+    queryParams.get(
+      "trxref"
+    ) ||
     null;
 
-  /* =========================================================
+  /* =======================================================
      STATE
-  ========================================================= */
+  ======================================================= */
 
   const [user, setUser] =
     useState(null);
 
-  const [loadingUser, setLoadingUser] =
-    useState(true);
+  const [
+    loadingUser,
+    setLoadingUser,
+  ] = useState(true);
 
-  const [initializing, setInitializing] =
-    useState(false);
+  const [
+    initializing,
+    setInitializing,
+  ] = useState(false);
 
-  const [verifying, setVerifying] =
-    useState(false);
+  const [
+    verifying,
+    setVerifying,
+  ] = useState(false);
 
-  const [payment, setPayment] =
-    useState(null);
+  const [
+    payment,
+    setPayment,
+  ] = useState(null);
 
-  const [paymentConfirmed, setPaymentConfirmed] =
-    useState(false);
+  const [
+    paymentConfirmed,
+    setPaymentConfirmed,
+  ] = useState(false);
 
   const [error, setError] =
     useState("");
@@ -286,55 +584,64 @@ const Payment = () => {
   const verifiedRef =
     useRef(false);
 
-  /* =========================================================
+  /* =======================================================
      LOAD USER
-  ========================================================= */
+  ======================================================= */
 
   useEffect(() => {
     let mounted = true;
 
-    const loadUser = async () => {
-      try {
-        setLoadingUser(true);
-        setError("");
+    const loadUser =
+      async () => {
+        try {
+          setLoadingUser(true);
+          setError("");
 
-        const {
-          data: { user: currentUser },
-          error: authError,
-        } = await supabase.auth.getUser();
+          const {
+            data: {
+              user: currentUser,
+            },
+            error: authError,
+          } =
+            await supabase.auth.getUser();
 
-        if (authError) {
-          throw authError;
-        }
+          if (authError) {
+            throw authError;
+          }
 
-        if (!currentUser) {
-          navigate("/login", {
-            replace: true,
-          });
+          if (!currentUser) {
+            navigate(
+              "/login",
+              {
+                replace: true,
+              }
+            );
 
-          return;
-        }
+            return;
+          }
 
-        if (mounted) {
-          setUser(currentUser);
-        }
-      } catch (err) {
-        console.error(
-          "Payment user error:",
-          err
-        );
-
-        if (mounted) {
-          setError(
-            "Unable to load your account. Please log in again."
+          if (mounted) {
+            setUser(
+              currentUser
+            );
+          }
+        } catch (err) {
+          console.error(
+            "Payment user error:",
+            err
           );
+
+          if (mounted) {
+            setError(
+              "Unable to load your account. Please log in again."
+            );
+          }
+        } finally {
+          if (mounted) {
+            setLoadingUser(false);
+          }
         }
-      } finally {
-        if (mounted) {
-          setLoadingUser(false);
-        }
-      }
-    };
+      };
 
     loadUser();
 
@@ -343,9 +650,9 @@ const Payment = () => {
     };
   }, [navigate]);
 
-  /* =========================================================
-     VERIFY CALLBACK PAYMENT
-  ========================================================= */
+  /* =======================================================
+     VERIFY CALLBACK
+  ======================================================= */
 
   useEffect(() => {
     if (
@@ -357,228 +664,355 @@ const Payment = () => {
       return;
     }
 
-    verifiedRef.current = true;
+    verifiedRef.current =
+      true;
 
-    verifyPayment(callbackReference);
+    verifyPayment(
+      callbackReference
+    );
   }, [
     loadingUser,
     user,
     callbackReference,
   ]);
 
-  /* =========================================================
+  /* =======================================================
      INITIALIZE PAYMENT
-  ========================================================= */
+  ======================================================= */
 
   useEffect(() => {
     if (
       loadingUser ||
       !user ||
-      !product.id ||
+      !initialProduct.id ||
       callbackReference ||
       initializedRef.current
     ) {
       return;
     }
 
-    initializedRef.current = true;
+    initializedRef.current =
+      true;
 
     initializePayment();
   }, [
     loadingUser,
     user,
-    product.id,
+    initialProduct.id,
     callbackReference,
   ]);
 
-  /* =========================================================
+  /* =======================================================
      INITIALIZE
-  ========================================================= */
+  ======================================================= */
 
-  const initializePayment = async () => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-
-    if (!product.id) {
-      setError(
-        `No ${product.type} was provided for this payment.`
-      );
-      return;
-    }
-
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0
-    ) {
-      setError(
-        "Invalid payment amount."
-      );
-      return;
-    }
-
-    setInitializing(true);
-    setError("");
-
-    try {
-      const {
-        data: {
-          session: authSession,
-        },
-      } =
-        await supabase.auth.getSession();
-
-      const accessToken =
-        authSession?.access_token;
-
-      if (!accessToken) {
-        navigate("/login", {
-          replace: true,
-        });
-
+  const initializePayment =
+    async () => {
+      if (!user) {
+        navigate(
+          "/login"
+        );
         return;
       }
 
-      /* -----------------------------------------------------
-         PAYMENT PAYLOAD
-      ----------------------------------------------------- */
+      if (!initialProduct.id) {
+        setError(
+          `No ${initialProduct.type} was provided for this payment.`
+        );
+        return;
+      }
 
-      const paymentPayload = {
-        email: user.email,
+      if (
+        !Number.isFinite(
+          amount
+        ) ||
+        amount <= 0
+      ) {
+        setError(
+          "Invalid payment amount."
+        );
+        return;
+      }
 
-        amount,
+      if (
+        !CURRENCY_CONFIG[
+          currency
+        ]
+      ) {
+        setError(
+          `Unsupported currency: ${currency}`
+        );
+        return;
+      }
 
-        productType: product.type,
+      setInitializing(true);
+      setError("");
 
-        productId: product.id,
+      try {
+        const {
+          data: {
+            session: authSession,
+          },
+        } =
+          await supabase.auth.getSession();
 
-        productName: product.name,
+        const accessToken =
+          authSession?.access_token;
 
-        displayName:
-          product.displayName,
+        if (!accessToken) {
+          navigate(
+            "/login",
+            {
+              replace: true,
+            }
+          );
 
-        genre:
-          genre || null,
+          return;
+        }
 
-        genreId:
-          genre || null,
+        /*
+          ====================================================
+          IMPORTANT PAYMENT PAYLOAD
+          ====================================================
 
-        categoryId,
+          Frontend amount:
+            100
 
-        categoryName:
-          paymentData.categoryName ||
-          null,
+          Paystack subunit:
+            10000
 
-        subjectId,
+          Backend should send 10000 to Paystack.
+        */
 
-        subjectName:
-          paymentData.subjectName ||
-          null,
+        const paymentPayload = {
+          email:
+            user.email,
 
-        storyId,
+          amount,
 
-        storyTitle,
+          currency,
 
-        metadata: {
-          productType: product.type,
-          productId: product.id,
+          paystackAmount,
+
+          productType:
+            initialProduct.type,
+
+          productId:
+            initialProduct.id,
+
+          productName:
+            initialProduct.name,
+
           displayName:
-            product.displayName,
+            initialProduct.displayName,
 
           genre:
             genre || null,
 
+          genreId:
+            genre || null,
+
           categoryId,
+
           categoryName:
             paymentData.categoryName ||
             null,
 
           subjectId,
+
           subjectName:
             paymentData.subjectName ||
             null,
 
           storyId,
+
           storyTitle,
-        },
-      };
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/payments/initialize`,
-        {
-          method: "POST",
+          metadata: {
+            productType:
+              initialProduct.type,
 
-          headers: {
-            "Content-Type":
-              "application/json",
+            productId:
+              initialProduct.id,
 
-            Authorization:
-              `Bearer ${accessToken}`,
+            productName:
+              initialProduct.name,
+
+            displayName:
+              initialProduct.displayName,
+
+            amount,
+
+            currency,
+
+            paystackAmount,
+
+            genre:
+              genre || null,
+
+            genreId:
+              genre || null,
+
+            categoryId,
+
+            categoryName:
+              paymentData.categoryName ||
+              null,
+
+            subjectId,
+
+            subjectName:
+              paymentData.subjectName ||
+              null,
+
+            storyId,
+
+            storyTitle,
           },
+        };
 
-          body: JSON.stringify(
-            paymentPayload
-          ),
+        console.log(
+          "PAYMENT INITIALIZATION PAYLOAD:",
+          paymentPayload
+        );
+
+        const response =
+          await fetch(
+            `${API_BASE_URL}/api/payments/initialize`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+
+                Authorization:
+                  `Bearer ${accessToken}`,
+              },
+
+              body:
+                JSON.stringify(
+                  paymentPayload
+                ),
+            }
+          );
+
+        let result;
+
+        try {
+          result =
+            await response.json();
+        } catch {
+          throw new Error(
+            "The payment server returned an invalid response."
+          );
         }
-      );
 
-      const result =
-        await response.json();
+        console.log(
+          "PAYMENT INITIALIZATION RESPONSE:",
+          result
+        );
 
-      if (
-        !response.ok ||
-        !result?.success
-      ) {
-        throw new Error(
-          result?.error ||
+        if (
+          !response.ok ||
+          !result?.success
+        ) {
+          throw new Error(
+            result?.error ||
+              result?.message ||
+              "Unable to initialize payment."
+          );
+        }
+
+        if (
+          !result?.authorization_url
+        ) {
+          throw new Error(
+            "Paystack checkout URL was not returned."
+          );
+        }
+
+        setPayment(
+          result
+        );
+      } catch (err) {
+        console.error(
+          "Payment initialization error:",
+          err
+        );
+
+        setError(
+          err?.message ||
             "Unable to initialize payment."
         );
+      } finally {
+        setInitializing(false);
+      }
+    };
+
+  /* =======================================================
+     CHANGE CURRENCY
+  ======================================================= */
+
+  const handleCurrencyChange =
+    (newCurrency) => {
+      if (
+        !ENABLED_CURRENCIES.includes(
+          newCurrency
+        )
+      ) {
+        return;
       }
 
-      setPayment(result);
-    } catch (err) {
-      console.error(
-        "Payment initialization error:",
-        err
-      );
+      /*
+        If currency is changed after a payment
+        was initialized, discard the old checkout.
+      */
 
-      setError(
-        err?.message ||
-          "Unable to initialize payment."
-      );
-    } finally {
-      setInitializing(false);
-    }
-  };
+      setPayment(null);
+      setError("");
 
-  /* =========================================================
+      initializedRef.current =
+        false;
+
+      setSelectedCurrency(
+        normalizeCurrency(
+          newCurrency
+        )
+      );
+    };
+
+  /* =======================================================
      OPEN PAYSTACK
-  ========================================================= */
+  ======================================================= */
 
-  const startPaystackPayment = () => {
-    if (
-      !payment?.authorization_url
-    ) {
-      setError(
-        "Paystack checkout is not ready yet."
-      );
+  const startPaystackPayment =
+    () => {
+      if (
+        !payment?.authorization_url
+      ) {
+        setError(
+          "Paystack checkout is not ready yet."
+        );
 
-      return;
-    }
+        return;
+      }
 
-    window.location.href =
-      payment.authorization_url;
-  };
+      window.location.href =
+        payment.authorization_url;
+    };
 
-  /* =========================================================
+  /* =======================================================
      VERIFY PAYMENT
-  ========================================================= */
+  ======================================================= */
 
   async function verifyPayment(
     reference
   ) {
-    if (!reference || !user) {
+    if (
+      !reference ||
+      !user
+    ) {
       return;
     }
 
@@ -597,29 +1031,46 @@ const Payment = () => {
         authSession?.access_token;
 
       if (!accessToken) {
-        navigate("/login", {
-          replace: true,
-        });
+        navigate(
+          "/login",
+          {
+            replace: true,
+          }
+        );
 
         return;
       }
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/payments/verify/${encodeURIComponent(
-          reference
-        )}`,
-        {
-          method: "GET",
+      const response =
+        await fetch(
+          `${API_BASE_URL}/api/payments/verify/${encodeURIComponent(
+            reference
+          )}`,
+          {
+            method: "GET",
 
-          headers: {
-            Authorization:
-              `Bearer ${accessToken}`,
-          },
-        }
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+      let result;
+
+      try {
+        result =
+          await response.json();
+      } catch {
+        throw new Error(
+          "The verification server returned an invalid response."
+        );
+      }
+
+      console.log(
+        "PAYMENT VERIFICATION RESPONSE:",
+        result
       );
-
-      const result =
-        await response.json();
 
       if (
         !response.ok ||
@@ -627,35 +1078,50 @@ const Payment = () => {
       ) {
         throw new Error(
           result?.error ||
+            result?.message ||
             "Unable to verify payment."
         );
       }
 
-      /* -----------------------------------------------------
+      /* ===================================================
          PAYMENT SUCCESS
-      ----------------------------------------------------- */
+      =================================================== */
 
       if (result.paid) {
-        setPaymentConfirmed(true);
-        setPayment(result);
+        setPaymentConfirmed(
+          true
+        );
+
+        setPayment(
+          result
+        );
 
         setTimeout(() => {
           const metadata =
-            result.metadata || {};
+            result.metadata ||
+            {};
 
           /* STORY */
 
-          if (
+          const verifiedStoryId =
             metadata.storyId ||
-            storyId
+            storyId;
+
+          if (
+            verifiedStoryId
           ) {
             navigate(
-              `/story/${
-                metadata.storyId ||
-                storyId
-              }`,
+              `/story/${verifiedStoryId}`,
               {
                 replace: true,
+
+                state: {
+                  paymentVerified:
+                    true,
+
+                  paymentReference:
+                    reference,
+                },
               }
             );
 
@@ -664,15 +1130,15 @@ const Payment = () => {
 
           /* SUBJECT */
 
-          if (
+          const verifiedSubjectId =
             metadata.subjectId ||
-            subjectId
+            subjectId;
+
+          if (
+            verifiedSubjectId
           ) {
             navigate(
-              `/subjects/${
-                metadata.subjectId ||
-                subjectId
-              }`,
+              `/subjects/${verifiedSubjectId}`,
               {
                 replace: true,
               }
@@ -683,15 +1149,15 @@ const Payment = () => {
 
           /* CATEGORY */
 
-          if (
+          const verifiedCategoryId =
             metadata.categoryId ||
-            categoryId
+            categoryId;
+
+          if (
+            verifiedCategoryId
           ) {
             navigate(
-              `/categories/${
-                metadata.categoryId ||
-                categoryId
-              }`,
+              `/categories/${verifiedCategoryId}`,
               {
                 replace: true,
               }
@@ -702,17 +1168,17 @@ const Payment = () => {
 
           /* GENRE */
 
-          if (
+          const verifiedGenre =
             metadata.genre ||
-            genre
+            genre;
+
+          if (
+            verifiedGenre
           ) {
             navigate(
-              `/novels?genre=${
-                encodeURIComponent(
-                  metadata.genre ||
-                    genre
-                )
-              }`,
+              `/novels?genre=${encodeURIComponent(
+                verifiedGenre
+              )}`,
               {
                 replace: true,
               }
@@ -721,9 +1187,12 @@ const Payment = () => {
             return;
           }
 
-          navigate("/novels", {
-            replace: true,
-          });
+          navigate(
+            "/novels",
+            {
+              replace: true,
+            }
+          );
         }, 1600);
 
         return;
@@ -748,39 +1217,33 @@ const Payment = () => {
     }
   }
 
-  /* =========================================================
+  /* =======================================================
      MANUAL VERIFY
-  ========================================================= */
+  ======================================================= */
 
-  const retryVerification = () => {
-    if (!callbackReference) {
-      return;
-    }
+  const retryVerification =
+    () => {
+      if (
+        !callbackReference
+      ) {
+        return;
+      }
 
-    verifiedRef.current = false;
+      verifiedRef.current =
+        false;
 
-    verifyPayment(
-      callbackReference
-    );
-  };
+      verifyPayment(
+        callbackReference
+      );
+    };
 
-  /* =========================================================
-     FORMATTED AMOUNT
-  ========================================================= */
-
-  const formattedAmount =
-    useMemo(
-      () => formatNaira(amount),
-      [amount]
-    );
-
-  /* =========================================================
+  /* =======================================================
      INVALID PRODUCT
-  ========================================================= */
+  ======================================================= */
 
   if (
     !loadingUser &&
-    !product.id
+    !initialProduct.id
   ) {
     return (
       <PageShell>
@@ -803,14 +1266,16 @@ const Payment = () => {
 
             <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-slate-500">
               We could not determine which{" "}
-              {product.type} you are trying
+              {initialProduct.type} you are trying
               to unlock.
             </p>
 
             <button
               type="button"
               onClick={() =>
-                navigate("/novels")
+                navigate(
+                  "/novels"
+                )
               }
               className="group relative mt-8 inline-flex items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-7 py-3.5 text-sm font-black text-white"
             >
@@ -824,11 +1289,13 @@ const Payment = () => {
     );
   }
 
-  /* =========================================================
+  /* =======================================================
      LOADING USER
-  ========================================================= */
+  ======================================================= */
 
-  if (loadingUser) {
+  if (
+    loadingUser
+  ) {
     return (
       <PageShell>
         <LoadingCard
@@ -839,27 +1306,27 @@ const Payment = () => {
     );
   }
 
-  /* =========================================================
+  /* =======================================================
      MAIN
-  ========================================================= */
+  ======================================================= */
 
   return (
     <PageShell>
 
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
+      {/* HEADER */}
 
       <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#01030a]/75 backdrop-blur-2xl">
-
         <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() =>
+              navigate(-1)
+            }
             className="group flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.035] px-4 py-2.5 text-xs font-bold text-slate-400 transition hover:border-white/15 hover:bg-white/[0.065] hover:text-white"
           >
             <ArrowLeft className="h-4 w-4 transition group-hover:-translate-x-1" />
+
             Back
           </button>
 
@@ -886,20 +1353,14 @@ const Payment = () => {
             </div>
 
           </div>
-
         </div>
-
       </header>
 
-      {/* =====================================================
-          MAIN
-      ===================================================== */}
+      {/* MAIN */}
 
       <main className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
 
-        {/* ===================================================
-            HERO
-        =================================================== */}
+        {/* HERO */}
 
         <div className="mx-auto mb-12 max-w-4xl text-center">
 
@@ -910,7 +1371,7 @@ const Payment = () => {
             </div>
 
             <span className="text-[9px] font-black uppercase tracking-[0.24em] text-blue-300">
-              {product.label}
+              {initialProduct.label}
             </span>
 
             <span className="h-1 w-1 rounded-full bg-blue-400/50" />
@@ -926,15 +1387,13 @@ const Payment = () => {
             Unlock your{" "}
 
             <span className="bg-gradient-to-r from-blue-300 via-indigo-300 to-violet-300 bg-clip-text pb-2 text-transparent">
-              {product.displayName}
+              {initialProduct.displayName}
             </span>
 
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base">
-
-            {product.description}
-
+            {initialProduct.description}
           </p>
 
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -958,9 +1417,7 @@ const Payment = () => {
 
         </div>
 
-        {/* ===================================================
-            STEPS
-        =================================================== */}
+        {/* STEPS */}
 
         <div className="mx-auto mb-9 flex max-w-2xl items-center justify-center">
 
@@ -1000,15 +1457,11 @@ const Payment = () => {
 
         </div>
 
-        {/* ===================================================
-            GRID
-        =================================================== */}
+        {/* GRID */}
 
         <div className="grid gap-6 xl:grid-cols-[0.86fr_1.14fr]">
 
-          {/* =================================================
-              LEFT
-          ================================================= */}
+          {/* LEFT */}
 
           <section className="group relative overflow-hidden rounded-[36px] border border-white/[0.09] bg-white/[0.035] shadow-[0_30px_120px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
 
@@ -1045,48 +1498,26 @@ const Payment = () => {
               </p>
 
               <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
-                {product.displayName}
+                {initialProduct.displayName}
               </h2>
 
               <p className="mt-4 max-w-md text-sm leading-7 text-slate-500">
-                {product.description}
+                {initialProduct.description}
               </p>
-
-              {/* PRODUCT TYPE */}
-
-              <div className="mt-7 flex items-center gap-3 rounded-[24px] border border-white/[0.07] bg-black/20 p-4">
-
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.035]">
-
-                  <ProductIcon className="h-4 w-4 text-slate-400" />
-
-                </div>
-
-                <div className="min-w-0">
-
-                  <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-600">
-                    Access Type
-                  </p>
-
-                  <p className="mt-1 text-xs font-bold text-white">
-                    {product.accessLabel}
-                  </p>
-
-                </div>
-
-              </div>
 
               {/* STORY */}
 
               {storyTitle && (
-                <div className="relative mt-4 overflow-hidden rounded-[24px] border border-white/[0.08] bg-black/20 p-4">
+                <div className="relative mt-7 overflow-hidden rounded-[24px] border border-white/[0.08] bg-black/20 p-4">
 
                   <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-blue-400 via-indigo-500 to-violet-500" />
 
                   <div className="flex items-center gap-3 pl-1">
 
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.035]">
+
                       <Library className="h-4 w-4 text-slate-400" />
+
                     </div>
 
                     <div className="min-w-0">
@@ -1106,6 +1537,30 @@ const Payment = () => {
                 </div>
               )}
 
+              {/* ACCESS TYPE */}
+
+              <div className="mt-4 flex items-center gap-3 rounded-[24px] border border-white/[0.07] bg-black/20 p-4">
+
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.035]">
+
+                  <ProductIcon className="h-4 w-4 text-slate-400" />
+
+                </div>
+
+                <div>
+
+                  <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-600">
+                    Access Type
+                  </p>
+
+                  <p className="mt-1 text-xs font-bold text-white">
+                    {initialProduct.accessLabel}
+                  </p>
+
+                </div>
+
+              </div>
+
               {/* BENEFITS */}
 
               <div className="mt-9">
@@ -1118,7 +1573,9 @@ const Payment = () => {
 
                   <Benefit
                     icon={Library}
-                    text={product.benefitText}
+                    text={
+                      initialProduct.benefitText
+                    }
                   />
 
                   <Benefit
@@ -1179,7 +1636,9 @@ const Payment = () => {
               <div className="mt-6 flex items-center gap-3">
 
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-400/10 bg-emerald-500/[0.05]">
+
                   <Fingerprint className="h-4 w-4 text-emerald-400" />
+
                 </div>
 
                 <div>
@@ -1197,12 +1656,9 @@ const Payment = () => {
               </div>
 
             </div>
-
           </section>
 
-          {/* =================================================
-              RIGHT
-          ================================================= */}
+          {/* RIGHT */}
 
           <section className="relative overflow-hidden rounded-[36px] border border-white/[0.1] bg-white/[0.045] shadow-[0_35px_140px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
 
@@ -1241,14 +1697,126 @@ const Payment = () => {
                 </div>
 
                 <div className="hidden h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.035] sm:flex">
+
                   <CreditCard className="h-5 w-5 text-slate-500" />
+
+                </div>
+
+              </div>
+
+              {/* =================================================
+                  CURRENCY SELECTOR
+              ================================================= */}
+
+              <div className="mt-7">
+
+                <div className="mb-3 flex items-center justify-between">
+
+                  <label
+                    htmlFor="payment-currency"
+                    className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500"
+                  >
+                    Payment Currency
+                  </label>
+
+                  <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-emerald-400">
+                    Test Mode
+                  </span>
+
+                </div>
+
+                <div className="relative">
+
+                  <select
+                    id="payment-currency"
+                    value={
+                      selectedCurrency
+                    }
+                    onChange={(event) =>
+                      handleCurrencyChange(
+                        event.target.value
+                      )
+                    }
+                    className="w-full appearance-none rounded-[22px] border border-white/[0.1] bg-black/30 px-5 py-4 pr-12 text-sm font-bold text-white outline-none transition focus:border-blue-400/40 focus:bg-black/40"
+                  >
+
+                    {ENABLED_CURRENCIES.map(
+                      (currencyCode) => {
+                        const config =
+                          CURRENCY_CONFIG[
+                            currencyCode
+                          ];
+
+                        return (
+                          <option
+                            key={
+                              currencyCode
+                            }
+                            value={
+                              currencyCode
+                            }
+                            className="bg-[#080b14] text-white"
+                          >
+                            {currencyCode} —{" "}
+                            {config.name}
+                          </option>
+                        );
+                      }
+                    )}
+
+                  </select>
+
+                  <ChevronDown className="pointer-events-none absolute right-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+
+                </div>
+
+                <div className="mt-2 flex items-center gap-2">
+
+                  <CircleDollarSign className="h-3 w-3 text-blue-400" />
+
+                  <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-slate-600">
+                    Currently testing with Nigerian Naira
+                  </p>
+
+                </div>
+
+              </div>
+
+              {/* =================================================
+                  TEST MODE NOTICE
+              ================================================= */}
+
+              <div className="mt-5 rounded-[24px] border border-amber-400/15 bg-amber-500/[0.045] p-4">
+
+                <div className="flex items-start gap-3">
+
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-400/10 bg-amber-500/[0.08]">
+
+                    <Zap className="h-4 w-4 text-amber-400" />
+
+                  </div>
+
+                  <div>
+
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-300">
+                      Testing Payment
+                    </p>
+
+                    <p className="mt-1 text-[9px] leading-5 text-amber-200/50">
+                      This checkout is currently configured for a
+                      test payment of ₦100. No real money should be
+                      charged when Paystack Test Mode is enabled.
+                    </p>
+
+                  </div>
+
                 </div>
 
               </div>
 
               {/* AMOUNT */}
 
-              <div className="relative mt-7 overflow-hidden rounded-[28px] border border-blue-400/15 bg-gradient-to-br from-blue-500/[0.11] via-indigo-500/[0.06] to-transparent p-6">
+              <div className="relative mt-6 overflow-hidden rounded-[28px] border border-blue-400/15 bg-gradient-to-br from-blue-500/[0.11] via-indigo-500/[0.06] to-transparent p-6">
 
                 <div className="relative flex items-center justify-between">
 
@@ -1267,7 +1835,11 @@ const Payment = () => {
                       <CircleDollarSign className="h-3 w-3 text-blue-400" />
 
                       <span className="text-[9px] font-bold text-blue-300">
-                        Nigerian Naira
+                        {
+                          CURRENCY_CONFIG[
+                            currency
+                          ]?.name
+                        }
                       </span>
 
                     </div>
@@ -1293,6 +1865,7 @@ const Payment = () => {
                   {paymentConfirmed ? (
 
                     <>
+
                       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border border-emerald-400/20 bg-emerald-500/10">
 
                         <CheckCircle2 className="h-8 w-8 text-emerald-400" />
@@ -1308,8 +1881,9 @@ const Payment = () => {
                       </h4>
 
                       <p className="mt-2 text-center text-xs leading-6 text-slate-500">
-                        Your {product.displayName} access has been unlocked.
+                        Your {initialProduct.displayName} access has been unlocked.
                       </p>
+
                     </>
 
                   ) : verifying ? (
@@ -1373,7 +1947,6 @@ const Payment = () => {
                       </button>
 
                     </div>
-
                   )}
 
                 </div>
@@ -1427,16 +2000,19 @@ const Payment = () => {
                     {initializing ? (
 
                       <>
+
                         <Loader2 className="relative h-4 w-4 animate-spin" />
 
                         <span className="relative">
                           Preparing Secure Checkout...
                         </span>
+
                       </>
 
                     ) : (
 
                       <>
+
                         <CreditCard className="relative h-4 w-4" />
 
                         <span className="relative">
@@ -1444,11 +2020,13 @@ const Payment = () => {
                         </span>
 
                         <ArrowRight className="relative h-4 w-4 transition group-hover:translate-x-1" />
-                      </>
 
+                      </>
                     )}
 
                   </button>
+
+                  {/* PAYMENT INFO */}
 
                   <div className="mt-6 rounded-[24px] border border-white/[0.06] bg-black/20 p-4">
 
@@ -1463,7 +2041,7 @@ const Payment = () => {
                         </p>
 
                         <p className="mt-1 text-[9px] leading-5 text-slate-600">
-                          Card, bank transfer, USSD and other Paystack-supported payment methods may be available at checkout.
+                          Paystack will show the payment methods available for this transaction. No bank account number is required on this page.
                         </p>
 
                       </div>
@@ -1473,7 +2051,6 @@ const Payment = () => {
                   </div>
 
                 </>
-
               )}
 
               {/* REFERENCE */}
@@ -1505,7 +2082,6 @@ const Payment = () => {
                   </div>
 
                 </div>
-
               )}
 
               <div className="mt-7 flex items-center justify-center gap-2 border-t border-white/[0.06] pt-6">
@@ -1519,14 +2095,11 @@ const Payment = () => {
               </div>
 
             </div>
-
           </section>
 
         </div>
 
-        {/* ===================================================
-            TRUST
-        =================================================== */}
+        {/* TRUST */}
 
         <div className="mx-auto mt-7 grid max-w-5xl gap-3 sm:grid-cols-3">
 
@@ -1545,7 +2118,7 @@ const Payment = () => {
           <TrustItem
             icon={Library}
             title="Premium Access"
-            text={`Unlock ${product.displayName}`}
+            text={`Unlock ${initialProduct.displayName}`}
           />
 
         </div>
@@ -1563,7 +2136,6 @@ const Payment = () => {
         </div>
 
       </main>
-
     </PageShell>
   );
 };
@@ -1654,12 +2226,14 @@ const Step = ({
           : "border-white/[0.08] bg-white/[0.025] text-slate-700"
       }`}
     >
+
       {active &&
       number === "03" ? (
         <Check className="h-3.5 w-3.5" />
       ) : (
         number
       )}
+
     </div>
 
     <span
@@ -1784,7 +2358,8 @@ const PremiumBackground = () => (
       style={{
         backgroundImage:
           "radial-gradient(circle, rgba(255,255,255,.9) 1px, transparent 1px)",
-        backgroundSize: "34px 34px",
+        backgroundSize:
+          "34px 34px",
         animation:
           "premiumDots 28s linear infinite",
       }}

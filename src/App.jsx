@@ -6,6 +6,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
+
 import {
   AnimatePresence,
   motion,
@@ -107,6 +108,7 @@ import ExploreCategories from "./pages/courses/ExploreCategories";
 import ExploreCourses from "./pages/courses/ExploreCourses";
 import CategorySubjects from "./pages/courses/CategorySubjects";
 import SubjectCourses from "./pages/courses/SubjectCourses";
+import CategorySubjectPayment from "./pages/courses/CategorySubjectPayment";
 
 /* ===========================
    PDF READER
@@ -136,6 +138,12 @@ import SubjectSelect from "./pages/cbt/SubjectSelect";
 import CBTExam from "./pages/cbt/CBTExam";
 import CBTInstruction from "./pages/cbt/CBTInstruction";
 
+/* ============================================================
+   CBT PAYMENT
+============================================================ */
+
+import CBTPayment from "./pages/cbt/CBTPayment";
+
 /* ===========================
    VIRTUAL LAB
 =========================== */
@@ -147,6 +155,12 @@ import BiologyLab from "./pages/BiologyLab";
 import MathematicsLab from "./pages/MathematicsLab";
 import WorkEnergySimulation from "./pages/WorkEnergySimulation";
 import About from "./pages/VirtualLab/About";
+
+/* ===========================
+   VIRTUAL LAB PAYMENT
+=========================== */
+
+import LabPayment from "./pages/VirtualLab/LabPayment";
 
 /* ===========================
    SUPPORT
@@ -167,8 +181,7 @@ import DashboardLayout from "./layout/DashboardLayout";
 ============================================================ */
 
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } =
-    useContext(AuthContext);
+  const { user, loading } = useContext(AuthContext);
 
   if (loading) {
     return (
@@ -317,37 +330,27 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/reset-password"
-          element={
-            <ResetPassword />
-          }
+          element={<ResetPassword />}
         />
 
         <Route
           path="/terms"
-          element={
-            <Terms />
-          }
+          element={<Terms />}
         />
 
         <Route
           path="/privacy"
-          element={
-            <Privacy />
-          }
+          element={<Privacy />}
         />
 
         <Route
           path="/help"
-          element={
-            <Help />
-          }
+          element={<Help />}
         />
 
         <Route
           path="/settings"
-          element={
-            <Settings />
-          }
+          element={<Settings />}
         />
 
         <Route
@@ -374,9 +377,7 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/languages"
-          element={
-            <LanguagesHome />
-          }
+          element={<LanguagesHome />}
         />
 
         <Route
@@ -405,23 +406,17 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/support"
-          element={
-            <SupportHome />
-          }
+          element={<SupportHome />}
         />
 
         <Route
           path="/support/chat"
-          element={
-            <ChatSupport />
-          }
+          element={<ChatSupport />}
         />
 
         <Route
           path="/support/faq"
-          element={
-            <FAQ />
-          }
+          element={<FAQ />}
         />
 
         {/* =====================================================
@@ -550,51 +545,37 @@ const AnimatedRoutes = () => {
 
           <Route
             path="/dashboard"
-            element={
-              <Dashboard />
-            }
+            element={<Dashboard />}
           />
 
           <Route
             path="/libraries"
-            element={
-              <Libraries />
-            }
+            element={<Libraries />}
           />
 
           <Route
             path="/downloads"
-            element={
-              <Downloads />
-            }
+            element={<Downloads />}
           />
 
           <Route
             path="/history"
-            element={
-              <History />
-            }
+            element={<History />}
           />
 
           <Route
             path="/connects"
-            element={
-              <Connects />
-            }
+            element={<Connects />}
           />
 
           <Route
             path="/requests"
-            element={
-              <Requests />
-            }
+            element={<Requests />}
           />
 
           <Route
             path="/connections"
-            element={
-              <Connections />
-            }
+            element={<Connections />}
           />
 
         </Route>
@@ -614,6 +595,25 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* =====================================================
+            VIRTUAL LAB PREMIUM PAYMENT
+        ===================================================== */}
+
+        <Route
+          path="/lab/payment/:subject"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <LabPayment />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            PHYSICS LAB
+        ===================================================== */}
+
         <Route
           path="/lab/physics"
           element={
@@ -624,6 +624,10 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* =====================================================
+            CHEMISTRY LAB
+        ===================================================== */}
 
         <Route
           path="/lab/chemistry"
@@ -636,6 +640,10 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* =====================================================
+            BIOLOGY LAB
+        ===================================================== */}
+
         <Route
           path="/lab/biology"
           element={
@@ -647,6 +655,10 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* =====================================================
+            MATHEMATICS LAB
+        ===================================================== */}
+
         <Route
           path="/lab/mathematics"
           element={
@@ -657,6 +669,10 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* =====================================================
+            WORK & ENERGY
+        ===================================================== */}
 
         <Route
           path="/lab/work-energy"
@@ -699,6 +715,25 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* =====================================================
+            CBT PAYMENT
+        ===================================================== */}
+
+        <Route
+          path="/cbt/payment/:exam"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <CBTPayment />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            CBT INSTRUCTION
+        ===================================================== */}
+
         <Route
           path="/cbt/instruction"
           element={
@@ -707,6 +742,10 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* =====================================================
+            CBT EXAM / SUBJECT SELECTION
+        ===================================================== */}
 
         <Route
           path="/cbt/exam/:exam"
@@ -718,6 +757,10 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* =====================================================
+            CBT START
+        ===================================================== */}
 
         <Route
           path="/cbt/start"
@@ -767,6 +810,10 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* =====================================================
+            COURSE CATEGORIES
+        ===================================================== */}
+
         <Route
           path="/subjects"
           element={
@@ -789,6 +836,10 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* =====================================================
+            CATEGORY SUBJECTS
+        ===================================================== */}
+
         <Route
           path="/courses/category/:categoryId"
           element={
@@ -800,16 +851,24 @@ const AnimatedRoutes = () => {
           }
         />
 
+        {/* =====================================================
+            DOCUMENT PAYMENT
+        ===================================================== */}
+
         <Route
-          path="/courses/:category/:subject"
+          path="/courses/category/:categoryId/payment"
           element={
             <ProtectedRoute>
               <PageWrapper>
-                <SubjectCourses />
+                <CategorySubjectPayment />
               </PageWrapper>
             </ProtectedRoute>
           }
         />
+
+        {/* =====================================================
+            COURSES
+        ===================================================== */}
 
         <Route
           path="/courses/:id"
@@ -861,16 +920,12 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/universities"
-          element={
-            <Universities />
-          }
+          element={<Universities />}
         />
 
         <Route
           path="/universities/:id"
-          element={
-            <UniversityDetails />
-          }
+          element={<UniversityDetails />}
         />
 
         {/* =====================================================
@@ -879,16 +934,12 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/colleges"
-          element={
-            <Colleges />
-          }
+          element={<Colleges />}
         />
 
         <Route
           path="/colleges/:id"
-          element={
-            <CollegeDetails />
-          }
+          element={<CollegeDetails />}
         />
 
         {/* =====================================================
@@ -897,16 +948,12 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/polytechnics"
-          element={
-            <Polytechnics />
-          }
+          element={<Polytechnics />}
         />
 
         <Route
           path="/polytechnics/:id"
-          element={
-            <PolytechnicDetails />
-          }
+          element={<PolytechnicDetails />}
         />
 
         {/* =====================================================

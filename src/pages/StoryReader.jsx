@@ -1,5 +1,3 @@
-// src/pages/StoryReader.jsx
-
 import React, {
   useCallback,
   useEffect,
@@ -8,15 +6,9 @@ import React, {
   useState,
 } from "react";
 
-import {
-  useNavigate,
-  useParams,
-} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
-import {
-  motion,
-  AnimatePresence,
-} from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 import {
   Menu,
@@ -49,8 +41,6 @@ import {
   Check,
   SlidersHorizontal,
   ArrowLeft,
-  Save,
-  Eye,
   LocateFixed,
 } from "lucide-react";
 
@@ -62,12 +52,23 @@ import Cog from "../assets/cog.png";
    HELPERS
 ============================================================ */
 
-const clamp = (value, min, max) =>
-  Math.min(Math.max(value, min), max);
+const clamp = (value, min, max) => {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return min;
+  }
+
+  return Math.min(Math.max(number, min), max);
+};
 
 const safeParse = (value, fallback) => {
+  if (!value) return fallback;
+
   try {
-    return JSON.parse(value);
+    const parsed = JSON.parse(value);
+
+    return parsed ?? fallback;
   } catch {
     return fallback;
   }
@@ -92,6 +93,21 @@ const getReadingWidthClass = (width) => {
   }
 };
 
+/*
+  Always return an array.
+
+  This is important because the previous error was:
+
+  Cannot read properties of null (reading 'find')
+
+  If localStorage ever contains null, malformed data,
+  or an old bookmark structure, this prevents .find()
+  and .some() from crashing the component.
+*/
+const normalizeArray = (value) => {
+  return Array.isArray(value) ? value : [];
+};
+
 /* ============================================================
    MAIN
 ============================================================ */
@@ -114,7 +130,7 @@ export default function StoryReader() {
   const [loadError, setLoadError] = useState(null);
 
   /* ==========================================================
-     READER NAVIGATION
+     NAVIGATION
   ========================================================== */
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -135,14 +151,22 @@ export default function StoryReader() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [fontSize, setFontSize] = useState(() =>
-    Number(
-      localStorage.getItem("reader-font-size") || 18
+    clamp(
+      Number(
+        localStorage.getItem("reader-font-size") || 18
+      ),
+      14,
+      32
     )
   );
 
   const [lineHeight, setLineHeight] = useState(() =>
-    Number(
-      localStorage.getItem("reader-line-height") || 2
+    clamp(
+      Number(
+        localStorage.getItem("reader-line-height") || 2
+      ),
+      1.4,
+      2.6
     )
   );
 
@@ -169,25 +193,32 @@ export default function StoryReader() {
   const [selectedVoice, setSelectedVoice] =
     useState(
       () =>
-        localStorage.getItem(
-          "reader-voice"
-        ) || ""
+        localStorage.getItem("reader-voice") ||
+        ""
     );
 
   const [voiceRate, setVoiceRate] = useState(() =>
-    Number(
-      localStorage.getItem(
-        "reader-voice-rate"
-      ) || 1
+    clamp(
+      Number(
+        localStorage.getItem(
+          "reader-voice-rate"
+        ) || 1
+      ),
+      0.5,
+      2
     )
   );
 
   const [voicePitch, setVoicePitch] =
     useState(() =>
-      Number(
-        localStorage.getItem(
-          "reader-voice-pitch"
-        ) || 1
+      clamp(
+        Number(
+          localStorage.getItem(
+            "reader-voice-pitch"
+          ) || 1
+        ),
+        0.5,
+        2
       )
     );
 
@@ -196,9 +227,7 @@ export default function StoryReader() {
   ========================================================== */
 
   const [progress, setProgress] = useState(0);
-
-  const [lastRead, setLastRead] =
-    useState(null);
+  const [lastRead, setLastRead] = useState(null);
 
   /* ==========================================================
      SEARCH
@@ -217,13 +246,16 @@ export default function StoryReader() {
   ========================================================== */
 
   const [bookmarks, setBookmarks] = useState(
-    () =>
-      safeParse(
+    () => {
+      const saved = safeParse(
         localStorage.getItem(
           `reader-bookmarks-${id}`
         ),
         []
-      )
+      );
+
+      return normalizeArray(saved);
+    }
   );
 
   const [bookmarksOpen, setBookmarksOpen] =
@@ -254,38 +286,90 @@ export default function StoryReader() {
       setLoading(true);
       setLoadError(null);
 
-      const { data, error } =
-        await supabase
-          .from("novels")
-          .select("*")
-          .eq("id", id)
-          .single();
+      try {
+        const { data, error } =
+          await supabase
+            .from("novels")
+            .select("*")
+            .eq("id", id)
+            .single();
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      if (error) {
+        if (error) {
+          console.error(
+            "StoryReader:",
+            error
+          );
+
+          setLoadError(error);
+          setNovel(null);
+          setLoading(false);
+
+          return;
+        }
+
+        if (!data) {
+          setLoadError(
+            new Error(
+              "Novel was not found."
+            )
+          );
+
+          setNovel(null);
+          setLoading(false);
+
+          return;
+        }
+
+        setNovel(data);
+
+        const saved = safeParse(
+          localStorage.getItem(
+            `reader-progress-${id}`
+          ),
+          null
+        );
+
+        if (
+          saved &&
+          typeof saved === "object"
+        ) {
+          setLastRead(saved);
+
+          if (
+            typeof saved.stepIndex ===
+            "number"
+          ) {
+            setStepIndex(
+              Math.max(
+                0,
+                saved.stepIndex
+              )
+            );
+
+            setCoverPage(
+              saved.stepIndex === 0
+            );
+          }
+        } else {
+          setLastRead(null);
+          setStepIndex(0);
+          setCoverPage(true);
+        }
+
+        setLoading(false);
+      } catch (error) {
         console.error(
-          "StoryReader:",
+          "StoryReader unexpected error:",
           error
         );
 
+        if (!mounted) return;
+
         setLoadError(error);
+        setNovel(null);
         setLoading(false);
-        return;
-      }
-
-      setNovel(data);
-      setLoading(false);
-
-      const saved = safeParse(
-        localStorage.getItem(
-          `reader-progress-${id}`
-        ),
-        null
-      );
-
-      if (saved) {
-        setLastRead(saved);
       }
     };
 
@@ -297,13 +381,30 @@ export default function StoryReader() {
   }, [id]);
 
   /* ==========================================================
+     RELOAD BOOKMARKS WHEN ID CHANGES
+  ========================================================== */
+
+  useEffect(() => {
+    const saved = safeParse(
+      localStorage.getItem(
+        `reader-bookmarks-${id}`
+      ),
+      []
+    );
+
+    setBookmarks(
+      normalizeArray(saved)
+    );
+  }, [id]);
+
+  /* ==========================================================
      CHAPTERS
   ========================================================== */
 
   const chapters = useMemo(() => {
-    return Array.isArray(novel?.chapters)
-      ? novel.chapters
-      : [];
+    return normalizeArray(
+      novel?.chapters
+    );
   }, [novel]);
 
   /* ==========================================================
@@ -316,9 +417,13 @@ export default function StoryReader() {
     return [
       {
         type: "cover",
-        title: novel.title,
-        description: novel.description,
-        image: novel.cover_url,
+        title:
+          novel.title ||
+          "Untitled Book",
+        description:
+          novel.description || "",
+        image:
+          novel.cover_url || "",
       },
 
       {
@@ -343,8 +448,25 @@ export default function StoryReader() {
     ];
   }, [novel, chapters]);
 
+  /* ==========================================================
+     SAFE CURRENT SECTION
+  ========================================================== */
+
   const current =
-    flow[stepIndex] || flow[0] || {};
+    flow[
+      clamp(
+        stepIndex,
+        0,
+        Math.max(flow.length - 1, 0)
+      )
+    ] ||
+    flow[0] ||
+    {
+      type: "cover",
+      title: "",
+      description: "",
+      content: "",
+    };
 
   /* ==========================================================
      THEME
@@ -567,24 +689,31 @@ export default function StoryReader() {
       const available =
         window.speechSynthesis.getVoices();
 
-      setVoices(available);
+      const safeVoices =
+        Array.isArray(available)
+          ? available
+          : [];
+
+      setVoices(safeVoices);
 
       if (
-        available.length &&
+        safeVoices.length > 0 &&
         !selectedVoice
       ) {
         const preferred =
-          available.find((voice) =>
+          safeVoices.find((voice) =>
             /en[-_](NG|GB|US)/i.test(
-              voice.lang
+              voice.lang || ""
             )
           ) ||
-          available.find((voice) =>
-            /^en/i.test(voice.lang)
+          safeVoices.find((voice) =>
+            /^en/i.test(
+              voice.lang || ""
+            )
           ) ||
-          available[0];
+          safeVoices[0];
 
-        if (preferred) {
+        if (preferred?.name) {
           setSelectedVoice(
             preferred.name
           );
@@ -646,7 +775,12 @@ export default function StoryReader() {
       current.title ||
       "";
 
-    if (!text.trim()) return;
+    if (
+      typeof text !== "string" ||
+      !text.trim()
+    ) {
+      return;
+    }
 
     window.speechSynthesis.cancel();
 
@@ -655,9 +789,14 @@ export default function StoryReader() {
         text
       );
 
-    const voice = voices.find(
+    const safeVoices =
+      Array.isArray(voices)
+        ? voices
+        : [];
+
+    const voice = safeVoices.find(
       (item) =>
-        item.name === selectedVoice
+        item?.name === selectedVoice
     );
 
     if (voice) {
@@ -665,13 +804,13 @@ export default function StoryReader() {
     }
 
     utterance.rate = clamp(
-      Number(voiceRate),
+      voiceRate,
       0.5,
       2
     );
 
     utterance.pitch = clamp(
-      Number(voicePitch),
+      voicePitch,
       0.5,
       2
     );
@@ -720,7 +859,10 @@ export default function StoryReader() {
   ========================================================== */
 
   useEffect(() => {
-    if (!flow.length) return;
+    if (!flow.length) {
+      setProgress(0);
+      return;
+    }
 
     const calculated =
       ((stepIndex + 1) /
@@ -758,7 +900,9 @@ export default function StoryReader() {
       setLastRead(saved);
     }, 250);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+    };
   }, [
     stepIndex,
     id,
@@ -789,10 +933,17 @@ export default function StoryReader() {
           {}
         );
 
+        const safeSaved =
+          saved &&
+          typeof saved === "object"
+            ? saved
+            : {};
+
         const updated = {
-          ...saved,
+          ...safeSaved,
           stepIndex,
-          scroll: element.scrollTop,
+          scroll:
+            element.scrollTop || 0,
           updatedAt: Date.now(),
         };
 
@@ -867,6 +1018,10 @@ export default function StoryReader() {
 
   const goToStep = useCallback(
     (index) => {
+      if (!flow.length) {
+        return;
+      }
+
       const safeIndex = clamp(
         index,
         0,
@@ -874,7 +1029,9 @@ export default function StoryReader() {
       );
 
       setStepIndex(safeIndex);
-      setCoverPage(safeIndex === 0);
+      setCoverPage(
+        safeIndex === 0
+      );
       setSidebarOpen(false);
 
       requestAnimationFrame(() => {
@@ -891,13 +1048,14 @@ export default function StoryReader() {
   ========================================================== */
 
   const nextPage = useCallback(() => {
+    if (!flow.length) return;
+
     if (
       stepIndex <
       flow.length - 1
     ) {
       goToStep(stepIndex + 1);
     } else {
-      setCoverPage(true);
       goToStep(0);
     }
   }, [
@@ -912,16 +1070,23 @@ export default function StoryReader() {
 
   const previousPage =
     useCallback(() => {
-      if (stepIndex > 0) {
+      if (
+        stepIndex > 0 &&
+        flow.length
+      ) {
         goToStep(stepIndex - 1);
       }
-    }, [goToStep, stepIndex]);
+    }, [
+      flow.length,
+      goToStep,
+      stepIndex,
+    ]);
 
   /* ==========================================================
-     CONTINUE
+     CONTINUE READING
   ========================================================== */
 
-  const continueReading = () => {
+  const continueReading = useCallback(() => {
     const savedStep =
       lastRead?.stepIndex;
 
@@ -931,7 +1096,9 @@ export default function StoryReader() {
       savedStep < flow.length
     ) {
       setStepIndex(savedStep);
-      setCoverPage(savedStep === 0);
+      setCoverPage(
+        savedStep === 0
+      );
 
       requestAnimationFrame(() => {
         if (contentRef.current) {
@@ -941,73 +1108,114 @@ export default function StoryReader() {
             ) || 0;
         }
       });
-    } else {
+    } else if (flow.length > 1) {
       goToStep(1);
     }
-  };
+  }, [
+    flow.length,
+    goToStep,
+    lastRead,
+  ]);
 
   /* ==========================================================
      RESTART
   ========================================================== */
 
-  const restartBook = () => {
+  const restartBook = useCallback(() => {
     localStorage.removeItem(
       `reader-progress-${id}`
     );
 
     const reset = {
-      stepIndex: 1,
+      stepIndex:
+        flow.length > 1 ? 1 : 0,
       scroll: 0,
       updatedAt: Date.now(),
     };
 
     setLastRead(reset);
-    setStepIndex(1);
-    setCoverPage(false);
+
+    setStepIndex(
+      reset.stepIndex
+    );
+
+    setCoverPage(
+      reset.stepIndex === 0
+    );
 
     requestAnimationFrame(() => {
       if (contentRef.current) {
         contentRef.current.scrollTop = 0;
       }
     });
-  };
+  }, [id, flow.length]);
 
   /* ==========================================================
      BOOKMARK
   ========================================================== */
 
-  const currentBookmark =
-    bookmarks.find(
-      (bookmark) =>
-        bookmark.stepIndex ===
-        stepIndex
-    );
+  /*
+    IMPORTANT FIX:
 
-  const toggleBookmark = () => {
-    setBookmarks((previous) => {
-      const exists = previous.some(
-        (bookmark) =>
-          bookmark.stepIndex ===
+    bookmarks is ALWAYS normalized before .find(),
+    .some(), .filter(), .map(), etc.
+
+    So even if localStorage contains:
+      null
+      {}
+      invalid JSON
+      an old value
+
+    the reader will use [] instead.
+  */
+
+  const safeBookmarks =
+    normalizeArray(bookmarks);
+
+  const currentBookmark =
+    safeBookmarks.find(
+      (bookmark) =>
+        bookmark &&
+        bookmark.stepIndex ===
           stepIndex
-      );
+    ) || null;
+
+  const toggleBookmark = useCallback(() => {
+    setBookmarks((previous) => {
+      const currentBookmarks =
+        normalizeArray(previous);
+
+      const exists =
+        currentBookmarks.some(
+          (bookmark) =>
+            bookmark &&
+            bookmark.stepIndex ===
+              stepIndex
+        );
 
       let updated;
 
       if (exists) {
-        updated = previous.filter(
-          (bookmark) =>
-            bookmark.stepIndex !==
-            stepIndex
-        );
+        updated =
+          currentBookmarks.filter(
+            (bookmark) =>
+              bookmark &&
+              bookmark.stepIndex !==
+                stepIndex
+          );
       } else {
         updated = [
-          ...previous,
+          ...currentBookmarks,
           {
             stepIndex,
             title:
-              current.title ||
+              current?.title ||
               `Page ${stepIndex + 1}`,
-            type: current.type,
+            type:
+              current?.type ||
+              "page",
+            number:
+              current?.number || null,
             createdAt: Date.now(),
           },
         ];
@@ -1020,49 +1228,54 @@ export default function StoryReader() {
 
       return updated;
     });
-  };
+  }, [
+    current,
+    id,
+    stepIndex,
+  ]);
 
   /* ==========================================================
      FULLSCREEN
   ========================================================== */
 
-  const toggleFullscreen = async () => {
-    try {
-      if (
-        !document.fullscreenElement
-      ) {
-        await readerRef.current?.requestFullscreen?.();
-      } else {
-        await document.exitFullscreen?.();
+  const toggleFullscreen =
+    useCallback(async () => {
+      try {
+        if (
+          !document.fullscreenElement
+        ) {
+          await readerRef.current?.requestFullscreen?.();
+        } else {
+          await document.exitFullscreen?.();
+        }
+      } catch (error) {
+        console.error(
+          "Fullscreen error:",
+          error
+        );
       }
-    } catch (error) {
-      console.error(
-        "Fullscreen error:",
-        error
-      );
-    }
-  };
+    }, []);
 
   useEffect(() => {
-    const handleFullscreen =
-      () => {
-        setIsFullscreen(
-          Boolean(
-            document.fullscreenElement
-          )
-        );
-      };
+    const handleFullscreen = () => {
+      setIsFullscreen(
+        Boolean(
+          document.fullscreenElement
+        )
+      );
+    };
 
     document.addEventListener(
       "fullscreenchange",
       handleFullscreen
     );
 
-    return () =>
+    return () => {
       document.removeEventListener(
         "fullscreenchange",
         handleFullscreen
       );
+    };
   }, []);
 
   /* ==========================================================
@@ -1078,18 +1291,34 @@ export default function StoryReader() {
       return;
     }
 
-    const results = flow
+    const safeFlow =
+      Array.isArray(flow)
+        ? flow
+        : [];
+
+    const results = safeFlow
       .map((item, index) => {
+        if (!item) {
+          return null;
+        }
+
         const searchable = [
           item.title,
           item.description,
           item.content,
         ]
-          .filter(Boolean)
+          .filter(
+            (value) =>
+              typeof value ===
+                "string" &&
+              value.trim()
+          )
           .join(" ")
           .toLowerCase();
 
-        if (!searchable.includes(term)) {
+        if (
+          !searchable.includes(term)
+        ) {
           return null;
         }
 
@@ -1108,12 +1337,17 @@ export default function StoryReader() {
   ) => {
     event.preventDefault();
 
-    if (
-      searchResults.length > 0
-    ) {
+    const results =
+      Array.isArray(searchResults)
+        ? searchResults
+        : [];
+
+    if (results.length > 0) {
       goToStep(
-        searchResults[0].index
+        results[0].index
       );
+
+      setSearchOpen(false);
     }
   };
 
@@ -1133,20 +1367,31 @@ export default function StoryReader() {
 
       if (isTyping) return;
 
-      if (event.key === "ArrowRight") {
+      if (
+        event.key ===
+        "ArrowRight"
+      ) {
         event.preventDefault();
         nextPage();
       }
 
-      if (event.key === "ArrowLeft") {
+      if (
+        event.key ===
+        "ArrowLeft"
+      ) {
         event.preventDefault();
         previousPage();
       }
 
-      if (event.key === " ") {
+      if (
+        event.key === " "
+      ) {
         event.preventDefault();
 
-        if (current.content) {
+        if (
+          current?.content ||
+          current?.description
+        ) {
           speak();
         }
       }
@@ -1155,6 +1400,7 @@ export default function StoryReader() {
         event.key.toLowerCase() ===
         "b"
       ) {
+        event.preventDefault();
         toggleBookmark();
       }
 
@@ -1162,6 +1408,7 @@ export default function StoryReader() {
         event.key.toLowerCase() ===
         "f"
       ) {
+        event.preventDefault();
         toggleFullscreen();
       }
 
@@ -1169,15 +1416,20 @@ export default function StoryReader() {
         event.key.toLowerCase() ===
         "s"
       ) {
+        event.preventDefault();
+
         setSettingsOpen(
           (value) => !value
         );
       }
 
-      if (event.key === "Escape") {
+      if (
+        event.key === "Escape"
+      ) {
         setSettingsOpen(false);
         setSearchOpen(false);
         setBookmarksOpen(false);
+        setSidebarOpen(false);
       }
     };
 
@@ -1186,16 +1438,20 @@ export default function StoryReader() {
       handleKeyDown
     );
 
-    return () =>
+    return () => {
       window.removeEventListener(
         "keydown",
         handleKeyDown
       );
+    };
   }, [
-    current.content,
+    current?.content,
+    current?.description,
     nextPage,
     previousPage,
     speak,
+    toggleBookmark,
+    toggleFullscreen,
   ]);
 
   /* ==========================================================
@@ -1205,6 +1461,8 @@ export default function StoryReader() {
   useEffect(() => {
     return () => {
       if (
+        typeof window !==
+          "undefined" &&
         "speechSynthesis" in window
       ) {
         window.speechSynthesis.cancel();
@@ -1279,7 +1537,9 @@ export default function StoryReader() {
           )}
 
           <button
-            onClick={() => navigate(-1)}
+            onClick={() =>
+              navigate(-1)
+            }
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-6 py-3 font-bold text-white hover:bg-cyan-500"
           >
             <ArrowLeft size={17} />
@@ -1333,9 +1593,10 @@ export default function StoryReader() {
 
       <motion.aside
         animate={{
-          width: sidebarCollapsed
-            ? 76
-            : 300,
+          width:
+            sidebarCollapsed
+              ? 76
+              : 300,
         }}
         transition={{
           duration: 0.25,
@@ -1411,13 +1672,13 @@ export default function StoryReader() {
         {/* NAVIGATION */}
 
         <div className="flex-1 overflow-y-auto px-3 py-4">
-          {/* COVER */}
-
           <SidebarButton
             collapsed={
               sidebarCollapsed
             }
-            icon={<BookOpen size={18} />}
+            icon={
+              <BookOpen size={18} />
+            }
             label="Book Cover"
             active={coverPage}
             themeStyles={
@@ -1428,13 +1689,13 @@ export default function StoryReader() {
             }
           />
 
-          {/* INTRO */}
-
           <SidebarButton
             collapsed={
               sidebarCollapsed
             }
-            icon={<Star size={18} />}
+            icon={
+              <Star size={18} />
+            }
             label="Introduction"
             active={
               !coverPage &&
@@ -1448,8 +1709,6 @@ export default function StoryReader() {
             }
           />
 
-          {/* CHAPTERS */}
-
           {!sidebarCollapsed && (
             <div
               className={`mb-3 mt-7 px-3 text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.secondary}`}
@@ -1461,7 +1720,10 @@ export default function StoryReader() {
           {chapters.map(
             (chapter, index) => (
               <SidebarButton
-                key={index}
+                key={
+                  chapter?.id ||
+                  `chapter-${index}`
+                }
                 collapsed={
                   sidebarCollapsed
                 }
@@ -1469,7 +1731,7 @@ export default function StoryReader() {
                   <List size={17} />
                 }
                 label={
-                  chapter.title ||
+                  chapter?.title ||
                   `Chapter ${
                     index + 1
                   }`
@@ -1506,9 +1768,9 @@ export default function StoryReader() {
                   size={18}
                 />
               }
-              label={`Bookmarks ${
-                bookmarks.length
-                  ? `(${bookmarks.length})`
+              label={`Bookmarks${
+                safeBookmarks.length
+                  ? ` (${safeBookmarks.length})`
                   : ""
               }`}
               active={
@@ -1543,7 +1805,7 @@ export default function StoryReader() {
                     className="overflow-hidden"
                   >
                     <div className="space-y-2 px-1 pt-2">
-                      {bookmarks.length ===
+                      {safeBookmarks.length ===
                       0 ? (
                         <p
                           className={`rounded-xl p-3 text-xs ${themeStyles.secondary}`}
@@ -1551,39 +1813,44 @@ export default function StoryReader() {
                           No bookmarks yet.
                         </p>
                       ) : (
-                        bookmarks.map(
+                        safeBookmarks.map(
                           (
-                            bookmark
+                            bookmark,
+                            bookmarkIndex
                           ) => (
                             <button
                               key={
-                                bookmark.stepIndex
+                                `${bookmark?.stepIndex ?? bookmarkIndex}-${bookmarkIndex}`
                               }
                               onClick={() =>
                                 goToStep(
-                                  bookmark.stepIndex
+                                  Number(
+                                    bookmark?.stepIndex
+                                  ) || 0
                                 )
                               }
                               className={`w-full rounded-xl p-3 text-left text-xs transition hover:bg-cyan-500/10 ${
-                                bookmark.stepIndex ===
+                                bookmark?.stepIndex ===
                                 stepIndex
                                   ? "bg-cyan-500/10"
                                   : ""
                               }`}
                             >
                               <p className="truncate font-bold">
-                                {
-                                  bookmark.title
-                                }
+                                {bookmark?.title ||
+                                  `Page ${
+                                    (bookmark?.stepIndex ??
+                                      0) + 1
+                                  }`}
                               </p>
 
                               <p
                                 className={`mt-1 ${themeStyles.secondary}`}
                               >
-                                {bookmark.type ===
+                                {bookmark?.type ===
                                 "chapter"
                                   ? `Chapter ${
-                                      current.number ||
+                                      bookmark?.number ||
                                       ""
                                     }`
                                   : "Saved location"}
@@ -1632,9 +1899,11 @@ export default function StoryReader() {
               </div>
             </>
           ) : (
-            <div className="mx-auto h-2 w-8 overflow-hidden rounded-full bg-slate-800">
+            <div
+              className={`mx-auto h-8 w-2 overflow-hidden rounded-full ${themeStyles.progress}`}
+            >
               <motion.div
-                className="h-full rounded-full bg-cyan-500"
+                className="w-full rounded-full bg-cyan-500"
                 animate={{
                   height: `${progress}%`,
                 }}
@@ -1738,8 +2007,7 @@ export default function StoryReader() {
                   label="Introduction"
                   active={
                     !coverPage &&
-                    stepIndex ===
-                      1
+                    stepIndex === 1
                   }
                   onClick={() =>
                     goToStep(1)
@@ -1759,35 +2027,76 @@ export default function StoryReader() {
                   ) => (
                     <MobileNavButton
                       key={
-                        index
+                        chapter?.id ||
+                        `mobile-chapter-${index}`
                       }
                       icon={
                         <List
-                          size={
-                            17
-                          }
+                          size={17}
                         />
                       }
                       label={
-                        chapter.title ||
+                        chapter?.title ||
                         `Chapter ${
-                          index +
-                          1
+                          index + 1
                         }`
                       }
                       active={
                         stepIndex ===
-                        index +
-                          2
+                        index + 2
                       }
                       onClick={() =>
                         goToStep(
-                          index +
-                            2
+                          index + 2
                         )
                       }
                     />
                   )
+                )}
+
+                {safeBookmarks.length >
+                  0 && (
+                  <div className="mt-6 border-t border-black/10 pt-5 dark:border-white/10">
+                    <p
+                      className={`mb-3 px-3 text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.secondary}`}
+                    >
+                      Bookmarks
+                    </p>
+
+                    {safeBookmarks.map(
+                      (
+                        bookmark,
+                        bookmarkIndex
+                      ) => (
+                        <MobileNavButton
+                          key={`${bookmark?.stepIndex ?? bookmarkIndex}-mobile-bookmark`}
+                          icon={
+                            <Bookmark
+                              size={17}
+                            />
+                          }
+                          label={
+                            bookmark?.title ||
+                            `Page ${
+                              (bookmark?.stepIndex ??
+                                0) + 1
+                            }`
+                          }
+                          active={
+                            bookmark?.stepIndex ===
+                            stepIndex
+                          }
+                          onClick={() =>
+                            goToStep(
+                              Number(
+                                bookmark?.stepIndex
+                              ) || 0
+                            )
+                          }
+                        />
+                      )
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -1834,8 +2143,6 @@ export default function StoryReader() {
           className={`relative z-50 flex min-h-[72px] shrink-0 items-center justify-between gap-3 px-4 sm:px-6 ${themeStyles.nav}`}
         >
           <div className="flex min-w-0 items-center gap-3">
-            {/* MOBILE MENU */}
-
             <button
               onClick={() =>
                 setSidebarOpen(true)
@@ -1845,8 +2152,6 @@ export default function StoryReader() {
             >
               <Menu size={20} />
             </button>
-
-            {/* HOME */}
 
             <button
               onClick={() =>
@@ -1858,11 +2163,10 @@ export default function StoryReader() {
               <Home size={18} />
             </button>
 
-            {/* TITLE */}
-
             <div className="min-w-0">
               <h1 className="max-w-[240px] truncate text-sm font-black sm:max-w-[420px] sm:text-base">
-                {novel.title}
+                {novel.title ||
+                  "Untitled Book"}
               </h1>
 
               <div
@@ -1887,8 +2191,6 @@ export default function StoryReader() {
           {/* HEADER ACTIONS */}
 
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* SEARCH */}
-
             <button
               onClick={() =>
                 setSearchOpen(
@@ -1900,8 +2202,6 @@ export default function StoryReader() {
             >
               <Search size={18} />
             </button>
-
-            {/* BOOKMARK */}
 
             <button
               onClick={
@@ -1926,8 +2226,6 @@ export default function StoryReader() {
               )}
             </button>
 
-            {/* SPEECH */}
-
             <button
               onClick={speak}
               className={`rounded-xl p-2 ${themeStyles.button}`}
@@ -1949,8 +2247,6 @@ export default function StoryReader() {
               )}
             </button>
 
-            {/* FONT SMALL */}
-
             <button
               onClick={() =>
                 setFontSize(
@@ -1967,8 +2263,6 @@ export default function StoryReader() {
             >
               A−
             </button>
-
-            {/* FONT LARGE */}
 
             <button
               onClick={() =>
@@ -1987,8 +2281,6 @@ export default function StoryReader() {
               A+
             </button>
 
-            {/* SETTINGS */}
-
             <button
               onClick={() =>
                 setSettingsOpen(
@@ -2006,8 +2298,6 @@ export default function StoryReader() {
                 size={18}
               />
             </button>
-
-            {/* FULLSCREEN */}
 
             <button
               onClick={
@@ -2124,11 +2414,15 @@ export default function StoryReader() {
                               key={
                                 result.index
                               }
-                              onClick={() =>
+                              onClick={() => {
                                 goToStep(
                                   result.index
-                                )
-                              }
+                                );
+
+                                setSearchOpen(
+                                  false
+                                );
+                              }}
                               className={`w-full rounded-2xl p-4 text-left transition hover:border-cyan-500 ${themeStyles.card}`}
                             >
                               <div className="flex items-center justify-between gap-4">
@@ -2376,9 +2670,7 @@ export default function StoryReader() {
                     <SettingCard
                       icon={
                         <Type
-                          size={
-                            17
-                          }
+                          size={17}
                         />
                       }
                       title={`Text Size • ${fontSize}px`}
@@ -2421,9 +2713,7 @@ export default function StoryReader() {
                     <SettingCard
                       icon={
                         <List
-                          size={
-                            17
-                          }
+                          size={17}
                         />
                       }
                       title={`Line Spacing • ${lineHeight.toFixed(
@@ -2468,9 +2758,7 @@ export default function StoryReader() {
                     <SettingCard
                       icon={
                         <PanelsTopLeft
-                          size={
-                            17
-                          }
+                          size={17}
                         />
                       }
                       title="Reading Width"
@@ -2555,10 +2843,11 @@ export default function StoryReader() {
                           >
                             {voices.map(
                               (
-                                voice
+                                voice,
+                                index
                               ) => (
                                 <option
-                                  key={`${voice.name}-${voice.lang}`}
+                                  key={`${voice.name}-${voice.lang}-${index}`}
                                   value={
                                     voice.name
                                   }
@@ -2592,9 +2881,7 @@ export default function StoryReader() {
                     <SettingCard
                       icon={
                         <Play
-                          size={
-                            17
-                          }
+                          size={17}
                         />
                       }
                       title={`Speech Speed • ${voiceRate.toFixed(
@@ -2639,9 +2926,7 @@ export default function StoryReader() {
                     <SettingCard
                       icon={
                         <Volume2
-                          size={
-                            17
-                          }
+                          size={17}
                         />
                       }
                       title={`Voice Pitch • ${voicePitch.toFixed(
@@ -2772,7 +3057,8 @@ export default function StoryReader() {
                         novel.cover_url
                       }
                       alt={
-                        novel.title
+                        novel.title ||
+                        "Book cover"
                       }
                       className="h-[360px] w-full object-cover sm:h-[520px]"
                     />
@@ -2782,18 +3068,15 @@ export default function StoryReader() {
                     <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
                       <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-4 py-2 text-xs font-black text-cyan-300 backdrop-blur-xl">
                         <Sparkles
-                          size={
-                            15
-                          }
+                          size={15}
                         />
 
                         PREMIUM READER
                       </div>
 
                       <h1 className="text-3xl font-black text-white sm:text-5xl">
-                        {
-                          novel.title
-                        }
+                        {novel.title ||
+                          "Untitled Book"}
                       </h1>
                     </div>
                   </div>
@@ -2857,9 +3140,11 @@ export default function StoryReader() {
                       />
 
                       Last opened{" "}
-                      {new Date(
-                        lastRead.updatedAt
-                      ).toLocaleString()}
+                      {lastRead.updatedAt
+                        ? new Date(
+                            lastRead.updatedAt
+                          ).toLocaleString()
+                        : "Previously"}
                     </div>
                   )}
                 </div>
@@ -2895,9 +3180,7 @@ export default function StoryReader() {
                       />
 
                       Chapter{" "}
-                      {
-                        current.number
-                      }
+                      {current.number}
                     </div>
 
                     <button
@@ -2945,9 +3228,8 @@ export default function StoryReader() {
                 {/* TITLE */}
 
                 <h1 className="mb-10 text-center text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
-                  {
-                    current.title
-                  }
+                  {current.title ||
+                    "Untitled Section"}
                 </h1>
 
                 {/* CONTENT */}
@@ -2992,8 +3274,8 @@ export default function StoryReader() {
                           ? flow[
                               stepIndex -
                                 1
-                            ]
-                              ?.title
+                            ]?.title ||
+                            "Previous"
                           : "Beginning"}
                       </p>
                     </div>
@@ -3021,8 +3303,8 @@ export default function StoryReader() {
                           ? flow[
                               stepIndex +
                                 1
-                            ]
-                              ?.title
+                            ]?.title ||
+                            "Next section"
                           : "Back to Cover"}
                       </p>
                     </div>
@@ -3137,6 +3419,7 @@ export default function StoryReader() {
                   size={15}
                   className="rotate-90"
                 />
+
                 Top
               </button>
 
@@ -3171,6 +3454,7 @@ export default function StoryReader() {
                     <Pause
                       size={15}
                     />
+
                     Stop Reading
                   </>
                 ) : (
@@ -3178,6 +3462,7 @@ export default function StoryReader() {
                     <Volume2
                       size={15}
                     />
+
                     Read Aloud
                   </>
                 )}
@@ -3207,7 +3492,9 @@ function SidebarButton({
     <button
       onClick={onClick}
       title={
-        collapsed ? label : undefined
+        collapsed
+          ? label
+          : undefined
       }
       className={`mb-1.5 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
         active

@@ -4,23 +4,15 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   BookOpen,
-  ChevronRight,
   Clock3,
   FileText,
   GraduationCap,
-  Lock,
   Sparkles,
   Target,
   Trophy,
 } from "lucide-react";
 
 import { supabase } from "../../lib/supabaseClient";
-
-/* =========================================================
-   CBT PRICE
-========================================================= */
-
-const CBT_PRICE = 4;
 
 /* =========================================================
    EXAMINATION BODIES
@@ -150,7 +142,7 @@ const CBT = () => {
   const [questionsLoading, setQuestionsLoading] = useState(true);
 
   /* =======================================================
-     FETCH TOTAL QUESTION COUNT
+     FETCH QUESTION COUNT
   ======================================================= */
 
   useEffect(() => {
@@ -207,7 +199,7 @@ const CBT = () => {
   }, []);
 
   /* =======================================================
-     SCROLL TO EXAMINATION LIBRARY
+     SCROLL
   ======================================================= */
 
   const scrollToExaminationLibrary = () => {
@@ -218,13 +210,13 @@ const CBT = () => {
   };
 
   /* =======================================================
-     OPEN PAYMENT PAGE
+     OPEN EXAMINATION
   ======================================================= */
 
   const handleExamSelect = (examName) => {
-    navigate(
-      `/cbt/payment/${encodeURIComponent(examName)}`
-    );
+    const encodedExam = encodeURIComponent(examName);
+
+    navigate(`/cbt/exam/${encodedExam}`);
   };
 
   /* =======================================================
@@ -262,12 +254,16 @@ const CBT = () => {
     },
   ];
 
+  /* =======================================================
+     RENDER
+  ======================================================= */
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050816] text-white">
 
-      {/* =========================================================
+      {/* =====================================================
           BACKGROUND
-      ========================================================== */}
+      ====================================================== */}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
 
@@ -292,19 +288,21 @@ const CBT = () => {
 
       </div>
 
-      {/* =========================================================
+      {/* =====================================================
           MAIN
-      ========================================================== */}
+      ====================================================== */}
 
       <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 sm:px-8 lg:px-10">
 
-        {/* =======================================================
+        {/* ===================================================
             HERO
-        ======================================================== */}
+        ==================================================== */}
 
         <section className="pt-14 sm:pt-20 lg:pt-24">
 
           <div className="mx-auto max-w-4xl text-center">
+
+            {/* STATUS */}
 
             <motion.div
               initial={{
@@ -327,6 +325,8 @@ const CBT = () => {
               </span>
             </motion.div>
 
+            {/* TITLE */}
+
             <motion.h1
               initial={{
                 opacity: 0,
@@ -347,6 +347,8 @@ const CBT = () => {
                 CBT Portal
               </span>
             </motion.h1>
+
+            {/* DESCRIPTION */}
 
             <motion.p
               initial={{
@@ -369,9 +371,7 @@ const CBT = () => {
               examination bodies.
             </motion.p>
 
-            {/* =================================================
-                START PRACTICE
-            ================================================== */}
+            {/* START PRACTICE */}
 
             <motion.div
               initial={{
@@ -406,9 +406,9 @@ const CBT = () => {
 
         </section>
 
-        {/* =======================================================
+        {/* ===================================================
             DIVIDER
-        ======================================================== */}
+        ==================================================== */}
 
         <div className="relative mx-auto mt-14 max-w-6xl">
 
@@ -428,9 +428,9 @@ const CBT = () => {
 
         </div>
 
-        {/* =======================================================
+        {/* ===================================================
             STATS
-        ======================================================== */}
+        ==================================================== */}
 
         <section className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
 
@@ -479,9 +479,9 @@ const CBT = () => {
 
         </section>
 
-        {/* =======================================================
+        {/* ===================================================
             EXAMINATION LIBRARY
-        ======================================================== */}
+        ==================================================== */}
 
         <section
           ref={examinationLibraryRef}
@@ -505,13 +505,15 @@ const CBT = () => {
               </h2>
 
               <p className="mt-2 max-w-xl text-sm text-slate-500">
-                Select an examination body to unlock its
-                subjects and start a practice session.
+                Select an examination to choose your
+                subjects and begin your CBT practice.
               </p>
 
             </div>
 
-            <div className="flex items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.035] px-4 py-2 text-xs text-slate-400">
+            {/* SYSTEM STATUS */}
+
+            <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-4 py-2 text-xs text-emerald-300">
 
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
 
@@ -521,9 +523,9 @@ const CBT = () => {
 
           </div>
 
-          {/* =====================================================
+          {/* =================================================
               EXAM GRID
-          ====================================================== */}
+          ================================================= */}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
@@ -576,9 +578,7 @@ const CBT = () => {
 
                 <div className="relative">
 
-                  {/* =================================================
-                      EXAM ICON + LOCK
-                  ================================================== */}
+                  {/* ICON */}
 
                   <div className="flex items-start justify-between">
 
@@ -588,15 +588,9 @@ const CBT = () => {
                       {exam.name.slice(0, 2)}
                     </div>
 
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-400/20 bg-amber-400/[0.06] text-amber-400 transition group-hover:border-amber-400/40 group-hover:bg-amber-400/10">
-                      <Lock size={14} />
-                    </div>
-
                   </div>
 
-                  {/* =================================================
-                      EXAM NAME
-                  ================================================== */}
+                  {/* NAME */}
 
                   <div className="mt-5">
 
@@ -610,9 +604,7 @@ const CBT = () => {
 
                   </div>
 
-                  {/* =================================================
-                      SUBJECTS
-                  ================================================== */}
+                  {/* SUBJECTS */}
 
                   <div className="mt-5 space-y-2 border-t border-white/[0.06] pt-4">
 
@@ -646,51 +638,12 @@ const CBT = () => {
 
                   </div>
 
-                  {/* =================================================
-                      PRICE / LOCK
-                  ================================================== */}
-
-                  <div className="mt-5 flex items-center justify-between rounded-xl border border-amber-400/10 bg-amber-400/[0.04] p-3">
-
-                    <div className="flex items-center gap-3">
-
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-400/20 bg-amber-400/[0.08]">
-
-                        <Lock
-                          size={16}
-                          className="text-amber-400"
-                        />
-
-                      </div>
-
-                      <div>
-
-                        <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">
-                          Unlock access
-                        </p>
-
-                        <p className="mt-0.5 text-xl font-black text-white">
-                          ${CBT_PRICE}
-                        </p>
-
-                      </div>
-
-                    </div>
-
-                    <span className="rounded-full border border-amber-400/20 bg-amber-400/[0.06] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-300">
-                      Premium
-                    </span>
-
-                  </div>
-
-                  {/* =================================================
-                      SELECT / PAYMENT
-                  ================================================== */}
+                  {/* ACTION */}
 
                   <div className="mt-5 flex items-center justify-between">
 
                     <span className="text-xs font-medium text-slate-500 transition group-hover:text-blue-400">
-                      Unlock & continue
+                      Start examination
                     </span>
 
                     <ArrowRight
@@ -710,9 +663,9 @@ const CBT = () => {
 
         </section>
 
-        {/* =======================================================
+        {/* ===================================================
             FEATURE BANNER
-        ======================================================== */}
+        ==================================================== */}
 
         <motion.section
           initial={{
@@ -765,9 +718,9 @@ const CBT = () => {
 
         </motion.section>
 
-        {/* =======================================================
+        {/* ===================================================
             FOOTER
-        ======================================================== */}
+        ==================================================== */}
 
         <footer className="mt-16 border-t border-white/[0.06] pt-8 text-center">
 

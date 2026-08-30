@@ -48,12 +48,6 @@ const GENRES = [
 const GENRE_PRICE = 5;
 const GENRE_PAYMENT_ROUTE = "/genre-payment";
 
-/*
-  Fetch in small chunks.
-
-  This is important because we don't want the browser
-  waiting for 1000+ novels before displaying anything.
-*/
 const FETCH_BATCH_SIZE = 150;
 
 /* =========================================================
@@ -112,16 +106,10 @@ const Novels = () => {
 
   const [novels, setNovels] = useState([]);
 
-  /*
-    `loading` means the initial request is still running.
-  */
   const [loading, setLoading] = useState(true);
 
-  /*
-    `loadingMore` means additional batches are being loaded
-    after the first batch is already visible.
-  */
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingMore, setLoadingMore] =
+    useState(false);
 
   const [selectedGenre, setSelectedGenre] =
     useState("ALL");
@@ -139,131 +127,268 @@ const Novels = () => {
     useState(null);
 
   /* =======================================================
+     AUTH / ADMIN STATE
+  ======================================================= */
+
+  /*
+    IMPORTANT:
+
+    Admin status comes from:
+
+      profiles.role === "admin"
+
+    This matches the existing Scholiqen authentication
+    structure.
+  */
+
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  /*
+    Do not render lock/payment UI until we know the
+    logged-in user's role.
+
+    This prevents the lock from flashing briefly for
+    an administrator while the profile is loading.
+  */
+  const [authReady, setAuthReady] =
+    useState(false);
+
+  /* =======================================================
+     CHECK LOGGED-IN USER + PROFILE ROLE
+  ======================================================= */
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkUserRole = async () => {
+      try {
+        /*
+          Get the currently authenticated user.
+        */
+        const {
+          data: {
+            user,
+          },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError) {
+          console.error(
+            "Error getting current user:",
+            userError
+          );
+
+          if (mounted) {
+            setIsAdmin(false);
+            setAuthReady(true);
+          }
+
+          return;
+        }
+
+        /*
+          No logged-in user.
+          Treat visitor as a normal user.
+        */
+        if (!user?.id) {
+          if (mounted) {
+            setIsAdmin(false);
+            setAuthReady(true);
+          }
+
+          return;
+        }
+
+        /*
+          Fetch the user's profile.
+
+          Existing Scholiqen structure:
+            profiles.id
+            profiles.role
+        */
+        const {
+          data: profile,
+          error: profileError,
+        } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (profileError) {
+          console.error(
+            "Error fetching user profile:",
+            profileError
+          );
+
+          if (mounted) {
+            setIsAdmin(false);
+            setAuthReady(true);
+          }
+
+          return;
+        }
+
+        /*
+          Normalize the role so ADMIN, Admin and admin
+          are all treated as admin.
+        */
+        const role = String(
+          profile?.role || ""
+        )
+          .trim()
+          .toLowerCase();
+
+        const admin =
+          role === "admin";
+
+        console.log(
+          "Scholiqen user role:",
+          role
+        );
+
+        console.log(
+          "Scholiqen isAdmin:",
+          admin
+        );
+
+        if (mounted) {
+          setIsAdmin(admin);
+          setAuthReady(true);
+        }
+      } catch (error) {
+        console.error(
+          "Unexpected role check error:",
+          error
+        );
+
+        if (mounted) {
+          setIsAdmin(false);
+          setAuthReady(true);
+        }
+      }
+    };
+
+    checkUserRole();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /* =======================================================
      FETCH NOVELS PROGRESSIVELY
   ======================================================= */
 
   useEffect(() => {
     let mounted = true;
 
-    const fetchNovelsProgressively = async () => {
-      setLoading(true);
-      setLoadingMore(false);
-      setFetchError(null);
-      setNovels([]);
+    const fetchNovelsProgressively =
+      async () => {
+        setLoading(true);
+        setLoadingMore(false);
+        setFetchError(null);
+        setNovels([]);
 
-      try {
-        /*
-          Only request fields actually used by this page.
+        try {
+          const columns =
+            "id,title,author,genre,cover_url";
 
-          DO NOT use select("*") here.
+          let from = 0;
+          let firstBatch = true;
 
-          This can make a huge difference if your novels table
-          contains large fields such as story content,
-          descriptions, chapters, metadata, etc.
-        */
-        const columns =
-          "id,title,author,genre,cover_url";
-
-        let from = 0;
-        let firstBatch = true;
-
-        while (mounted) {
-          if (!firstBatch) {
-            setLoadingMore(true);
-          }
-
-          const to =
-            from + FETCH_BATCH_SIZE - 1;
-
-          const {
-            data,
-            error,
-          } = await supabase
-            .from("novels")
-            .select(columns)
-            .range(from, to);
-
-          if (error) {
-            throw error;
-          }
-
-          const batch = data || [];
-
-          /*
-            SHOW THE FIRST BATCH IMMEDIATELY.
-
-            The old version waited for EVERYTHING before
-            removing the skeleton.
-          */
-          if (mounted && batch.length > 0) {
-            setNovels((previous) => {
-              const existingIds = new Set(
-                previous.map((item) => item.id)
-              );
-
-              const uniqueBatch =
-                batch.filter(
-                  (item) =>
-                    !existingIds.has(item.id)
-                );
-
-              return [
-                ...previous,
-                ...uniqueBatch,
-              ];
-            });
-
-            /*
-              First batch is now visible.
-            */
-            if (firstBatch) {
-              setLoading(false);
-              firstBatch = false;
+          while (mounted) {
+            if (!firstBatch) {
+              setLoadingMore(true);
             }
+
+            const to =
+              from +
+              FETCH_BATCH_SIZE -
+              1;
+
+            const {
+              data,
+              error,
+            } = await supabase
+              .from("novels")
+              .select(columns)
+              .range(from, to);
+
+            if (error) {
+              throw error;
+            }
+
+            const batch = data || [];
+
+            if (
+              mounted &&
+              batch.length > 0
+            ) {
+              setNovels((previous) => {
+                const existingIds =
+                  new Set(
+                    previous.map(
+                      (item) => item.id
+                    )
+                  );
+
+                const uniqueBatch =
+                  batch.filter(
+                    (item) =>
+                      !existingIds.has(
+                        item.id
+                      )
+                  );
+
+                return [
+                  ...previous,
+                  ...uniqueBatch,
+                ];
+              });
+
+              if (firstBatch) {
+                setLoading(false);
+                firstBatch = false;
+              }
+            }
+
+            if (
+              batch.length <
+              FETCH_BATCH_SIZE
+            ) {
+              break;
+            }
+
+            from += FETCH_BATCH_SIZE;
+
+            await new Promise(
+              (resolve) =>
+                setTimeout(resolve, 0)
+            );
           }
 
-          /*
-            If fewer records than the batch size were returned,
-            we've reached the end.
-          */
-          if (
-            batch.length < FETCH_BATCH_SIZE
-          ) {
-            break;
+          if (mounted) {
+            setLoading(false);
+            setLoadingMore(false);
           }
-
-          from += FETCH_BATCH_SIZE;
-
-          /*
-            Give React/browser a chance to paint the current
-            batch before asking Supabase for the next one.
-          */
-          await new Promise((resolve) =>
-            setTimeout(resolve, 0)
-          );
-        }
-
-        if (mounted) {
-          setLoading(false);
-          setLoadingMore(false);
-        }
-      } catch (error) {
-        console.error(
-          "Error fetching novels:",
-          error
-        );
-
-        if (mounted) {
-          setFetchError(
-            error?.message ||
-              "Unable to load novels."
+        } catch (error) {
+          console.error(
+            "Error fetching novels:",
+            error
           );
 
-          setLoading(false);
-          setLoadingMore(false);
+          if (mounted) {
+            setFetchError(
+              error?.message ||
+                "Unable to load novels."
+            );
+
+            setLoading(false);
+            setLoadingMore(false);
+          }
         }
-      }
-    };
+      };
 
     fetchNovelsProgressively();
 
@@ -280,17 +405,54 @@ const Novels = () => {
     (novel) => {
       if (!novel?.id) return;
 
-      if (checkingStoryId === novel.id) {
+      if (
+        checkingStoryId === novel.id
+      ) {
         return;
       }
 
-      const genre = normalize(novel.genre);
+      const genre = normalize(
+        novel.genre
+      );
+
+      /*
+        =====================================================
+        ADMIN BYPASS
+        =====================================================
+
+        Admins do NOT need to pay to access novels.
+
+        They go directly to:
+
+          /story/:id
+      */
+
+      if (isAdmin) {
+        navigate(
+          `/story/${novel.id}`
+        );
+
+        return;
+      }
+
+      /*
+        =====================================================
+        NORMAL USER
+        =====================================================
+
+        Normal users continue through the genre payment
+        system.
+      */
 
       setCheckingStoryId(novel.id);
 
       if (!genre) {
-        navigate(`/story/${novel.id}`);
+        navigate(
+          `/story/${novel.id}`
+        );
+
         setCheckingStoryId(null);
+
         return;
       }
 
@@ -310,7 +472,11 @@ const Novels = () => {
 
       setCheckingStoryId(null);
     },
-    [checkingStoryId, navigate]
+    [
+      checkingStoryId,
+      navigate,
+      isAdmin,
+    ]
   );
 
   /* =======================================================
@@ -329,11 +495,17 @@ const Novels = () => {
     }
 
     const twoWeeksInMs =
-      14 * 24 * 60 * 60 * 1000;
+      14 *
+      24 *
+      60 *
+      60 *
+      1000;
 
-    const periodIndex = Math.floor(
-      Date.now() / twoWeeksInMs
-    );
+    const periodIndex =
+      Math.floor(
+        Date.now() /
+          twoWeeksInMs
+      );
 
     const seededShuffle = (
       array,
@@ -345,15 +517,22 @@ const Novels = () => {
 
       const random = (s) => {
         const x =
-          Math.sin(s++) * 10000;
+          Math.sin(s++) *
+          10000;
 
-        return x - Math.floor(x);
+        return (
+          x -
+          Math.floor(x)
+        );
       };
 
       while (m) {
-        const i = Math.floor(
-          random(seed + m) * m--
-        );
+        const i =
+          Math.floor(
+            random(
+              seed + m
+            ) * m--
+          );
 
         [arr[m], arr[i]] = [
           arr[i],
@@ -367,7 +546,9 @@ const Novels = () => {
     const grouped = {};
 
     novels.forEach((novel) => {
-      const genre = normalize(novel.genre);
+      const genre = normalize(
+        novel.genre
+      );
 
       if (!grouped[genre]) {
         grouped[genre] = [];
@@ -388,11 +569,15 @@ const Novels = () => {
           );
 
         if (shuffled[0]) {
-          trending.push(shuffled[0]);
+          trending.push(
+            shuffled[0]
+          );
         }
 
         if (shuffled[1]) {
-          hot.push(shuffled[1]);
+          hot.push(
+            shuffled[1]
+          );
         }
       }
     );
@@ -413,28 +598,34 @@ const Novels = () => {
         .trim()
         .toLowerCase();
 
-    return novels.filter((novel) => {
-      const matchesGenre =
-        selectedGenre === "ALL" ||
-        normalize(novel.genre) ===
-          selectedGenre;
+    return novels.filter(
+      (novel) => {
+        const matchesGenre =
+          selectedGenre ===
+            "ALL" ||
+          normalize(
+            novel.genre
+          ) === selectedGenre;
 
-      const title =
-        novel.title?.toLowerCase() || "";
+        const title =
+          novel.title?.toLowerCase() ||
+          "";
 
-      const author =
-        novel.author?.toLowerCase() || "";
+        const author =
+          novel.author?.toLowerCase() ||
+          "";
 
-      const matchesSearch =
-        !query ||
-        title.includes(query) ||
-        author.includes(query);
+        const matchesSearch =
+          !query ||
+          title.includes(query) ||
+          author.includes(query);
 
-      return (
-        matchesGenre &&
-        matchesSearch
-      );
-    });
+        return (
+          matchesGenre &&
+          matchesSearch
+        );
+      }
+    );
   }, [
     novels,
     selectedGenre,
@@ -449,14 +640,17 @@ const Novels = () => {
     return new Set(
       novels
         .map((novel) =>
-          normalize(novel.genre)
+          normalize(
+            novel.genre
+          )
         )
         .filter(Boolean)
     ).size;
   }, [novels]);
 
   const hasSearch =
-    searchQuery.trim().length > 0;
+    searchQuery.trim().length >
+    0;
 
   const isDefaultView =
     selectedGenre === "ALL" &&
@@ -497,7 +691,8 @@ const Novels = () => {
           style={{
             backgroundImage:
               "radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)",
-            backgroundSize: "28px 28px",
+            backgroundSize:
+              "28px 28px",
           }}
         />
       </div>
@@ -576,7 +771,8 @@ const Novels = () => {
               type="button"
               onClick={() =>
                 setMobileSearchOpen(
-                  (value) => !value
+                  (value) =>
+                    !value
                 )
               }
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition hover:border-blue-400/20 hover:text-white md:hidden"
@@ -587,7 +783,9 @@ const Novels = () => {
             <button
               type="button"
               onClick={() =>
-                navigate("/dashboard")
+                navigate(
+                  "/dashboard"
+                )
               }
               className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-300 transition hover:border-blue-400/20 hover:bg-white/[0.07] hover:text-white sm:flex"
             >
@@ -712,7 +910,6 @@ const Novels = () => {
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
-
               <Stat
                 icon={BookOpen}
                 value={novels.length}
@@ -730,7 +927,6 @@ const Novels = () => {
                 value={`$${GENRE_PRICE}`}
                 label="Per Genre"
               />
-
             </div>
           </div>
         </motion.section>
@@ -739,29 +935,34 @@ const Novels = () => {
 
         <section className="mt-7">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {GENRES.map((genre) => {
-              const active =
-                selectedGenre === genre;
+            {GENRES.map(
+              (genre) => {
+                const active =
+                  selectedGenre ===
+                  genre;
 
-              return (
-                <button
-                  key={genre}
-                  type="button"
-                  onClick={() =>
-                    setSelectedGenre(
+                return (
+                  <button
+                    key={genre}
+                    type="button"
+                    onClick={() =>
+                      setSelectedGenre(
+                        genre
+                      )
+                    }
+                    className={`shrink-0 rounded-full border px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                      active
+                        ? "border-blue-500/40 bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                        : "border-white/10 bg-white/[0.035] text-slate-400 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+                    }`}
+                  >
+                    {formatGenre(
                       genre
-                    )
-                  }
-                  className={`shrink-0 rounded-full border px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
-                    active
-                      ? "border-blue-500/40 bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-                      : "border-white/10 bg-white/[0.035] text-slate-400 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
-                  }`}
-                >
-                  {formatGenre(genre)}
-                </button>
-              );
-            })}
+                    )}
+                  </button>
+                );
+              }
+            )}
           </div>
         </section>
 
@@ -769,22 +970,25 @@ const Novels = () => {
 
         <section className="mt-10">
 
-          {/* ONLY SHOW FULL SKELETON WHEN NOTHING HAS ARRIVED */}
-
-          {loading && novels.length === 0 ? (
+          {loading &&
+          novels.length === 0 ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-6">
               {Array.from({
                 length: 12,
-              }).map((_, index) => (
-                <SkeletonCard
-                  key={index}
-                />
-              ))}
+              }).map(
+                (_, index) => (
+                  <SkeletonCard
+                    key={index}
+                  />
+                )
+              )}
             </div>
           ) : fetchError ? (
             <EmptyState
               title="Unable to load stories"
-              description={fetchError}
+              description={
+                fetchError
+              }
               onReset={() =>
                 window.location.reload()
               }
@@ -794,7 +998,8 @@ const Novels = () => {
 
               {/* HOT PICKS */}
 
-              {hotPicks.length > 0 && (
+              {hotPicks.length >
+                0 && (
                 <section>
                   <SectionHeader
                     icon={Flame}
@@ -811,9 +1016,17 @@ const Novels = () => {
                         <ScrollCard
                           key={`hot-${novel.id}`}
                           n={novel}
-                          onOpen={openStory}
+                          onOpen={
+                            openStory
+                          }
                           checkingStoryId={
                             checkingStoryId
+                          }
+                          isAdmin={
+                            isAdmin
+                          }
+                          authReady={
+                            authReady
                           }
                         />
                       )
@@ -824,10 +1037,13 @@ const Novels = () => {
 
               {/* TRENDING */}
 
-              {trendingNovels.length > 0 && (
+              {trendingNovels.length >
+                0 && (
                 <section>
                   <SectionHeader
-                    icon={TrendingUp}
+                    icon={
+                      TrendingUp
+                    }
                     title="Trending Now"
                     description="Fresh selections from across the library."
                     count={
@@ -841,9 +1057,17 @@ const Novels = () => {
                         <ScrollCard
                           key={`trend-${novel.id}`}
                           n={novel}
-                          onOpen={openStory}
+                          onOpen={
+                            openStory
+                          }
                           checkingStoryId={
                             checkingStoryId
+                          }
+                          isAdmin={
+                            isAdmin
+                          }
+                          authReady={
+                            authReady
                           }
                         />
                       )
@@ -864,9 +1088,12 @@ const Novels = () => {
                   }
                 />
 
-                {novels.length > 0 ? (
+                {novels.length >
+                0 ? (
                   <motion.div
-                    variants={stagger}
+                    variants={
+                      stagger
+                    }
                     initial="hidden"
                     animate="show"
                     className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-6"
@@ -876,9 +1103,17 @@ const Novels = () => {
                         <GridCard
                           key={`catalog-${novel.id}`}
                           n={novel}
-                          onOpen={openStory}
+                          onOpen={
+                            openStory
+                          }
                           checkingStoryId={
                             checkingStoryId
+                          }
+                          isAdmin={
+                            isAdmin
+                          }
+                          authReady={
+                            authReady
                           }
                         />
                       )
@@ -960,7 +1195,9 @@ const Novels = () => {
               {filteredNovels.length >
               0 ? (
                 <motion.div
-                  variants={stagger}
+                  variants={
+                    stagger
+                  }
                   initial="hidden"
                   animate="show"
                   className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-6"
@@ -970,9 +1207,17 @@ const Novels = () => {
                       <GridCard
                         key={`result-${novel.id}`}
                         n={novel}
-                        onOpen={openStory}
+                        onOpen={
+                          openStory
+                        }
                         checkingStoryId={
                           checkingStoryId
+                        }
+                        isAdmin={
+                          isAdmin
+                        }
+                        authReady={
+                          authReady
                         }
                       />
                     )
@@ -1000,7 +1245,6 @@ const Novels = () => {
               </div>
             </div>
           )}
-
         </section>
 
         {/* CTA */}
@@ -1098,31 +1342,47 @@ const NovelCover = ({
   onError,
 }) => {
   const [imageSrc, setImageSrc] =
-    useState(src || novelImg);
+    useState(
+      src || novelImg
+    );
 
   useEffect(() => {
-    setImageSrc(src || novelImg);
+    setImageSrc(
+      src || novelImg
+    );
   }, [src]);
 
   return (
     <img
       src={imageSrc}
-      alt={alt || "Novel cover"}
+      alt={
+        alt || "Novel cover"
+      }
       loading={
-        priority ? "eager" : "lazy"
+        priority
+          ? "eager"
+          : "lazy"
       }
       fetchPriority={
-        priority ? "high" : "auto"
+        priority
+          ? "high"
+          : "auto"
       }
       decoding="async"
       onError={() => {
-        if (imageSrc !== novelImg) {
-          setImageSrc(novelImg);
+        if (
+          imageSrc !== novelImg
+        ) {
+          setImageSrc(
+            novelImg
+          );
         }
 
         onError?.();
       }}
-      className={className}
+      className={
+        className
+      }
     />
   );
 };
@@ -1135,6 +1395,8 @@ const ScrollCard = ({
   n,
   onOpen,
   checkingStoryId,
+  isAdmin,
+  authReady,
 }) => {
   const checking =
     checkingStoryId === n.id;
@@ -1170,14 +1432,44 @@ const ScrollCard = ({
 
         <div className="absolute inset-0 bg-blue-500/0 transition-colors duration-300 group-hover:bg-blue-500/10" />
 
-        <div className="absolute left-3 top-3">
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/20 bg-blue-950/80 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-blue-300 backdrop-blur-md">
-            <Lock className="h-2.5 w-2.5" />
-            {formatGenre(
-              n.genre
-            )}
-          </span>
-        </div>
+        {/* =================================================
+            LOCK
+
+            IMPORTANT:
+            Only normal users get the lock.
+
+            Admin:
+              NO LOCK
+
+            Student/User:
+              LOCK
+        ================================================= */}
+
+        {authReady &&
+          !isAdmin && (
+            <div className="absolute left-3 top-3">
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/20 bg-blue-950/80 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-blue-300 backdrop-blur-md">
+                <Lock className="h-2.5 w-2.5" />
+
+                {formatGenre(
+                  n.genre
+                )}
+              </span>
+            </div>
+          )}
+
+        {/* ADMIN GENRE BADGE WITHOUT LOCK */}
+
+        {authReady &&
+          isAdmin && (
+            <div className="absolute left-3 top-3">
+              <span className="inline-flex items-center rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-300 backdrop-blur-md">
+                {formatGenre(
+                  n.genre
+                )}
+              </span>
+            </div>
+          )}
 
         <div className="absolute inset-x-0 bottom-0 translate-y-2 p-4 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
           <p className="line-clamp-1 text-sm font-bold text-white">
@@ -1221,6 +1513,8 @@ const GridCard = ({
   n,
   onOpen,
   checkingStoryId,
+  isAdmin,
+  authReady,
 }) => {
   const checking =
     checkingStoryId === n.id;
@@ -1256,25 +1550,70 @@ const GridCard = ({
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-60" />
 
-          <div className="absolute left-3 top-3">
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-blue-300 backdrop-blur-md">
-              <Lock className="h-2.5 w-2.5" />
-              {formatGenre(
-                n.genre
-              )}
-            </span>
-          </div>
+          {/* =================================================
+              NORMAL USER LOCK
+          ================================================= */}
+
+          {authReady &&
+            !isAdmin && (
+              <div className="absolute left-3 top-3">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-blue-300 backdrop-blur-md">
+                  <Lock className="h-2.5 w-2.5" />
+
+                  {formatGenre(
+                    n.genre
+                  )}
+                </span>
+              </div>
+            )}
+
+          {/* =================================================
+              ADMIN
+
+              NO LOCK
+          ================================================= */}
+
+          {authReady &&
+            isAdmin && (
+              <div className="absolute left-3 top-3">
+                <span className="inline-flex items-center rounded-lg border border-white/10 bg-black/40 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-300 backdrop-blur-md">
+                  {formatGenre(
+                    n.genre
+                  )}
+                </span>
+              </div>
+            )}
+
+          {/* =================================================
+              BOTTOM ACTION
+
+              ADMIN:
+                Read Story
+
+              USER:
+                Unlock & Read
+          ================================================= */}
 
           <div className="absolute bottom-3 left-3 right-3 translate-y-2 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
             <div className="flex items-center justify-center gap-2 rounded-xl bg-blue-600/90 py-2.5 text-xs font-bold text-white shadow-xl shadow-blue-900/30 backdrop-blur-md">
               {checking ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Opening Payment...
+
+                  {isAdmin
+                    ? "Opening..."
+                    : "Opening Payment..."}
+                </>
+              ) : isAdmin ? (
+                <>
+                  Read Story
+
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </>
               ) : (
                 <>
                   Unlock & Read
+
                   <ArrowRight className="h-3.5 w-3.5" />
                 </>
               )}

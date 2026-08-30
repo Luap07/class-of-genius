@@ -1,6 +1,14 @@
-import React, { useMemo, useState } from "react";
+import React, {
+  useContext,
+  useMemo,
+  useState,
+} from "react";
+
 import { motion } from "framer-motion";
-import { useNavigate, useParams } from "react-router-dom";
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 import {
   ArrowLeft,
@@ -30,13 +38,27 @@ import {
   CreditCard,
 } from "lucide-react";
 
-import { useCourses } from "../../context/LMSContext/CourseContext";
+import {
+  useCourses,
+} from "../../context/LMSContext/CourseContext";
+
+import {
+  ConnectContext,
+} from "../../context/ConnectContext";
+
+/*
+=========================================================
+DOCUMENT PRICE
+=========================================================
+*/
 
 const DOCUMENT_PRICE = 4000;
 
-/* =========================================================
-   ANIMATIONS
-========================================================= */
+/*
+=========================================================
+ANIMATIONS
+=========================================================
+*/
 
 const containerVariants = {
   hidden: {
@@ -87,13 +109,21 @@ const fadeUp = {
   },
 };
 
-/* =========================================================
-   MAIN COMPONENT
-========================================================= */
+/*
+=========================================================
+MAIN COMPONENT
+=========================================================
+*/
 
 export default function CategorySubjects() {
   const navigate = useNavigate();
   const { categoryId } = useParams();
+
+  /*
+  =======================================================
+  COURSE CONTEXT
+  =======================================================
+  */
 
   const courseContext = useCourses() || {};
 
@@ -103,6 +133,33 @@ export default function CategorySubjects() {
     loading = false,
   } = courseContext;
 
+  /*
+  =======================================================
+  ADMIN CONTEXT
+
+  THIS IS THE IMPORTANT FIX.
+
+  Your ConnectContext already determines whether
+  the logged-in user is an admin.
+
+  We now actually consume that value here.
+  =======================================================
+  */
+
+  const connectContext =
+    useContext(ConnectContext) || {};
+
+  const {
+    isAdmin = false,
+    currentUser = null,
+  } = connectContext;
+
+  /*
+  =======================================================
+  PURCHASE SOURCE
+  =======================================================
+  */
+
   const purchaseSource =
     courseContext.documentPurchases ??
     courseContext.userPurchases ??
@@ -110,24 +167,44 @@ export default function CategorySubjects() {
     courseContext.purchasedDocuments ??
     [];
 
-  const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("grid");
-  const [sortBy, setSortBy] = useState("latest");
+  /*
+  =======================================================
+  STATES
+  =======================================================
+  */
 
-  /* =========================================================
-     SELECTED CATEGORY
-  ========================================================= */
+  const [search, setSearch] = useState("");
+  const [activeFilter, setActiveFilter] =
+    useState("all");
+
+  const [viewMode, setViewMode] =
+    useState("grid");
+
+  const [sortBy, setSortBy] =
+    useState("latest");
+
+  /*
+  =========================================================
+  SELECTED CATEGORY
+  =========================================================
+  */
 
   const selectedCategory = useMemo(() => {
     return categories.find(
-      (cat) => String(cat.id) === String(categoryId)
+      (cat) =>
+        String(cat.id) ===
+        String(categoryId)
     );
-  }, [categories, categoryId]);
+  }, [
+    categories,
+    categoryId,
+  ]);
 
-  /* =========================================================
-     PURCHASED DOCUMENT IDS
-  ========================================================= */
+  /*
+  =========================================================
+  PURCHASED DOCUMENT IDS
+  =========================================================
+  */
 
   const purchasedDocumentIds = useMemo(() => {
     const ids = new Set();
@@ -164,78 +241,128 @@ export default function CategorySubjects() {
         purchase.is_paid === true;
 
       if (isPaid) {
-        ids.add(String(documentId));
+        ids.add(
+          String(documentId)
+        );
       }
     });
 
     return ids;
-  }, [purchaseSource]);
+  }, [
+    purchaseSource,
+  ]);
 
-  /* =========================================================
-     CATEGORY DOCUMENTS
-  ========================================================= */
+  /*
+  =========================================================
+  CATEGORY DOCUMENTS
+  =========================================================
+  */
 
   const categoryDocuments = useMemo(() => {
     let list = documents.filter(
       (doc) =>
-        String(doc.category_id) === String(categoryId)
+        String(doc.category_id) ===
+        String(categoryId)
     );
+
+    /*
+    -------------------------------------------------------
+    FILTER
+    -------------------------------------------------------
+    */
 
     if (activeFilter === "pdf") {
       list = list.filter(
         (doc) =>
-          String(doc.file_type || "").toLowerCase() === "pdf"
+          String(
+            doc.file_type || ""
+          ).toLowerCase() === "pdf"
       );
     }
 
     if (activeFilter === "other") {
       list = list.filter(
         (doc) =>
-          String(doc.file_type || "").toLowerCase() !== "pdf"
+          String(
+            doc.file_type || ""
+          ).toLowerCase() !== "pdf"
       );
     }
 
+    /*
+    -------------------------------------------------------
+    SEARCH
+    -------------------------------------------------------
+    */
+
     if (search.trim()) {
-      const keyword = search.toLowerCase().trim();
+      const keyword =
+        search.toLowerCase().trim();
 
       list = list.filter((item) => {
         return (
-          String(item.title || "")
+          String(
+            item.title || ""
+          )
             .toLowerCase()
             .includes(keyword) ||
-          String(item.description || "")
+          String(
+            item.description || ""
+          )
             .toLowerCase()
             .includes(keyword) ||
-          String(item.file_type || "")
+          String(
+            item.file_type || ""
+          )
             .toLowerCase()
             .includes(keyword)
         );
       });
     }
 
-    list = [...list].sort((a, b) => {
-      if (sortBy === "latest") {
-        return (
-          new Date(b.created_at || 0) -
-          new Date(a.created_at || 0)
-        );
-      }
+    /*
+    -------------------------------------------------------
+    SORT
+    -------------------------------------------------------
+    */
 
-      if (sortBy === "oldest") {
-        return (
-          new Date(a.created_at || 0) -
-          new Date(b.created_at || 0)
-        );
-      }
+    list = [...list].sort(
+      (a, b) => {
+        if (sortBy === "latest") {
+          return (
+            new Date(
+              b.created_at || 0
+            ) -
+            new Date(
+              a.created_at || 0
+            )
+          );
+        }
 
-      if (sortBy === "name") {
-        return String(a.title || "").localeCompare(
-          String(b.title || "")
-        );
-      }
+        if (sortBy === "oldest") {
+          return (
+            new Date(
+              a.created_at || 0
+            ) -
+            new Date(
+              b.created_at || 0
+            )
+          );
+        }
 
-      return 0;
-    });
+        if (sortBy === "name") {
+          return String(
+            a.title || ""
+          ).localeCompare(
+            String(
+              b.title || ""
+            )
+          );
+        }
+
+        return 0;
+      }
+    );
 
     return list;
   }, [
@@ -246,84 +373,173 @@ export default function CategorySubjects() {
     sortBy,
   ]);
 
-  /* =========================================================
-     STATS
-  ========================================================= */
+  /*
+  =========================================================
+  STATS
+  =========================================================
+  */
 
   const stats = useMemo(() => {
-    const categoryDocs = documents.filter(
-      (doc) =>
-        String(doc.category_id) === String(categoryId)
-    );
+    const categoryDocs =
+      documents.filter(
+        (doc) =>
+          String(
+            doc.category_id
+          ) ===
+          String(categoryId)
+      );
 
-    const pdfs = categoryDocs.filter(
-      (doc) =>
-        String(doc.file_type || "").toLowerCase() === "pdf"
-    );
+    const pdfs =
+      categoryDocs.filter(
+        (doc) =>
+          String(
+            doc.file_type || ""
+          ).toLowerCase() ===
+          "pdf"
+      );
 
-    const totalSize = categoryDocs.reduce(
-      (total, doc) =>
-        total + Number(doc.file_size || 0),
-      0
-    );
+    const totalSize =
+      categoryDocs.reduce(
+        (total, doc) =>
+          total +
+          Number(
+            doc.file_size || 0
+          ),
+        0
+      );
 
     return {
-      total: categoryDocs.length,
-      pdfs: pdfs.length,
-      others: categoryDocs.length - pdfs.length,
-      size: totalSize,
+      total:
+        categoryDocs.length,
+
+      pdfs:
+        pdfs.length,
+
+      others:
+        categoryDocs.length -
+        pdfs.length,
+
+      size:
+        totalSize,
     };
-  }, [documents, categoryId]);
+  }, [
+    documents,
+    categoryId,
+  ]);
 
-  /* =========================================================
-     SIZE
-  ========================================================= */
+  /*
+  =========================================================
+  FORMAT TOTAL SIZE
+  =========================================================
+  */
 
-  const formatTotalSize = (bytes) => {
-    if (!bytes) return "0 MB";
+  const formatTotalSize = (
+    bytes
+  ) => {
+    if (!bytes) {
+      return "0 MB";
+    }
 
-    const mb = bytes / (1024 * 1024);
+    const mb =
+      bytes /
+      (1024 * 1024);
 
     if (mb < 1) {
       return `${Math.max(
         1,
-        Math.round(bytes / 1024)
+        Math.round(
+          bytes / 1024
+        )
       )} KB`;
     }
 
-    return `${mb.toFixed(1)} MB`;
+    return `${mb.toFixed(
+      1
+    )} MB`;
   };
 
-  /* =========================================================
-     ACCESS
-  ========================================================= */
+  /*
+  =========================================================
+  ACCESS
 
-  const hasDocumentAccess = (doc) => {
-    if (!doc?.id) return false;
+  ADMIN ALWAYS HAS ACCESS.
+
+  This is the second important fix.
+
+  Previously:
+
+      return purchasedDocumentIds.has(...)
+
+  Now:
+
+      if (isAdmin) return true
+
+  =========================================================
+  */
+
+  const hasDocumentAccess = (
+    doc
+  ) => {
+    if (!doc?.id) {
+      return false;
+    }
+
+    /*
+    ADMIN BYPASS
+    */
+
+    if (isAdmin) {
+      return true;
+    }
+
+    /*
+    NORMAL USER
+    */
 
     return purchasedDocumentIds.has(
       String(doc.id)
     );
   };
 
-  /* =========================================================
-     PAYMENT
-  ========================================================= */
+  /*
+  =========================================================
+  PAYMENT REDIRECT
+  =========================================================
+  */
 
-  const handlePaymentRedirect = (doc) => {
+  const handlePaymentRedirect = (
+    doc
+  ) => {
+    /*
+    Admin should NEVER reach payment.
+
+    This protects against accidentally sending
+    an admin to the payment page.
+    */
+
+    if (isAdmin) {
+      return;
+    }
+
     if (!doc?.id) {
       console.error(
         "Payment failed: document has no ID",
         doc
       );
+
       return;
     }
 
-    const documentId = String(doc.id);
+    const documentId =
+      String(doc.id);
 
-    const params = new URLSearchParams();
+    const params =
+      new URLSearchParams();
 
-    params.set("documentId", documentId);
+    params.set(
+      "documentId",
+      documentId
+    );
 
     if (categoryId) {
       params.set(
@@ -334,72 +550,98 @@ export default function CategorySubjects() {
 
     params.set(
       "amount",
-      String(DOCUMENT_PRICE)
+      String(
+        DOCUMENT_PRICE
+      )
     );
 
-const paymentPath =
-  `/courses/category/${encodeURIComponent(
-    categoryId
-  )}/payment?${params.toString()}`;    console.log(
+    const paymentPath =
+      `/courses/category/${encodeURIComponent(
+        categoryId
+      )}/payment?${params.toString()}`;
+
+    console.log(
       "Navigating to payment:",
       paymentPath
     );
 
-    navigate(paymentPath);
+    navigate(
+      paymentPath
+    );
   };
 
-  /* =========================================================
-     OPEN DOCUMENT
-  ========================================================= */
+  /*
+  =========================================================
+  OPEN DOCUMENT
+  =========================================================
+  */
 
-  const handleOpenDocument = (doc) => {
+  const handleOpenDocument = (
+    doc
+  ) => {
     if (!doc?.id) {
       console.error(
         "Cannot open document: missing ID",
         doc
       );
-      return;
-    }
 
-    const documentId = String(doc.id);
-
-    const hasAccess =
-      hasDocumentAccess(doc);
-
-    if (!hasAccess) {
-      handlePaymentRedirect(doc);
       return;
     }
 
     /*
-      IMPORTANT:
-      This route must exist in your React Router:
+    ADMIN ALWAYS HAS ACCESS.
 
-      /pdf/:documentId
+    This means even if the document has never been
+    purchased, the admin goes directly to the PDF.
     */
 
+    const hasAccess =
+      isAdmin ||
+      hasDocumentAccess(
+        doc
+      );
+
+    if (!hasAccess) {
+      handlePaymentRedirect(
+        doc
+      );
+
+      return;
+    }
+
+    const documentId =
+      String(doc.id);
+
     const pdfPath =
-      `/pdf/${encodeURIComponent(documentId)}`;
+      `/pdf/${encodeURIComponent(
+        documentId
+      )}`;
 
     console.log(
       "Opening document:",
       pdfPath
     );
 
-    navigate(pdfPath);
+    navigate(
+      pdfPath
+    );
   };
 
-  /* =========================================================
-     CLEAR SEARCH
-  ========================================================= */
+  /*
+  =========================================================
+  CLEAR SEARCH
+  =========================================================
+  */
 
   const clearSearch = () => {
     setSearch("");
   };
 
-  /* =========================================================
-     RENDER
-  ========================================================= */
+  /*
+  =========================================================
+  RENDER
+  =========================================================
+  */
 
   return (
     <div
@@ -415,7 +657,10 @@ const paymentPath =
         selection:text-slate-950
       "
     >
-      {/* BACKGROUND */}
+
+      {/* =================================================
+          BACKGROUND
+      ================================================= */}
 
       <div
         className="
@@ -426,6 +671,7 @@ const paymentPath =
           overflow-hidden
         "
       >
+
         <div
           className="
             absolute
@@ -436,9 +682,26 @@ const paymentPath =
 
         <motion.div
           animate={{
-            x: [0, 80, 20, 0],
-            y: [0, 40, 90, 0],
-            scale: [1, 1.15, 0.95, 1],
+            x: [
+              0,
+              80,
+              20,
+              0,
+            ],
+
+            y: [
+              0,
+              40,
+              90,
+              0,
+            ],
+
+            scale: [
+              1,
+              1.15,
+              0.95,
+              1,
+            ],
           }}
           transition={{
             duration: 16,
@@ -459,9 +722,26 @@ const paymentPath =
 
         <motion.div
           animate={{
-            x: [0, -70, 20, 0],
-            y: [0, 70, -20, 0],
-            scale: [1, 0.92, 1.12, 1],
+            x: [
+              0,
+              -70,
+              20,
+              0,
+            ],
+
+            y: [
+              0,
+              70,
+              -20,
+              0,
+            ],
+
+            scale: [
+              1,
+              0.92,
+              1.12,
+              1,
+            ],
           }}
           transition={{
             duration: 19,
@@ -482,8 +762,19 @@ const paymentPath =
 
         <motion.div
           animate={{
-            x: [0, 100, -30, 0],
-            scale: [1, 1.1, 0.94, 1],
+            x: [
+              0,
+              100,
+              -30,
+              0,
+            ],
+
+            scale: [
+              1,
+              1.1,
+              0.94,
+              1,
+            ],
           }}
           transition={{
             duration: 21,
@@ -524,7 +815,9 @@ const paymentPath =
         />
       </div>
 
-      {/* NAVBAR */}
+      {/* =================================================
+          NAVBAR
+      ================================================= */}
 
       <header
         className="
@@ -549,10 +842,13 @@ const paymentPath =
             md:px-12
           "
         >
+
           <button
             type="button"
             onClick={() =>
-              navigate("/subjects")
+              navigate(
+                "/subjects"
+              )
             }
             className="
               group
@@ -590,7 +886,7 @@ const paymentPath =
 
           <div
             className="
-              hidden
+              flex
               items-center
               gap-2
               rounded-full
@@ -602,17 +898,22 @@ const paymentPath =
               text-xs
               font-black
               text-cyan-300
-              sm:flex
             "
           >
-            <ShieldCheck size={14} />
+            <ShieldCheck
+              size={14}
+            />
 
-            Secure Learning Workspace
+            {isAdmin
+              ? "Admin Workspace"
+              : "Secure Learning Workspace"}
           </div>
         </div>
       </header>
 
-      {/* MAIN */}
+      {/* =================================================
+          MAIN
+      ================================================= */}
 
       <main
         className="
@@ -626,7 +927,10 @@ const paymentPath =
           md:py-14
         "
       >
-        {/* HERO */}
+
+        {/* =================================================
+            HERO
+        ================================================= */}
 
         <motion.section
           variants={fadeUp}
@@ -651,7 +955,9 @@ const paymentPath =
               md:p-10
             "
           >
+
             <div className="relative z-10">
+
               <div
                 className="
                   inline-flex
@@ -670,9 +976,13 @@ const paymentPath =
                   text-cyan-300
                 "
               >
-                <Sparkles size={13} />
+                <Sparkles
+                  size={13}
+                />
 
-                Premium Learning Hub
+                {isAdmin
+                  ? "Administrator Learning Hub"
+                  : "Premium Learning Hub"}
               </div>
 
               <div
@@ -686,8 +996,11 @@ const paymentPath =
                   lg:justify-between
                 "
               >
+
                 <div className="max-w-3xl">
+
                   <div className="flex items-center gap-4">
+
                     <div
                       className="
                         flex
@@ -712,6 +1025,7 @@ const paymentPath =
                     </div>
 
                     <div>
+
                       <p
                         className="
                           text-xs
@@ -737,6 +1051,7 @@ const paymentPath =
                         {selectedCategory?.name ||
                           "Category Hub"}
                       </h1>
+
                     </div>
                   </div>
 
@@ -750,11 +1065,11 @@ const paymentPath =
                       md:text-base
                     "
                   >
-                    Explore carefully organized learning
-                    resources, study documents and premium
-                    educational materials built to help you
-                    learn faster and retain more.
+                    {isAdmin
+                      ? "Manage and access all learning resources in this category with administrator access."
+                      : "Explore carefully organized learning resources, study documents and premium educational materials built to help you learn faster and retain more."}
                   </p>
+
                 </div>
 
                 <div
@@ -771,19 +1086,24 @@ const paymentPath =
                     py-4
                   "
                 >
+
                   <CheckCircle2
                     size={20}
                     className="text-emerald-400"
                   />
 
                   <div>
+
                     <p className="text-xs text-slate-400">
                       Workspace Status
                     </p>
 
                     <p className="mt-0.5 text-sm font-black text-emerald-400">
-                      Secure Access
+                      {isAdmin
+                        ? "Administrator Access"
+                        : "Secure Access"}
                     </p>
+
                   </div>
                 </div>
               </div>
@@ -797,36 +1117,58 @@ const paymentPath =
                   lg:grid-cols-4
                 "
               >
+
                 <PremiumStat
-                  icon={<Database size={17} />}
+                  icon={
+                    <Database
+                      size={17}
+                    />
+                  }
                   label="Total Resources"
                   value={stats.total}
                 />
 
                 <PremiumStat
-                  icon={<FileText size={17} />}
+                  icon={
+                    <FileText
+                      size={17}
+                    />
+                  }
                   label="PDF Documents"
                   value={stats.pdfs}
                   accent
                 />
 
                 <PremiumStat
-                  icon={<Layers3 size={17} />}
+                  icon={
+                    <Layers3
+                      size={17}
+                    />
+                  }
                   label="Other Assets"
                   value={stats.others}
                 />
 
                 <PremiumStat
-                  icon={<TrendingUp size={17} />}
+                  icon={
+                    <TrendingUp
+                      size={17}
+                    />
+                  }
                   label="Archive Size"
-                  value={formatTotalSize(stats.size)}
+                  value={formatTotalSize(
+                    stats.size
+                  )}
                 />
+
               </div>
             </div>
           </div>
         </motion.section>
 
-        {/* TOOLBAR */}
+        {/* =================================================
+            TOOLBAR
+        ================================================= */}
 
         <motion.section
           variants={fadeUp}
@@ -834,6 +1176,7 @@ const paymentPath =
           animate="show"
           className="mt-8"
         >
+
           <div
             className="
               rounded-[28px]
@@ -845,6 +1188,7 @@ const paymentPath =
               backdrop-blur-2xl
             "
           >
+
             <div
               className="
                 flex
@@ -854,7 +1198,9 @@ const paymentPath =
                 lg:items-center
               "
             >
+
               <div className="relative flex-1">
+
                 <Search
                   size={18}
                   className="
@@ -870,7 +1216,9 @@ const paymentPath =
                 <input
                   value={search}
                   onChange={(e) =>
-                    setSearch(e.target.value)
+                    setSearch(
+                      e.target.value
+                    )
                   }
                   placeholder="Search resources, topics, concepts..."
                   className="
@@ -895,7 +1243,9 @@ const paymentPath =
                 {search && (
                   <button
                     type="button"
-                    onClick={clearSearch}
+                    onClick={
+                      clearSearch
+                    }
                     className="
                       absolute
                       right-3
@@ -908,44 +1258,65 @@ const paymentPath =
                       hover:text-white
                     "
                   >
-                    <X size={15} />
+                    <X
+                      size={15}
+                    />
                   </button>
                 )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+
                 <FilterButton
-                  active={activeFilter === "all"}
+                  active={
+                    activeFilter ===
+                    "all"
+                  }
                   onClick={() =>
-                    setActiveFilter("all")
+                    setActiveFilter(
+                      "all"
+                    )
                   }
                 >
                   All
                 </FilterButton>
 
                 <FilterButton
-                  active={activeFilter === "pdf"}
+                  active={
+                    activeFilter ===
+                    "pdf"
+                  }
                   onClick={() =>
-                    setActiveFilter("pdf")
+                    setActiveFilter(
+                      "pdf"
+                    )
                   }
                 >
                   PDF
                 </FilterButton>
 
                 <FilterButton
-                  active={activeFilter === "other"}
+                  active={
+                    activeFilter ===
+                    "other"
+                  }
                   onClick={() =>
-                    setActiveFilter("other")
+                    setActiveFilter(
+                      "other"
+                    )
                   }
                 >
                   Others
                 </FilterButton>
+
               </div>
 
               <select
                 value={sortBy}
                 onChange={(e) =>
-                  setSortBy(e.target.value)
+                  setSortBy(
+                    e.target.value
+                  )
                 }
                 className="
                   appearance-none
@@ -985,39 +1356,53 @@ const paymentPath =
                   p-1
                 "
               >
+
                 <button
                   type="button"
                   onClick={() =>
-                    setViewMode("grid")
+                    setViewMode(
+                      "grid"
+                    )
                   }
                   className={`rounded-lg p-2 ${
-                    viewMode === "grid"
+                    viewMode ===
+                    "grid"
                       ? "bg-cyan-400 text-slate-950"
                       : "text-slate-500 hover:text-white"
                   }`}
                 >
-                  <Grid3X3 size={15} />
+                  <Grid3X3
+                    size={15}
+                  />
                 </button>
 
                 <button
                   type="button"
                   onClick={() =>
-                    setViewMode("list")
+                    setViewMode(
+                      "list"
+                    )
                   }
                   className={`rounded-lg p-2 ${
-                    viewMode === "list"
+                    viewMode ===
+                    "list"
                       ? "bg-cyan-400 text-slate-950"
                       : "text-slate-500 hover:text-white"
                   }`}
                 >
-                  <List size={15} />
+                  <List
+                    size={15}
+                  />
                 </button>
+
               </div>
             </div>
           </div>
 
           <div className="mt-4 flex items-center justify-between px-1">
+
             <div className="flex items-center gap-2">
+
               <SlidersHorizontal
                 size={14}
                 className="text-cyan-400"
@@ -1028,12 +1413,15 @@ const paymentPath =
               </span>
 
               <span className="text-xs font-black text-white">
-                {categoryDocuments.length}
+                {
+                  categoryDocuments.length
+                }
               </span>
 
               <span className="text-xs text-slate-500">
                 resources
               </span>
+
             </div>
 
             {search && (
@@ -1044,38 +1432,69 @@ const paymentPath =
                 </span>
               </span>
             )}
+
           </div>
         </motion.section>
 
-        {/* DOCUMENTS */}
+        {/* =================================================
+            DOCUMENTS
+        ================================================= */}
 
         <section className="mt-8">
+
           {loading ? (
             <PremiumLoader />
-          ) : categoryDocuments.length > 0 ? (
+
+          ) : categoryDocuments.length >
+            0 ? (
+
             <motion.div
-              variants={containerVariants}
+              variants={
+                containerVariants
+              }
               initial="hidden"
               animate="show"
               className={
-                viewMode === "grid"
+                viewMode ===
+                "grid"
                   ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
                   : "flex flex-col gap-4"
               }
             >
+
               {categoryDocuments.map(
-                (doc, index) => {
+                (
+                  doc,
+                  index
+                ) => {
+
+                  /*
+                  ADMIN = ALWAYS UNLOCKED
+                  */
+
                   const hasAccess =
-                    hasDocumentAccess(doc);
+                    isAdmin ||
+                    hasDocumentAccess(
+                      doc
+                    );
 
                   return (
                     <DocumentCard
                       key={doc.id}
                       doc={doc}
                       index={index}
-                      viewMode={viewMode}
-                      hasAccess={hasAccess}
-                      documentPrice={DOCUMENT_PRICE}
+                      viewMode={
+                        viewMode
+                      }
+                      hasAccess={
+                        hasAccess
+                      }
+                      isAdmin={
+                        isAdmin
+                      }
+                      documentPrice={
+                        DOCUMENT_PRICE
+                      }
                       onPayment={
                         handlePaymentRedirect
                       }
@@ -1086,16 +1505,27 @@ const paymentPath =
                   );
                 }
               )}
+
             </motion.div>
+
           ) : (
+
             <EmptyState
-              searchQuery={search}
-              clearSearch={clearSearch}
+              searchQuery={
+                search
+              }
+              clearSearch={
+                clearSearch
+              }
             />
+
           )}
+
         </section>
 
-        {/* CTA */}
+        {/* =================================================
+            CTA
+        ================================================= */}
 
         <motion.section
           initial={{
@@ -1126,8 +1556,11 @@ const paymentPath =
             md:p-12
           "
         >
+
           <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
+
             <div className="max-w-2xl">
+
               <div
                 className="
                   inline-flex
@@ -1146,7 +1579,9 @@ const paymentPath =
                   text-cyan-300
                 "
               >
-                <Flame size={14} />
+                <Flame
+                  size={14}
+                />
 
                 Keep Learning
               </div>
@@ -1156,17 +1591,17 @@ const paymentPath =
               </h2>
 
               <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300/70 md:text-base">
-                Continue exploring Scholiqen's
-                structured learning ecosystem and
-                discover more resources across your
-                subjects.
+                Continue exploring Scholiqen's structured learning ecosystem and discover more resources across your subjects.
               </p>
+
             </div>
 
             <button
               type="button"
               onClick={() =>
-                navigate("/subjects")
+                navigate(
+                  "/subjects"
+                )
               }
               className="
                 group
@@ -1188,7 +1623,10 @@ const paymentPath =
                 hover:-translate-y-1
               "
             >
-              <Compass size={18} />
+
+              <Compass
+                size={18}
+              />
 
               Explore Categories
 
@@ -1199,34 +1637,64 @@ const paymentPath =
                   group-hover:translate-x-1
                 "
               />
+
             </button>
           </div>
         </motion.section>
+
       </main>
     </div>
   );
 }
 
-/* =========================================================
-   DOCUMENT CARD
-========================================================= */
+/*
+=========================================================
+DOCUMENT CARD
+=========================================================
+*/
 
 function DocumentCard({
   doc,
   index,
   viewMode,
   hasAccess,
+  isAdmin,
   documentPrice,
   onPayment,
   onRead,
 }) {
-  const isLocked = !hasAccess;
+  /*
+  =======================================================
+  ADMIN OVERRIDE
 
-  const handleRead = (e) => {
+  Even if something goes wrong with hasAccess,
+  admin is NEVER locked.
+  =======================================================
+  */
+
+  const isLocked =
+    isAdmin
+      ? false
+      : !hasAccess;
+
+  const handleRead = (
+    e
+  ) => {
     e?.preventDefault();
     e?.stopPropagation();
 
-    if (!doc?.id) return;
+    if (!doc?.id) {
+      return;
+    }
+
+    /*
+    ADMIN ALWAYS OPENS DIRECTLY.
+    */
+
+    if (isAdmin) {
+      onRead(doc);
+      return;
+    }
 
     if (isLocked) {
       onPayment(doc);
@@ -1236,13 +1704,24 @@ function DocumentCard({
     onRead(doc);
   };
 
-  const handleDownload = (e) => {
+  const handleDownload = (
+    e
+  ) => {
     e?.preventDefault();
     e?.stopPropagation();
 
-    if (!doc?.id) return;
+    if (!doc?.id) {
+      return;
+    }
 
-    if (isLocked) {
+    /*
+    ADMIN CAN DOWNLOAD DIRECTLY.
+    */
+
+    if (
+      !isAdmin &&
+      isLocked
+    ) {
       onPayment(doc);
       return;
     }
@@ -1252,32 +1731,57 @@ function DocumentCard({
         "No file URL for document:",
         doc
       );
+
       return;
     }
 
-    const link = document.createElement("a");
+    const link =
+      document.createElement(
+        "a"
+      );
 
-    link.href = doc.file_url;
+    link.href =
+      doc.file_url;
+
     link.download =
-      doc.title || "document";
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
+      doc.title ||
+      "document";
 
-    document.body.appendChild(link);
+    link.target =
+      "_blank";
+
+    link.rel =
+      "noopener noreferrer";
+
+    document.body.appendChild(
+      link
+    );
 
     link.click();
 
-    document.body.removeChild(link);
+    document.body.removeChild(
+      link
+    );
   };
 
-  const formatFileSize = (sizeInBytes) => {
-    if (!sizeInBytes) return null;
+  const formatFileSize = (
+    sizeInBytes
+  ) => {
+    if (!sizeInBytes) {
+      return null;
+    }
 
-    if (sizeInBytes < 1024) {
+    if (
+      sizeInBytes <
+      1024
+    ) {
       return `${sizeInBytes} B`;
     }
 
-    if (sizeInBytes < 1024 * 1024) {
+    if (
+      sizeInBytes <
+      1024 * 1024
+    ) {
       return `${Math.round(
         sizeInBytes / 1024
       )} KB`;
@@ -1285,7 +1789,9 @@ function DocumentCard({
 
     if (
       sizeInBytes <
-      1024 * 1024 * 1024
+      1024 *
+        1024 *
+        1024
     ) {
       return `${(
         sizeInBytes /
@@ -1295,19 +1801,30 @@ function DocumentCard({
 
     return `${(
       sizeInBytes /
-      (1024 * 1024 * 1024)
+      (1024 *
+        1024 *
+        1024)
     ).toFixed(1)} GB`;
   };
 
-  /* =========================================================
-     LIST
-  ========================================================= */
+  /*
+  =======================================================
+  LIST VIEW
+  =======================================================
+  */
 
-  if (viewMode === "list") {
+  if (
+    viewMode ===
+    "list"
+  ) {
     return (
       <motion.div
-        variants={cardAnimationVariants}
-        whileHover={{ y: -4 }}
+        variants={
+          cardAnimationVariants
+        }
+        whileHover={{
+          y: -4,
+        }}
         className="
           group
           relative
@@ -1323,15 +1840,21 @@ function DocumentCard({
           hover:border-cyan-400/30
         "
       >
+
         <div className="relative flex flex-col gap-5 md:flex-row md:items-center">
+
           <DocumentThumbnail
             doc={doc}
             compact
-            locked={isLocked}
+            locked={
+              isLocked
+            }
           />
 
           <div className="min-w-0 flex-1">
+
             <div className="flex flex-wrap items-center gap-2">
+
               <span
                 className="
                   rounded-full
@@ -1349,7 +1872,33 @@ function DocumentCard({
                   "FILE"}
               </span>
 
-              {isLocked ? (
+              {isAdmin ? (
+
+                <span
+                  className="
+                    inline-flex
+                    items-center
+                    gap-1
+                    rounded-full
+                    border
+                    border-cyan-400/20
+                    bg-cyan-400/10
+                    px-2.5
+                    py-1
+                    text-[10px]
+                    font-black
+                    text-cyan-300
+                  "
+                >
+                  <ShieldCheck
+                    size={10}
+                  />
+
+                  ADMIN ACCESS
+                </span>
+
+              ) : isLocked ? (
+
                 <span
                   className="
                     inline-flex
@@ -1366,10 +1915,15 @@ function DocumentCard({
                     text-amber-300
                   "
                 >
-                  <Lock size={10} />
+                  <Lock
+                    size={10}
+                  />
+
                   LOCKED
                 </span>
+
               ) : (
+
                 <span
                   className="
                     inline-flex
@@ -1386,10 +1940,14 @@ function DocumentCard({
                     text-emerald-300
                   "
                 >
-                  <CheckCircle2 size={10} />
+                  <CheckCircle2
+                    size={10}
+                  />
+
                   PURCHASED
                 </span>
               )}
+
             </div>
 
             <h3 className="mt-2 truncate text-lg font-black text-white">
@@ -1400,12 +1958,16 @@ function DocumentCard({
               {doc.description ||
                 "No description provided for this resource."}
             </p>
+
           </div>
 
           <div className="flex items-center gap-2">
+
             <button
               type="button"
-              onClick={handleRead}
+              onClick={
+                handleRead
+              }
               className={`
                 inline-flex
                 items-center
@@ -1419,33 +1981,46 @@ function DocumentCard({
                 transition
                 active:scale-95
                 ${
-                  isLocked
-                    ? "bg-gradient-to-r from-amber-300 to-orange-400 text-slate-950"
-                    : "bg-gradient-to-r from-cyan-300 to-blue-400 text-slate-950"
+                  isAdmin ||
+                  !isLocked
+                    ? "bg-gradient-to-r from-cyan-300 to-blue-400 text-slate-950"
+                    : "bg-gradient-to-r from-amber-300 to-orange-400 text-slate-950"
                 }
               `}
             >
-              {isLocked ? (
+
+              {isAdmin ||
+              !isLocked ? (
                 <>
-                  <CreditCard size={15} />
-                  Pay ₦
-                  {documentPrice.toLocaleString()}
+                  <BookOpen
+                    size={15}
+                  />
+
+                  Read
                 </>
               ) : (
                 <>
-                  <BookOpen size={15} />
-                  Read
+                  <CreditCard
+                    size={15}
+                  />
+
+                  Pay ₦
+                  {documentPrice.toLocaleString()}
                 </>
               )}
+
             </button>
 
             <button
               type="button"
-              onClick={handleDownload}
+              onClick={
+                handleDownload
+              }
               title={
-                isLocked
-                  ? `Pay ₦${documentPrice.toLocaleString()} for this document`
-                  : "Download resource"
+                isAdmin ||
+                !isLocked
+                  ? "Download resource"
+                  : `Pay ₦${documentPrice.toLocaleString()} for this document`
               }
               className="
                 rounded-xl
@@ -1459,25 +2034,35 @@ function DocumentCard({
                 hover:text-cyan-300
               "
             >
-              {isLocked ? (
-                <Lock size={17} />
+              {isAdmin ||
+              !isLocked ? (
+                <Download
+                  size={17}
+                />
               ) : (
-                <Download size={17} />
+                <Lock
+                  size={17}
+                />
               )}
             </button>
+
           </div>
         </div>
       </motion.div>
     );
   }
 
-  /* =========================================================
-     GRID
-  ========================================================= */
+  /*
+  =======================================================
+  GRID VIEW
+  =======================================================
+  */
 
   return (
     <motion.article
-      variants={cardAnimationVariants}
+      variants={
+        cardAnimationVariants
+      }
       whileHover={{
         y: -9,
         transition: {
@@ -1501,12 +2086,15 @@ function DocumentCard({
         backdrop-blur-2xl
         transition-all
         ${
-          isLocked
+          isAdmin
+            ? "border-cyan-400/20 hover:border-cyan-400/40"
+            : isLocked
             ? "border-amber-400/20 hover:border-amber-400/40"
             : "border-white/[0.08] hover:border-cyan-400/30"
         }
       `}
     >
+
       {isLocked && (
         <div
           className="
@@ -1538,29 +2126,50 @@ function DocumentCard({
           tracking-wider
           backdrop-blur-xl
           ${
-            isLocked
+            isAdmin
+              ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
+              : isLocked
               ? "border-amber-400/30 bg-amber-400/10 text-amber-300"
               : "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
           }
         `}
       >
-        {isLocked ? (
+
+        {isAdmin ? (
           <>
-            <Lock size={11} />
+            <ShieldCheck
+              size={11}
+            />
+
+            Admin Access
+          </>
+        ) : isLocked ? (
+          <>
+            <Lock
+              size={11}
+            />
+
             Premium
           </>
         ) : (
           <>
-            <CheckCircle2 size={11} />
+            <CheckCircle2
+              size={11}
+            />
+
             Purchased
           </>
         )}
+
       </div>
 
       <div className="relative z-10 flex h-full flex-col">
+
         <DocumentThumbnail
           doc={doc}
-          locked={isLocked}
+          locked={
+            isLocked
+          }
         />
 
         <div
@@ -1575,14 +2184,19 @@ function DocumentCard({
             text-slate-500
           "
         >
+
           <span className="flex items-center gap-1.5">
-            <Clock size={13} />
+
+            <Clock
+              size={13}
+            />
 
             {doc.created_at
               ? new Date(
                   doc.created_at
                 ).toLocaleDateString()
               : "Learning Asset"}
+
           </span>
 
           {doc.file_size && (
@@ -1602,6 +2216,7 @@ function DocumentCard({
               )}
             </span>
           )}
+
         </div>
 
         <h3
@@ -1633,7 +2248,55 @@ function DocumentCard({
             "No description provided for this learning resource."}
         </p>
 
-        {isLocked && (
+        {isAdmin ? (
+
+          <div
+            className="
+              mt-4
+              flex
+              items-center
+              gap-3
+              rounded-2xl
+              border
+              border-cyan-400/15
+              bg-cyan-400/[0.06]
+              p-3
+            "
+          >
+
+            <div
+              className="
+                flex
+                h-9
+                w-9
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                bg-cyan-400/10
+                text-cyan-300
+              "
+            >
+              <ShieldCheck
+                size={16}
+              />
+            </div>
+
+            <div>
+
+              <p className="text-xs font-black text-cyan-300">
+                Administrator Access
+              </p>
+
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                Full access granted. No purchase required.
+              </p>
+
+            </div>
+          </div>
+
+        ) : isLocked ? (
+
           <div
             className="
               mt-4
@@ -1647,6 +2310,7 @@ function DocumentCard({
               p-3
             "
           >
+
             <div
               className="
                 flex
@@ -1660,10 +2324,13 @@ function DocumentCard({
                 text-amber-300
               "
             >
-              <Lock size={16} />
+              <Lock
+                size={16}
+              />
             </div>
 
             <div>
+
               <p className="text-xs font-black text-amber-300">
                 Premium Resource
               </p>
@@ -1676,11 +2343,12 @@ function DocumentCard({
                 </span>
                 .
               </p>
+
             </div>
           </div>
-        )}
 
-        {!isLocked && (
+        ) : (
+
           <div
             className="
               mt-4
@@ -1694,6 +2362,7 @@ function DocumentCard({
               p-3
             "
           >
+
             <div
               className="
                 flex
@@ -1707,10 +2376,13 @@ function DocumentCard({
                 text-emerald-300
               "
             >
-              <CheckCircle2 size={16} />
+              <CheckCircle2
+                size={16}
+              />
             </div>
 
             <div>
+
               <p className="text-xs font-black text-emerald-300">
                 Access Granted
               </p>
@@ -1718,6 +2390,7 @@ function DocumentCard({
               <p className="mt-0.5 text-[11px] text-slate-500">
                 You purchased this document.
               </p>
+
             </div>
           </div>
         )}
@@ -1734,9 +2407,12 @@ function DocumentCard({
         />
 
         <div className="flex gap-2">
+
           <button
             type="button"
-            onClick={handleRead}
+            onClick={
+              handleRead
+            }
             className={`
               group/read
               flex
@@ -1754,15 +2430,36 @@ function DocumentCard({
               hover:-translate-y-0.5
               active:scale-95
               ${
-                isLocked
-                  ? "bg-gradient-to-r from-amber-300 to-orange-400 text-slate-950 shadow-amber-500/10"
-                  : "bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 text-slate-950 shadow-cyan-400/10"
+                isAdmin ||
+                !isLocked
+                  ? "bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 text-slate-950 shadow-cyan-400/10"
+                  : "bg-gradient-to-r from-amber-300 to-orange-400 text-slate-950 shadow-amber-500/10"
               }
             `}
           >
-            {isLocked ? (
+
+            {isAdmin ||
+            !isLocked ? (
               <>
-                <CreditCard size={15} />
+                <BookOpen
+                  size={15}
+                />
+
+                Read Resource
+
+                <ExternalLink
+                  size={14}
+                  className="
+                    transition-transform
+                    group-hover/read:translate-x-0.5
+                  "
+                />
+              </>
+            ) : (
+              <>
+                <CreditCard
+                  size={15}
+                />
 
                 Pay ₦
                 {documentPrice.toLocaleString()}
@@ -1776,30 +2473,20 @@ function DocumentCard({
                   "
                 />
               </>
-            ) : (
-              <>
-                <BookOpen size={15} />
-
-                Read Resource
-
-                <ExternalLink
-                  size={14}
-                  className="
-                    transition-transform
-                    group-hover/read:translate-x-0.5
-                  "
-                />
-              </>
             )}
+
           </button>
 
           <button
             type="button"
-            onClick={handleDownload}
+            onClick={
+              handleDownload
+            }
             title={
-              isLocked
-                ? `Pay ₦${documentPrice.toLocaleString()} for this document`
-                : "Download resource"
+              isAdmin ||
+              !isLocked
+                ? "Download resource"
+                : `Pay ₦${documentPrice.toLocaleString()} for this document`
             }
             className="
               inline-flex
@@ -1818,21 +2505,31 @@ function DocumentCard({
               active:scale-95
             "
           >
-            {isLocked ? (
-              <Lock size={17} />
+
+            {isAdmin ||
+            !isLocked ? (
+              <Download
+                size={17}
+              />
             ) : (
-              <Download size={17} />
+              <Lock
+                size={17}
+              />
             )}
+
           </button>
+
         </div>
       </div>
     </motion.article>
   );
 }
 
-/* =========================================================
-   DOCUMENT THUMBNAIL
-========================================================= */
+/*
+=========================================================
+DOCUMENT THUMBNAIL
+=========================================================
+*/
 
 function DocumentThumbnail({
   doc,
@@ -1866,8 +2563,10 @@ function DocumentThumbnail({
         to-[#211840]
       `}
     >
+
       {doc.thumbnail_url ||
       doc.thumbnail ? (
+
         <img
           src={
             doc.thumbnail_url ||
@@ -1891,10 +2590,16 @@ function DocumentThumbnail({
             }
           `}
         />
+
       ) : (
+
         <motion.div
           animate={{
-            y: [0, -4, 0],
+            y: [
+              0,
+              -4,
+              0,
+            ],
           }}
           transition={{
             duration: 4,
@@ -1910,6 +2615,7 @@ function DocumentThumbnail({
             gap-3
           "
         >
+
           <div
             className="
               relative
@@ -1927,7 +2633,9 @@ function DocumentThumbnail({
               text-cyan-300
             "
           >
-            <FileText size={27} />
+            <FileText
+              size={27}
+            />
           </div>
 
           {!compact && (
@@ -1944,6 +2652,7 @@ function DocumentThumbnail({
                 "Document"}
             </span>
           )}
+
         </motion.div>
       )}
 
@@ -1959,6 +2668,7 @@ function DocumentThumbnail({
             backdrop-blur-[1px]
           "
         >
+
           <div
             className="
               flex
@@ -1974,8 +2684,11 @@ function DocumentThumbnail({
               shadow-2xl
             "
           >
-            <Lock size={27} />
+            <Lock
+              size={27}
+            />
           </div>
+
         </div>
       )}
 
@@ -2000,13 +2713,17 @@ function DocumentThumbnail({
           backdrop-blur-xl
         "
       >
-        <Zap size={10} />
+
+        <Zap
+          size={10}
+        />
 
         {doc.file_type?.toUpperCase() ||
           "FILE"}
+
       </div>
 
-      {!compact && (
+      {!compact && !isAdminForThumbnail(locked) && (
         <div
           className="
             absolute
@@ -2028,18 +2745,42 @@ function DocumentThumbnail({
             backdrop-blur-xl
           "
         >
-          <Crown size={10} />
+
+          <Crown
+            size={10}
+          />
 
           Premium
+
         </div>
       )}
+
     </div>
   );
 }
 
-/* =========================================================
-   PREMIUM STAT
-========================================================= */
+/*
+=========================================================
+HELPER
+
+The thumbnail itself does not receive isAdmin.
+
+For admin cards, the Premium badge is already harmless,
+but we keep this helper so the component remains safe.
+=========================================================
+*/
+
+function isAdminForThumbnail(
+  locked
+) {
+  return false;
+}
+
+/*
+=========================================================
+PREMIUM STAT
+=========================================================
+*/
 
 function PremiumStat({
   icon,
@@ -2063,6 +2804,7 @@ function PremiumStat({
         backdrop-blur-xl
       "
     >
+
       <div
         className={`
           flex
@@ -2099,13 +2841,16 @@ function PremiumStat({
       >
         {value}
       </p>
+
     </motion.div>
   );
 }
 
-/* =========================================================
-   FILTER BUTTON
-========================================================= */
+/*
+=========================================================
+FILTER BUTTON
+=========================================================
+*/
 
 function FilterButton({
   children,
@@ -2115,7 +2860,9 @@ function FilterButton({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={
+        onClick
+      }
       className={`
         rounded-xl
         px-4
@@ -2135,68 +2882,131 @@ function FilterButton({
   );
 }
 
-/* =========================================================
-   PARTICLES
-========================================================= */
+/*
+=========================================================
+PARTICLES
+=========================================================
+*/
 
 function AnimeParticles() {
-  const particles = Array.from(
-    {
-      length: 32,
-    },
-    (_, index) => ({
-      id: index,
-      left: `${(index * 37) % 100}%`,
-      top: `${(index * 61) % 100}%`,
-      size: 2 + (index % 3),
-      delay: (index % 8) * 0.7,
-      duration: 4 + (index % 6),
-    })
-  );
+  const particles =
+    Array.from(
+      {
+        length: 32,
+      },
+      (_, index) => ({
+        id: index,
+
+        left: `${
+          (index * 37) %
+          100
+        }%`,
+
+        top: `${
+          (index * 61) %
+          100
+        }%`,
+
+        size:
+          2 +
+          (index % 3),
+
+        delay:
+          (index % 8) *
+          0.7,
+
+        duration:
+          4 +
+          (index % 6),
+      })
+    );
 
   return (
     <>
-      {particles.map((particle) => (
-        <motion.span
-          key={particle.id}
-          className="
-            absolute
-            rounded-full
-            bg-cyan-200
-            shadow-[0_0_12px_rgba(103,232,249,0.8)]
-          "
-          style={{
-            left: particle.left,
-            top: particle.top,
-            width: particle.size,
-            height: particle.size,
-          }}
-          animate={{
-            opacity: [0, 0.8, 0],
-            y: [0, -35, -70],
-            x: [0, 8, -5],
-            scale: [0.5, 1, 0.3],
-          }}
-          transition={{
-            duration: particle.duration,
-            delay: particle.delay,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-      ))}
+      {particles.map(
+        (
+          particle
+        ) => (
+          <motion.span
+            key={
+              particle.id
+            }
+            className="
+              absolute
+              rounded-full
+              bg-cyan-200
+              shadow-[0_0_12px_rgba(103,232,249,0.8)]
+            "
+            style={{
+              left:
+                particle.left,
+
+              top:
+                particle.top,
+
+              width:
+                particle.size,
+
+              height:
+                particle.size,
+            }}
+            animate={{
+              opacity: [
+                0,
+                0.8,
+                0,
+              ],
+
+              y: [
+                0,
+                -35,
+                -70,
+              ],
+
+              x: [
+                0,
+                8,
+                -5,
+              ],
+
+              scale: [
+                0.5,
+                1,
+                0.3,
+              ],
+            }}
+            transition={{
+              duration:
+                particle.duration,
+
+              delay:
+                particle.delay,
+
+              repeat:
+                Infinity,
+
+              ease:
+                "easeInOut",
+            }}
+          />
+        )
+      )}
     </>
   );
 }
 
-/* =========================================================
-   LOADER
-========================================================= */
+/*
+=========================================================
+LOADER
+=========================================================
+*/
 
 function PremiumLoader() {
   return (
     <div className="flex min-h-[400px] items-center justify-center">
+
       <div className="flex flex-col items-center">
+
         <motion.div
           animate={{
             rotate: 360,
@@ -2227,14 +3037,17 @@ function PremiumLoader() {
         <p className="mt-5 text-sm font-bold text-slate-300">
           Preparing your learning workspace...
         </p>
+
       </div>
     </div>
   );
 }
 
-/* =========================================================
-   EMPTY STATE
-========================================================= */
+/*
+=========================================================
+EMPTY STATE
+=========================================================
+*/
 
 function EmptyState({
   searchQuery,
@@ -2266,6 +3079,7 @@ function EmptyState({
         backdrop-blur-2xl
       "
     >
+
       <div
         className="
           flex
@@ -2282,29 +3096,41 @@ function EmptyState({
           text-cyan-300/50
         "
       >
+
         {searchQuery ? (
-          <Search size={32} />
+          <Search
+            size={32}
+          />
         ) : (
-          <FolderOpen size={32} />
+          <FolderOpen
+            size={32}
+          />
         )}
+
       </div>
 
       <h2 className="mt-6 text-2xl font-black text-white">
+
         {searchQuery
           ? "No Matching Resources"
           : "No Learning Materials Yet"}
+
       </h2>
 
       <p className="mt-3 max-w-md text-sm leading-7 text-slate-400">
+
         {searchQuery
           ? `Nothing matched "${searchQuery}". Try another keyword or clear your search.`
           : "This category does not have any resources available yet."}
+
       </p>
 
       {searchQuery && (
         <button
           type="button"
-          onClick={clearSearch}
+          onClick={
+            clearSearch
+          }
           className="
             mt-6
             inline-flex
@@ -2321,11 +3147,16 @@ function EmptyState({
             text-slate-950
           "
         >
-          <X size={15} />
+
+          <X
+            size={15}
+          />
 
           Clear Search
+
         </button>
       )}
+
     </motion.div>
   );
 }

@@ -45,42 +45,61 @@ import {
   PanelRightClose,
 } from "lucide-react";
 
-import { motion, AnimatePresence } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+} from "framer-motion";
 
 import {
   useCourses,
 } from "../../context/LMSContext/CourseContext";
 
 /* ============================================================
-   PDF.JS WORKER
-
-   IMPORTANT:
-   Keep this tied to the installed pdfjs-dist package.
-   Do NOT hard-code another PDF.js version.
+   API
 ============================================================ */
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL?.replace(
+    /\/$/,
+    ""
+  ) || "http://localhost:5000";
+
+/* ============================================================
+   PDF.JS WORKER
+============================================================ */
+
+pdfjs.GlobalWorkerOptions.workerSrc =
+  new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url
+  ).toString();
 
 /* ============================================================
    HELPERS
 ============================================================ */
 
-const clamp = (value, min, max) =>
-  Math.min(Math.max(value, min), max);
+const clamp = (
+  value,
+  min,
+  max
+) =>
+  Math.min(
+    Math.max(value, min),
+    max
+  );
 
 const getFileName = (
   url,
   fallback = "document.pdf"
 ) => {
   try {
-    const pathname = new URL(url).pathname;
+    const pathname =
+      new URL(url).pathname;
 
-    const name = decodeURIComponent(
-      pathname.split("/").pop() || ""
-    );
+    const name =
+      decodeURIComponent(
+        pathname.split("/").pop() || ""
+      );
 
     return name || fallback;
   } catch {
@@ -89,12 +108,61 @@ const getFileName = (
 };
 
 /* ============================================================
+   READ RESPONSE ERROR
+============================================================ */
+
+const getResponseError = async (
+  response
+) => {
+  const contentType =
+    response.headers.get(
+      "content-type"
+    ) || "";
+
+  let message = "";
+
+  try {
+    if (
+      contentType.includes(
+        "application/json"
+      )
+    ) {
+      const data =
+        await response.json();
+
+      message =
+        data?.error ||
+        data?.message ||
+        "";
+    } else {
+      message =
+        await response.text();
+    }
+  } catch {
+    message = "";
+  }
+
+  message =
+    String(message || "").trim();
+
+  if (!message) {
+    message =
+      `Server returned HTTP ${response.status}.`;
+  }
+
+  return message;
+};
+
+/* ============================================================
    MAIN
 ============================================================ */
 
 export default function PDFReader() {
-  const navigate = useNavigate();
-  const { id } = useParams();
+  const navigate =
+    useNavigate();
+
+  const { id } =
+    useParams();
 
   const {
     documents = [],
@@ -105,15 +173,32 @@ export default function PDFReader() {
      DOCUMENT
   ========================================================== */
 
-  const documentData = useMemo(() => {
-    return documents.find(
-      (doc) =>
-        String(doc.id) === String(id)
-    );
-  }, [documents, id]);
+  const documentData =
+    useMemo(() => {
+      return documents.find(
+        (doc) =>
+          String(doc.id) ===
+          String(id)
+      );
+    }, [
+      documents,
+      id,
+    ]);
 
-  const fileUrl =
-    documentData?.file_url;
+  const originalFileUrl =
+    documentData?.file_url || null;
+
+  /*
+   * IMPORTANT:
+   * We no longer give this URL directly to react-pdf.
+   * We fetch it ourselves first.
+   */
+  const fileApiUrl =
+    documentData?.id
+      ? `${API_BASE_URL}/api/documents/${encodeURIComponent(
+          String(documentData.id)
+        )}/file`
+      : null;
 
   /* ==========================================================
      REFS
@@ -128,9 +213,17 @@ export default function PDFReader() {
   const observerRef =
     useRef(null);
 
+  const pdfBlobUrlRef =
+    useRef(null);
+
   /* ==========================================================
      STATE
   ========================================================== */
+
+  const [
+    pdfSource,
+    setPdfSource,
+  ] = useState(null);
 
   const [
     numPages,
@@ -198,39 +291,306 @@ export default function PDFReader() {
   ] = useState(false);
 
   /* ==========================================================
+     LOAD PDF FROM API
+  ========================================================== */
+
+  const loadPdf = useCallback(
+    async () => {
+      if (!fileApiUrl) {
+        setLoadingPdf(false);
+        setPdfError(
+          new Error(
+            "This document does not have a valid file."
+          )
+        );
+        return;
+      }
+
+      setLoadingPdf(true);
+      setPdfError(null);
+      setPdfSource(null);
+      setNumPages(null);
+      setPageNumber(1);
+
+      /*
+       * Clean up previous Blob URL.
+       */
+      if (
+        pdfBlobUrlRef.current
+      ) {
+        URL.revokeObjectURL(
+          pdfBlobUrlRef.current
+        );
+
+        pdfBlobUrlRef.current =
+          null;
+      }
+
+      try {
+        console.log(
+          "📄 Loading PDF:",
+          fileApiUrl
+        );
+
+        const response =
+          await fetch(
+            fileApiUrl,
+            {
+              method: "GET",
+              headers: {
+                Accept:
+                  "application/pdf",
+              },
+              cache: "no-store",
+            }
+          );
+
+        console.log(
+          "📡 PDF API status:",
+          response.status
+        );
+
+        console.log(
+          "📡 PDF content-type:",
+          response.headers.get(
+            "content-type"
+          )
+        );
+
+        /*
+         * Server error.
+         */
+        if (!response.ok) {
+          const message =
+            await getResponseError(
+              response
+            );
+
+          throw new Error(
+            `PDF server error (${response.status}): ${message}`
+          );
+        }
+
+        const contentType =
+          (
+            response.headers.get(
+              "content-type"
+            ) || ""
+          ).toLowerCase();
+
+        /*
+         * Read the actual bytes.
+         */
+        const arrayBuffer =
+          await response.arrayBuffer();
+
+        console.log(
+          "📦 PDF response size:",
+          arrayBuffer.byteLength,
+          "bytes"
+        );
+
+        /*
+         * Empty response.
+         */
+        if (
+          arrayBuffer.byteLength ===
+          0
+        ) {
+          throw new Error(
+            "The server returned an empty PDF response."
+          );
+        }
+
+        /*
+         * Verify PDF magic bytes.
+         *
+         * Every valid PDF starts with:
+         *
+         * %PDF-
+         */
+        const bytes =
+          new Uint8Array(
+            arrayBuffer.slice(
+              0,
+              5
+            )
+          );
+
+        const signature =
+          String.fromCharCode(
+            ...bytes
+          );
+
+        console.log(
+          "🔎 PDF signature:",
+          signature
+        );
+
+        if (
+          signature !==
+          "%PDF-"
+        ) {
+          /*
+           * Try to expose the response if it
+           * was actually JSON/text.
+           */
+          let preview = "";
+
+          try {
+            const text =
+              new TextDecoder()
+                .decode(
+                  new Uint8Array(
+                    arrayBuffer.slice(
+                      0,
+                      500
+                    )
+                  )
+                );
+
+            preview =
+              text
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .trim();
+          } catch {
+            preview = "";
+          }
+
+          throw new Error(
+            `The server did not return a valid PDF. Response signature: "${signature}".${preview ? ` Response: ${preview}` : ""}`
+          );
+        }
+
+        /*
+         * Create a Blob.
+         */
+        const blob =
+          new Blob(
+            [arrayBuffer],
+            {
+              type:
+                "application/pdf",
+            }
+          );
+
+        /*
+         * Create local Blob URL.
+         */
+        const blobUrl =
+          URL.createObjectURL(
+            blob
+          );
+
+        pdfBlobUrlRef.current =
+          blobUrl;
+
+        /*
+         * Give Blob URL to react-pdf.
+         */
+        setPdfSource(
+          blobUrl
+        );
+
+        console.log(
+          "✅ PDF successfully fetched."
+        );
+
+        console.log(
+          "✅ Blob URL created."
+        );
+      } catch (error) {
+        console.error(
+          "❌ PDF FETCH ERROR:",
+          error
+        );
+
+        setPdfSource(null);
+        setLoadingPdf(false);
+        setPdfError(error);
+      }
+    },
+    [fileApiUrl]
+  );
+
+  /* ==========================================================
+     LOAD PDF WHEN DOCUMENT CHANGES
+  ========================================================== */
+
+  useEffect(() => {
+    if (
+      documentsLoading
+    ) {
+      return;
+    }
+
+    if (
+      !documentData
+    ) {
+      return;
+    }
+
+    loadPdf();
+
+    return () => {
+      if (
+        pdfBlobUrlRef.current
+      ) {
+        URL.revokeObjectURL(
+          pdfBlobUrlRef.current
+        );
+
+        pdfBlobUrlRef.current =
+          null;
+      }
+    };
+  }, [
+    documentsLoading,
+    documentData,
+    loadPdf,
+    reloadKey,
+  ]);
+
+  /* ==========================================================
      RESPONSIVE WIDTH
   ========================================================== */
 
   useEffect(() => {
-    const updateWidth = () => {
-      const width =
-        window.innerWidth;
+    const updateWidth =
+      () => {
+        const width =
+          window.innerWidth;
 
-      if (width < 640) {
-        setPageWidth(
-          Math.max(
-            width - 28,
-            260
-          )
-        );
-      } else if (
-        width < 1024
-      ) {
-        setPageWidth(
-          Math.min(
-            width - 70,
-            850
-          )
-        );
-      } else {
-        setPageWidth(
-          Math.min(
-            width - 170,
-            1100
-          )
-        );
-      }
-    };
+        if (
+          width < 640
+        ) {
+          setPageWidth(
+            Math.max(
+              width - 28,
+              260
+            )
+          );
+        } else if (
+          width < 1024
+        ) {
+          setPageWidth(
+            Math.min(
+              width - 70,
+              850
+            )
+          );
+        } else {
+          setPageWidth(
+            Math.min(
+              width - 170,
+              1100
+            )
+          );
+        }
+      };
 
     updateWidth();
 
@@ -258,11 +618,13 @@ export default function PDFReader() {
     setRotation(0);
     setPdfError(null);
     setLoadingPdf(true);
-    setReloadKey(0);
     setSidebarOpen(false);
 
     pageRefs.current = {};
-  }, [id, fileUrl]);
+  }, [
+    id,
+    fileApiUrl,
+  ]);
 
   /* ==========================================================
      PDF LOAD SUCCESS
@@ -270,7 +632,16 @@ export default function PDFReader() {
 
   const handleLoadSuccess =
     useCallback(
-      ({ numPages: totalPages }) => {
+      ({
+        numPages:
+          totalPages,
+      }) => {
+        console.log(
+          "✅ PDF LOAD SUCCESS:",
+          totalPages,
+          "pages"
+        );
+
         setNumPages(
           totalPages
         );
@@ -285,68 +656,84 @@ export default function PDFReader() {
     );
 
   /* ==========================================================
-     PDF ERROR
+     PDF LOAD ERROR
   ========================================================== */
 
   const handleLoadError =
-    useCallback((error) => {
-      console.error(
-        "PDF LOAD ERROR:",
-        error
-      );
+    useCallback(
+      (error) => {
+        console.error(
+          "❌ REACT-PDF LOAD ERROR:",
+          error
+        );
 
-      setLoadingPdf(false);
+        setLoadingPdf(false);
 
-      setPdfError(error);
-    }, []);
+        setPdfError(
+          error instanceof Error
+            ? error
+            : new Error(
+                String(error)
+              )
+        );
+      },
+      []
+    );
 
   /* ==========================================================
      PAGE SCROLL
   ========================================================== */
 
-  const scrollToPage = useCallback(
-    (page) => {
-      if (!numPages) {
-        return;
-      }
+  const scrollToPage =
+    useCallback(
+      (page) => {
+        if (!numPages) {
+          return;
+        }
 
-      const targetPage =
-        clamp(
-          page,
-          1,
-          numPages
-        );
+        const targetPage =
+          clamp(
+            page,
+            1,
+            numPages
+          );
 
-      const element =
-        pageRefs.current[
+        const element =
+          pageRefs.current[
+            targetPage
+          ];
+
+        if (!element) {
+          return;
+        }
+
+        setPageNumber(
           targetPage
-        ];
-
-      if (!element) {
-        return;
-      }
-
-      setPageNumber(
-        targetPage
-      );
-
-      setIsProgrammaticScroll(
-        true
-      );
-
-      element.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-
-      window.setTimeout(() => {
-        setIsProgrammaticScroll(
-          false
         );
-      }, 700);
-    },
-    [numPages]
-  );
+
+        setIsProgrammaticScroll(
+          true
+        );
+
+        element.scrollIntoView(
+          {
+            behavior:
+              "smooth",
+            block: "start",
+          }
+        );
+
+        window.setTimeout(
+          () => {
+            setIsProgrammaticScroll(
+              false
+            );
+          },
+          700
+        );
+      },
+      [numPages]
+    );
 
   /* ==========================================================
      PAGE OBSERVER
@@ -357,7 +744,9 @@ export default function PDFReader() {
       return;
     }
 
-    if (observerRef.current) {
+    if (
+      observerRef.current
+    ) {
       observerRef.current.disconnect();
     }
 
@@ -373,11 +762,16 @@ export default function PDFReader() {
           const visibleEntries =
             entries
               .filter(
-                (entry) =>
+                (
+                  entry
+                ) =>
                   entry.isIntersecting
               )
               .sort(
-                (a, b) =>
+                (
+                  a,
+                  b
+                ) =>
                   b.intersectionRatio -
                   a.intersectionRatio
               );
@@ -389,12 +783,14 @@ export default function PDFReader() {
               Number(
                 visibleEntries[0]
                   .target
-                  .dataset.page
+                  .dataset
+                  .page
               );
 
             if (
               page &&
-              page !== pageNumber
+              page !==
+                pageNumber
             ) {
               setPageNumber(
                 page
@@ -447,122 +843,132 @@ export default function PDFReader() {
   ========================================================== */
 
   useEffect(() => {
-    const handleKeyDown = (
-      event
-    ) => {
-      const target =
-        event.target;
+    const handleKeyDown =
+      (event) => {
+        const target =
+          event.target;
 
-      const isTyping =
-        target instanceof
-          HTMLInputElement ||
-        target instanceof
-          HTMLTextAreaElement ||
-        target instanceof
-          HTMLSelectElement;
+        const isTyping =
+          target instanceof
+            HTMLInputElement ||
+          target instanceof
+            HTMLTextAreaElement ||
+          target instanceof
+            HTMLSelectElement;
 
-      if (isTyping) {
-        return;
-      }
+        if (
+          isTyping
+        ) {
+          return;
+        }
 
-      if (
-        event.key ===
-          "ArrowRight" ||
-        event.key ===
-          "PageDown"
-      ) {
-        event.preventDefault();
+        if (
+          event.key ===
+            "ArrowRight" ||
+          event.key ===
+            "PageDown"
+        ) {
+          event.preventDefault();
 
-        scrollToPage(
-          pageNumber + 1
-        );
-      }
+          scrollToPage(
+            pageNumber + 1
+          );
+        }
 
-      if (
-        event.key ===
-          "ArrowLeft" ||
-        event.key ===
-          "PageUp"
-      ) {
-        event.preventDefault();
+        if (
+          event.key ===
+            "ArrowLeft" ||
+          event.key ===
+            "PageUp"
+        ) {
+          event.preventDefault();
 
-        scrollToPage(
-          pageNumber - 1
-        );
-      }
+          scrollToPage(
+            pageNumber - 1
+          );
+        }
 
-      if (
-        event.key === "+" ||
-        event.key === "="
-      ) {
-        event.preventDefault();
+        if (
+          event.key ===
+            "+" ||
+          event.key ===
+            "="
+        ) {
+          event.preventDefault();
 
-        setScale(
-          (current) =>
-            clamp(
-              Number(
-                (
-                  current +
-                  0.1
-                ).toFixed(2)
-              ),
-              0.5,
-              2.5
-            )
-        );
-      }
+          setScale(
+            (current) =>
+              clamp(
+                Number(
+                  (
+                    current +
+                    0.1
+                  ).toFixed(
+                    2
+                  )
+                ),
+                0.5,
+                2.5
+              )
+          );
+        }
 
-      if (
-        event.key === "-"
-      ) {
-        event.preventDefault();
+        if (
+          event.key ===
+          "-"
+        ) {
+          event.preventDefault();
 
-        setScale(
-          (current) =>
-            clamp(
-              Number(
-                (
-                  current -
-                  0.1
-                ).toFixed(2)
-              ),
-              0.5,
-              2.5
-            )
-        );
-      }
+          setScale(
+            (current) =>
+              clamp(
+                Number(
+                  (
+                    current -
+                    0.1
+                  ).toFixed(
+                    2
+                  )
+                ),
+                0.5,
+                2.5
+              )
+          );
+        }
 
-      if (
-        event.key ===
-        "Escape"
-      ) {
-        setIsFullscreen(
-          false
-        );
+        if (
+          event.key ===
+          "Escape"
+        ) {
+          setIsFullscreen(
+            false
+          );
 
-        setSidebarOpen(
-          false
-        );
-      }
+          setSidebarOpen(
+            false
+          );
+        }
 
-      if (
-        event.key === "Home"
-      ) {
-        event.preventDefault();
+        if (
+          event.key ===
+          "Home"
+        ) {
+          event.preventDefault();
 
-        scrollToPage(1);
-      }
+          scrollToPage(1);
+        }
 
-      if (
-        event.key === "End"
-      ) {
-        event.preventDefault();
+        if (
+          event.key ===
+          "End"
+        ) {
+          event.preventDefault();
 
-        scrollToPage(
-          numPages || 1
-        );
-      }
-    };
+          scrollToPage(
+            numPages || 1
+          );
+        }
+      };
 
     window.addEventListener(
       "keydown",
@@ -585,97 +991,148 @@ export default function PDFReader() {
      RETRY
   ========================================================== */
 
-  const retryPdf = () => {
-    setPdfError(null);
-    setLoadingPdf(true);
-    setNumPages(null);
-    setPageNumber(1);
+  const retryPdf =
+    () => {
+      setPdfError(null);
+      setPdfSource(null);
+      setLoadingPdf(true);
+      setNumPages(null);
+      setPageNumber(1);
 
-    pageRefs.current = {};
+      pageRefs.current = {};
 
-    setReloadKey(
-      (current) =>
-        current + 1
-    );
-  };
+      setReloadKey(
+        (current) =>
+          current + 1
+      );
+    };
 
   /* ==========================================================
      DOWNLOAD
   ========================================================== */
 
   const handleDownload =
-    () => {
-      if (!fileUrl) {
+    async () => {
+      if (!fileApiUrl) {
         return;
       }
 
-      const link =
-        document.createElement(
-          "a"
-        );
+      try {
+        /*
+         * Download through the same API.
+         */
+        const response =
+          await fetch(
+            fileApiUrl,
+            {
+              headers: {
+                Accept:
+                  "application/pdf",
+              },
+            }
+          );
 
-      link.href = fileUrl;
+        if (!response.ok) {
+          const message =
+            await getResponseError(
+              response
+            );
 
-      link.download =
-        getFileName(
-          fileUrl,
+          throw new Error(
+            message
+          );
+        }
+
+        const blob =
+          await response.blob();
+
+        const downloadUrl =
+          URL.createObjectURL(
+            blob
+          );
+
+        const link =
+          document.createElement(
+            "a"
+          );
+
+        link.href =
+          downloadUrl;
+
+        link.download =
           documentData?.title
             ? `${documentData.title}.pdf`
-            : "document.pdf"
+            : getFileName(
+                originalFileUrl,
+                "document.pdf"
+              );
+
+        document.body.appendChild(
+          link
         );
 
-      link.target =
-        "_blank";
+        link.click();
 
-      link.rel =
-        "noopener noreferrer";
+        document.body.removeChild(
+          link
+        );
 
-      document.body.appendChild(
-        link
-      );
+        URL.revokeObjectURL(
+          downloadUrl
+        );
+      } catch (error) {
+        console.error(
+          "DOWNLOAD ERROR:",
+          error
+        );
 
-      link.click();
-
-      document.body.removeChild(
-        link
-      );
+        setPdfError(
+          error instanceof Error
+            ? error
+            : new Error(
+                "Unable to download PDF."
+              )
+        );
+      }
     };
 
   /* ==========================================================
      ZOOM
   ========================================================== */
 
-  const zoomIn = () => {
-    setScale(
-      (current) =>
-        clamp(
-          Number(
-            (
-              current +
-              0.1
-            ).toFixed(2)
-          ),
-          0.5,
-          2.5
-        )
-    );
-  };
+  const zoomIn =
+    () => {
+      setScale(
+        (current) =>
+          clamp(
+            Number(
+              (
+                current +
+                0.1
+              ).toFixed(2)
+            ),
+            0.5,
+            2.5
+          )
+      );
+    };
 
-  const zoomOut = () => {
-    setScale(
-      (current) =>
-        clamp(
-          Number(
-            (
-              current -
-              0.1
-            ).toFixed(2)
-          ),
-          0.5,
-          2.5
-        )
-    );
-  };
+  const zoomOut =
+    () => {
+      setScale(
+        (current) =>
+          clamp(
+            Number(
+              (
+                current -
+                0.1
+              ).toFixed(2)
+            ),
+            0.5,
+            2.5
+          )
+      );
+    };
 
   /* ==========================================================
      FULLSCREEN
@@ -701,7 +1158,9 @@ export default function PDFReader() {
         );
 
       if (
-        !Number.isNaN(value) &&
+        !Number.isNaN(
+          value
+        ) &&
         numPages
       ) {
         scrollToPage(
@@ -722,10 +1181,12 @@ export default function PDFReader() {
     };
 
   /* ==========================================================
-     LOADING
+     LOADING DOCUMENT LIST
   ========================================================== */
 
-  if (documentsLoading) {
+  if (
+    documentsLoading
+  ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#02040a] text-white">
         <div className="text-center">
@@ -787,7 +1248,7 @@ export default function PDFReader() {
      NO FILE
   ========================================================== */
 
-  if (!fileUrl) {
+  if (!fileApiUrl) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#02040a] px-6 text-white">
         <div className="w-full max-w-md rounded-[32px] border border-red-500/20 bg-slate-900/80 p-8 text-center shadow-2xl backdrop-blur-xl">
@@ -804,8 +1265,8 @@ export default function PDFReader() {
 
           <p className="mt-3 text-sm leading-6 text-slate-400">
             This document does
-            not have a valid
-            storage URL.
+            not have a valid file
+            associated with it.
           </p>
 
           <button
@@ -845,17 +1306,25 @@ export default function PDFReader() {
           </h1>
 
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            The PDF could not
-            be displayed. The
-            file may be unavailable
-            or the storage URL
-            may have expired.
+            The document could not
+            be loaded from the
+            document server.
           </p>
 
           <div className="mt-5 overflow-hidden rounded-2xl border border-slate-800 bg-black/30 p-4 text-left">
             <p className="break-words text-xs leading-5 text-red-300">
               {pdfError?.message ||
                 "Unknown PDF error"}
+            </p>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4 text-left">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+              Document API
+            </p>
+
+            <p className="mt-2 break-all text-[11px] leading-5 text-slate-500">
+              {fileApiUrl}
             </p>
           </div>
 
@@ -876,7 +1345,7 @@ export default function PDFReader() {
             <button
               onClick={() =>
                 window.open(
-                  fileUrl,
+                  fileApiUrl,
                   "_blank",
                   "noopener,noreferrer"
                 )
@@ -941,8 +1410,6 @@ export default function PDFReader() {
 
         <div className="mx-auto flex min-h-[68px] max-w-[1700px] items-center gap-2 px-3 sm:gap-3 sm:px-6">
 
-          {/* BACK */}
-
           <button
             onClick={() =>
               navigate(-1)
@@ -956,8 +1423,6 @@ export default function PDFReader() {
             />
           </button>
 
-          {/* HOME */}
-
           <button
             onClick={() =>
               navigate("/")
@@ -970,16 +1435,12 @@ export default function PDFReader() {
             />
           </button>
 
-          {/* DOCUMENT ICON */}
-
           <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/10 sm:flex">
             <FileText
               size={18}
               className="text-cyan-300"
             />
           </div>
-
-          {/* TITLE */}
 
           <div className="min-w-0 flex-1">
 
@@ -1012,8 +1473,6 @@ export default function PDFReader() {
 
           </div>
 
-          {/* SEARCH */}
-
           <div className="hidden items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 transition focus-within:border-cyan-400/30 focus-within:bg-cyan-400/[0.04] lg:flex">
 
             <Search
@@ -1034,8 +1493,6 @@ export default function PDFReader() {
 
           </div>
 
-          {/* MOBILE SIDEBAR */}
-
           <button
             onClick={() =>
               setSidebarOpen(
@@ -1053,8 +1510,6 @@ export default function PDFReader() {
             )}
           </button>
 
-          {/* DOWNLOAD */}
-
           <button
             onClick={
               handleDownload
@@ -1067,8 +1522,6 @@ export default function PDFReader() {
               className="transition-transform duration-300 group-hover:-translate-y-0.5"
             />
           </button>
-
-          {/* FULLSCREEN */}
 
           <button
             onClick={
@@ -1103,11 +1556,7 @@ export default function PDFReader() {
 
         <div className="mx-auto flex max-w-[1700px] items-center justify-between gap-3 px-3 py-2.5 sm:px-6">
 
-          {/* LEFT CONTROLS */}
-
           <div className="flex min-w-0 items-center gap-1.5">
-
-            {/* PREVIOUS */}
 
             <button
               onClick={() =>
@@ -1125,8 +1574,6 @@ export default function PDFReader() {
                 size={17}
               />
             </button>
-
-            {/* PAGE INDICATOR */}
 
             <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.07] bg-white/[0.035] px-2.5 py-1.5">
 
@@ -1157,8 +1604,6 @@ export default function PDFReader() {
 
             </div>
 
-            {/* NEXT */}
-
             <button
               onClick={() =>
                 scrollToPage(
@@ -1180,11 +1625,7 @@ export default function PDFReader() {
 
           </div>
 
-          {/* CENTER CONTROLS */}
-
           <div className="hidden items-center gap-1.5 sm:flex">
-
-            {/* ZOOM OUT */}
 
             <button
               onClick={
@@ -1201,16 +1642,12 @@ export default function PDFReader() {
               />
             </button>
 
-            {/* SCALE */}
-
             <div className="min-w-[58px] rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2 text-center text-[11px] font-black text-slate-400">
               {Math.round(
                 scale * 100
               )}
               %
             </div>
-
-            {/* ZOOM IN */}
 
             <button
               onClick={
@@ -1228,8 +1665,6 @@ export default function PDFReader() {
             </button>
 
             <div className="mx-1 h-6 w-px bg-white/[0.07]" />
-
-            {/* ROTATE */}
 
             <button
               onClick={() =>
@@ -1250,11 +1685,7 @@ export default function PDFReader() {
 
           </div>
 
-          {/* RIGHT */}
-
           <div className="flex items-center gap-1.5">
-
-            {/* PAGE PANEL */}
 
             <button
               onClick={() =>
@@ -1276,8 +1707,6 @@ export default function PDFReader() {
                 />
               )}
             </button>
-
-            {/* MOBILE ZOOM */}
 
             <div className="flex items-center gap-1 sm:hidden">
 
@@ -1376,156 +1805,144 @@ export default function PDFReader() {
         className="relative min-h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden px-2 py-6 sm:px-5 sm:py-8 lg:px-8"
       >
 
-        {/* TOP GLOW */}
-
         <div className="pointer-events-none absolute left-1/2 top-0 h-48 w-[70%] -translate-x-1/2 rounded-full bg-cyan-500/[0.035] blur-[100px]" />
 
         <div className="relative mx-auto flex w-full max-w-[1500px] justify-center">
 
-          {/* =================================================
-              DOCUMENT COLUMN
-          ================================================= */}
-
           <div className="w-full min-w-0">
 
-            <Document
-              key={reloadKey}
-              file={fileUrl}
-              onLoadSuccess={
-                handleLoadSuccess
-              }
-              onLoadError={
-                handleLoadError
-              }
-              loading={null}
-              error={null}
-              className="flex w-full flex-col items-center"
-            >
+            {pdfSource && (
+              <Document
+                key={`${reloadKey}-${pdfSource}`}
+                file={pdfSource}
+                onLoadSuccess={
+                  handleLoadSuccess
+                }
+                onLoadError={
+                  handleLoadError
+                }
+                loading={null}
+                error={null}
+                className="flex w-full flex-col items-center"
+              >
 
-              {/* =================================================
-                  ALL PDF PAGES
-              ================================================= */}
+                {numPages &&
+                  Array.from(
+                    {
+                      length:
+                        numPages,
+                    },
+                    (
+                      _,
+                      index
+                    ) => {
+                      const page =
+                        index + 1;
 
-              {numPages &&
-                Array.from(
-                  {
-                    length:
-                      numPages,
-                  },
-                  (
-                    _,
-                    index
-                  ) => {
-                    const page =
-                      index + 1;
-
-                    return (
-                      <motion.div
-                        key={
-                          page
-                        }
-                        ref={(
-                          element
-                        ) => {
-                          if (
-                            element
-                          ) {
-                            pageRefs.current[
-                              page
-                            ] =
-                              element;
+                      return (
+                        <motion.div
+                          key={
+                            page
                           }
-                        }}
-                        data-page={
-                          page
-                        }
-                        initial={{
-                          opacity: 0,
-                          y: 12,
-                        }}
-                        animate={{
-                          opacity: 1,
-                          y: 0,
-                        }}
-                        transition={{
-                          duration:
-                            0.25,
-                          delay:
-                            Math.min(
-                              index *
-                                0.015,
-                              0.25
-                            ),
-                        }}
-                        className="relative mb-7 w-fit max-w-full sm:mb-9"
-                      >
-
-                        {/* PAGE LABEL */}
-
-                        <div className="absolute -left-1 -top-6 flex items-center gap-2 sm:-left-10 sm:top-2 sm:flex-col">
-
-                          <span className="rounded-full border border-white/[0.07] bg-[#080d18]/90 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-slate-600 shadow-xl backdrop-blur-xl sm:rotate-[-90deg]">
-                            Page{" "}
-                            {page}
-                          </span>
-
-                        </div>
-
-                        {/* PAGE SHADOW / FRAME */}
-
-                        <div className="relative overflow-hidden rounded-sm border border-white/[0.06] bg-white shadow-[0_25px_80px_rgba(0,0,0,0.5)]">
-
-                          <Page
-                            pageNumber={
-                              page
+                          ref={(
+                            element
+                          ) => {
+                            if (
+                              element
+                            ) {
+                              pageRefs.current[
+                                page
+                              ] =
+                                element;
                             }
-                            width={
-                              pageWidth *
-                              scale
-                            }
-                            rotate={
-                              rotation
-                            }
-                            renderTextLayer={
-                              true
-                            }
-                            renderAnnotationLayer={
-                              true
-                            }
-                            loading={
-                              <div
-                                className="flex items-center justify-center bg-white"
-                                style={{
-                                  width:
-                                    pageWidth *
-                                    scale,
-                                  minHeight:
-                                    500,
-                                }}
-                              >
-                                <Loader2
-                                  size={
-                                    28
-                                  }
-                                  className="animate-spin text-slate-400"
-                                />
-                              </div>
-                            }
-                            className="block max-w-full"
-                          />
+                          }}
+                          data-page={
+                            page
+                          }
+                          initial={{
+                            opacity: 0,
+                            y: 12,
+                          }}
+                          animate={{
+                            opacity: 1,
+                            y: 0,
+                          }}
+                          transition={{
+                            duration:
+                              0.25,
+                            delay:
+                              Math.min(
+                                index *
+                                  0.015,
+                                0.25
+                              ),
+                          }}
+                          className="relative mb-7 w-fit max-w-full sm:mb-9"
+                        >
 
-                        </div>
+                          <div className="absolute -left-1 -top-6 flex items-center gap-2 sm:-left-10 sm:top-2 sm:flex-col">
 
-                      </motion.div>
-                    );
-                  }
-                )}
+                            <span className="rounded-full border border-white/[0.07] bg-[#080d18]/90 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-slate-600 shadow-xl backdrop-blur-xl sm:rotate-[-90deg]">
+                              Page{" "}
+                              {page}
+                            </span>
 
-            </Document>
+                          </div>
 
-            {/* =================================================
+                          <div className="relative overflow-hidden rounded-sm border border-white/[0.06] bg-white shadow-[0_25px_80px_rgba(0,0,0,0.5)]">
+
+                            <Page
+                              pageNumber={
+                                page
+                              }
+                              width={
+                                pageWidth *
+                                scale
+                              }
+                              rotate={
+                                rotation
+                              }
+                              renderTextLayer={
+                                true
+                              }
+                              renderAnnotationLayer={
+                                true
+                              }
+                              loading={
+                                <div
+                                  className="flex items-center justify-center bg-white"
+                                  style={{
+                                    width:
+                                      pageWidth *
+                                      scale,
+                                    minHeight:
+                                      500,
+                                  }}
+                                >
+                                  <Loader2
+                                    size={
+                                      28
+                                    }
+                                    className="animate-spin text-slate-400"
+                                  />
+                                </div>
+                              }
+                              className="block max-w-full"
+                            />
+
+                          </div>
+
+                        </motion.div>
+                      );
+                    }
+                  )}
+
+              </Document>
+            )}
+
+            {/* ==================================================
                 LOADING OVERLAY
-            ================================================= */}
+            ================================================== */}
 
             {loadingPdf && (
               <motion.div
@@ -1570,9 +1987,9 @@ export default function PDFReader() {
 
           </div>
 
-          {/* =================================================
+          {/* ==================================================
               PAGE OVERVIEW
-          ================================================= */}
+          ================================================== */}
 
           <AnimatePresence>
             {showPagePanel &&

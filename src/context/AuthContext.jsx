@@ -1,35 +1,80 @@
-import { createContext, useState, useEffect } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { createContext, useEffect, useState } from "react";
 
 export const AuthContext = createContext(null);
+
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
+).replace(/\/+$/, "");
+
+const AUTH_TOKEN_KEY = "scholiqen_auth_token";
+const AUTH_USER_KEY = "scholiqen_current_user";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  /* ================= FETCH PROFILE ================= */
+  // =========================================================
+  // FETCH CURRENT USER FROM NEON
+  // =========================================================
 
-  const fetchProfile = async (userId) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+  const fetchCurrentUser = async () => {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
 
-    console.log("Logged In User ID:", userId);
-    console.log("Fetched Profile:", data);
-    console.log("Profile Error:", error);
-
-    if (error) {
+    if (!token) {
+      setUser(null);
       setProfile(null);
-      return;
+      return null;
     }
 
-    setProfile(data);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Session expired or invalid.");
+      }
+
+      const data = await response.json();
+
+      if (!data?.user) {
+        throw new Error("User information was not returned.");
+      }
+
+      const currentUser = data.user;
+
+      setUser(currentUser);
+
+      // Keep profile compatible with ProtectedAdminRoute
+      setProfile(currentUser);
+
+      localStorage.setItem(
+        AUTH_USER_KEY,
+        JSON.stringify(currentUser)
+      );
+
+      return currentUser;
+    } catch (error) {
+      console.error("Auth session error:", error);
+
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_USER_KEY);
+
+      setUser(null);
+      setProfile(null);
+
+      return null;
+    }
   };
 
-  /* ================= INIT SESSION ================= */
+  // =========================================================
+  // INITIAL AUTH CHECK
+  // =========================================================
 
   useEffect(() => {
     let mounted = true;
@@ -37,55 +82,90 @@ export const AuthProvider = ({ children }) => {
     const initAuth = async () => {
       setLoading(true);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const currentUser = await fetchCurrentUser();
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      const currentUser = session?.user ?? null;
-
-      setUser(currentUser);
-
-      if (currentUser) {
-        await fetchProfile(currentUser.id);
+        if (currentUser) {
+          setUser(currentUser);
+          setProfile(currentUser);
+        }
+      } catch (error) {
+        console.error("Initial auth error:", error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     };
 
     initAuth();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const currentUser = session?.user ?? null;
-
-        setUser(currentUser);
-
-        if (currentUser) {
-          await fetchProfile(currentUser.id);
-        } else {
-          setProfile(null);
-        }
-
-        setLoading(false);
-      }
-    );
-
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
   }, []);
 
-  /* ================= LOGOUT ================= */
+  // =========================================================
+  // LOGOUT
+  // =========================================================
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
+
     setUser(null);
     setProfile(null);
+
+    // Send user back to login if logout is called manually
+    window.location.href = "/login";
+  };
+
+  // =========================================================
+  // LOGIN HELPER
+  // =========================================================
+
+  const login = async (email, password) => {
+    const response = await fetch(`${API_URL}/api/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message || "Unable to login."
+      );
+    }
+
+    if (!data?.token || !data?.user) {
+      throw new Error(
+        "Login response is missing authentication data."
+      );
+    }
+
+    localStorage.setItem(
+      AUTH_TOKEN_KEY,
+      data.token
+    );
+
+    localStorage.setItem(
+      AUTH_USER_KEY,
+      JSON.stringify(data.user)
+    );
+
+    setUser(data.user);
+    setProfile(data.user);
+
+    return data.user;
   };
 
   return (
@@ -94,7 +174,9 @@ export const AuthProvider = ({ children }) => {
         user,
         profile,
         loading,
+        login,
         logout,
+        refreshUser: fetchCurrentUser,
       }}
     >
       {children}

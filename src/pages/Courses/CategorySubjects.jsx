@@ -1,10 +1,12 @@
+// src/pages/courses/CategorySubjects.jsx
+
 import React, {
-  useContext,
   useMemo,
   useState,
 } from "react";
 
 import { motion } from "framer-motion";
+
 import {
   useNavigate,
   useParams,
@@ -21,7 +23,6 @@ import {
   Compass,
   CheckCircle2,
   Clock,
-  Flame,
   Layers3,
   X,
   ChevronRight,
@@ -33,9 +34,6 @@ import {
   TrendingUp,
   Zap,
   FolderOpen,
-  Crown,
-  Lock,
-  CreditCard,
 } from "lucide-react";
 
 import {
@@ -48,75 +46,13 @@ import {
 
 /*
 =========================================================
-DOCUMENT PRICE
-=========================================================
-*/
-
-const DOCUMENT_PRICE = 4000;
-
-/*
-=========================================================
-ANIMATIONS
-=========================================================
-*/
-
-const containerVariants = {
-  hidden: {
-    opacity: 0,
-  },
-
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.07,
-      delayChildren: 0.08,
-    },
-  },
-};
-
-const cardAnimationVariants = {
-  hidden: {
-    opacity: 0,
-    y: 35,
-    scale: 0.96,
-  },
-
-  show: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      type: "spring",
-      stiffness: 260,
-      damping: 22,
-    },
-  },
-};
-
-const fadeUp = {
-  hidden: {
-    opacity: 0,
-    y: 25,
-  },
-
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.6,
-      ease: "easeOut",
-    },
-  },
-};
-
-/*
-=========================================================
 MAIN COMPONENT
 =========================================================
 */
 
 export default function CategorySubjects() {
   const navigate = useNavigate();
+
   const { categoryId } = useParams();
 
   /*
@@ -136,36 +72,15 @@ export default function CategorySubjects() {
   /*
   =======================================================
   ADMIN CONTEXT
-
-  THIS IS THE IMPORTANT FIX.
-
-  Your ConnectContext already determines whether
-  the logged-in user is an admin.
-
-  We now actually consume that value here.
   =======================================================
   */
 
   const connectContext =
-    useContext(ConnectContext) || {};
+    React.useContext(ConnectContext) || {};
 
   const {
     isAdmin = false,
-    currentUser = null,
   } = connectContext;
-
-  /*
-  =======================================================
-  PURCHASE SOURCE
-  =======================================================
-  */
-
-  const purchaseSource =
-    courseContext.documentPurchases ??
-    courseContext.userPurchases ??
-    courseContext.purchases ??
-    courseContext.purchasedDocuments ??
-    [];
 
   /*
   =======================================================
@@ -173,7 +88,9 @@ export default function CategorySubjects() {
   =======================================================
   */
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] =
+    useState("");
+
   const [activeFilter, setActiveFilter] =
     useState("all");
 
@@ -184,9 +101,9 @@ export default function CategorySubjects() {
     useState("latest");
 
   /*
-  =========================================================
+  =======================================================
   SELECTED CATEGORY
-  =========================================================
+  =======================================================
   */
 
   const selectedCategory = useMemo(() => {
@@ -201,61 +118,9 @@ export default function CategorySubjects() {
   ]);
 
   /*
-  =========================================================
-  PURCHASED DOCUMENT IDS
-  =========================================================
-  */
-
-  const purchasedDocumentIds = useMemo(() => {
-    const ids = new Set();
-
-    if (!Array.isArray(purchaseSource)) {
-      return ids;
-    }
-
-    purchaseSource.forEach((purchase) => {
-      if (!purchase) return;
-
-      const documentId =
-        purchase.document_id ??
-        purchase.documentId ??
-        purchase.resource_id ??
-        purchase.resourceId;
-
-      if (!documentId) return;
-
-      const status = String(
-        purchase.status ??
-          purchase.payment_status ??
-          purchase.paymentStatus ??
-          "paid"
-      ).toLowerCase();
-
-      const isPaid =
-        status === "paid" ||
-        status === "successful" ||
-        status === "success" ||
-        status === "completed" ||
-        status === "approved" ||
-        purchase.paid === true ||
-        purchase.is_paid === true;
-
-      if (isPaid) {
-        ids.add(
-          String(documentId)
-        );
-      }
-    });
-
-    return ids;
-  }, [
-    purchaseSource,
-  ]);
-
-  /*
-  =========================================================
+  =======================================================
   CATEGORY DOCUMENTS
-  =========================================================
+  =======================================================
   */
 
   const categoryDocuments = useMemo(() => {
@@ -266,9 +131,9 @@ export default function CategorySubjects() {
     );
 
     /*
-    -------------------------------------------------------
+    -----------------------------------------------------
     FILTER
-    -------------------------------------------------------
+    -----------------------------------------------------
     */
 
     if (activeFilter === "pdf") {
@@ -290,14 +155,16 @@ export default function CategorySubjects() {
     }
 
     /*
-    -------------------------------------------------------
+    -----------------------------------------------------
     SEARCH
-    -------------------------------------------------------
+    -----------------------------------------------------
     */
 
     if (search.trim()) {
       const keyword =
-        search.toLowerCase().trim();
+        search
+          .toLowerCase()
+          .trim();
 
       list = list.filter((item) => {
         return (
@@ -321,9 +188,9 @@ export default function CategorySubjects() {
     }
 
     /*
-    -------------------------------------------------------
+    -----------------------------------------------------
     SORT
-    -------------------------------------------------------
+    -----------------------------------------------------
     */
 
     list = [...list].sort(
@@ -374,9 +241,9 @@ export default function CategorySubjects() {
   ]);
 
   /*
-  =========================================================
+  =======================================================
   STATS
-  =========================================================
+  =======================================================
   */
 
   const stats = useMemo(() => {
@@ -428,9 +295,9 @@ export default function CategorySubjects() {
   ]);
 
   /*
-  =========================================================
+  =======================================================
   FORMAT TOTAL SIZE
-  =========================================================
+  =======================================================
   */
 
   const formatTotalSize = (
@@ -459,121 +326,16 @@ export default function CategorySubjects() {
   };
 
   /*
-  =========================================================
-  ACCESS
-
-  ADMIN ALWAYS HAS ACCESS.
-
-  This is the second important fix.
-
-  Previously:
-
-      return purchasedDocumentIds.has(...)
-
-  Now:
-
-      if (isAdmin) return true
-
-  =========================================================
-  */
-
-  const hasDocumentAccess = (
-    doc
-  ) => {
-    if (!doc?.id) {
-      return false;
-    }
-
-    /*
-    ADMIN BYPASS
-    */
-
-    if (isAdmin) {
-      return true;
-    }
-
-    /*
-    NORMAL USER
-    */
-
-    return purchasedDocumentIds.has(
-      String(doc.id)
-    );
-  };
-
-  /*
-  =========================================================
-  PAYMENT REDIRECT
-  =========================================================
-  */
-
-  const handlePaymentRedirect = (
-    doc
-  ) => {
-    /*
-    Admin should NEVER reach payment.
-
-    This protects against accidentally sending
-    an admin to the payment page.
-    */
-
-    if (isAdmin) {
-      return;
-    }
-
-    if (!doc?.id) {
-      console.error(
-        "Payment failed: document has no ID",
-        doc
-      );
-
-      return;
-    }
-
-    const documentId =
-      String(doc.id);
-
-    const params =
-      new URLSearchParams();
-
-    params.set(
-      "documentId",
-      documentId
-    );
-
-    if (categoryId) {
-      params.set(
-        "categoryId",
-        String(categoryId)
-      );
-    }
-
-    params.set(
-      "amount",
-      String(
-        DOCUMENT_PRICE
-      )
-    );
-
-    const paymentPath =
-      `/courses/category/${encodeURIComponent(
-        categoryId
-      )}/payment?${params.toString()}`;
-
-    console.log(
-      "Navigating to payment:",
-      paymentPath
-    );
-
-    navigate(
-      paymentPath
-    );
-  };
-
-  /*
-  =========================================================
+  =======================================================
   OPEN DOCUMENT
-  =========================================================
+
+  EVERYTHING IS FREE.
+
+  No payment.
+  No purchase check.
+  No lock.
+  No subscription.
+  =======================================================
   */
 
   const handleOpenDocument = (
@@ -582,27 +344,6 @@ export default function CategorySubjects() {
     if (!doc?.id) {
       console.error(
         "Cannot open document: missing ID",
-        doc
-      );
-
-      return;
-    }
-
-    /*
-    ADMIN ALWAYS HAS ACCESS.
-
-    This means even if the document has never been
-    purchased, the admin goes directly to the PDF.
-    */
-
-    const hasAccess =
-      isAdmin ||
-      hasDocumentAccess(
-        doc
-      );
-
-    if (!hasAccess) {
-      handlePaymentRedirect(
         doc
       );
 
@@ -628,9 +369,85 @@ export default function CategorySubjects() {
   };
 
   /*
-  =========================================================
+  =======================================================
+  DOWNLOAD DOCUMENT
+
+  EVERYTHING IS FREE.
+  =======================================================
+  */
+
+  const handleDownloadDocument = (
+    doc
+  ) => {
+    if (!doc?.id) {
+      console.error(
+        "Cannot download document: missing ID",
+        doc
+      );
+
+      return;
+    }
+
+    /*
+    -----------------------------------------------------
+    DIRECT FILE URL
+    -----------------------------------------------------
+    */
+
+    if (doc.file_url) {
+      const link =
+        document.createElement(
+          "a"
+        );
+
+      link.href =
+        doc.file_url;
+
+      link.download =
+        doc.title ||
+        "document";
+
+      link.target =
+        "_blank";
+
+      link.rel =
+        "noopener noreferrer";
+
+      document.body.appendChild(
+        link
+      );
+
+      link.click();
+
+      document.body.removeChild(
+        link
+      );
+
+      return;
+    }
+
+    /*
+    -----------------------------------------------------
+    IF NO FILE URL
+    -----------------------------------------------------
+    */
+
+    console.warn(
+      "No file URL for document:",
+      doc
+    );
+
+    /*
+    Open the document reader instead.
+    */
+
+    handleOpenDocument(doc);
+  };
+
+  /*
+  =======================================================
   CLEAR SEARCH
-  =========================================================
+  =======================================================
   */
 
   const clearSearch = () => {
@@ -638,9 +455,9 @@ export default function CategorySubjects() {
   };
 
   /*
-  =========================================================
+  =======================================================
   RENDER
-  =========================================================
+  =======================================================
   */
 
   return (
@@ -813,6 +630,7 @@ export default function CategorySubjects() {
             bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(2,6,23,0.35)_100%)]
           "
         />
+
       </div>
 
       {/* =================================================
@@ -873,6 +691,7 @@ export default function CategorySubjects() {
               hover:text-cyan-300
             "
           >
+
             <ArrowLeft
               size={15}
               className="
@@ -882,6 +701,7 @@ export default function CategorySubjects() {
             />
 
             Categories
+
           </button>
 
           <div
@@ -891,23 +711,26 @@ export default function CategorySubjects() {
               gap-2
               rounded-full
               border
-              border-cyan-400/20
-              bg-cyan-400/[0.08]
+              border-emerald-400/20
+              bg-emerald-400/[0.08]
               px-4
               py-2
               text-xs
               font-black
-              text-cyan-300
+              text-emerald-300
             "
           >
-            <ShieldCheck
+
+            <CheckCircle2
               size={14}
             />
 
             {isAdmin
               ? "Admin Workspace"
-              : "Secure Learning Workspace"}
+              : "Free Learning Workspace"}
+
           </div>
+
         </div>
       </header>
 
@@ -937,6 +760,7 @@ export default function CategorySubjects() {
           initial="hidden"
           animate="show"
         >
+
           <div
             className="
               relative
@@ -965,24 +789,24 @@ export default function CategorySubjects() {
                   gap-2
                   rounded-full
                   border
-                  border-cyan-300/20
-                  bg-cyan-300/[0.08]
+                  border-emerald-300/20
+                  bg-emerald-300/[0.08]
                   px-4
                   py-2
                   text-[11px]
                   font-black
                   uppercase
                   tracking-[0.18em]
-                  text-cyan-300
+                  text-emerald-300
                 "
               >
+
                 <Sparkles
                   size={13}
                 />
 
-                {isAdmin
-                  ? "Administrator Learning Hub"
-                  : "Premium Learning Hub"}
+                Free Learning Hub
+
               </div>
 
               <div
@@ -1018,10 +842,12 @@ export default function CategorySubjects() {
                         shadow-cyan-500/25
                       "
                     >
+
                       <BookOpen
                         size={30}
                         className="text-white"
                       />
+
                     </div>
 
                     <div>
@@ -1053,6 +879,7 @@ export default function CategorySubjects() {
                       </h1>
 
                     </div>
+
                   </div>
 
                   <p
@@ -1065,9 +892,11 @@ export default function CategorySubjects() {
                       md:text-base
                     "
                   >
-                    {isAdmin
-                      ? "Manage and access all learning resources in this category with administrator access."
-                      : "Explore carefully organized learning resources, study documents and premium educational materials built to help you learn faster and retain more."}
+                    Explore carefully organized
+                    learning resources, study
+                    documents and educational
+                    materials available to
+                    everyone.
                   </p>
 
                 </div>
@@ -1099,13 +928,13 @@ export default function CategorySubjects() {
                     </p>
 
                     <p className="mt-0.5 text-sm font-black text-emerald-400">
-                      {isAdmin
-                        ? "Administrator Access"
-                        : "Secure Access"}
+                      Free Access
                     </p>
 
                   </div>
+
                 </div>
+
               </div>
 
               <div
@@ -1162,8 +991,11 @@ export default function CategorySubjects() {
                 />
 
               </div>
+
             </div>
+
           </div>
+
         </motion.section>
 
         {/* =================================================
@@ -1258,11 +1090,14 @@ export default function CategorySubjects() {
                       hover:text-white
                     "
                   >
+
                     <X
                       size={15}
                     />
+
                   </button>
                 )}
+
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -1332,6 +1167,7 @@ export default function CategorySubjects() {
                   outline-none
                 "
               >
+
                 <option value="latest">
                   Latest
                 </option>
@@ -1343,6 +1179,7 @@ export default function CategorySubjects() {
                 <option value="name">
                   Name
                 </option>
+
               </select>
 
               <div
@@ -1371,9 +1208,11 @@ export default function CategorySubjects() {
                       : "text-slate-500 hover:text-white"
                   }`}
                 >
+
                   <Grid3X3
                     size={15}
                   />
+
                 </button>
 
                 <button
@@ -1390,13 +1229,17 @@ export default function CategorySubjects() {
                       : "text-slate-500 hover:text-white"
                   }`}
                 >
+
                   <List
                     size={15}
                   />
+
                 </button>
 
               </div>
+
             </div>
+
           </div>
 
           <div className="mt-4 flex items-center justify-between px-1">
@@ -1434,6 +1277,7 @@ export default function CategorySubjects() {
             )}
 
           </div>
+
         </motion.section>
 
         {/* =================================================
@@ -1466,44 +1310,25 @@ export default function CategorySubjects() {
                 (
                   doc,
                   index
-                ) => {
-
-                  /*
-                  ADMIN = ALWAYS UNLOCKED
-                  */
-
-                  const hasAccess =
-                    isAdmin ||
-                    hasDocumentAccess(
-                      doc
-                    );
-
-                  return (
-                    <DocumentCard
-                      key={doc.id}
-                      doc={doc}
-                      index={index}
-                      viewMode={
-                        viewMode
-                      }
-                      hasAccess={
-                        hasAccess
-                      }
-                      isAdmin={
-                        isAdmin
-                      }
-                      documentPrice={
-                        DOCUMENT_PRICE
-                      }
-                      onPayment={
-                        handlePaymentRedirect
-                      }
-                      onRead={
-                        handleOpenDocument
-                      }
-                    />
-                  );
-                }
+                ) => (
+                  <DocumentCard
+                    key={
+                      doc.id ||
+                      `${doc.title}-${index}`
+                    }
+                    doc={doc}
+                    index={index}
+                    viewMode={
+                      viewMode
+                    }
+                    onRead={
+                      handleOpenDocument
+                    }
+                    onDownload={
+                      handleDownloadDocument
+                    }
+                  />
+                )
               )}
 
             </motion.div>
@@ -1557,7 +1382,18 @@ export default function CategorySubjects() {
           "
         >
 
-          <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
+          <div
+            className="
+              relative
+              z-10
+              flex
+              flex-col
+              gap-8
+              md:flex-row
+              md:items-center
+              md:justify-between
+            "
+          >
 
             <div className="max-w-2xl">
 
@@ -1579,11 +1415,13 @@ export default function CategorySubjects() {
                   text-cyan-300
                 "
               >
-                <Flame
+
+                <Sparkles
                   size={14}
                 />
 
                 Keep Learning
+
               </div>
 
               <h2 className="mt-5 text-3xl font-black text-white md:text-4xl">
@@ -1591,7 +1429,10 @@ export default function CategorySubjects() {
               </h2>
 
               <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300/70 md:text-base">
-                Continue exploring Scholiqen's structured learning ecosystem and discover more resources across your subjects.
+                Continue exploring Scholiqen's
+                structured learning ecosystem
+                and discover more resources
+                across your subjects.
               </p>
 
             </div>
@@ -1639,10 +1480,13 @@ export default function CategorySubjects() {
               />
 
             </button>
+
           </div>
+
         </motion.section>
 
       </main>
+
     </div>
   );
 }
@@ -1657,156 +1501,9 @@ function DocumentCard({
   doc,
   index,
   viewMode,
-  hasAccess,
-  isAdmin,
-  documentPrice,
-  onPayment,
   onRead,
+  onDownload,
 }) {
-  /*
-  =======================================================
-  ADMIN OVERRIDE
-
-  Even if something goes wrong with hasAccess,
-  admin is NEVER locked.
-  =======================================================
-  */
-
-  const isLocked =
-    isAdmin
-      ? false
-      : !hasAccess;
-
-  const handleRead = (
-    e
-  ) => {
-    e?.preventDefault();
-    e?.stopPropagation();
-
-    if (!doc?.id) {
-      return;
-    }
-
-    /*
-    ADMIN ALWAYS OPENS DIRECTLY.
-    */
-
-    if (isAdmin) {
-      onRead(doc);
-      return;
-    }
-
-    if (isLocked) {
-      onPayment(doc);
-      return;
-    }
-
-    onRead(doc);
-  };
-
-  const handleDownload = (
-    e
-  ) => {
-    e?.preventDefault();
-    e?.stopPropagation();
-
-    if (!doc?.id) {
-      return;
-    }
-
-    /*
-    ADMIN CAN DOWNLOAD DIRECTLY.
-    */
-
-    if (
-      !isAdmin &&
-      isLocked
-    ) {
-      onPayment(doc);
-      return;
-    }
-
-    if (!doc.file_url) {
-      console.warn(
-        "No file URL for document:",
-        doc
-      );
-
-      return;
-    }
-
-    const link =
-      document.createElement(
-        "a"
-      );
-
-    link.href =
-      doc.file_url;
-
-    link.download =
-      doc.title ||
-      "document";
-
-    link.target =
-      "_blank";
-
-    link.rel =
-      "noopener noreferrer";
-
-    document.body.appendChild(
-      link
-    );
-
-    link.click();
-
-    document.body.removeChild(
-      link
-    );
-  };
-
-  const formatFileSize = (
-    sizeInBytes
-  ) => {
-    if (!sizeInBytes) {
-      return null;
-    }
-
-    if (
-      sizeInBytes <
-      1024
-    ) {
-      return `${sizeInBytes} B`;
-    }
-
-    if (
-      sizeInBytes <
-      1024 * 1024
-    ) {
-      return `${Math.round(
-        sizeInBytes / 1024
-      )} KB`;
-    }
-
-    if (
-      sizeInBytes <
-      1024 *
-        1024 *
-        1024
-    ) {
-      return `${(
-        sizeInBytes /
-        (1024 * 1024)
-      ).toFixed(1)} MB`;
-    }
-
-    return `${(
-      sizeInBytes /
-      (1024 *
-        1024 *
-        1024)
-    ).toFixed(1)} GB`;
-  };
-
   /*
   =======================================================
   LIST VIEW
@@ -1841,14 +1538,20 @@ function DocumentCard({
         "
       >
 
-        <div className="relative flex flex-col gap-5 md:flex-row md:items-center">
+        <div
+          className="
+            relative
+            flex
+            flex-col
+            gap-5
+            md:flex-row
+            md:items-center
+          "
+        >
 
           <DocumentThumbnail
             doc={doc}
             compact
-            locked={
-              isLocked
-            }
           />
 
           <div className="min-w-0 flex-1">
@@ -1872,81 +1575,30 @@ function DocumentCard({
                   "FILE"}
               </span>
 
-              {isAdmin ? (
+              <span
+                className="
+                  inline-flex
+                  items-center
+                  gap-1
+                  rounded-full
+                  border
+                  border-emerald-400/20
+                  bg-emerald-400/10
+                  px-2.5
+                  py-1
+                  text-[10px]
+                  font-black
+                  text-emerald-300
+                "
+              >
 
-                <span
-                  className="
-                    inline-flex
-                    items-center
-                    gap-1
-                    rounded-full
-                    border
-                    border-cyan-400/20
-                    bg-cyan-400/10
-                    px-2.5
-                    py-1
-                    text-[10px]
-                    font-black
-                    text-cyan-300
-                  "
-                >
-                  <ShieldCheck
-                    size={10}
-                  />
+                <CheckCircle2
+                  size={10}
+                />
 
-                  ADMIN ACCESS
-                </span>
+                FREE ACCESS
 
-              ) : isLocked ? (
-
-                <span
-                  className="
-                    inline-flex
-                    items-center
-                    gap-1
-                    rounded-full
-                    border
-                    border-amber-400/20
-                    bg-amber-400/10
-                    px-2.5
-                    py-1
-                    text-[10px]
-                    font-black
-                    text-amber-300
-                  "
-                >
-                  <Lock
-                    size={10}
-                  />
-
-                  LOCKED
-                </span>
-
-              ) : (
-
-                <span
-                  className="
-                    inline-flex
-                    items-center
-                    gap-1
-                    rounded-full
-                    border
-                    border-emerald-400/20
-                    bg-emerald-400/10
-                    px-2.5
-                    py-1
-                    text-[10px]
-                    font-black
-                    text-emerald-300
-                  "
-                >
-                  <CheckCircle2
-                    size={10}
-                  />
-
-                  PURCHASED
-                </span>
-              )}
+              </span>
 
             </div>
 
@@ -1965,63 +1617,42 @@ function DocumentCard({
 
             <button
               type="button"
-              onClick={
-                handleRead
+              onClick={() =>
+                onRead(doc)
               }
-              className={`
+              className="
                 inline-flex
                 items-center
                 gap-2
                 rounded-xl
+                bg-gradient-to-r
+                from-cyan-300
+                to-blue-400
                 px-5
                 py-3
                 text-xs
                 font-black
+                text-slate-950
                 shadow-lg
                 transition
                 active:scale-95
-                ${
-                  isAdmin ||
-                  !isLocked
-                    ? "bg-gradient-to-r from-cyan-300 to-blue-400 text-slate-950"
-                    : "bg-gradient-to-r from-amber-300 to-orange-400 text-slate-950"
-                }
-              `}
+              "
             >
 
-              {isAdmin ||
-              !isLocked ? (
-                <>
-                  <BookOpen
-                    size={15}
-                  />
+              <BookOpen
+                size={15}
+              />
 
-                  Read
-                </>
-              ) : (
-                <>
-                  <CreditCard
-                    size={15}
-                  />
-
-                  Pay ₦
-                  {documentPrice.toLocaleString()}
-                </>
-              )}
+              Read
 
             </button>
 
             <button
               type="button"
-              onClick={
-                handleDownload
+              onClick={() =>
+                onDownload(doc)
               }
-              title={
-                isAdmin ||
-                !isLocked
-                  ? "Download resource"
-                  : `Pay ₦${documentPrice.toLocaleString()} for this document`
-              }
+              title="Download resource"
               className="
                 rounded-xl
                 border
@@ -2034,20 +1665,17 @@ function DocumentCard({
                 hover:text-cyan-300
               "
             >
-              {isAdmin ||
-              !isLocked ? (
-                <Download
-                  size={17}
-                />
-              ) : (
-                <Lock
-                  size={17}
-                />
-              )}
+
+              <Download
+                size={17}
+              />
+
             </button>
 
           </div>
+
         </div>
+
       </motion.div>
     );
   }
@@ -2069,7 +1697,7 @@ function DocumentCard({
           duration: 0.2,
         },
       }}
-      className={`
+      className="
         group
         relative
         flex
@@ -2078,6 +1706,7 @@ function DocumentCard({
         overflow-hidden
         rounded-[30px]
         border
+        border-white/[0.08]
         bg-gradient-to-b
         from-[#12203d]/90
         to-[#0d1730]/90
@@ -2085,30 +1714,12 @@ function DocumentCard({
         shadow-2xl
         backdrop-blur-2xl
         transition-all
-        ${
-          isAdmin
-            ? "border-cyan-400/20 hover:border-cyan-400/40"
-            : isLocked
-            ? "border-amber-400/20 hover:border-amber-400/40"
-            : "border-white/[0.08] hover:border-cyan-400/30"
-        }
-      `}
+        hover:border-cyan-400/30
+      "
     >
 
-      {isLocked && (
-        <div
-          className="
-            pointer-events-none
-            absolute
-            inset-0
-            z-20
-            bg-slate-950/10
-          "
-        />
-      )}
-
       <div
-        className={`
+        className="
           absolute
           right-6
           top-6
@@ -2118,58 +1729,39 @@ function DocumentCard({
           gap-1.5
           rounded-full
           border
+          border-emerald-400/30
+          bg-emerald-400/10
           px-3
           py-1.5
           text-[10px]
           font-black
           uppercase
           tracking-wider
+          text-emerald-300
           backdrop-blur-xl
-          ${
-            isAdmin
-              ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
-              : isLocked
-              ? "border-amber-400/30 bg-amber-400/10 text-amber-300"
-              : "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-          }
-        `}
+        "
       >
 
-        {isAdmin ? (
-          <>
-            <ShieldCheck
-              size={11}
-            />
+        <CheckCircle2
+          size={11}
+        />
 
-            Admin Access
-          </>
-        ) : isLocked ? (
-          <>
-            <Lock
-              size={11}
-            />
-
-            Premium
-          </>
-        ) : (
-          <>
-            <CheckCircle2
-              size={11}
-            />
-
-            Purchased
-          </>
-        )}
+        Free
 
       </div>
 
-      <div className="relative z-10 flex h-full flex-col">
+      <div
+        className="
+          relative
+          z-10
+          flex
+          h-full
+          flex-col
+        "
+      >
 
         <DocumentThumbnail
           doc={doc}
-          locked={
-            isLocked
-          }
         />
 
         <div
@@ -2211,9 +1803,11 @@ function DocumentCard({
                 text-slate-400
               "
             >
+
               {formatFileSize(
                 doc.file_size
               )}
+
             </span>
           )}
 
@@ -2248,152 +1842,53 @@ function DocumentCard({
             "No description provided for this learning resource."}
         </p>
 
-        {isAdmin ? (
+        <div
+          className="
+            mt-4
+            flex
+            items-center
+            gap-3
+            rounded-2xl
+            border
+            border-emerald-400/15
+            bg-emerald-400/[0.06]
+            p-3
+          "
+        >
 
           <div
             className="
-              mt-4
               flex
+              h-9
+              w-9
+              shrink-0
               items-center
-              gap-3
-              rounded-2xl
-              border
-              border-cyan-400/15
-              bg-cyan-400/[0.06]
-              p-3
+              justify-center
+              rounded-xl
+              bg-emerald-400/10
+              text-emerald-300
             "
           >
 
-            <div
-              className="
-                flex
-                h-9
-                w-9
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                bg-cyan-400/10
-                text-cyan-300
-              "
-            >
-              <ShieldCheck
-                size={16}
-              />
-            </div>
+            <CheckCircle2
+              size={16}
+            />
 
-            <div>
-
-              <p className="text-xs font-black text-cyan-300">
-                Administrator Access
-              </p>
-
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                Full access granted. No purchase required.
-              </p>
-
-            </div>
           </div>
 
-        ) : isLocked ? (
+          <div>
 
-          <div
-            className="
-              mt-4
-              flex
-              items-center
-              gap-3
-              rounded-2xl
-              border
-              border-amber-400/15
-              bg-amber-400/[0.06]
-              p-3
-            "
-          >
+            <p className="text-xs font-black text-emerald-300">
+              Free Resource
+            </p>
 
-            <div
-              className="
-                flex
-                h-9
-                w-9
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                bg-amber-400/10
-                text-amber-300
-              "
-            >
-              <Lock
-                size={16}
-              />
-            </div>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Read and download this resource freely.
+            </p>
 
-            <div>
-
-              <p className="text-xs font-black text-amber-300">
-                Premium Resource
-              </p>
-
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                Unlock this document for{" "}
-                <span className="font-black text-amber-300">
-                  ₦
-                  {documentPrice.toLocaleString()}
-                </span>
-                .
-              </p>
-
-            </div>
           </div>
 
-        ) : (
-
-          <div
-            className="
-              mt-4
-              flex
-              items-center
-              gap-3
-              rounded-2xl
-              border
-              border-emerald-400/15
-              bg-emerald-400/[0.06]
-              p-3
-            "
-          >
-
-            <div
-              className="
-                flex
-                h-9
-                w-9
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                bg-emerald-400/10
-                text-emerald-300
-              "
-            >
-              <CheckCircle2
-                size={16}
-              />
-            </div>
-
-            <div>
-
-              <p className="text-xs font-black text-emerald-300">
-                Access Granted
-              </p>
-
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                You purchased this document.
-              </p>
-
-            </div>
-          </div>
-        )}
+        </div>
 
         <div
           className="
@@ -2410,10 +1905,10 @@ function DocumentCard({
 
           <button
             type="button"
-            onClick={
-              handleRead
+            onClick={() =>
+              onRead(doc)
             }
-            className={`
+            className="
               group/read
               flex
               flex-1
@@ -2421,73 +1916,45 @@ function DocumentCard({
               justify-center
               gap-2
               rounded-xl
+              bg-gradient-to-r
+              from-cyan-300
+              via-blue-400
+              to-indigo-400
               px-4
               py-3
               text-xs
               font-black
+              text-slate-950
               shadow-lg
+              shadow-cyan-400/10
               transition-all
               hover:-translate-y-0.5
               active:scale-95
-              ${
-                isAdmin ||
-                !isLocked
-                  ? "bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 text-slate-950 shadow-cyan-400/10"
-                  : "bg-gradient-to-r from-amber-300 to-orange-400 text-slate-950 shadow-amber-500/10"
-              }
-            `}
+            "
           >
 
-            {isAdmin ||
-            !isLocked ? (
-              <>
-                <BookOpen
-                  size={15}
-                />
+            <BookOpen
+              size={15}
+            />
 
-                Read Resource
+            Read Resource
 
-                <ExternalLink
-                  size={14}
-                  className="
-                    transition-transform
-                    group-hover/read:translate-x-0.5
-                  "
-                />
-              </>
-            ) : (
-              <>
-                <CreditCard
-                  size={15}
-                />
-
-                Pay ₦
-                {documentPrice.toLocaleString()}
-                {" "}to Unlock
-
-                <ChevronRight
-                  size={14}
-                  className="
-                    transition-transform
-                    group-hover/read:translate-x-1
-                  "
-                />
-              </>
-            )}
+            <ExternalLink
+              size={14}
+              className="
+                transition-transform
+                group-hover/read:translate-x-0.5
+              "
+            />
 
           </button>
 
           <button
             type="button"
-            onClick={
-              handleDownload
+            onClick={() =>
+              onDownload(doc)
             }
-            title={
-              isAdmin ||
-              !isLocked
-                ? "Download resource"
-                : `Pay ₦${documentPrice.toLocaleString()} for this document`
-            }
+            title="Download resource"
             className="
               inline-flex
               items-center
@@ -2506,21 +1973,16 @@ function DocumentCard({
             "
           >
 
-            {isAdmin ||
-            !isLocked ? (
-              <Download
-                size={17}
-              />
-            ) : (
-              <Lock
-                size={17}
-              />
-            )}
+            <Download
+              size={17}
+            />
 
           </button>
 
         </div>
+
       </div>
+
     </motion.article>
   );
 }
@@ -2534,7 +1996,6 @@ DOCUMENT THUMBNAIL
 function DocumentThumbnail({
   doc,
   compact = false,
-  locked = false,
 }) {
   return (
     <div
@@ -2552,11 +2013,7 @@ function DocumentThumbnail({
         overflow-hidden
         rounded-2xl
         border
-        ${
-          locked
-            ? "border-amber-400/20"
-            : "border-white/[0.08]"
-        }
+        border-white/[0.08]
         bg-gradient-to-br
         from-[#14284b]
         via-[#0d1834]
@@ -2576,19 +2033,14 @@ function DocumentThumbnail({
             doc.title ||
             "Document"
           }
-          className={`
+          className="
             h-full
             w-full
             object-cover
             transition-transform
             duration-700
             group-hover/thumb:scale-110
-            ${
-              locked
-                ? "brightness-[0.55] saturate-[0.65]"
-                : ""
-            }
-          `}
+          "
         />
 
       ) : (
@@ -2633,9 +2085,11 @@ function DocumentThumbnail({
               text-cyan-300
             "
           >
+
             <FileText
               size={27}
             />
+
           </div>
 
           {!compact && (
@@ -2654,42 +2108,6 @@ function DocumentThumbnail({
           )}
 
         </motion.div>
-      )}
-
-      {locked && (
-        <div
-          className="
-            absolute
-            inset-0
-            flex
-            items-center
-            justify-center
-            bg-slate-950/45
-            backdrop-blur-[1px]
-          "
-        >
-
-          <div
-            className="
-              flex
-              h-16
-              w-16
-              items-center
-              justify-center
-              rounded-2xl
-              border
-              border-amber-300/30
-              bg-slate-950/80
-              text-amber-300
-              shadow-2xl
-            "
-          >
-            <Lock
-              size={27}
-            />
-          </div>
-
-        </div>
       )}
 
       <div
@@ -2723,57 +2141,57 @@ function DocumentThumbnail({
 
       </div>
 
-      {!compact && !isAdminForThumbnail(locked) && (
-        <div
-          className="
-            absolute
-            bottom-3
-            right-3
-            flex
-            items-center
-            gap-1.5
-            rounded-full
-            border
-            border-amber-300/20
-            bg-[#071024]/85
-            px-2.5
-            py-1
-            text-[10px]
-            font-black
-            text-amber-200
-            shadow-lg
-            backdrop-blur-xl
-          "
-        >
-
-          <Crown
-            size={10}
-          />
-
-          Premium
-
-        </div>
-      )}
-
     </div>
   );
 }
 
 /*
 =========================================================
-HELPER
-
-The thumbnail itself does not receive isAdmin.
-
-For admin cards, the Premium badge is already harmless,
-but we keep this helper so the component remains safe.
+FORMAT FILE SIZE
 =========================================================
 */
 
-function isAdminForThumbnail(
-  locked
+function formatFileSize(
+  sizeInBytes
 ) {
-  return false;
+  if (!sizeInBytes) {
+    return null;
+  }
+
+  if (
+    sizeInBytes <
+    1024
+  ) {
+    return `${sizeInBytes} B`;
+  }
+
+  if (
+    sizeInBytes <
+    1024 * 1024
+  ) {
+    return `${Math.round(
+      sizeInBytes / 1024
+    )} KB`;
+  }
+
+  if (
+    sizeInBytes <
+    1024 *
+      1024 *
+      1024
+  ) {
+    return `${(
+      sizeInBytes /
+      (1024 * 1024)
+    ).toFixed(1)} MB`;
+  }
+
+  return `${(
+    sizeInBytes /
+    (1024 *
+      1024 *
+      1024)
+  ).toFixed(1)} GB`;
 }
 
 /*
@@ -2997,6 +2415,61 @@ function AnimeParticles() {
 
 /*
 =========================================================
+ANIMATIONS
+=========================================================
+*/
+
+const containerVariants = {
+  hidden: {
+    opacity: 0,
+  },
+
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.07,
+      delayChildren: 0.08,
+    },
+  },
+};
+
+const cardAnimationVariants = {
+  hidden: {
+    opacity: 0,
+    y: 35,
+    scale: 0.96,
+  },
+
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      type: "spring",
+      stiffness: 260,
+      damping: 22,
+    },
+  },
+};
+
+const fadeUp = {
+  hidden: {
+    opacity: 0,
+    y: 25,
+  },
+
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: "easeOut",
+    },
+  },
+};
+
+/*
+=========================================================
 LOADER
 =========================================================
 */
@@ -3028,10 +2501,12 @@ function PremiumLoader() {
             bg-[#10203f]
           "
         >
+
           <BookOpen
             size={25}
             className="text-cyan-300"
           />
+
         </motion.div>
 
         <p className="mt-5 text-sm font-bold text-slate-300">
@@ -3039,6 +2514,7 @@ function PremiumLoader() {
         </p>
 
       </div>
+
     </div>
   );
 }

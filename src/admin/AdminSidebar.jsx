@@ -37,10 +37,24 @@ const menuItems = [
     path: "/admin",
   },
 
+  /* ==========================================================
+     LMS
+  ========================================================== */
+
   {
     title: "LMS",
     icon: GraduationCap,
     path: "/admin/lms",
+  },
+
+  /* ==========================================================
+     TASKS
+  ========================================================== */
+
+  {
+    title: "Tasks",
+    icon: ClipboardList,
+    path: "/admin/lms/tasks",
   },
 
   /* ==========================================================
@@ -326,17 +340,23 @@ const AdminSidebar = () => {
 
   const toggleMenu = (title) => {
     if (title === "Languages") {
-      setLanguagesOpen((previous) => !previous);
+      setLanguagesOpen(
+        (previous) => !previous
+      );
       return;
     }
 
     if (title === "CBT") {
-      setCbtOpen((previous) => !previous);
+      setCbtOpen(
+        (previous) => !previous
+      );
       return;
     }
 
     if (title === "Schools") {
-      setSchoolsOpen((previous) => !previous);
+      setSchoolsOpen(
+        (previous) => !previous
+      );
     }
   };
 
@@ -424,8 +444,7 @@ const AdminSidebar = () => {
               let collapsedPath = "/admin";
 
               if (item.title === "CBT") {
-                collapsedPath =
-                  "/admin/cbt";
+                collapsedPath = "/admin/cbt";
               }
 
               if (item.title === "Languages") {

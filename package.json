@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node --import=dotenv/config server/server.js",
+    "migrate:supabase-to-neon": "node server/scripts/migrateSupabaseToNeon.js"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
@@ -24,11 +26,12 @@
     "groq-sdk": "^1.5.0",
     "katex": "^0.17.0",
     "lucide-react": "^1.21.0",
-    "mammoth": "^1.12.1",
+    "mammoth": "^1.12.0",
     "moment": "^2.30.1",
     "nodemailer": "^9.0.5",
     "openai": "^7.5.0",
     "pdfjs-dist": "^5.4.296",
+    "pg": "^8.23.0",
     "react": "^19.2.6",
     "react-big-calendar": "^1.20.0",
     "react-dom": "^19.2.6",
@@ -39,7 +42,7 @@
     "react-router-dom": "^7.16.0",
     "recharts": "^3.9.1",
     "rehype-katex": "^7.0.1",
-    "remark-gfm": "^4.0.1",
+    "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "resend": "^6.18.1",
     "tesseract.js": "^7.0.0"

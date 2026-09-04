@@ -9,10 +9,17 @@ import {
   GraduationCap,
   Sparkles,
   Target,
+  X,
   Trophy,
 } from "lucide-react";
 
-import { supabase } from "../../lib/supabaseClient";
+/* =========================================================
+   API
+========================================================= */
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
+  "http://localhost:5000";
 
 /* =========================================================
    EXAMINATION BODIES
@@ -142,7 +149,7 @@ const CBT = () => {
   const [questionsLoading, setQuestionsLoading] = useState(true);
 
   /* =======================================================
-     FETCH QUESTION COUNT
+     FETCH QUESTION COUNT FROM NEON API
   ======================================================= */
 
   useEffect(() => {
@@ -152,32 +159,50 @@ const CBT = () => {
       try {
         setQuestionsLoading(true);
 
-        const { count, error } = await supabase
-          .from("cbt_questions")
-          .select("*", {
-            count: "exact",
-            head: true,
-          });
-
-        if (error) {
-          console.error(
-            "CBT Question Count Error:",
-            error
-          );
-
-          if (mounted) {
-            setQuestionCount(0);
+        const response = await fetch(
+          `${API_BASE_URL}/api/cbt/questions/count`,
+          {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+            },
+            cache: "no-store",
           }
+        );
 
-          return;
+        if (!response.ok) {
+          const text = await response.text().catch(() => "");
+
+          throw new Error(
+            `CBT question count request failed (${response.status})${
+              text ? `: ${text}` : ""
+            }`
+          );
+        }
+
+        const data = await response.json();
+
+        console.log("✅ CBT Question Count Response:", data);
+
+        const total = Number(
+          data?.count ??
+            data?.total ??
+            data?.questionCount ??
+            0
+        );
+
+        if (!Number.isFinite(total)) {
+          throw new Error(
+            "Backend returned an invalid CBT question count."
+          );
         }
 
         if (mounted) {
-          setQuestionCount(count || 0);
+          setQuestionCount(total);
         }
       } catch (error) {
         console.error(
-          "CBT Question Count Error:",
+          "❌ CBT Question Count Error:",
           error
         );
 
@@ -260,13 +285,11 @@ const CBT = () => {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050816] text-white">
-
       {/* =====================================================
           BACKGROUND
       ====================================================== */}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-
         <div className="absolute left-[-180px] top-[-180px] h-[520px] w-[520px] rounded-full bg-blue-600/10 blur-[150px]" />
 
         <div className="absolute right-[-180px] top-[20%] h-[520px] w-[520px] rounded-full bg-purple-600/10 blur-[150px]" />
@@ -285,7 +308,6 @@ const CBT = () => {
         <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-blue-500/[0.05] to-transparent" />
 
         <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-purple-500/[0.05] to-transparent" />
-
       </div>
 
       {/* =====================================================
@@ -293,15 +315,12 @@ const CBT = () => {
       ====================================================== */}
 
       <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 sm:px-8 lg:px-10">
-
         {/* ===================================================
             HERO
         ==================================================== */}
 
         <section className="pt-14 sm:pt-20 lg:pt-24">
-
           <div className="mx-auto max-w-4xl text-center">
-
             {/* STATUS */}
 
             <motion.div
@@ -401,9 +420,7 @@ const CBT = () => {
                 />
               </button>
             </motion.div>
-
           </div>
-
         </section>
 
         {/* ===================================================
@@ -411,7 +428,6 @@ const CBT = () => {
         ==================================================== */}
 
         <div className="relative mx-auto mt-14 max-w-6xl">
-
           <div className="h-px bg-gradient-to-r from-transparent via-blue-400/30 to-transparent" />
 
           <motion.div
@@ -425,7 +441,6 @@ const CBT = () => {
             }}
             className="absolute left-0 top-0 h-px w-40 bg-gradient-to-r from-transparent via-cyan-300 to-transparent"
           />
-
         </div>
 
         {/* ===================================================
@@ -433,7 +448,6 @@ const CBT = () => {
         ==================================================== */}
 
         <section className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
-
           {stats.map((stat, index) => {
             const Icon = stat.icon;
 
@@ -454,11 +468,9 @@ const CBT = () => {
                 }}
                 className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl"
               >
-
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.06] to-transparent opacity-0 transition group-hover:opacity-100" />
 
                 <div className="relative">
-
                   <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/10 bg-blue-500/10 text-blue-400">
                     <Icon size={17} />
                   </div>
@@ -470,13 +482,10 @@ const CBT = () => {
                   <div className="mt-1 text-[11px] text-slate-500">
                     {stat.label}
                   </div>
-
                 </div>
-
               </motion.div>
             );
           })}
-
         </section>
 
         {/* ===================================================
@@ -487,13 +496,10 @@ const CBT = () => {
           ref={examinationLibraryRef}
           className="mt-20 scroll-mt-20"
         >
-
           {/* HEADER */}
 
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-
             <div>
-
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-400">
                 <GraduationCap size={15} />
 
@@ -508,19 +514,15 @@ const CBT = () => {
                 Select an examination to choose your
                 subjects and begin your CBT practice.
               </p>
-
             </div>
 
             {/* SYSTEM STATUS */}
 
             <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-4 py-2 text-xs text-emerald-300">
-
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
 
               CBT System Online
-
             </div>
-
           </div>
 
           {/* =================================================
@@ -528,9 +530,7 @@ const CBT = () => {
           ================================================= */}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-
             {exams.map((exam, index) => (
-
               <motion.button
                 key={exam.name}
                 type="button"
@@ -563,7 +563,6 @@ const CBT = () => {
                 }
                 className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 text-left backdrop-blur-xl transition-colors duration-300 hover:border-white/[0.16] hover:bg-white/[0.055]"
               >
-
                 {/* TOP GRADIENT */}
 
                 <div
@@ -577,23 +576,19 @@ const CBT = () => {
                 />
 
                 <div className="relative">
-
                   {/* ICON */}
 
                   <div className="flex items-start justify-between">
-
                     <div
                       className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${exam.accent} text-sm font-black text-white shadow-lg`}
                     >
                       {exam.name.slice(0, 2)}
                     </div>
-
                   </div>
 
                   {/* NAME */}
 
                   <div className="mt-5">
-
                     <h3 className="text-lg font-bold tracking-tight text-white">
                       {exam.name}
                     </h3>
@@ -601,15 +596,12 @@ const CBT = () => {
                     <p className="mt-1 min-h-[36px] text-xs leading-5 text-slate-500">
                       {exam.description}
                     </p>
-
                   </div>
 
                   {/* SUBJECTS */}
 
                   <div className="mt-5 space-y-2 border-t border-white/[0.06] pt-4">
-
                     <div className="flex items-center justify-between text-[11px]">
-
                       <span className="flex items-center gap-2 text-slate-500">
                         <BookOpen size={13} />
 
@@ -619,11 +611,9 @@ const CBT = () => {
                       <span className="max-w-[150px] text-right text-slate-300">
                         {exam.subjects}
                       </span>
-
                     </div>
 
                     <div className="flex items-center justify-between text-[11px]">
-
                       <span className="flex items-center gap-2 text-slate-500">
                         <FileText size={13} />
 
@@ -633,15 +623,12 @@ const CBT = () => {
                       <span className="text-slate-300">
                         Available
                       </span>
-
                     </div>
-
                   </div>
 
                   {/* ACTION */}
 
                   <div className="mt-5 flex items-center justify-between">
-
                     <span className="text-xs font-medium text-slate-500 transition group-hover:text-blue-400">
                       Start examination
                     </span>
@@ -650,17 +637,11 @@ const CBT = () => {
                       size={15}
                       className="text-slate-600 transition-all group-hover:translate-x-1 group-hover:text-blue-400"
                     />
-
                   </div>
-
                 </div>
-
               </motion.button>
-
             ))}
-
           </div>
-
         </section>
 
         {/* ===================================================
@@ -684,21 +665,16 @@ const CBT = () => {
           }}
           className="relative mt-16 overflow-hidden rounded-3xl border border-blue-400/10 bg-gradient-to-br from-blue-500/[0.09] via-white/[0.025] to-purple-500/[0.08] p-7 sm:p-9"
         >
-
           <div className="absolute right-[-100px] top-[-100px] h-64 w-64 rounded-full bg-blue-500/10 blur-[90px]" />
 
           <div className="absolute bottom-[-100px] left-[-100px] h-64 w-64 rounded-full bg-purple-500/10 blur-[90px]" />
 
           <div className="relative">
-
             <div className="max-w-3xl">
-
               <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-400">
-
                 <Clock3 size={14} />
 
                 Built for serious preparation
-
               </div>
 
               <h3 className="text-2xl font-bold tracking-tight sm:text-3xl">
@@ -711,11 +687,8 @@ const CBT = () => {
                 subjects, and build confidence before the
                 actual examination.
               </p>
-
             </div>
-
           </div>
-
         </motion.section>
 
         {/* ===================================================
@@ -723,7 +696,6 @@ const CBT = () => {
         ==================================================== */}
 
         <footer className="mt-16 border-t border-white/[0.06] pt-8 text-center">
-
           <p className="text-xs text-slate-500">
             Practice exam-standard CBT questions across
             multiple examination bodies.
@@ -733,11 +705,8 @@ const CBT = () => {
             Powered by Scholiqen CBT System ©{" "}
             {new Date().getFullYear()}
           </div>
-
         </footer>
-
       </main>
-
     </div>
   );
 };

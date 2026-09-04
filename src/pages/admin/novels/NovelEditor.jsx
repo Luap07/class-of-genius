@@ -1,4 +1,7 @@
+// src/pages/admin/novels/NovelEditor.jsx
+
 import React, { useEffect, useState } from "react";
+
 import {
   Save,
   Loader2,
@@ -7,12 +10,65 @@ import {
   Upload,
   Image as ImageIcon,
 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "../../../lib/supabaseClient";
+
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+
 import AdminButton from "../../../components/admin/ui/AdminButton";
 
-// --- REUSABLE COMPONENTS ---
-const Input = ({ label, name, value, onChange, placeholder }) => (
+/* =========================================================
+   API CONFIG
+========================================================= */
+
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
+
+/* =========================================================
+   FALLBACK COVER
+========================================================= */
+
+const FALLBACK_COVER =
+  "https://via.placeholder.com/208x288?text=Novel";
+
+/* =========================================================
+   COVER URL HELPER
+========================================================= */
+
+const getCoverUrl = (coverUrl) => {
+  if (!coverUrl) {
+    return "";
+  }
+
+  // Already a complete URL
+  if (/^https?:\/\//i.test(coverUrl)) {
+    return coverUrl;
+  }
+
+  // Backend returns:
+  // /uploads/covers/example.jpg
+
+  return `${API_URL}${
+    coverUrl.startsWith("/")
+      ? ""
+      : "/"
+  }${coverUrl}`;
+};
+
+/* =========================================================
+   REUSABLE INPUT
+========================================================= */
+
+const Input = ({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+}) => (
   <div>
     <label className="block mb-2 text-sm text-slate-400">
       {label}
@@ -25,7 +81,8 @@ const Input = ({ label, name, value, onChange, placeholder }) => (
       onChange={onChange}
       placeholder={placeholder}
       className="
-        w-full rounded-xl
+        w-full
+        rounded-xl
         bg-slate-800
         border border-slate-700
         px-4 py-3
@@ -40,6 +97,10 @@ const Input = ({ label, name, value, onChange, placeholder }) => (
     />
   </div>
 );
+
+/* =========================================================
+   REUSABLE TEXTAREA
+========================================================= */
 
 const Textarea = ({
   label,
@@ -60,7 +121,8 @@ const Textarea = ({
       placeholder={placeholder}
       rows={5}
       className="
-        w-full rounded-xl
+        w-full
+        rounded-xl
         bg-slate-800
         border border-slate-700
         px-4 py-3
@@ -77,7 +139,10 @@ const Textarea = ({
   </div>
 );
 
-// --- MAIN FORM ---
+/* =========================================================
+   DEFAULT FORM
+========================================================= */
+
 const defaultForm = {
   title: "",
   author: "",
@@ -89,64 +154,139 @@ const defaultForm = {
   chapters: [],
 };
 
+/* =========================================================
+   MAIN EDITOR
+========================================================= */
+
 const NovelEditor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState(defaultForm);
-  const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState("");
+  const [form, setForm] =
+    useState(defaultForm);
 
-  // --------------------------------------------------
-  // LOAD EXISTING NOVEL
-  // --------------------------------------------------
+  const [loading, setLoading] =
+    useState(false);
+
+  const [fetching, setFetching] =
+    useState(false);
+
+  const [uploading, setUploading] =
+    useState(false);
+
+  const [preview, setPreview] =
+    useState("");
+
+  const [coverFile, setCoverFile] =
+    useState(null);
+
+  /* =========================================================
+     LOAD EXISTING NOVEL
+  ========================================================= */
+
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      return;
+    }
 
     const fetchNovel = async () => {
-      setFetching(true);
+      try {
+        setFetching(true);
 
-      const { data, error } = await supabase
-        .from("novels")
-        .select("*")
-        .eq("id", id)
-        .single();
+        const response = await fetch(
+          `${API_URL}/api/novels/${id}`
+        );
 
-      if (error) {
-        console.error("Fetch Novel Error:", error);
-        alert(error.message);
-        setFetching(false);
-        return;
-      }
+        let data = null;
 
-      if (data) {
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error(
+            "The server returned an invalid response."
+          );
+        }
+
+        if (
+          !response.ok ||
+          !data?.success
+        ) {
+          throw new Error(
+            data?.error ||
+              "Unable to load novel."
+          );
+        }
+
+        const novel = data.novel;
+
+        if (!novel) {
+          throw new Error(
+            "Novel data was not returned."
+          );
+        }
+
         setForm({
           ...defaultForm,
-          ...data,
-          author: data.author || "",
-          chapters: Array.isArray(data.chapters)
-            ? data.chapters
-            : [],
+          ...novel,
+
+          author:
+            novel.author || "",
+
+          genre:
+            novel.genre || "",
+
+          description:
+            novel.description || "",
+
+          introduction:
+            novel.introduction || "",
+
+          cover_url:
+            novel.cover_url || "",
+
+          status:
+            novel.status || "Draft",
+
+          chapters:
+            Array.isArray(novel.chapters)
+              ? novel.chapters
+              : [],
         });
 
-        if (data.cover_url) {
-          setPreview(data.cover_url);
+        if (novel.cover_url) {
+          setPreview(
+            getCoverUrl(
+              novel.cover_url
+            )
+          );
         }
-      }
+      } catch (error) {
+        console.error(
+          "Fetch Novel Error:",
+          error
+        );
 
-      setFetching(false);
+        alert(
+          error?.message ||
+            "Unable to load novel."
+        );
+      } finally {
+        setFetching(false);
+      }
     };
 
     fetchNovel();
   }, [id]);
 
-  // --------------------------------------------------
-  // HANDLE INPUT CHANGES
-  // --------------------------------------------------
+  /* =========================================================
+     HANDLE INPUT CHANGES
+  ========================================================= */
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const {
+      name,
+      value,
+    } = e.target;
 
     setForm((prev) => ({
       ...prev,
@@ -154,66 +294,127 @@ const NovelEditor = () => {
     }));
   };
 
-  // --------------------------------------------------
-  // UPLOAD COVER
-  // --------------------------------------------------
-  const uploadCover = async (e) => {
-    const file = e.target.files?.[0];
+  /* =========================================================
+     HANDLE COVER SELECTION
+  ========================================================= */
 
-    if (!file) return;
+  const uploadCover = (e) => {
+    const file =
+      e.target.files?.[0];
 
-    setPreview(URL.createObjectURL(file));
-    setUploading(true);
-
-    const fileName = `${Date.now()}-${file.name}`;
-
-    const { error } = await supabase.storage
-      .from("covers")
-      .upload(fileName, file);
-
-    if (error) {
-      console.error("Cover Upload Error:", error);
-      alert(error.message);
-      setUploading(false);
+    if (!file) {
       return;
     }
 
-    const { data } = supabase.storage
-      .from("novel-covers")
-      .getPublicUrl(fileName);
+    /* -------------------------------------------------------
+       VALIDATE TYPE
+    ------------------------------------------------------- */
 
-    if (data?.publicUrl) {
-      setForm((prev) => ({
-        ...prev,
-        cover_url: data.publicUrl,
-      }));
+    const allowedTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (
+      !allowedTypes.includes(
+        file.type
+      )
+    ) {
+      alert(
+        "Only JPG, JPEG, PNG and WEBP images are allowed."
+      );
+
+      e.target.value = "";
+      return;
     }
+
+    /* -------------------------------------------------------
+       VALIDATE SIZE
+       Backend limit = 5MB
+    ------------------------------------------------------- */
+
+    const maxSize =
+      5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      alert(
+        "Cover image must be 5MB or smaller."
+      );
+
+      e.target.value = "";
+      return;
+    }
+
+    /* -------------------------------------------------------
+       CREATE LOCAL PREVIEW
+    ------------------------------------------------------- */
+
+    const previewUrl =
+      URL.createObjectURL(file);
+
+    setPreview(previewUrl);
+
+    /* -------------------------------------------------------
+       KEEP FILE UNTIL SAVE
+    ------------------------------------------------------- */
+
+    setCoverFile(file);
+
+    /*
+      We deliberately do NOT upload here.
+
+      The actual upload happens inside
+      handleSubmit() together with the novel data.
+    */
 
     setUploading(false);
   };
 
-  // --------------------------------------------------
-  // ADD CHAPTER
-  // --------------------------------------------------
+  /* =========================================================
+     ADD CHAPTER
+  ========================================================= */
+
   const addChapter = () => {
     setForm((prev) => ({
       ...prev,
+
       chapters: [
-        ...prev.chapters,
+        ...(Array.isArray(
+          prev.chapters
+        )
+          ? prev.chapters
+          : []),
+
         {
+          chapter:
+            (prev.chapters?.length ||
+              0) + 1,
+
           title: "",
+
           content: "",
         },
       ],
     }));
   };
 
-  // --------------------------------------------------
-  // UPDATE CHAPTER
-  // --------------------------------------------------
-  const updateChapter = (index, field, value) => {
+  /* =========================================================
+     UPDATE CHAPTER
+  ========================================================= */
+
+  const updateChapter = (
+    index,
+    field,
+    value
+  ) => {
     setForm((prev) => {
-      const updated = [...prev.chapters];
+      const updated = Array.isArray(
+        prev.chapters
+      )
+        ? [...prev.chapters]
+        : [];
 
       updated[index] = {
         ...updated[index],
@@ -227,106 +428,254 @@ const NovelEditor = () => {
     });
   };
 
-  // --------------------------------------------------
-  // REMOVE CHAPTER
-  // --------------------------------------------------
+  /* =========================================================
+     REMOVE CHAPTER
+  ========================================================= */
+
   const removeChapter = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      chapters: prev.chapters.filter(
-        (_, i) => i !== index
-      ),
-    }));
+    setForm((prev) => {
+      const updated =
+        Array.isArray(
+          prev.chapters
+        )
+          ? prev.chapters.filter(
+              (_, i) =>
+                i !== index
+            )
+          : [];
+
+      /*
+       * Re-number chapters after deletion.
+       */
+
+      const renumbered =
+        updated.map(
+          (chapter, chapterIndex) => ({
+            ...chapter,
+            chapter:
+              chapterIndex + 1,
+          })
+        );
+
+      return {
+        ...prev,
+        chapters: renumbered,
+      };
+    });
   };
 
-  // --------------------------------------------------
-  // SAVE NOVEL
-  // --------------------------------------------------
+  /* =========================================================
+     SAVE NOVEL
+  ========================================================= */
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    /* -------------------------------------------------------
+       VALIDATION
+    ------------------------------------------------------- */
+
     if (!form.title.trim()) {
-      alert("Please enter a novel title.");
+      alert(
+        "Please enter a novel title."
+      );
       return;
     }
 
     if (!form.author.trim()) {
-      alert("Please enter the author name.");
+      alert(
+        "Please enter the author name."
+      );
       return;
     }
 
-    setLoading(true);
-
     try {
-      // Remove ID before insert/update
-      const { id: _, ...updateData } = form;
+      setLoading(true);
+      setUploading(
+        Boolean(coverFile)
+      );
 
-      // Make sure author is explicitly included
-      const novelData = {
-        ...updateData,
-        author: form.author.trim(),
-      };
+      /* -----------------------------------------------------
+         CREATE MULTIPART FORM DATA
+      ----------------------------------------------------- */
 
-      let error;
+      const formData =
+        new FormData();
 
-      if (id) {
-        const response = await supabase
-          .from("novels")
-          .update(novelData)
-          .eq("id", id);
+      formData.append(
+        "title",
+        form.title.trim()
+      );
 
-        error = response.error;
-      } else {
-        const response = await supabase
-          .from("novels")
-          .insert([novelData]);
+      formData.append(
+        "author",
+        form.author.trim()
+      );
 
-        error = response.error;
+      formData.append(
+        "genre",
+        form.genre?.trim() || ""
+      );
+
+      formData.append(
+        "description",
+        form.description?.trim() ||
+          ""
+      );
+
+      formData.append(
+        "introduction",
+        form.introduction?.trim() ||
+          ""
+      );
+
+      formData.append(
+        "status",
+        form.status?.trim() ||
+          "Draft"
+      );
+
+      /* -----------------------------------------------------
+         CHAPTERS
+      ----------------------------------------------------- */
+
+      formData.append(
+        "chapters",
+        JSON.stringify(
+          Array.isArray(
+            form.chapters
+          )
+            ? form.chapters
+            : []
+        )
+      );
+
+      /* -----------------------------------------------------
+         COVER FILE
+      ----------------------------------------------------- */
+
+      if (coverFile) {
+        formData.append(
+          "cover",
+          coverFile
+        );
       }
 
-      if (error) {
-        console.error("Save Novel Error:", error);
-        alert(error.message);
-        return;
+      /* -----------------------------------------------------
+         DETERMINE REQUEST
+      ----------------------------------------------------- */
+
+      const endpoint = id
+        ? `${API_URL}/api/novels/${id}`
+        : `${API_URL}/api/novels`;
+
+      const method = id
+        ? "PUT"
+        : "POST";
+
+      /* -----------------------------------------------------
+         SEND TO EXPRESS / NEON
+      ----------------------------------------------------- */
+
+      const response =
+        await fetch(
+          endpoint,
+          {
+            method,
+            body: formData,
+          }
+        );
+
+      let data = null;
+
+      try {
+        data =
+          await response.json();
+      } catch {
+        throw new Error(
+          "The server returned an invalid response."
+        );
       }
 
-      navigate("/admin/novels/list");
+      if (
+        !response.ok ||
+        !data?.success
+      ) {
+        throw new Error(
+          data?.error ||
+            `Unable to ${
+              id
+                ? "update"
+                : "create"
+            } novel.`
+        );
+      }
+
+      /* -----------------------------------------------------
+         SUCCESS
+      ----------------------------------------------------- */
+
+      navigate(
+        "/admin/novels/list"
+      );
     } catch (error) {
-      console.error("Unexpected Save Error:", error);
-      alert(error.message || "Something went wrong.");
+      console.error(
+        "Save Novel Error:",
+        error
+      );
+
+      alert(
+        error?.message ||
+          "Something went wrong while saving the novel."
+      );
     } finally {
       setLoading(false);
+      setUploading(false);
     }
   };
 
-  // --------------------------------------------------
-  // LOADING STATE
-  // --------------------------------------------------
+  /* =========================================================
+     LOADING EXISTING NOVEL
+  ========================================================= */
+
   if (fetching) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
+
         <div className="flex flex-col items-center gap-3 text-slate-400">
+
           <Loader2
             size={32}
             className="animate-spin text-blue-500"
           />
 
-          <p>Loading novel...</p>
+          <p>
+            Loading novel...
+          </p>
+
         </div>
+
       </div>
     );
   }
 
-  // --------------------------------------------------
-  // UI
-  // --------------------------------------------------
+  /* =========================================================
+     UI
+  ========================================================= */
+
   return (
     <div className="space-y-8 pb-10">
 
-      {/* HEADER */}
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
       <div>
+
         <h1 className="text-2xl md:text-3xl font-bold text-white">
-          {id ? "Edit Novel" : "Create Novel"}
+          {id
+            ? "Edit Novel"
+            : "Create Novel"}
         </h1>
 
         <p className="text-slate-400 mt-2">
@@ -334,9 +683,13 @@ const NovelEditor = () => {
             ? "Update your existing novel."
             : "Create a brand new novel for your readers."}
         </p>
+
       </div>
 
-      {/* FORM */}
+      {/* =====================================================
+          FORM
+      ===================================================== */}
+
       <form
         onSubmit={handleSubmit}
         className="
@@ -348,41 +701,66 @@ const NovelEditor = () => {
         "
       >
 
-        {/* COVER UPLOAD */}
+        {/* ===================================================
+            COVER UPLOAD
+        =================================================== */}
+
         <div>
+
           <label className="block mb-3 text-sm text-slate-400">
             Cover Image
           </label>
 
           <div className="flex flex-col md:flex-row gap-6">
 
+            {/* COVER PREVIEW */}
+
             <div
               className="
-                w-52 h-72
+                w-52
+                h-72
                 rounded-xl
                 overflow-hidden
                 border border-slate-700
                 bg-slate-800
-                flex items-center justify-center
+                flex
+                items-center
+                justify-center
               "
             >
+
               {preview ? (
+
                 <img
                   src={preview}
                   alt="Novel Cover"
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src =
+                      FALLBACK_COVER;
+                  }}
                 />
+
               ) : (
+
                 <div className="text-center text-slate-500">
+
                   <ImageIcon
                     size={55}
                     className="mx-auto mb-3"
                   />
 
-                  <p>No Cover Selected</p>
+                  <p>
+                    No Cover Selected
+                  </p>
+
                 </div>
+
               )}
+
             </div>
+
+            {/* COVER CONTROLS */}
 
             <div className="flex flex-col justify-center gap-4">
 
@@ -391,7 +769,8 @@ const NovelEditor = () => {
                   cursor-pointer
                   bg-blue-600
                   hover:bg-blue-700
-                  px-5 py-3
+                  px-5
+                  py-3
                   rounded-xl
                   inline-flex
                   items-center
@@ -400,50 +779,89 @@ const NovelEditor = () => {
                   transition
                 "
               >
+
                 <Upload size={18} />
 
-                Choose Cover
+                {coverFile
+                  ? "Change Cover"
+                  : "Choose Cover"}
 
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
                   hidden
-                  onChange={uploadCover}
+                  onChange={
+                    uploadCover
+                  }
+                  disabled={
+                    loading
+                  }
                 />
+
               </label>
 
-              {uploading && (
+              {coverFile && (
                 <p className="text-blue-400 text-sm">
-                  Uploading image...
+                  New cover selected:
+                  {" "}
+                  {coverFile.name}
                 </p>
               )}
 
-              {form.cover_url && (
-                <p className="text-green-400 text-sm">
-                  ✔ Cover uploaded
-                </p>
+              {uploading && (
+                <div className="flex items-center gap-2 text-blue-400 text-sm">
+
+                  <Loader2
+                    size={15}
+                    className="animate-spin"
+                  />
+
+                  Uploading image...
+
+                </div>
               )}
+
+              {form.cover_url &&
+                !coverFile && (
+                  <p className="text-green-400 text-sm">
+                    ✔ Existing cover loaded
+                  </p>
+                )}
+
+              <p className="text-xs text-slate-500">
+                JPG, JPEG, PNG or WEBP.
+                Maximum 5MB.
+              </p>
+
             </div>
+
           </div>
+
         </div>
 
-        {/* BASIC INFORMATION */}
+        {/* ===================================================
+            BASIC INFORMATION
+        =================================================== */}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
           <Input
             label="Novel Title"
             name="title"
             value={form.title}
-            onChange={handleChange}
+            onChange={
+              handleChange
+            }
             placeholder="Enter novel title"
           />
 
-          {/* AUTHOR */}
           <Input
             label="Author"
             name="author"
             value={form.author}
-            onChange={handleChange}
+            onChange={
+              handleChange
+            }
             placeholder="Enter author name"
           />
 
@@ -451,31 +869,50 @@ const NovelEditor = () => {
             label="Genre"
             name="genre"
             value={form.genre}
-            onChange={handleChange}
+            onChange={
+              handleChange
+            }
             placeholder="Fantasy, Romance, Mystery..."
           />
 
         </div>
 
-        {/* INTRODUCTION */}
+        {/* ===================================================
+            INTRODUCTION
+        =================================================== */}
+
         <Textarea
           label="Introduction"
           name="introduction"
-          value={form.introduction}
-          onChange={handleChange}
+          value={
+            form.introduction
+          }
+          onChange={
+            handleChange
+          }
           placeholder="Write the introduction..."
         />
 
-        {/* DESCRIPTION */}
+        {/* ===================================================
+            DESCRIPTION
+        =================================================== */}
+
         <Textarea
           label="Description"
           name="description"
-          value={form.description}
-          onChange={handleChange}
+          value={
+            form.description
+          }
+          onChange={
+            handleChange
+          }
           placeholder="Write the novel description..."
         />
 
-        {/* CHAPTERS */}
+        {/* ===================================================
+            CHAPTERS
+        =================================================== */}
+
         <div>
 
           <div className="flex items-center justify-between mb-4">
@@ -486,116 +923,209 @@ const NovelEditor = () => {
 
             <button
               type="button"
-              onClick={addChapter}
+              onClick={
+                addChapter
+              }
+              disabled={
+                loading
+              }
               className="
                 flex
                 items-center
                 gap-2
                 rounded-lg
                 bg-blue-600
-                px-4 py-2
+                px-4
+                py-2
                 hover:bg-blue-700
+                disabled:opacity-50
                 transition
               "
             >
+
               <Plus size={18} />
 
               Add Chapter
+
             </button>
+
           </div>
+
+          {/* NO CHAPTERS */}
+
+          {form.chapters.length ===
+            0 && (
+            <div
+              className="
+                rounded-xl
+                border
+                border-dashed
+                border-slate-700
+                bg-slate-800/50
+                p-8
+                text-center
+              "
+            >
+
+              <BookOpenIcon />
+
+              <p className="text-slate-500 mt-2">
+                No chapters added yet.
+              </p>
+
+              <p className="text-xs text-slate-600 mt-1">
+                Click "Add Chapter" to begin.
+              </p>
+
+            </div>
+          )}
+
+          {/* CHAPTER LIST */}
 
           <div className="space-y-5">
 
-            {form.chapters.map((chapter, index) => (
-              <div
-                key={index}
-                className="
-                  rounded-xl
-                  border border-slate-700
-                  bg-slate-800
-                  p-5
-                "
-              >
+            {form.chapters.map(
+              (
+                chapter,
+                index
+              ) => (
 
-                <div className="mb-4 flex items-center justify-between">
+                <div
+                  key={index}
+                  className="
+                    rounded-xl
+                    border
+                    border-slate-700
+                    bg-slate-800
+                    p-5
+                  "
+                >
 
-                  <h3 className="font-semibold text-lg text-white">
-                    Chapter {index + 1}
-                  </h3>
+                  {/* CHAPTER HEADER */}
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      removeChapter(index)
-                    }
-                    className="
-                      text-red-400
-                      hover:text-red-500
-                      transition
-                    "
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <div className="mb-4 flex items-center justify-between">
+
+                    <h3 className="font-semibold text-lg text-white">
+                      Chapter{" "}
+                      {index + 1}
+                    </h3>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        removeChapter(
+                          index
+                        )
+                      }
+                      disabled={
+                        loading
+                      }
+                      className="
+                        text-red-400
+                        hover:text-red-500
+                        disabled:opacity-50
+                        transition
+                      "
+                      title="Remove chapter"
+                    >
+
+                      <Trash2
+                        size={18}
+                      />
+
+                    </button>
+
+                  </div>
+
+                  <div className="space-y-4">
+
+                    {/* CHAPTER TITLE */}
+
+                    <input
+                      value={
+                        chapter.title ||
+                        ""
+                      }
+                      onChange={(
+                        e
+                      ) =>
+                        updateChapter(
+                          index,
+                          "title",
+                          e.target
+                            .value
+                        )
+                      }
+                      placeholder="Chapter title..."
+                      disabled={
+                        loading
+                      }
+                      className="
+                        w-full
+                        rounded-xl
+                        bg-slate-900
+                        border border-slate-700
+                        px-4 py-3
+                        text-white
+                        placeholder:text-slate-500
+                        outline-none
+                        focus:border-blue-500
+                        transition
+                      "
+                    />
+
+                    {/* CHAPTER CONTENT */}
+
+                    <textarea
+                      rows={8}
+                      value={
+                        chapter.content ||
+                        ""
+                      }
+                      onChange={(
+                        e
+                      ) =>
+                        updateChapter(
+                          index,
+                          "content",
+                          e.target
+                            .value
+                        )
+                      }
+                      placeholder="Chapter content..."
+                      disabled={
+                        loading
+                      }
+                      className="
+                        w-full
+                        rounded-xl
+                        bg-slate-900
+                        border border-slate-700
+                        px-4 py-3
+                        text-white
+                        placeholder:text-slate-500
+                        outline-none
+                        resize-y
+                        focus:border-blue-500
+                        transition
+                      "
+                    />
+
+                  </div>
+
                 </div>
 
-                <div className="space-y-4">
-
-                  <input
-                    value={chapter.title || ""}
-                    onChange={(e) =>
-                      updateChapter(
-                        index,
-                        "title",
-                        e.target.value
-                      )
-                    }
-                    placeholder="Chapter title..."
-                    className="
-                      w-full
-                      rounded-xl
-                      bg-slate-900
-                      border border-slate-700
-                      px-4 py-3
-                      text-white
-                      placeholder:text-slate-500
-                      outline-none
-                      focus:border-blue-500
-                    "
-                  />
-
-                  <textarea
-                    rows={5}
-                    value={chapter.content || ""}
-                    onChange={(e) =>
-                      updateChapter(
-                        index,
-                        "content",
-                        e.target.value
-                      )
-                    }
-                    placeholder="Chapter content..."
-                    className="
-                      w-full
-                      rounded-xl
-                      bg-slate-900
-                      border border-slate-700
-                      px-4 py-3
-                      text-white
-                      placeholder:text-slate-500
-                      outline-none
-                      resize-y
-                      focus:border-blue-500
-                    "
-                  />
-
-                </div>
-              </div>
-            ))}
+              )
+            )}
 
           </div>
+
         </div>
 
-        {/* STATUS */}
+        {/* ===================================================
+            STATUS
+        =================================================== */}
+
         <div>
 
           <label className="mb-2 block text-sm text-slate-400">
@@ -604,8 +1134,15 @@ const NovelEditor = () => {
 
           <select
             name="status"
-            value={form.status}
-            onChange={handleChange}
+            value={
+              form.status
+            }
+            onChange={
+              handleChange
+            }
+            disabled={
+              loading
+            }
             className="
               w-full
               rounded-xl
@@ -617,6 +1154,7 @@ const NovelEditor = () => {
               focus:border-blue-500
             "
           >
+
             <option value="Draft">
               Draft
             </option>
@@ -624,14 +1162,23 @@ const NovelEditor = () => {
             <option value="Published">
               Published
             </option>
+
           </select>
+
         </div>
 
-        {/* SUBMIT */}
+        {/* ===================================================
+            SUBMIT
+        =================================================== */}
+
         <AdminButton
           type="submit"
-          disabled={loading || uploading}
+          disabled={
+            loading ||
+            uploading
+          }
         >
+
           <span className="flex items-center gap-2">
 
             {loading ? (
@@ -643,17 +1190,32 @@ const NovelEditor = () => {
               <Save size={18} />
             )}
 
-            {id
-              ? "Update Novel"
-              : "Save Novel"}
+            {loading
+              ? id
+                ? "Updating Novel..."
+                : "Saving Novel..."
+              : id
+                ? "Update Novel"
+                : "Save Novel"}
 
           </span>
+
         </AdminButton>
 
       </form>
+
     </div>
   );
 };
 
-export default NovelEditor;
+/* =========================================================
+   SMALL EMPTY-CHAPTER ICON
+========================================================= */
 
+const BookOpenIcon = () => (
+  <div className="flex justify-center text-slate-600">
+    <ImageIcon size={36} />
+  </div>
+);
+
+export default NovelEditor;

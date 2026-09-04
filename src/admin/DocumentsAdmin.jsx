@@ -25,365 +25,549 @@ import {
   X,
 } from "lucide-react";
 
-import { supabase } from "../lib/supabaseClient";
+// ============================================================
+// API CONFIG
+// ============================================================
+
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
+
+const AUTH_TOKEN_KEY =
+  "scholiqen_auth_token";
+
+// ============================================================
+// AUTH HEADERS
+// ============================================================
+
+const getAuthHeaders = () => {
+  const token =
+    localStorage.getItem(
+      AUTH_TOKEN_KEY
+    );
+
+  return token
+    ? {
+        Authorization: `Bearer ${token}`,
+      }
+    : {};
+};
+
+// ============================================================
+// API RESPONSE HELPER
+// ============================================================
+
+const parseResponse = async (
+  response
+) => {
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        `Request failed with status ${response.status}.`
+    );
+  }
+
+  return data;
+};
+
+// ============================================================
+// ASSET URL HELPER
+// ============================================================
+
+const resolveAssetUrl = (url) => {
+  if (!url) return "";
+
+  // Already an absolute URL
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("blob:")
+  ) {
+    return url;
+  }
+
+  // Relative backend URL
+  return `${API_URL}${
+    url.startsWith("/")
+      ? url
+      : `/${url}`
+  }`;
+};
+
+// ============================================================
+// COMPONENT
+// ============================================================
 
 export default function DocumentsAdmin() {
-  /* ==========================================
+  /* ==========================================================
      FORM STATES
-  ========================================== */
+  ========================================================== */
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-
-  const [file, setFile] = useState(null);
-  const [thumbnail, setThumbnail] = useState(null);
-
-  const [selectedCategory, setSelectedCategory] =
+  const [title, setTitle] =
     useState("");
 
-  /* ==========================================
+  const [description, setDescription] =
+    useState("");
+
+  const [file, setFile] =
+    useState(null);
+
+  const [thumbnail, setThumbnail] =
+    useState(null);
+
+  const [
+    selectedCategory,
+    setSelectedCategory,
+  ] = useState("");
+
+  /* ==========================================================
      EDIT STATES
-  ========================================== */
+  ========================================================== */
 
-  const [editingDoc, setEditingDoc] = useState(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editCategory, setEditCategory] = useState("");
-  const [editFile, setEditFile] = useState(null);
-  const [editThumbnail, setEditThumbnail] = useState(null);
-  const [updating, setUpdating] = useState(false);
+  const [
+    editingDoc,
+    setEditingDoc,
+  ] = useState(null);
 
-  /* ==========================================
+  const [editTitle, setEditTitle] =
+    useState("");
+
+  const [
+    editDescription,
+    setEditDescription,
+  ] = useState("");
+
+  const [
+    editCategory,
+    setEditCategory,
+  ] = useState("");
+
+  const [editFile, setEditFile] =
+    useState(null);
+
+  const [
+    editThumbnail,
+    setEditThumbnail,
+  ] = useState(null);
+
+  const [updating, setUpdating] =
+    useState(false);
+
+  /* ==========================================================
      DATA STATES
-  ========================================== */
+  ========================================================== */
 
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] =
+    useState([]);
 
-  const [documents, setDocuments] = useState([]);
+  const [documents, setDocuments] =
+    useState([]);
 
-  /* ==========================================
+  /* ==========================================================
      FILTER STATES
-  ========================================== */
+  ========================================================== */
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] =
+    useState("");
 
-  const [filterCategory, setFilterCategory] =
-    useState("all");
+  const [
+    filterCategory,
+    setFilterCategory,
+  ] = useState("all");
 
-  /* ==========================================
+  /* ==========================================================
      LOADING STATES
-  ========================================== */
+  ========================================================== */
 
-  const [loadingCategories, setLoadingCategories] =
-    useState(true);
+  const [
+    loadingCategories,
+    setLoadingCategories,
+  ] = useState(true);
 
-  const [loadingDocuments, setLoadingDocuments] =
-    useState(true);
+  const [
+    loadingDocuments,
+    setLoadingDocuments,
+  ] = useState(true);
 
   const [uploading, setUploading] =
     useState(false);
 
-  /* ==========================================
+  /* ==========================================================
+     THUMBNAIL PREVIEW
+  ========================================================== */
+
+  const [
+    thumbnailPreview,
+    setThumbnailPreview,
+  ] = useState("");
+
+  const [
+    editThumbnailPreview,
+    setEditThumbnailPreview,
+  ] = useState("");
+
+  /* ==========================================================
      INITIAL LOAD
-  ========================================== */
+  ========================================================== */
 
   useEffect(() => {
     fetchCategories();
     fetchDocuments();
   }, []);
 
-  /* ==========================================
+  /* ==========================================================
+     THUMBNAIL PREVIEW
+  ========================================================== */
+
+  useEffect(() => {
+    if (!thumbnail) {
+      setThumbnailPreview("");
+      return;
+    }
+
+    const objectUrl =
+      URL.createObjectURL(
+        thumbnail
+      );
+
+    setThumbnailPreview(
+      objectUrl
+    );
+
+    return () => {
+      URL.revokeObjectURL(
+        objectUrl
+      );
+    };
+  }, [thumbnail]);
+
+  /* ==========================================================
+     EDIT THUMBNAIL PREVIEW
+  ========================================================== */
+
+  useEffect(() => {
+    if (!editThumbnail) {
+      setEditThumbnailPreview("");
+      return;
+    }
+
+    const objectUrl =
+      URL.createObjectURL(
+        editThumbnail
+      );
+
+    setEditThumbnailPreview(
+      objectUrl
+    );
+
+    return () => {
+      URL.revokeObjectURL(
+        objectUrl
+      );
+    };
+  }, [editThumbnail]);
+
+  /* ==========================================================
      FETCH CATEGORIES
-  ========================================== */
+  ========================================================== */
 
-  const fetchCategories = async () => {
-    try {
-      setLoadingCategories(true);
+  const fetchCategories =
+    async () => {
+      try {
+        setLoadingCategories(true);
 
-      const {
-        data,
-        error,
-      } = await supabase
-        .from("course_categories")
-        .select("*")
-        .eq("active", true)
-        .order("display_order", {
-          ascending: true,
-        });
+        const response =
+          await fetch(
+            `${API_URL}/api/documents/categories`,
+            {
+              method: "GET",
+              headers: {
+                ...getAuthHeaders(),
+              },
+            }
+          );
 
-      if (error) throw error;
+        const data =
+          await parseResponse(
+            response
+          );
 
-      setCategories(data || []);
+        const list =
+          Array.isArray(
+            data?.categories
+          )
+            ? data.categories
+            : [];
 
-      if (data?.length) {
-        setSelectedCategory(data[0].id);
+        setCategories(list);
+
+        if (
+          list.length > 0 &&
+          !selectedCategory
+        ) {
+          setSelectedCategory(
+            String(list[0].id)
+          );
+        }
+      } catch (error) {
+        console.error(
+          "CATEGORY FETCH ERROR:",
+          error
+        );
+
+        setCategories([]);
+
+        if (
+          error.message
+            ?.toLowerCase()
+            .includes("authentication")
+        ) {
+          alert(
+            "Your admin session may have expired. Please log in again."
+          );
+        }
+      } finally {
+        setLoadingCategories(
+          false
+        );
       }
-    } catch (err) {
-      console.error(
-        "CATEGORY ERROR:",
-        err
-      );
-    } finally {
-      setLoadingCategories(false);
-    }
-  };
+    };
 
-  /* ==========================================
+  /* ==========================================================
      FETCH DOCUMENTS
-  ========================================== */
+  ========================================================== */
 
-  const fetchDocuments = async () => {
-    try {
-      setLoadingDocuments(true);
+  const fetchDocuments =
+    async () => {
+      try {
+        setLoadingDocuments(true);
 
-      const {
-        data,
-        error,
-      } = await supabase
-        .from("documents")
-        .select("*")
-        .order("created_at", {
-          ascending: false,
-        });
+        const response =
+          await fetch(
+            `${API_URL}/api/documents`,
+            {
+              method: "GET",
+              headers: {
+                ...getAuthHeaders(),
+              },
+            }
+          );
 
-      if (error) throw error;
+        const data =
+          await parseResponse(
+            response
+          );
 
-      setDocuments(data || []);
-    } catch (err) {
-      console.error(
-        "DOCUMENT FETCH ERROR:",
-        err
-      );
+        const list =
+          Array.isArray(
+            data?.documents
+          )
+            ? data.documents
+            : [];
 
-      setDocuments([]);
-    } finally {
-      setLoadingDocuments(false);
-    }
-  };
+        setDocuments(list);
+      } catch (error) {
+        console.error(
+          "DOCUMENT FETCH ERROR:",
+          error
+        );
 
-  /* ==========================================
+        setDocuments([]);
+
+        alert(
+          error.message ||
+            "Unable to load documents."
+        );
+      } finally {
+        setLoadingDocuments(
+          false
+        );
+      }
+    };
+
+  /* ==========================================================
      FILTER DOCUMENTS
-  ========================================== */
+  ========================================================== */
 
-  const filteredDocuments = useMemo(() => {
-    return documents.filter((doc) => {
-      const keyword = search
-        .toLowerCase()
-        .trim();
+  const filteredDocuments =
+    useMemo(() => {
+      return documents.filter(
+        (doc) => {
+          const keyword =
+            search
+              .toLowerCase()
+              .trim();
 
-      const matchesSearch =
-        !keyword ||
-        doc.title
-          ?.toLowerCase()
-          .includes(keyword) ||
-        doc.description
-          ?.toLowerCase()
-          .includes(keyword);
+          const matchesSearch =
+            !keyword ||
+            doc.title
+              ?.toLowerCase()
+              .includes(keyword) ||
+            doc.description
+              ?.toLowerCase()
+              .includes(keyword);
 
-      const matchesCategory =
-        filterCategory === "all" ||
-        String(doc.category_id) ===
-          String(filterCategory);
+          const matchesCategory =
+            filterCategory ===
+              "all" ||
+            String(
+              doc.category_id
+            ) ===
+              String(
+                filterCategory
+              );
 
-      return (
-        matchesSearch &&
-        matchesCategory
+          return (
+            matchesSearch &&
+            matchesCategory
+          );
+        }
       );
-    });
-  }, [
-    documents,
-    search,
-    filterCategory,
-  ]);
+    }, [
+      documents,
+      search,
+      filterCategory,
+    ]);
 
-  /* ==========================================
+  /* ==========================================================
      DASHBOARD STATS
-  ========================================== */
+  ========================================================== */
 
   const stats = useMemo(() => {
     return {
-      total: documents.length,
+      total:
+        documents.length,
 
       totalCategories:
         new Set(
           documents.map(
-            (doc) => doc.category_id
+            (doc) =>
+              doc.category_id
           )
         ).size,
 
-      pdfs: documents.filter(
-        (doc) =>
-          doc.file_type
-            ?.toLowerCase() === "pdf"
-      ).length,
+      pdfs:
+        documents.filter(
+          (doc) =>
+            doc.file_type
+              ?.toLowerCase() ===
+            "pdf"
+        ).length,
 
-      images: documents.filter(
-        (doc) => doc.thumbnail_url
-      ).length,
+      images:
+        documents.filter(
+          (doc) =>
+            Boolean(
+              doc.thumbnail_url
+            )
+        ).length,
     };
   }, [documents]);
 
-  /* ==========================================
+  /* ==========================================================
      UPLOAD DOCUMENT
-  ========================================== */
+  ========================================================== */
 
-  const handleUpload = async (event) => {
+  const handleUpload = async (
+    event
+  ) => {
     event.preventDefault();
 
     if (!title.trim()) {
-      alert("Please enter a document title.");
+      alert(
+        "Please enter a document title."
+      );
       return;
     }
 
     if (!selectedCategory) {
-      alert("Please select a category.");
+      alert(
+        "Please select a category."
+      );
       return;
     }
 
     if (!file) {
-      alert("Please choose a document.");
+      alert(
+        "Please choose a document."
+      );
       return;
     }
 
     try {
       setUploading(true);
 
-      const extension = file.name
-        .split(".")
-        .pop()
-        .toLowerCase();
+      const formData =
+        new FormData();
 
-      const documentName =
-        `${Date.now()}-${Math.random()
-          .toString(36)
-          .substring(2)}.${extension}`;
+      formData.append(
+        "title",
+        title.trim()
+      );
 
-      const {
-        error: uploadError,
-      } = await supabase.storage
-        .from("course-documents")
-        .upload(
-          documentName,
-          file,
+      formData.append(
+        "description",
+        description.trim()
+      );
+
+      formData.append(
+        "category_id",
+        selectedCategory
+      );
+
+      formData.append(
+        "file",
+        file
+      );
+
+      if (thumbnail) {
+        formData.append(
+          "thumbnail",
+          thumbnail
+        );
+      }
+
+      const response =
+        await fetch(
+          `${API_URL}/api/documents`,
           {
-            upsert: false,
+            method: "POST",
+            headers: {
+              ...getAuthHeaders(),
+            },
+            body: formData,
           }
         );
 
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const {
-        data: documentUrlData,
-      } = supabase.storage
-        .from("course-documents")
-        .getPublicUrl(documentName);
-
-      const documentUrl =
-        documentUrlData.publicUrl;
-
-      let thumbnailUrl = "";
-
-      if (thumbnail) {
-        const thumbExtension =
-          thumbnail.name
-            .split(".")
-            .pop()
-            .toLowerCase();
-
-        const thumbnailName =
-          `thumb-${Date.now()}-${Math.random()
-            .toString(36)
-            .substring(2)}.${thumbExtension}`;
-
-        const {
-          error: thumbnailError,
-        } = await supabase.storage
-          .from("course-thumbnails")
-          .upload(
-            thumbnailName,
-            thumbnail,
-            {
-              upsert: false,
-            }
-          );
-
-        if (thumbnailError) {
-          throw thumbnailError;
-        }
-
-        const {
-          data: thumbnailData,
-        } = supabase.storage
-          .from("course-thumbnails")
-          .getPublicUrl(
-            thumbnailName
-          );
-
-        thumbnailUrl =
-          thumbnailData.publicUrl;
-      } else if (
-        file.type.startsWith(
-          "image/"
-        )
-      ) {
-        thumbnailUrl =
-          documentUrl;
-      }
-
-      const category =
-        categories.find(
-          (item) =>
-            String(item.id) ===
-            String(
-              selectedCategory
-            )
+      const data =
+        await parseResponse(
+          response
         );
 
-      const {
-        error: insertError,
-      } = await supabase
-        .from("documents")
-        .insert([
-          {
-            title:
-              title.trim(),
-
-            description:
-              description.trim(),
-
-            category_id:
-              selectedCategory,
-
-            category:
-              category?.name ||
-              "",
-
-            file_url:
-              documentUrl,
-
-            thumbnail_url:
-              thumbnailUrl,
-
-            file_type:
-              extension,
-
-            file_size:
-              file.size,
-
-            created_at:
-              new Date()
-                .toISOString(),
-          },
-        ]);
-
-      if (insertError) {
-        throw insertError;
+      if (!data?.document) {
+        throw new Error(
+          "Document was uploaded but no document record was returned."
+        );
       }
 
-      await fetchDocuments();
+      // Add immediately to the list
+      setDocuments(
+        (prev) => [
+          data.document,
+          ...prev,
+        ]
+      );
 
+      // Reset form
       setTitle("");
       setDescription("");
       setFile(null);
@@ -391,21 +575,26 @@ export default function DocumentsAdmin() {
 
       if (categories.length) {
         setSelectedCategory(
-          categories[0].id
+          String(
+            categories[0].id
+          )
         );
       }
 
       alert(
         "Document uploaded successfully."
       );
-    } catch (err) {
+
+      // Confirm latest DB state
+      await fetchDocuments();
+    } catch (error) {
       console.error(
         "UPLOAD ERROR:",
-        err
+        error
       );
 
       alert(
-        err.message ||
+        error.message ||
           "Upload failed."
       );
     } finally {
@@ -413,215 +602,270 @@ export default function DocumentsAdmin() {
     }
   };
 
-  /* ==========================================
-     START EDITING DOCUMENT
-  ========================================== */
+  /* ==========================================================
+     START EDITING
+  ========================================================== */
 
-  const startEditing = (doc) => {
+  const startEditing = (
+    doc
+  ) => {
     setEditingDoc(doc);
-    setEditTitle(doc.title || "");
-    setEditDescription(doc.description || "");
-    setEditCategory(doc.category_id || "");
+
+    setEditTitle(
+      doc.title || ""
+    );
+
+    setEditDescription(
+      doc.description || ""
+    );
+
+    setEditCategory(
+      doc.category_id
+        ? String(
+            doc.category_id
+          )
+        : ""
+    );
+
     setEditFile(null);
     setEditThumbnail(null);
   };
 
-  /* ==========================================
+  /* ==========================================================
      UPDATE DOCUMENT
-  ========================================== */
+  ========================================================== */
 
-  const handleUpdate = async (e) => {
-    e.preventDefault();
-    if (!editingDoc) return;
+  const handleUpdate =
+    async (event) => {
+      event.preventDefault();
 
-    if (!editTitle.trim()) {
-      alert("Please enter a title.");
-      return;
-    }
-
-    try {
-      setUpdating(true);
-
-      let documentUrl = editingDoc.file_url;
-      let extension = editingDoc.file_type;
-      let fileSize = editingDoc.file_size;
-
-      // If a new document file is uploaded
-      if (editFile) {
-        extension = editFile.name.split(".").pop().toLowerCase();
-        const documentName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${extension}`;
-        
-        const { error: uploadErr } = await supabase.storage
-          .from("course-documents")
-          .upload(documentName, editFile, { upsert: false });
-
-        if (uploadErr) throw uploadErr;
-
-        const { data: urlData } = supabase.storage
-          .from("course-documents")
-          .getPublicUrl(documentName);
-
-        documentUrl = urlData.publicUrl;
-        fileSize = editFile.size;
+      if (!editingDoc) {
+        return;
       }
 
-      let thumbnailUrl = editingDoc.thumbnail_url;
-
-      // If a new thumbnail is uploaded
-      if (editThumbnail) {
-        const thumbExtension = editThumbnail.name.split(".").pop().toLowerCase();
-        const thumbnailName = `thumb-${Date.now()}-${Math.random().toString(36).substring(2)}.${thumbExtension}`;
-
-        const { error: thumbErr } = await supabase.storage
-          .from("course-thumbnails")
-          .upload(thumbnailName, editThumbnail, { upsert: false });
-
-        if (thumbErr) throw thumbErr;
-
-        const { data: thumbData } = supabase.storage
-          .from("course-thumbnails")
-          .getPublicUrl(thumbnailName);
-
-        thumbnailUrl = thumbData.publicUrl;
+      if (!editTitle.trim()) {
+        alert(
+          "Please enter a title."
+        );
+        return;
       }
 
-      const selectedCatObj = categories.find(
-        (item) => String(item.id) === String(editCategory)
-      );
+      if (!editCategory) {
+        alert(
+          "Please select a category."
+        );
+        return;
+      }
 
-      const { error: updateError } = await supabase
-        .from("documents")
-        .update({
-          title: editTitle.trim(),
-          description: editDescription.trim(),
-          category_id: editCategory,
-          category: selectedCatObj?.name || editingDoc.category,
-          file_url: documentUrl,
-          thumbnail_url: thumbnailUrl,
-          file_type: extension,
-          file_size: fileSize,
-        })
-        .eq("id", editingDoc.id);
+      try {
+        setUpdating(true);
 
-      if (updateError) throw updateError;
+        const formData =
+          new FormData();
 
-      await fetchDocuments();
-      setEditingDoc(null);
-      alert("Document updated successfully.");
-    } catch (err) {
-      console.error("UPDATE ERROR:", err);
-      alert(err.message || "Failed to update document.");
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  /* ==========================================
-     DELETE DOCUMENT
-  ========================================== */
-
-  const handleDelete = async (doc) => {
-    const confirmed = window.confirm(
-      `Delete "${doc.title}"?\n\nThis action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    try {
-      if (doc.file_url) {
-        const fileName = decodeURIComponent(
-          doc.file_url.split("/").pop()
+        formData.append(
+          "title",
+          editTitle.trim()
         );
 
-        await supabase.storage
-          .from("course-documents")
-          .remove([fileName]);
-      }
+        formData.append(
+          "description",
+          editDescription.trim()
+        );
 
-      if (
-        doc.thumbnail_url &&
-        doc.thumbnail_url.includes(
-          "course-thumbnails"
-        )
-      ) {
-        const thumbnailName =
-          decodeURIComponent(
-            doc.thumbnail_url
-              .split("/")
-              .pop()
+        formData.append(
+          "category_id",
+          editCategory
+        );
+
+        if (editFile) {
+          formData.append(
+            "file",
+            editFile
+          );
+        }
+
+        if (editThumbnail) {
+          formData.append(
+            "thumbnail",
+            editThumbnail
+          );
+        }
+
+        const response =
+          await fetch(
+            `${API_URL}/api/documents/${editingDoc.id}`,
+            {
+              method: "PUT",
+              headers: {
+                ...getAuthHeaders(),
+              },
+              body: formData,
+            }
           );
 
-        await supabase.storage
-          .from("course-thumbnails")
-          .remove([thumbnailName]);
+        const data =
+          await parseResponse(
+            response
+          );
+
+        if (!data?.document) {
+          throw new Error(
+            "Document updated but no document record was returned."
+          );
+        }
+
+        setDocuments(
+          (prev) =>
+            prev.map((doc) =>
+              String(doc.id) ===
+              String(
+                editingDoc.id
+              )
+                ? data.document
+                : doc
+            )
+        );
+
+        setEditingDoc(null);
+        setEditFile(null);
+        setEditThumbnail(null);
+
+        alert(
+          "Document updated successfully."
+        );
+
+        await fetchDocuments();
+      } catch (error) {
+        console.error(
+          "UPDATE ERROR:",
+          error
+        );
+
+        alert(
+          error.message ||
+            "Failed to update document."
+        );
+      } finally {
+        setUpdating(false);
+      }
+    };
+
+  /* ==========================================================
+     DELETE DOCUMENT
+  ========================================================== */
+
+  const handleDelete =
+    async (doc) => {
+      const confirmed =
+        window.confirm(
+          `Delete "${doc.title}"?\n\nThis action cannot be undone.`
+        );
+
+      if (!confirmed) {
+        return;
       }
 
-      const { error } = await supabase
-        .from("documents")
-        .delete()
-        .eq("id", doc.id);
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/api/documents/${doc.id}`,
+            {
+              method: "DELETE",
+              headers: {
+                ...getAuthHeaders(),
+              },
+            }
+          );
 
-      if (error) throw error;
+        await parseResponse(
+          response
+        );
 
-      setDocuments((prev) =>
-        prev.filter(
-          (item) => item.id !== doc.id
-        )
-      );
+        setDocuments(
+          (prev) =>
+            prev.filter(
+              (item) =>
+                String(
+                  item.id
+                ) !==
+                String(doc.id)
+            )
+        );
 
-      alert(
-        "Document deleted successfully."
-      );
-    } catch (err) {
-      console.error(
-        "DELETE ERROR:",
-        err
-      );
+        alert(
+          "Document deleted successfully."
+        );
+      } catch (error) {
+        console.error(
+          "DELETE ERROR:",
+          error
+        );
 
-      alert(
-        err.message ||
-          "Unable to delete document."
-      );
-    }
-  };
+        alert(
+          error.message ||
+            "Unable to delete document."
+        );
+      }
+    };
 
-  /* ==========================================
-     VIEW / OPEN CONTENT (PDF Viewer)
-  ========================================== */
+  /* ==========================================================
+     OPEN DOCUMENT
+  ========================================================== */
 
-  const openDocument = (url) => {
+  const openDocument = (
+    url
+  ) => {
     if (!url) {
-      alert("Document URL not found.");
+      alert(
+        "Document URL not found."
+      );
       return;
     }
 
+    const finalUrl =
+      resolveAssetUrl(url);
+
     window.open(
-      url,
+      finalUrl,
       "_blank",
       "noopener,noreferrer"
     );
   };
 
-  /* ==========================================
-     REFRESH DOCUMENTS
-  ========================================== */
+  /* ==========================================================
+     REFRESH
+  ========================================================== */
 
   const refreshDocuments =
     async () => {
-      await fetchDocuments();
+      await Promise.all([
+        fetchDocuments(),
+        fetchCategories(),
+      ]);
     };
 
-   return (
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
+  return (
     <div className="min-h-screen bg-[#020617] p-8 text-white">
       <div className="mx-auto max-w-7xl">
 
-        {/* ===========================
-            PAGE HEADER
-        =========================== */}
+        {/* =====================================================
+            HEADER
+        ===================================================== */}
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
           className="mb-10"
         >
           <h1 className="text-4xl font-black">
@@ -629,13 +873,15 @@ export default function DocumentsAdmin() {
           </h1>
 
           <p className="mt-2 text-slate-400">
-            Upload, organize and manage all course learning materials.
+            Upload, organize and
+            manage all course
+            learning materials.
           </p>
         </motion.div>
 
-        {/* ===========================
+        {/* =====================================================
             STATISTICS
-        =========================== */}
+        ===================================================== */}
 
         <div className="mb-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
 
@@ -701,23 +947,30 @@ export default function DocumentsAdmin() {
 
         </div>
 
-        {/* ===========================
+        {/* =====================================================
             MAIN GRID
-        =========================== */}
+        ===================================================== */}
 
         <div className="grid gap-8 lg:grid-cols-[400px_1fr]">
 
-          {/* ===========================
+          {/* ===================================================
               UPLOAD FORM
-          =========================== */}
+          =================================================== */}
 
           <motion.form
-            onSubmit={handleUpload}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6 rounded-3xl border border-slate-800 bg-slate-900 p-6 h-fit"
+            onSubmit={
+              handleUpload
+            }
+            initial={{
+              opacity: 0,
+              x: -20,
+            }}
+            animate={{
+              opacity: 1,
+              x: 0,
+            }}
+            className="h-fit space-y-6 rounded-3xl border border-slate-800 bg-slate-900 p-6"
           >
-
             <h2 className="text-xl font-bold">
               Upload Document
             </h2>
@@ -725,9 +978,10 @@ export default function DocumentsAdmin() {
             {/* TITLE */}
 
             <div>
-
               <label className="mb-2 flex items-center gap-2 font-medium">
-                <FileText size={18} />
+                <FileText
+                  size={18}
+                />
                 Title
               </label>
 
@@ -735,20 +989,22 @@ export default function DocumentsAdmin() {
                 type="text"
                 value={title}
                 onChange={(e) =>
-                  setTitle(e.target.value)
+                  setTitle(
+                    e.target.value
+                  )
                 }
                 placeholder="Document title..."
                 className="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 outline-none transition focus:border-cyan-500"
               />
-
             </div>
 
             {/* DESCRIPTION */}
 
             <div>
-
               <label className="mb-2 flex items-center gap-2 font-medium">
-                <AlignLeft size={18} />
+                <AlignLeft
+                  size={18}
+                />
                 Description
               </label>
 
@@ -756,60 +1012,74 @@ export default function DocumentsAdmin() {
                 rows={4}
                 value={description}
                 onChange={(e) =>
-                  setDescription(e.target.value)
+                  setDescription(
+                    e.target.value
+                  )
                 }
                 placeholder="Write a short description..."
                 className="w-full resize-none rounded-xl border border-slate-700 bg-slate-800 p-4 outline-none transition focus:border-cyan-500"
               />
-
             </div>
 
             {/* CATEGORY */}
 
             <div>
-
               <label className="mb-2 flex items-center gap-2 font-medium">
                 <Tag size={18} />
                 Category
               </label>
 
               <select
-                value={selectedCategory}
-                onChange={(e) =>
-                  setSelectedCategory(e.target.value)
+                value={
+                  selectedCategory
                 }
-                className="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 outline-none"
+                onChange={(e) =>
+                  setSelectedCategory(
+                    e.target.value
+                  )
+                }
+                disabled={
+                  loadingCategories
+                }
+                className="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 outline-none disabled:opacity-50"
               >
-
                 {loadingCategories ? (
-
                   <option>
-                    Loading...
+                    Loading categories...
                   </option>
-
+                ) : categories.length ===
+                  0 ? (
+                  <option value="">
+                    No categories found
+                  </option>
                 ) : (
-
-                  categories.map((category) => (
-                    <option
-                      key={category.id}
-                      value={category.id}
-                    >
-                      {category.name}
-                    </option>
-                  ))
-
+                  categories.map(
+                    (category) => (
+                      <option
+                        key={
+                          category.id
+                        }
+                        value={
+                          category.id
+                        }
+                      >
+                        {
+                          category.name
+                        }
+                      </option>
+                    )
+                  )
                 )}
-
               </select>
-
             </div>
 
             {/* DOCUMENT FILE */}
 
             <div>
-
               <label className="mb-3 flex items-center gap-2 font-medium">
-                <FolderOpen size={18} />
+                <FolderOpen
+                  size={18}
+                />
                 Document File
               </label>
 
@@ -817,115 +1087,83 @@ export default function DocumentsAdmin() {
                 type="file"
                 accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
                 onChange={(e) =>
-                  setFile(e.target.files[0])
+                  setFile(
+                    e.target
+                      .files?.[0] ||
+                      null
+                  )
                 }
-                className="
-                  block
-                  w-full
-                  cursor-pointer
-                  text-sm
-                  text-slate-400
-                  file:mr-4
-                  file:rounded-xl
-                  file:border-0
-                  file:bg-slate-800
-                  file:px-4
-                  file:py-2
-                  file:text-sm
-                  file:font-semibold
-                  file:text-cyan-400
-                  hover:file:bg-slate-700
-                "
+                className="block w-full cursor-pointer text-sm text-slate-400 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-400 hover:file:bg-slate-700"
               />
 
               {file && (
                 <div className="mt-3 rounded-xl bg-slate-800 p-3">
-
-                  <p className="font-medium">
+                  <p className="break-all font-medium">
                     {file.name}
                   </p>
 
                   <p className="mt-1 text-xs text-slate-400">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                    {(
+                      file.size /
+                      1024 /
+                      1024
+                    ).toFixed(
+                      2
+                    )}{" "}
+                    MB
                   </p>
-
                 </div>
               )}
-
             </div>
 
             {/* THUMBNAIL */}
 
             <div>
-
               <label className="mb-3 flex items-center gap-2 font-medium">
-                <Upload size={18} />
-                Thumbnail (Optional)
+                <Upload
+                  size={18}
+                />
+                Thumbnail
+                <span className="text-xs text-slate-500">
+                  Optional
+                </span>
               </label>
 
               <input
                 type="file"
                 accept="image/*"
                 onChange={(e) =>
-                  setThumbnail(e.target.files[0])
+                  setThumbnail(
+                    e.target
+                      .files?.[0] ||
+                      null
+                  )
                 }
-                className="
-                  block
-                  w-full
-                  cursor-pointer
-                  text-sm
-                  text-slate-400
-                  file:mr-4
-                  file:rounded-xl
-                  file:border-0
-                  file:bg-slate-800
-                  file:px-4
-                  file:py-2
-                  file:text-sm
-                  file:font-semibold
-                  file:text-cyan-400
-                  hover:file:bg-slate-700
-                "
+                className="block w-full cursor-pointer text-sm text-slate-400 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-400 hover:file:bg-slate-700"
               />
 
-              {thumbnail && (
+              {thumbnailPreview && (
                 <img
-                  src={URL.createObjectURL(thumbnail)}
-                  alt="Preview"
-                  className="
-                    mt-5
-                    h-44
-                    w-full
-                    rounded-2xl
-                    object-cover
-                  "
+                  src={
+                    thumbnailPreview
+                  }
+                  alt="Thumbnail preview"
+                  className="mt-5 h-44 w-full rounded-2xl object-cover"
                 />
               )}
-
             </div>
 
             {/* UPLOAD BUTTON */}
 
             <button
               type="submit"
-              disabled={uploading}
-              className="
-                flex
-                h-12
-                w-full
-                items-center
-                justify-center
-                gap-3
-                rounded-xl
-                bg-cyan-600
-                font-semibold
-                transition
-                hover:bg-cyan-500
-                disabled:cursor-not-allowed
-                disabled:opacity-50
-              "
+              disabled={
+                uploading ||
+                loadingCategories ||
+                categories.length === 0
+              }
+              className="flex h-12 w-full items-center justify-center gap-3 rounded-xl bg-cyan-600 font-semibold transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-
               {uploading ? (
                 <>
                   <Loader2
@@ -936,18 +1174,18 @@ export default function DocumentsAdmin() {
                 </>
               ) : (
                 <>
-                  <Upload size={18} />
+                  <Upload
+                    size={18}
+                  />
                   Upload Document
                 </>
               )}
-
             </button>
-
           </motion.form>
 
-          {/* ===========================
+          {/* ===================================================
               DOCUMENT LIST
-          =========================== */}
+          =================================================== */}
 
           <motion.div
             initial={{
@@ -956,344 +1194,541 @@ export default function DocumentsAdmin() {
             animate={{
               opacity: 1,
             }}
-            className="
-              rounded-3xl
-              border
-              border-slate-800
-              bg-slate-900
-              p-6
-            "
+            className="rounded-3xl border border-slate-800 bg-slate-900 p-6"
           >
+            {/* SEARCH / FILTER */}
 
-            {/* SEARCH */}
-
-            <div className="mb-6 flex items-center gap-4">
+            <div className="mb-6 flex flex-col gap-4 xl:flex-row">
 
               <div className="relative flex-1">
-
                 <Search
                   size={18}
-                  className="
-                    absolute
-                    left-4
-                    top-3.5
-                    text-slate-500
-                  "
+                  className="absolute left-4 top-3.5 text-slate-500"
                 />
 
                 <input
                   value={search}
                   onChange={(e) =>
-                    setSearch(e.target.value)
+                    setSearch(
+                      e.target.value
+                    )
                   }
                   placeholder="Search documents..."
-                  className="
-                    h-12
-                    w-full
-                    rounded-xl
-                    border
-                    border-slate-700
-                    bg-slate-800
-                    pl-11
-                    pr-4
-                    outline-none
-                    transition
-                    focus:border-cyan-500
-                  "
+                  className="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 pl-11 pr-4 outline-none transition focus:border-cyan-500"
                 />
-
               </div>
 
-              <button
-                onClick={refreshDocuments}
-                className="
-                  flex
-                  h-12
-                  w-12
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-slate-800
-                  transition
-                  hover:bg-slate-700
-                "
+              <select
+                value={
+                  filterCategory
+                }
+                onChange={(e) =>
+                  setFilterCategory(
+                    e.target.value
+                  )
+                }
+                className="h-12 rounded-xl border border-slate-700 bg-slate-800 px-4 outline-none xl:w-56"
               >
-                <RefreshCw size={18} />
-              </button>
+                <option value="all">
+                  All Categories
+                </option>
 
+                {categories.map(
+                  (category) => (
+                    <option
+                      key={
+                        category.id
+                      }
+                      value={
+                        category.id
+                      }
+                    >
+                      {
+                        category.name
+                      }
+                    </option>
+                  )
+                )}
+              </select>
+
+              <button
+                type="button"
+                onClick={
+                  refreshDocuments
+                }
+                disabled={
+                  loadingDocuments
+                }
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-800 transition hover:bg-slate-700 disabled:opacity-50"
+                title="Refresh"
+              >
+                <RefreshCw
+                  size={18}
+                  className={
+                    loadingDocuments
+                      ? "animate-spin"
+                      : ""
+                  }
+                />
+              </button>
             </div>
 
+            {/* RESULT COUNT */}
+
+            {!loadingDocuments && (
+              <div className="mb-5 text-sm text-slate-500">
+                Showing{" "}
+                <span className="font-semibold text-slate-300">
+                  {
+                    filteredDocuments.length
+                  }
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-slate-300">
+                  {
+                    documents.length
+                  }
+                </span>{" "}
+                documents
+              </div>
+            )}
+
+            {/* LOADING */}
+
             {loadingDocuments ? (
-
               <div className="flex h-72 items-center justify-center">
-
                 <Loader2
                   size={40}
                   className="animate-spin text-cyan-400"
                 />
-
               </div>
-
-            ) : filteredDocuments.length === 0 ? (
-
+            ) : filteredDocuments.length ===
+              0 ? (
               <div className="flex h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700">
-
                 <FileText
                   size={50}
                   className="mb-3 text-slate-600"
                 />
 
                 <p className="text-slate-400">
-                  No documents found.
+                  {documents.length ===
+                  0
+                    ? "No documents found."
+                    : "No documents match your search."}
                 </p>
-
               </div>
-
             ) : (
-              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-2">
-                {filteredDocuments.map((doc) => (
-                  <motion.div
-                    key={doc.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ y: -6 }}
-                    className="
-                      overflow-hidden
-                      rounded-3xl
-                      border
-                      border-slate-800
-                      bg-slate-950
-                      transition
-                      hover:border-cyan-500/40
-                    "
-                  >
+              <div className="grid gap-6 md:grid-cols-2">
 
-                    {/* THUMBNAIL */}
+                {filteredDocuments.map(
+                  (doc) => {
+                    const thumbnailUrl =
+                      resolveAssetUrl(
+                        doc.thumbnail_url
+                      );
 
-                    <div className="aspect-video bg-slate-900">
+                    const fallbackThumbnail =
+                      "https://placehold.co/600x400/020617/38bdf8?text=Document";
 
-                      <img
-                        src={
-                          doc.thumbnail_url ||
-                          "https://placehold.co/600x400/020617/38bdf8?text=Document"
-                        }
-                        alt={doc.title}
-                        className="h-full w-full object-cover"
-                      />
+                    return (
+                      <motion.div
+                        key={doc.id}
+                        initial={{
+                          opacity: 0,
+                          y: 20,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
+                        whileHover={{
+                          y: -6,
+                        }}
+                        className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 transition hover:border-cyan-500/40"
+                      >
 
-                    </div>
+                        {/* THUMBNAIL */}
 
-                    {/* CONTENT */}
-
-                    <div className="p-5">
-
-                      <h3 className="text-lg font-bold text-white">
-                        {doc.title}
-                      </h3>
-
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
-                        {doc.description || "No description available."}
-                      </p>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-
-                        <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-400">
-                          {doc.category || "General"}
-                        </span>
-
-                        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
-                          {(doc.file_type || "file").toUpperCase()}
-                        </span>
-
-                        {doc.file_size && (
-                          <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
-                            {(doc.file_size / 1024 / 1024).toFixed(2)} MB
-                          </span>
-                        )}
-
-                      </div>
-
-                      <div className="mt-6 flex items-center justify-between">
-
-                        <button
-                          onClick={() =>
-                            openDocument(doc.file_url)
-                          }
-                          className="
-                            flex
-                            items-center
-                            gap-2
-                            rounded-xl
-                            bg-cyan-600
-                            px-4
-                            py-2
-                            text-sm
-                            font-semibold
-                            transition
-                            hover:bg-cyan-500
-                          "
-                        >
-                          <ExternalLink size={16} />
-                          Open
-                        </button>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => startEditing(doc)}
-                            className="
-                              flex
-                              h-10
-                              w-10
-                              items-center
-                              justify-center
-                              rounded-xl
-                              bg-amber-500/10
-                              text-amber-400
-                              transition
-                              hover:bg-amber-500/20
-                            "
-                            title="Edit Document"
-                          >
-                            <Edit3 size={18} />
-                          </button>
-
-                          <button
-                            onClick={() =>
-                              handleDelete(doc)
+                        <div className="aspect-video bg-slate-900">
+                          <img
+                            src={
+                              thumbnailUrl ||
+                              fallbackThumbnail
                             }
-                            className="
-                              flex
-                              h-10
-                              w-10
-                              items-center
-                              justify-center
-                              rounded-xl
-                              bg-red-500/10
-                              text-red-400
-                              transition
-                              hover:bg-red-500/20
-                            "
-                            title="Delete Document"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                            alt={
+                              doc.title
+                            }
+                            className="h-full w-full object-cover"
+                            onError={(
+                              event
+                            ) => {
+                              if (
+                                event
+                                  .currentTarget
+                                  .src !==
+                                fallbackThumbnail
+                              ) {
+                                event.currentTarget.src =
+                                  fallbackThumbnail;
+                              }
+                            }}
+                          />
                         </div>
 
-                      </div>
+                        {/* CONTENT */}
 
-                    </div>
+                        <div className="p-5">
 
-                  </motion.div>
-                ))}
+                          <h3 className="line-clamp-2 text-lg font-bold text-white">
+                            {
+                              doc.title
+                            }
+                          </h3>
+
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
+                            {doc.description ||
+                              "No description available."}
+                          </p>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+
+                            <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-400">
+                              {doc.category ||
+                                "General"}
+                            </span>
+
+                            <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                              {(
+                                doc.file_type ||
+                                "file"
+                              ).toUpperCase()}
+                            </span>
+
+                            {doc.file_size && (
+                              <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                                {(
+                                  Number(
+                                    doc.file_size
+                                  ) /
+                                  1024 /
+                                  1024
+                                ).toFixed(
+                                  2
+                                )}{" "}
+                                MB
+                              </span>
+                            )}
+
+                          </div>
+
+                          <div className="mt-6 flex items-center justify-between">
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openDocument(
+                                  doc.file_url
+                                )
+                              }
+                              disabled={
+                                !doc.file_url
+                              }
+                              className="flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <ExternalLink
+                                size={16}
+                              />
+                              Open
+                            </button>
+
+                            <div className="flex items-center gap-2">
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  startEditing(
+                                    doc
+                                  )
+                                }
+                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 transition hover:bg-amber-500/20"
+                                title="Edit Document"
+                              >
+                                <Edit3
+                                  size={18}
+                                />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDelete(
+                                    doc
+                                  )
+                                }
+                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-400 transition hover:bg-red-500/20"
+                                title="Delete Document"
+                              >
+                                <Trash2
+                                  size={18}
+                                />
+                              </button>
+
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  }
+                )}
 
               </div>
-
             )}
-
           </motion.div>
-
         </div>
-
       </div>
 
-      {/* ===========================
-          EDIT DOCUMENT MODAL
-      =========================== */}
+      {/* =======================================================
+          EDIT MODAL
+      ======================================================= */}
+
       {editingDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{
+              opacity: 0,
+              scale: 0.95,
+            }}
+            animate={{
+              opacity: 1,
+              scale: 1,
+            }}
             className="w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-900 p-6 text-white shadow-2xl"
           >
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <h3 className="text-xl font-bold">Edit Document</h3>
+
+            {/* HEADER */}
+
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+
+              <div>
+                <h3 className="text-xl font-bold">
+                  Edit Document
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Update document
+                  information or
+                  replace its files.
+                </p>
+              </div>
+
               <button
-                onClick={() => setEditingDoc(null)}
-                className="rounded-xl bg-slate-800 p-2 text-slate-400 hover:bg-slate-700 hover:text-white transition"
+                type="button"
+                onClick={() =>
+                  setEditingDoc(
+                    null
+                  )
+                }
+                className="rounded-xl bg-slate-800 p-2 text-slate-400 transition hover:bg-slate-700 hover:text-white"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleUpdate} className="mt-4 space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+            {/* FORM */}
+
+            <form
+              onSubmit={
+                handleUpdate
+              }
+              className="mt-4 max-h-[75vh] space-y-4 overflow-y-auto pr-1"
+            >
+
+              {/* TITLE */}
+
               <div>
-                <label className="mb-2 block font-medium">Title</label>
+                <label className="mb-2 block font-medium">
+                  Title
+                </label>
+
                 <input
                   type="text"
                   value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
+                  onChange={(e) =>
+                    setEditTitle(
+                      e.target.value
+                    )
+                  }
                   className="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 outline-none focus:border-cyan-500"
                 />
               </div>
 
+              {/* DESCRIPTION */}
+
               <div>
-                <label className="mb-2 block font-medium">Description</label>
+                <label className="mb-2 block font-medium">
+                  Description
+                </label>
+
                 <textarea
                   rows={3}
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
+                  value={
+                    editDescription
+                  }
+                  onChange={(e) =>
+                    setEditDescription(
+                      e.target
+                        .value
+                    )
+                  }
                   className="w-full resize-none rounded-xl border border-slate-700 bg-slate-800 p-4 outline-none focus:border-cyan-500"
                 />
               </div>
 
+              {/* CATEGORY */}
+
               <div>
-                <label className="mb-2 block font-medium">Category</label>
+                <label className="mb-2 block font-medium">
+                  Category
+                </label>
+
                 <select
-                  value={editCategory}
-                  onChange={(e) => setEditCategory(e.target.value)}
+                  value={
+                    editCategory
+                  }
+                  onChange={(e) =>
+                    setEditCategory(
+                      e.target.value
+                    )
+                  }
                   className="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 outline-none"
                 >
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
+                  {categories.map(
+                    (cat) => (
+                      <option
+                        key={
+                          cat.id
+                        }
+                        value={
+                          cat.id
+                        }
+                      >
+                        {cat.name}
+                      </option>
+                    )
+                  )}
                 </select>
               </div>
 
+              {/* REPLACE FILE */}
+
               <div>
-                <label className="mb-2 block font-medium">Replace Document File (Optional)</label>
+                <label className="mb-2 block font-medium">
+                  Replace Document
+                  File
+                  <span className="ml-2 text-xs font-normal text-slate-500">
+                    Optional
+                  </span>
+                </label>
+
                 <input
                   type="file"
                   accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
-                  onChange={(e) => setEditFile(e.target.files[0])}
+                  onChange={(e) =>
+                    setEditFile(
+                      e.target
+                        .files?.[0] ||
+                        null
+                    )
+                  }
                   className="w-full text-sm text-slate-400 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-400 hover:file:bg-slate-700"
                 />
+
+                {editFile && (
+                  <p className="mt-2 rounded-xl bg-slate-800 p-3 text-sm text-slate-300">
+                    {editFile.name}
+                  </p>
+                )}
               </div>
 
+              {/* REPLACE THUMBNAIL */}
+
               <div>
-                <label className="mb-2 block font-medium">Replace Thumbnail (Optional)</label>
+                <label className="mb-2 block font-medium">
+                  Replace
+                  Thumbnail
+                  <span className="ml-2 text-xs font-normal text-slate-500">
+                    Optional
+                  </span>
+                </label>
+
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => setEditThumbnail(e.target.files[0])}
+                  onChange={(e) =>
+                    setEditThumbnail(
+                      e.target
+                        .files?.[0] ||
+                        null
+                    )
+                  }
                   className="w-full text-sm text-slate-400 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-400 hover:file:bg-slate-700"
                 />
+
+                {editThumbnailPreview && (
+                  <img
+                    src={
+                      editThumbnailPreview
+                    }
+                    alt="New thumbnail preview"
+                    className="mt-4 h-40 w-full rounded-2xl object-cover"
+                  />
+                )}
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4">
+              {/* BUTTONS */}
+
+              <div className="flex items-center justify-end gap-3 border-t border-slate-800 pt-4">
+
                 <button
                   type="button"
-                  onClick={() => setEditingDoc(null)}
-                  className="rounded-xl bg-slate-800 px-5 py-3 font-semibold transition hover:bg-slate-700"
+                  onClick={() =>
+                    setEditingDoc(
+                      null
+                    )
+                  }
+                  disabled={
+                    updating
+                  }
+                  className="rounded-xl bg-slate-800 px-5 py-3 font-semibold transition hover:bg-slate-700 disabled:opacity-50"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  disabled={updating}
+                  disabled={
+                    updating
+                  }
                   className="flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-3 font-semibold transition hover:bg-cyan-500 disabled:opacity-50"
                 >
-                  {updating && <Loader2 size={16} className="animate-spin" />}
-                  {updating ? "Saving..." : "Save Changes"}
+                  {updating && (
+                    <Loader2
+                      size={16}
+                      className="animate-spin"
+                    />
+                  )}
+
+                  {updating
+                    ? "Saving..."
+                    : "Save Changes"}
                 </button>
+
               </div>
             </form>
           </motion.div>
         </div>
       )}
-
     </div>
   );
 }

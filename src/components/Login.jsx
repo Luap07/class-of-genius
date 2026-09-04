@@ -12,8 +12,27 @@ import {
 } from "lucide-react";
 
 import Cog from "../assets/cog.png";
-import { supabase } from "../lib/supabaseClient";
 import { ConnectContext } from "../context/ConnectContext";
+
+/* =========================================================
+   API CONFIG
+========================================================= */
+
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000"
+).replace(/\/$/, "");
+
+/* =========================================================
+   STORAGE KEYS
+========================================================= */
+
+const AUTH_TOKEN_KEY = "scholiqen_auth_token";
+const AUTH_USER_KEY = "scholiqen_current_user";
+
+/* =========================================================
+   LOGIN COMPONENT
+========================================================= */
 
 const Login = () => {
   const navigate = useNavigate();
@@ -35,7 +54,7 @@ const Login = () => {
   const [error, setError] = useState("");
 
   /* =========================================================
-     RESET FIELDS WHEN SWITCHING LOGIN / SIGNUP
+     RESET FIELDS
   ========================================================= */
 
   useEffect(() => {
@@ -53,16 +72,70 @@ const Login = () => {
   ========================================================= */
 
   const clearLocalProgress = () => {
-    const keys = Object.keys(localStorage);
+    try {
+      const keys = Object.keys(localStorage);
 
-    keys.forEach((key) => {
-      if (
-        key.startsWith("studentProgress_") ||
-        key.startsWith("studentWeeklyProgress_")
-      ) {
-        localStorage.removeItem(key);
-      }
-    });
+      keys.forEach((key) => {
+        if (
+          key.startsWith("studentProgress_") ||
+          key.startsWith("studentWeeklyProgress_")
+        ) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (err) {
+      console.warn(
+        "Unable to clear local progress:",
+        err
+      );
+    }
+  };
+
+  /* =========================================================
+     SAVE AUTH SESSION
+  ========================================================= */
+
+  const saveAuthSession = (token, user) => {
+    if (!token) {
+      throw new Error(
+        "Authentication token was not returned by the server."
+      );
+    }
+
+    localStorage.setItem(
+      AUTH_TOKEN_KEY,
+      token
+    );
+
+    if (user) {
+      localStorage.setItem(
+        AUTH_USER_KEY,
+        JSON.stringify(user)
+      );
+    }
+
+    console.log(
+      "✅ Neon JWT saved:",
+      Boolean(
+        localStorage.getItem(
+          AUTH_TOKEN_KEY
+        )
+      )
+    );
+  };
+
+  /* =========================================================
+     REMOVE AUTH SESSION
+  ========================================================= */
+
+  const clearAuthSession = () => {
+    localStorage.removeItem(
+      AUTH_TOKEN_KEY
+    );
+
+    localStorage.removeItem(
+      AUTH_USER_KEY
+    );
   };
 
   /* =========================================================
@@ -74,57 +147,142 @@ const Login = () => {
 
     setError("");
 
-    const cleanUsername = username.trim();
-    const cleanEmail = email.trim();
+    const cleanUsername =
+      username.trim();
+
+    const cleanEmail =
+      email.trim().toLowerCase();
 
     if (!cleanUsername) {
-      setError("Please enter a username.");
+      setError(
+        "Please enter a username."
+      );
+      return;
+    }
+
+    if (cleanUsername.length < 2) {
+      setError(
+        "Username must be at least 2 characters."
+      );
       return;
     }
 
     if (!cleanEmail) {
-      setError("Please enter your email.");
+      setError(
+        "Please enter your email."
+      );
       return;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError(
+        "Password must be at least 6 characters."
+      );
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError(
+        "Passwords do not match."
+      );
       return;
     }
 
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password,
-        options: {
-          data: {
-            username: cleanUsername,
+      const response = await fetch(
+        `${API_URL}/api/auth/signup`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Accept:
+              "application/json",
           },
-        },
-      });
+          body: JSON.stringify({
+            username: cleanUsername,
+            email: cleanEmail,
+            password,
+          }),
+        }
+      );
 
-      if (error) {
-        setError(error.message);
-        return;
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
       }
 
-      alert("Account created successfully 🎉 Check your email!");
+      console.log(
+        "SIGNUP STATUS:",
+        response.status
+      );
 
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
+      console.log(
+        "SIGNUP RESPONSE:",
+        data
+      );
 
-      setIsSignup(false);
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            data?.message ||
+            "Unable to create your account. Please try again."
+        );
+      }
+
+      /*
+       * Backend returns:
+       *
+       * {
+       *   message,
+       *   token,
+       *   user
+       * }
+       */
+
+      if (!data?.token) {
+        throw new Error(
+          "Account was created, but no authentication token was returned."
+        );
+      }
+
+      /* Save Neon session */
+
+      saveAuthSession(
+        data.token,
+        data.user
+      );
+
+      /* Clear old local progress */
+
+      clearLocalProgress();
+
+      console.log(
+        "✅ Signup successful."
+      );
+
+      /*
+       * Use a full navigation so AuthContext
+       * starts again and reads the Neon JWT.
+       */
+
+      window.location.href =
+        "/dashboard";
     } catch (err) {
-      console.error("Signup error:", err);
-      setError("Something went wrong while creating your account.");
+      console.error(
+        "Signup error:",
+        err
+      );
+
+      setError(
+        err?.message ||
+          "Something went wrong while creating your account."
+      );
     } finally {
       setLoading(false);
     }
@@ -138,28 +296,158 @@ const Login = () => {
     e.preventDefault();
 
     setError("");
+
+    const cleanEmail =
+      email.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setError(
+        "Please enter your email."
+      );
+      return;
+    }
+
+    if (!password) {
+      setError(
+        "Please enter your password."
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
-      clearLocalProgress();
+      console.log(
+        "🔐 Attempting Neon login..."
+      );
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+      const response = await fetch(
+        `${API_URL}/api/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Accept:
+              "application/json",
+          },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password,
+          }),
+        }
+      );
 
-      if (error) {
-        setError(error.message);
-        return;
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
       }
 
-      navigate("/dashboard");
+      console.log(
+        "LOGIN STATUS:",
+        response.status
+      );
 
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      window.location.reload();
+      console.log(
+        "LOGIN RESPONSE:",
+        data
+      );
+
+      /* =====================================================
+         SERVER ERROR
+      ===================================================== */
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            data?.message ||
+            "Unable to login."
+        );
+      }
+
+      /* =====================================================
+         VERIFY TOKEN
+      ===================================================== */
+
+      if (!data?.token) {
+        console.error(
+          "❌ No token returned:",
+          data
+        );
+
+        throw new Error(
+          "Login succeeded but the server did not return an authentication token."
+        );
+      }
+
+      /* =====================================================
+         SAVE NEON JWT
+      ===================================================== */
+
+      saveAuthSession(
+        data.token,
+        data.user
+      );
+
+      /* =====================================================
+         VERIFY IT WAS ACTUALLY SAVED
+      ===================================================== */
+
+      const savedToken =
+        localStorage.getItem(
+          AUTH_TOKEN_KEY
+        );
+
+      if (!savedToken) {
+        throw new Error(
+          "Authentication token could not be saved in this browser."
+        );
+      }
+
+      console.log(
+        "✅ Authentication token confirmed in localStorage."
+      );
+
+      console.log(
+        "✅ Logged in user:",
+        data.user
+      );
+
+      /* =====================================================
+         CLEAR OLD LOCAL PROGRESS
+      ===================================================== */
+
+      clearLocalProgress();
+
+      /* =====================================================
+         GO TO DASHBOARD
+      ===================================================== */
+
+      /*
+       * IMPORTANT:
+       *
+       * We intentionally use window.location.href
+       * instead of navigate() + reload().
+       *
+       * This guarantees AuthContext initializes
+       * from the newly saved Neon JWT.
+       */
+
+      window.location.href =
+        "/dashboard";
     } catch (err) {
-      console.error("Login error:", err);
-      setError("Something went wrong while logging in.");
+      console.error(
+        "Login error:",
+        err
+      );
+
+      setError(
+        err?.message ||
+          "Something went wrong while logging in."
+      );
     } finally {
       setLoading(false);
     }
@@ -171,26 +459,16 @@ const Login = () => {
 
   const handleGoogleAuth = async () => {
     setError("");
+
+    if (loading) return;
+
     setGoogleLoading(true);
 
     try {
-      clearLocalProgress();
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/dashboard`,
-        },
-      });
-
-      if (error) {
-        console.error("Google authentication error:", error);
-        setError(error.message);
-        setGoogleLoading(false);
-      }
-    } catch (err) {
-      console.error("Google authentication error:", err);
-      setError("Unable to continue with Google.");
+      setError(
+        "Google login is temporarily unavailable while we move authentication to Scholiqen's new secure login system."
+      );
+    } finally {
       setGoogleLoading(false);
     }
   };
@@ -203,31 +481,15 @@ const Login = () => {
     setError("");
 
     if (!email.trim()) {
-      setError("Enter your email first.");
+      setError(
+        "Enter your email first."
+      );
       return;
     }
 
-    setLoading(true);
-
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email.trim(),
-        {
-          redirectTo: `${window.location.origin}/reset-password`,
-        }
-      );
-
-      if (error) {
-        setError(error.message);
-      } else {
-        alert("Reset link sent to your email 📩");
-      }
-    } catch (err) {
-      console.error("Password reset error:", err);
-      setError("Unable to send password reset email.");
-    } finally {
-      setLoading(false);
-    }
+    setError(
+      "Password reset is not available yet. Your new Neon authentication is working, but the password-reset email service still needs to be connected."
+    );
   };
 
   /* =========================================================
@@ -266,16 +528,22 @@ const Login = () => {
   );
 
   /* =========================================================
-     INPUT COMPONENT
+     INPUT CLASS
   ========================================================= */
 
   const inputClass =
     "w-full rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm text-white outline-none transition-all duration-300 placeholder:text-slate-600 focus:border-blue-500/50 focus:bg-white/[0.07] focus:ring-4 focus:ring-blue-500/10";
 
+  /* =========================================================
+     UI
+  ========================================================= */
+
   return (
     <main
       className={`relative flex min-h-screen w-full items-center justify-center overflow-hidden px-4 py-10 sm:px-6 ${
-        darkMode ? "bg-[#030712]" : "bg-[#030712]"
+        darkMode
+          ? "bg-[#030712]"
+          : "bg-[#030712]"
       }`}
     >
       {/* =====================================================
@@ -283,25 +551,21 @@ const Login = () => {
       ===================================================== */}
 
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        {/* Main gradient */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#0b1d38_0%,#050914_38%,#030712_75%)]" />
 
-        {/* Blue glow */}
         <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-blue-600/10 blur-[140px]" />
 
-        {/* Indigo glow */}
         <div className="absolute -bottom-40 -right-40 h-[520px] w-[520px] rounded-full bg-indigo-600/10 blur-[150px]" />
 
-        {/* Center glow */}
         <div className="absolute left-1/2 top-1/2 h-[350px] w-[350px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/[0.035] blur-[120px]" />
 
-        {/* Dotted background */}
         <div
           className="absolute inset-0 opacity-[0.045]"
           style={{
             backgroundImage:
               "radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)",
-            backgroundSize: "26px 26px",
+            backgroundSize:
+              "26px 26px",
           }}
         />
       </div>
@@ -311,18 +575,12 @@ const Login = () => {
       ===================================================== */}
 
       <div className="relative z-10 w-full max-w-[460px]">
-        {/* Premium glow around card */}
         <div className="absolute -inset-1 rounded-[34px] bg-gradient-to-r from-blue-500/20 via-cyan-400/10 to-indigo-500/20 opacity-70 blur-2xl" />
 
-        {/* ===================================================
-            CARD
-        =================================================== */}
-
         <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#08101d]/90 p-6 shadow-2xl shadow-black/50 backdrop-blur-2xl sm:p-9">
-          {/* Top gradient line */}
+
           <div className="absolute left-1/2 top-0 h-[2px] w-32 -translate-x-1/2 bg-gradient-to-r from-transparent via-blue-400 to-transparent" />
 
-          {/* Decorative glow */}
           <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-blue-500/10 blur-[90px]" />
 
           <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-indigo-500/10 blur-[90px]" />
@@ -350,7 +608,9 @@ const Login = () => {
             </div>
 
             <h1 className="text-3xl font-black tracking-tight text-white">
-              {isSignup ? "Create Your Account" : "Welcome Back"}
+              {isSignup
+                ? "Create Your Account"
+                : "Welcome Back"}
             </h1>
 
             <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-slate-500">
@@ -379,7 +639,10 @@ const Login = () => {
           <button
             type="button"
             onClick={handleGoogleAuth}
-            disabled={googleLoading || loading}
+            disabled={
+              googleLoading ||
+              loading
+            }
             className="group relative z-10 flex w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white py-3.5 text-sm font-bold text-slate-900 shadow-xl transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-blue-100/50 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
@@ -388,13 +651,17 @@ const Login = () => {
               <>
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
 
-                <span>Connecting to Google...</span>
+                <span>
+                  Connecting to Google...
+                </span>
               </>
             ) : (
               <>
                 <GoogleIcon />
 
-                <span>Continue with Google</span>
+                <span>
+                  Continue with Google
+                </span>
               </>
             )}
           </button>
@@ -418,10 +685,15 @@ const Login = () => {
           ================================================= */}
 
           <form
-            onSubmit={isSignup ? handleSignup : handleLogin}
+            onSubmit={
+              isSignup
+                ? handleSignup
+                : handleLogin
+            }
             className="relative z-10 space-y-4"
           >
             {/* USERNAME */}
+
             {isSignup && (
               <div>
                 <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
@@ -433,7 +705,11 @@ const Login = () => {
                   type="text"
                   placeholder="Enter your username"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) =>
+                    setUsername(
+                      e.target.value
+                    )
+                  }
                   className={inputClass}
                   autoComplete="username"
                   required
@@ -442,6 +718,7 @@ const Login = () => {
             )}
 
             {/* EMAIL */}
+
             <div>
               <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
                 <Mail className="h-3.5 w-3.5" />
@@ -452,7 +729,11 @@ const Login = () => {
                 type="email"
                 placeholder="Enter your email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) =>
+                  setEmail(
+                    e.target.value
+                  )
+                }
                 className={inputClass}
                 autoComplete="email"
                 required
@@ -460,6 +741,7 @@ const Login = () => {
             </div>
 
             {/* PASSWORD */}
+
             <div>
               <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
                 <LockKeyhole className="h-3.5 w-3.5" />
@@ -468,35 +750,57 @@ const Login = () => {
 
               <div className="relative">
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={
+                    showPassword
+                      ? "text"
+                      : "password"
+                  }
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) =>
+                    setPassword(
+                      e.target.value
+                    )
+                  }
                   className={`${inputClass} pr-12`}
                   autoComplete={
-                    isSignup ? "new-password" : "current-password"
+                    isSignup
+                      ? "new-password"
+                      : "current-password"
                   }
                   required
                 />
 
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() =>
+                    setShowPassword(
+                      (value) =>
+                        !value
+                    )
+                  }
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-white"
                   aria-label={
-                    showPassword ? "Hide password" : "Show password"
+                    showPassword
+                      ? "Hide password"
+                      : "Show password"
                   }
                 >
                   {showPassword ? (
-                    <FaEyeSlash size={17} />
+                    <FaEyeSlash
+                      size={17}
+                    />
                   ) : (
-                    <FaEye size={17} />
+                    <FaEye
+                      size={17}
+                    />
                   )}
                 </button>
               </div>
             </div>
 
             {/* CONFIRM PASSWORD */}
+
             {isSignup && (
               <div>
                 <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
@@ -506,10 +810,20 @@ const Login = () => {
 
                 <div className="relative">
                   <input
-                    type={showConfirmPassword ? "text" : "password"}
+                    type={
+                      showConfirmPassword
+                        ? "text"
+                        : "password"
+                    }
                     placeholder="Confirm your password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    value={
+                      confirmPassword
+                    }
+                    onChange={(e) =>
+                      setConfirmPassword(
+                        e.target.value
+                      )
+                    }
                     className={`${inputClass} pr-12`}
                     autoComplete="new-password"
                     required
@@ -518,7 +832,10 @@ const Login = () => {
                   <button
                     type="button"
                     onClick={() =>
-                      setShowConfirmPassword(!showConfirmPassword)
+                      setShowConfirmPassword(
+                        (value) =>
+                          !value
+                      )
                     }
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 transition-colors hover:text-white"
                     aria-label={
@@ -528,9 +845,13 @@ const Login = () => {
                     }
                   >
                     {showConfirmPassword ? (
-                      <FaEyeSlash size={17} />
+                      <FaEyeSlash
+                        size={17}
+                      />
                     ) : (
-                      <FaEye size={17} />
+                      <FaEye
+                        size={17}
+                      />
                     )}
                   </button>
                 </div>
@@ -538,6 +859,7 @@ const Login = () => {
             )}
 
             {/* LOGIN OPTIONS */}
+
             {!isSignup && (
               <div className="flex items-center justify-between pt-1">
                 <div className="flex items-center gap-2 text-xs text-slate-600">
@@ -547,8 +869,13 @@ const Login = () => {
 
                 <button
                   type="button"
-                  onClick={handleForgotPassword}
-                  disabled={loading || googleLoading}
+                  onClick={
+                    handleForgotPassword
+                  }
+                  disabled={
+                    loading ||
+                    googleLoading
+                  }
                   className="text-xs font-bold text-blue-400 transition-colors hover:text-blue-300 disabled:opacity-50"
                 >
                   Forgot Password?
@@ -557,9 +884,13 @@ const Login = () => {
             )}
 
             {/* SUBMIT */}
+
             <button
               type="submit"
-              disabled={loading || googleLoading}
+              disabled={
+                loading ||
+                googleLoading
+              }
               className="group relative mt-2 flex w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 py-4 text-sm font-extrabold text-white shadow-xl shadow-blue-950/30 transition-all duration-300 hover:-translate-y-0.5 hover:from-blue-500 hover:to-indigo-500 hover:shadow-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
@@ -568,12 +899,16 @@ const Login = () => {
                 <>
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
 
-                  <span>Please wait...</span>
+                  <span>
+                    Please wait...
+                  </span>
                 </>
               ) : (
                 <>
                   <span>
-                    {isSignup ? "Create Account" : "Login"}
+                    {isSignup
+                      ? "Create Account"
+                      : "Login"}
                   </span>
 
                   <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -591,12 +926,20 @@ const Login = () => {
               {isSignup
                 ? "Already have an account?"
                 : "Don't have an account?"}{" "}
+
               <button
                 type="button"
-                onClick={() => setIsSignup(!isSignup)}
+                onClick={() =>
+                  setIsSignup(
+                    (value) =>
+                      !value
+                  )
+                }
                 className="font-bold text-blue-400 transition-colors hover:text-blue-300"
               >
-                {isSignup ? "Login here" : "Create one"}
+                {isSignup
+                  ? "Login here"
+                  : "Create one"}
               </button>
             </p>
           </div>
@@ -615,6 +958,7 @@ const Login = () => {
         </div>
 
         {/* Bottom brand */}
+
         <div className="mt-6 text-center">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-700">
             Scholiqen • Learn Without Limits

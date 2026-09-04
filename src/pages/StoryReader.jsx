@@ -44,9 +44,17 @@ import {
   LocateFixed,
 } from "lucide-react";
 
-import { supabase } from "../lib/supabaseClient";
 import ReaderReviews from "../components/ReaderReviews";
 import Cog from "../assets/cog.png";
+
+/* ============================================================
+   API
+============================================================ */
+
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
 
 /* ============================================================
    HELPERS
@@ -93,19 +101,26 @@ const getReadingWidthClass = (width) => {
   }
 };
 
-/*
-  Always return an array.
-
-  This is important because the previous error was:
-
-  Cannot read properties of null (reading 'find')
-
-  If localStorage ever contains null, malformed data,
-  or an old bookmark structure, this prevents .find()
-  and .some() from crashing the component.
-*/
 const normalizeArray = (value) => {
   return Array.isArray(value) ? value : [];
+};
+
+/* ============================================================
+   COVER URL
+============================================================ */
+
+const getCoverUrl = (coverUrl) => {
+  if (!coverUrl) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(coverUrl)) {
+    return coverUrl;
+  }
+
+  return `${API_URL}${
+    coverUrl.startsWith("/") ? "" : "/"
+  }${coverUrl}`;
 };
 
 /* ============================================================
@@ -287,16 +302,33 @@ export default function StoryReader() {
       setLoadError(null);
 
       try {
-        const { data, error } =
-          await supabase
-            .from("novels")
-            .select("*")
-            .eq("id", id)
-            .single();
+        if (!id) {
+          throw new Error("Invalid novel ID.");
+        }
+
+        const response = await fetch(
+          `${API_URL}/api/novels/${id}`
+        );
+
+        let data = null;
+
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error(
+            "The server returned an invalid response."
+          );
+        }
 
         if (!mounted) return;
 
-        if (error) {
+        if (!response.ok) {
+          const error = new Error(
+            data?.error ||
+              data?.message ||
+              `Failed to load novel (${response.status})`
+          );
+
           console.error(
             "StoryReader:",
             error
@@ -309,7 +341,10 @@ export default function StoryReader() {
           return;
         }
 
-        if (!data) {
+        const fetchedNovel =
+          data?.novel || data;
+
+        if (!fetchedNovel) {
           setLoadError(
             new Error(
               "Novel was not found."
@@ -322,7 +357,7 @@ export default function StoryReader() {
           return;
         }
 
-        setNovel(data);
+        setNovel(fetchedNovel);
 
         const saved = safeParse(
           localStorage.getItem(
@@ -423,7 +458,9 @@ export default function StoryReader() {
         description:
           novel.description || "",
         image:
-          novel.cover_url || "",
+          getCoverUrl(
+            novel.cover_url
+          ),
       },
 
       {
@@ -1096,6 +1133,7 @@ export default function StoryReader() {
       savedStep < flow.length
     ) {
       setStepIndex(savedStep);
+
       setCoverPage(
         savedStep === 0
       );
@@ -1153,21 +1191,6 @@ export default function StoryReader() {
   /* ==========================================================
      BOOKMARK
   ========================================================== */
-
-  /*
-    IMPORTANT FIX:
-
-    bookmarks is ALWAYS normalized before .find(),
-    .some(), .filter(), .map(), etc.
-
-    So even if localStorage contains:
-      null
-      {}
-      invalid JSON
-      an old value
-
-    the reader will use [] instead.
-  */
 
   const safeBookmarks =
     normalizeArray(bookmarks);
@@ -1461,8 +1484,7 @@ export default function StoryReader() {
   useEffect(() => {
     return () => {
       if (
-        typeof window !==
-          "undefined" &&
+        typeof window !== "undefined" &&
         "speechSynthesis" in window
       ) {
         window.speechSynthesis.cancel();
@@ -1603,8 +1625,6 @@ export default function StoryReader() {
         }}
         className={`${themeStyles.sidebar} relative z-40 hidden h-full shrink-0 flex-col md:flex`}
       >
-        {/* BRAND */}
-
         <div className="flex h-[74px] items-center justify-between border-b border-black/10 px-4 dark:border-white/10">
           {!sidebarCollapsed ? (
             <div className="flex min-w-0 items-center gap-3">
@@ -1651,8 +1671,6 @@ export default function StoryReader() {
           )}
         </div>
 
-        {/* COLLAPSED TOGGLE */}
-
         {sidebarCollapsed && (
           <button
             onClick={() =>
@@ -1668,8 +1686,6 @@ export default function StoryReader() {
             />
           </button>
         )}
-
-        {/* NAVIGATION */}
 
         <div className="flex-1 overflow-y-auto px-3 py-4">
           <SidebarButton
@@ -1755,8 +1771,6 @@ export default function StoryReader() {
               />
             )
           )}
-
-          {/* BOOKMARKS */}
 
           <div className="mt-6 border-t border-black/10 pt-4 dark:border-white/10">
             <SidebarButton
@@ -1865,8 +1879,6 @@ export default function StoryReader() {
             </AnimatePresence>
           </div>
         </div>
-
-        {/* PROGRESS */}
 
         <div className="border-t border-black/10 p-4 dark:border-white/10">
           {!sidebarCollapsed ? (
@@ -2135,10 +2147,6 @@ export default function StoryReader() {
       ====================================================== */}
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* ====================================================
-            HEADER
-        ==================================================== */}
-
         <header
           className={`relative z-50 flex min-h-[72px] shrink-0 items-center justify-between gap-3 px-4 sm:px-6 ${themeStyles.nav}`}
         >
@@ -2187,8 +2195,6 @@ export default function StoryReader() {
               </div>
             </div>
           </div>
-
-          {/* HEADER ACTIONS */}
 
           <div className="flex items-center gap-1 sm:gap-2">
             <button
@@ -2495,8 +2501,6 @@ export default function StoryReader() {
                 <div
                   className={`${themeStyles.card} overflow-hidden rounded-[28px]`}
                 >
-                  {/* SETTINGS HEADER */}
-
                   <div className="flex items-center justify-between border-b border-black/10 px-5 py-4 dark:border-white/10 sm:px-6">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-500">
@@ -2530,40 +2534,20 @@ export default function StoryReader() {
                     </button>
                   </div>
 
-                  {/* SETTINGS BODY */}
-
                   <div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4 sm:p-6">
+
                     {/* THEME */}
 
                     <SettingCard
                       icon={
-                        theme ===
-                        "light" ? (
-                          <Sun
-                            size={
-                              17
-                            }
-                          />
-                        ) : theme ===
-                          "sepia" ? (
-                          <Coffee
-                            size={
-                              17
-                            }
-                          />
-                        ) : theme ===
-                          "forest" ? (
-                          <Leaf
-                            size={
-                              17
-                            }
-                          />
+                        theme === "light" ? (
+                          <Sun size={17} />
+                        ) : theme === "sepia" ? (
+                          <Coffee size={17} />
+                        ) : theme === "forest" ? (
+                          <Leaf size={17} />
                         ) : (
-                          <Moon
-                            size={
-                              17
-                            }
-                          />
+                          <Moon size={17} />
                         )
                       }
                       title="Theme"
@@ -3048,14 +3032,12 @@ export default function StoryReader() {
                 }}
                 className={`${themeStyles.card} overflow-hidden rounded-[32px]`}
               >
-                {/* COVER IMAGE */}
-
                 {novel.cover_url ? (
                   <div className="relative">
                     <img
-                      src={
+                      src={getCoverUrl(
                         novel.cover_url
-                      }
+                      )}
                       alt={
                         novel.title ||
                         "Book cover"

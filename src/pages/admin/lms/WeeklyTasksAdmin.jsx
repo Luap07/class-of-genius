@@ -1,9 +1,5 @@
-// src/pages/admin/lms/WeeklyTasksAdmin.jsx
-
-import React, {
-  useEffect,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 
 import {
   Plus,
@@ -12,404 +8,1111 @@ import {
   Eye,
   Loader2,
   ClipboardList,
+  RefreshCw,
+  AlertCircle,
+  X,
+  CalendarDays,
+  BookOpen,
+  Clock,
+  Star,
+  CheckCircle2,
 } from "lucide-react";
 
-import {
-  useNavigate,
-  useParams,
-} from "react-router-dom";
+// =========================================================
+// API CONFIG
+// =========================================================
 
-import {
-  supabase,
-} from "../../../lib/supabaseClient";
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
 
-import AdminButton from "../../../components/admin/ui/AdminButton";
+const AUTH_TOKEN_KEY = "scholiqen_auth_token";
 
-const WeeklyTasksAdmin = () => {
+// =========================================================
+// HELPERS
+// =========================================================
 
+function getToken() {
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+function getTopicTitle(task) {
+  return (
+    task?.topic_title ||
+    task?.topic?.title ||
+    task?.course_topics?.title ||
+    task?.course_topic?.title ||
+    "No Topic"
+  );
+}
+
+function getCourseTitle(task) {
+  return (
+    task?.course_title ||
+    task?.course?.title ||
+    task?.courses?.title ||
+    "General"
+  );
+}
+
+function formatDate(date) {
+  if (!date) return "No due date";
+
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "No due date";
+  }
+
+  return parsed.toLocaleDateString("en-NG", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function getPriorityClass(priority) {
+  switch (String(priority || "").toLowerCase()) {
+    case "high":
+      return "border-red-500/20 bg-red-500/10 text-red-400";
+
+    case "medium":
+      return "border-yellow-500/20 bg-yellow-500/10 text-yellow-400";
+
+    case "low":
+      return "border-green-500/20 bg-green-500/10 text-green-400";
+
+    default:
+      return "border-slate-700 bg-slate-800 text-slate-300";
+  }
+}
+
+function getDifficultyClass(difficulty) {
+  switch (String(difficulty || "").toLowerCase()) {
+    case "hard":
+      return "text-red-400";
+
+    case "medium":
+      return "text-yellow-400";
+
+    case "easy":
+      return "text-green-400";
+
+    default:
+      return "text-slate-400";
+  }
+}
+
+// =========================================================
+// MAIN COMPONENT
+// =========================================================
+
+export default function WeeklyTasksAdmin() {
   const navigate = useNavigate();
-
   const { topicId } = useParams();
 
-  /* ================= STATE ================= */
-
-  const [loading, setLoading] = useState(true);
-
   const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [topic, setTopic] = useState(null);
+  // =======================================================
+  // FETCH TASKS
+  // =======================================================
 
-  /* ================= FETCH ================= */
+  const loadTasks = useCallback(
+    async (showRefresh = false) => {
+      try {
+        if (showRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
 
-  const fetchData = async () => {
+        setError("");
 
-    if (!topicId) return;
+        const token = getToken();
 
-    try {
+        if (!token) {
+          throw new Error("You are not logged in.");
+        }
 
-      setLoading(true);
+        let endpoint;
 
-      /* ---------- Topic ---------- */
+        if (topicId) {
+          endpoint = `${API_URL}/api/tasks/topic/${encodeURIComponent(
+            topicId
+          )}`;
+        } else {
+          endpoint = `${API_URL}/api/tasks`;
+        }
 
-      const {
-        data: topicData,
-        error: topicError,
-      } = await supabase
-        .from("course_topics")
-        .select(`
-          id,
-          title,
-          course_id,
-          courses(
-            title
-          )
-        `)
-        .eq("id", topicId)
-        .single();
-
-      if (topicError) throw topicError;
-
-      setTopic(topicData);
-
-      /* ---------- Weekly Tasks ---------- */
-
-      const {
-        data,
-        error,
-      } = await supabase
-        .from("weekly_tasks")
-        .select("*")
-        .eq("topic_id", topicId)
-        .order("week", {
-          ascending: true,
+        const response = await fetch(endpoint, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
         });
 
-      if (error) throw error;
+        const data = await response.json().catch(() => ({}));
 
-      setTasks(data || []);
+        if (!response.ok) {
+          throw new Error(
+            data?.message ||
+              data?.error ||
+              `Failed to load tasks (${response.status})`
+          );
+        }
 
-    } catch (error) {
+        // ---------------------------------------------------
+        // SUPPORT DIFFERENT API RESPONSE SHAPES
+        // ---------------------------------------------------
 
-      console.error(error);
+        let taskList = [];
 
-      alert("Failed to load weekly tasks.");
+        if (Array.isArray(data)) {
+          taskList = data;
+        } else if (Array.isArray(data.tasks)) {
+          taskList = data.tasks;
+        } else if (Array.isArray(data.weeklyTasks)) {
+          taskList = data.weeklyTasks;
+        } else if (Array.isArray(data.weekly)) {
+          taskList = data.weekly;
+        } else if (Array.isArray(data.data)) {
+          taskList = data.data;
+        }
 
-    } finally {
+        setTasks(taskList);
+      } catch (err) {
+        console.error("Admin Tasks Error:", err);
 
-      setLoading(false);
+        setError(
+          err?.message ||
+            "Unable to load weekly tasks."
+        );
 
-    }
-
-  };
+        setTasks([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [topicId]
+  );
 
   useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
 
-    fetchData();
+  // =======================================================
+  // CREATE
+  // =======================================================
 
-  }, [topicId]);
+  const handleCreate = () => {
+    if (!topicId) {
+      alert(
+        "Please open a course topic first before creating a weekly task."
+      );
+      return;
+    }
 
-  /* ================= DELETE ================= */
+    // DIRECTLY OPEN CREATE PAGE
+    navigate(
+      `/admin/lms/topic/${encodeURIComponent(
+        topicId
+      )}/tasks/create`
+    );
+  };
 
-  const handleDelete = async (id) => {
+  // =======================================================
+  // OPEN
+  // =======================================================
 
-    const confirmDelete = window.confirm(
-      "Delete this weekly task?"
+  const handleView = (task) => {
+    setSelectedTask(task);
+  };
+
+  // =======================================================
+  // EDIT
+  // =======================================================
+
+  const handleEdit = (taskId) => {
+    if (!taskId) return;
+
+    if (topicId) {
+      navigate(
+        `/admin/lms/topic/${encodeURIComponent(
+          topicId
+        )}/tasks/edit/${encodeURIComponent(taskId)}`
+      );
+    } else {
+      navigate(
+        `/admin/lms/tasks/edit/${encodeURIComponent(taskId)}`
+      );
+    }
+  };
+
+  // =======================================================
+  // DELETE
+  // =======================================================
+
+  const handleDelete = async (taskId) => {
+    if (!taskId) return;
+
+    const task = tasks.find(
+      (item) =>
+        String(item.id) === String(taskId)
     );
 
-    if (!confirmDelete) return;
+    const confirmed = window.confirm(
+      `Delete "${
+        task?.title || "this task"
+      }"?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
 
     try {
+      setDeletingId(taskId);
 
-      const {
-        error,
-      } = await supabase
-        .from("weekly_tasks")
-        .delete()
-        .eq("id", id);
+      const token = getToken();
 
-      if (error) throw error;
+      if (!token) {
+        throw new Error("You are not logged in.");
+      }
 
-      setTasks((previous) =>
-        previous.filter(
-          (task) => task.id !== id
+      const response = await fetch(
+        `${API_URL}/api/tasks/${encodeURIComponent(
+          taskId
+        )}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Failed to delete task."
+        );
+      }
+
+      setTasks((current) =>
+        current.filter(
+          (item) =>
+            String(item.id) !==
+            String(taskId)
         )
       );
 
-    } catch (error) {
+      if (
+        selectedTask &&
+        String(selectedTask.id) ===
+          String(taskId)
+      ) {
+        setSelectedTask(null);
+      }
+    } catch (err) {
+      console.error(
+        "Delete Task Error:",
+        err
+      );
 
-      console.error(error);
-
-      alert("Unable to delete task.");
-
+      alert(
+        err?.message ||
+          "Unable to delete this task."
+      );
+    } finally {
+      setDeletingId(null);
     }
-
   };
 
-  /* ================= LOADING ================= */
+  // =======================================================
+  // LOADING
+  // =======================================================
 
   if (loading) {
-
     return (
-
-      <div className="flex min-h-[450px] items-center justify-center">
-
-        <Loader2
-          size={42}
-          className="animate-spin text-blue-500"
-        />
-
-      </div>
-
-    );
-
-  }
-    return (
-
-    <div className="space-y-8 p-6 text-white">
-
-      {/* ================= HEADER ================= */}
-
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-
-        <div>
-
-          <div className="flex items-center gap-3">
-
-            <ClipboardList
-              size={30}
-              className="text-blue-400"
+      <div className="min-h-screen bg-slate-950 p-6 text-white">
+        <div className="flex min-h-[500px] items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2
+              size={38}
+              className="animate-spin text-blue-400"
             />
 
-            <h1 className="text-3xl font-bold">
+            <p className="text-slate-400">
+              Loading weekly tasks...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-              Weekly Tasks
+  // =======================================================
+  // PAGE
+  // =======================================================
 
-            </h1>
+  return (
+    <div className="min-h-screen bg-slate-950 text-white">
 
+      {/* ===================================================
+          HEADER
+      =================================================== */}
+
+      <div className="border-b border-slate-800 bg-slate-950/90 backdrop-blur-xl">
+        <div className="p-6">
+
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+
+            {/* TITLE */}
+
+            <div>
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10">
+                  <ClipboardList
+                    size={23}
+                    className="text-blue-400"
+                  />
+                </div>
+
+                <div>
+                  <h1 className="text-2xl font-bold">
+                    Weekly Tasks
+                  </h1>
+
+                  <p className="mt-1 text-sm text-slate-400">
+                    Manage weekly learning activities
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+            {/* ACTIONS */}
+
+            <div className="flex items-center gap-3">
+
+              <button
+                type="button"
+                onClick={() =>
+                  loadTasks(true)
+                }
+                disabled={refreshing}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-slate-200 transition hover:bg-slate-800 disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={17}
+                  className={
+                    refreshing
+                      ? "animate-spin"
+                      : ""
+                  }
+                />
+
+                Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCreate}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white shadow-lg shadow-blue-900/20 transition hover:bg-blue-500"
+              >
+                <Plus size={18} />
+
+                Add Task
+              </button>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================================================
+          CONTENT
+      =================================================== */}
+
+      <div className="p-6">
+
+        {/* ERROR */}
+
+        {error && (
+          <div className="mb-6 rounded-2xl border border-red-500/20 bg-red-500/10 p-5">
+
+            <div className="flex items-start gap-3">
+
+              <AlertCircle
+                size={21}
+                className="mt-0.5 text-red-400"
+              />
+
+              <div className="flex-1">
+
+                <h3 className="font-semibold text-red-300">
+                  Unable to Load Tasks
+                </h3>
+
+                <p className="mt-1 text-sm text-red-300/80">
+                  {error}
+                </p>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  loadTasks()
+                }
+                className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
+              >
+                Try Again
+              </button>
+
+            </div>
+          </div>
+        )}
+
+        {/* =================================================
+            STATISTICS
+        ================================================= */}
+
+        <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+          {/* TOTAL */}
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+                <p className="text-sm text-slate-400">
+                  Total Tasks
+                </p>
+
+                <p className="mt-2 text-3xl font-bold">
+                  {tasks.length}
+                </p>
+              </div>
+
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10">
+                <ClipboardList
+                  size={21}
+                  className="text-blue-400"
+                />
+              </div>
+
+            </div>
           </div>
 
-          <p className="mt-3 text-slate-400">
+          {/* PENDING */}
 
-            {topic?.courses?.title} • {topic?.title}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
 
-          </p>
+            <div className="flex items-center justify-between">
+
+              <div>
+                <p className="text-sm text-slate-400">
+                  Pending
+                </p>
+
+                <p className="mt-2 text-3xl font-bold">
+                  {tasks.filter(
+                    (task) =>
+                      String(
+                        task.status ||
+                          "pending"
+                      ).toLowerCase() ===
+                      "pending"
+                  ).length}
+                </p>
+              </div>
+
+              <Clock
+                size={21}
+                className="text-yellow-400"
+              />
+
+            </div>
+          </div>
+
+          {/* HIGH PRIORITY */}
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+                <p className="text-sm text-slate-400">
+                  High Priority
+                </p>
+
+                <p className="mt-2 text-3xl font-bold">
+                  {tasks.filter(
+                    (task) =>
+                      String(
+                        task.priority ||
+                          ""
+                      ).toLowerCase() ===
+                      "high"
+                  ).length}
+                </p>
+              </div>
+
+              <AlertCircle
+                size={21}
+                className="text-red-400"
+              />
+
+            </div>
+          </div>
+
+          {/* XP */}
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+                <p className="text-sm text-slate-400">
+                  XP Available
+                </p>
+
+                <p className="mt-2 text-3xl font-bold">
+                  {tasks.reduce(
+                    (total, task) =>
+                      total +
+                      Number(
+                        task.xp || 0
+                      ),
+                    0
+                  )}
+                </p>
+              </div>
+
+              <Star
+                size={21}
+                className="text-yellow-400"
+              />
+
+            </div>
+          </div>
 
         </div>
 
-        <AdminButton
-          icon={<Plus size={18} />}
-          onClick={() =>
-            navigate(`/admin/lms/topic/${topicId}/tasks/create`)
-          }
-        >
-          Create Weekly Task
-        </AdminButton>
+        {/* =================================================
+            EMPTY
+        ================================================= */}
 
+        {tasks.length === 0 &&
+        !error ? (
+          <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/50 p-14 text-center">
+
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/10">
+              <ClipboardList
+                size={30}
+                className="text-blue-400"
+              />
+            </div>
+
+            <h2 className="mt-5 text-xl font-bold">
+              No Weekly Tasks
+            </h2>
+
+            <p className="mx-auto mt-2 max-w-md text-slate-400">
+              There are no weekly tasks for
+              this topic yet. Create your first
+              task to get started.
+            </p>
+
+            <button
+              type="button"
+              onClick={handleCreate}
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold transition hover:bg-blue-500"
+            >
+              <Plus size={18} />
+
+              Add Task
+            </button>
+
+          </div>
+        ) : (
+
+          /* =================================================
+             TABLE
+          ================================================= */
+
+          <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70">
+
+            <div className="overflow-x-auto">
+
+              <table className="w-full min-w-[950px]">
+
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-900">
+
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Task
+                    </th>
+
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Course
+                    </th>
+
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Topic
+                    </th>
+
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Week
+                    </th>
+
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Due Date
+                    </th>
+
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Priority
+                    </th>
+
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Actions
+                    </th>
+
+                  </tr>
+                </thead>
+
+                <tbody>
+
+                  {tasks.map((task) => (
+
+                    <tr
+                      key={task.id}
+                      className="border-b border-slate-800/70 transition hover:bg-slate-800/30"
+                    >
+
+                      {/* TASK */}
+
+                      <td className="px-6 py-5">
+
+                        <div className="max-w-[260px]">
+
+                          <p className="truncate font-semibold text-white">
+                            {task.title ||
+                              "Untitled Task"}
+                          </p>
+
+                          <p className="mt-1 line-clamp-2 text-sm text-slate-500">
+                            {task.description ||
+                              "No description"}
+                          </p>
+
+                        </div>
+
+                      </td>
+
+                      {/* COURSE */}
+
+                      <td className="px-6 py-5">
+
+                        <div className="flex items-center gap-2 text-slate-300">
+
+                          <BookOpen
+                            size={15}
+                            className="text-blue-400"
+                          />
+
+                          {getCourseTitle(task)}
+
+                        </div>
+
+                      </td>
+
+                      {/* TOPIC */}
+
+                      <td className="px-6 py-5">
+
+                        <span className="text-slate-300">
+                          {getTopicTitle(task)}
+                        </span>
+
+                      </td>
+
+                      {/* WEEK */}
+
+                      <td className="px-6 py-5">
+
+                        <span className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-sm text-slate-300">
+                          Week{" "}
+                          {task.week || "—"}
+                        </span>
+
+                      </td>
+
+                      {/* DATE */}
+
+                      <td className="px-6 py-5">
+
+                        <div className="flex items-center gap-2 text-slate-300">
+
+                          <CalendarDays
+                            size={15}
+                            className="text-slate-500"
+                          />
+
+                          {formatDate(
+                            task.due_date
+                          )}
+
+                        </div>
+
+                      </td>
+
+                      {/* PRIORITY */}
+
+                      <td className="px-6 py-5">
+
+                        <span
+                          className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold capitalize ${getPriorityClass(
+                            task.priority
+                          )}`}
+                        >
+                          {task.priority ||
+                            "Normal"}
+                        </span>
+
+                      </td>
+
+                      {/* ACTIONS */}
+
+                      <td className="px-6 py-5">
+
+                        <div className="flex items-center justify-end gap-2">
+
+                          {/* OPEN */}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleView(task)
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700"
+                          >
+                            <Eye size={15} />
+                            Open
+                          </button>
+
+                          {/* EDIT */}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleEdit(
+                                task.id
+                              )
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/20 bg-blue-600/10 px-3 py-2 text-sm font-medium text-blue-400 transition hover:bg-blue-600/20"
+                          >
+                            <Edit size={15} />
+                            Edit
+                          </button>
+
+                          {/* DELETE */}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDelete(
+                                task.id
+                              )
+                            }
+                            disabled={
+                              deletingId ===
+                              task.id
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+                          >
+                            {deletingId ===
+                            task.id ? (
+                              <Loader2
+                                size={15}
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <Trash2
+                                size={15}
+                              />
+                            )}
+
+                            Delete
+                          </button>
+
+                        </div>
+                      </td>
+
+                    </tr>
+
+                  ))}
+
+                </tbody>
+
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ================= TABLE ================= */}
+      {/* ===================================================
+          TASK VIEW MODAL
+      =================================================== */}
 
-      <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">
+      {selectedTask && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              setSelectedTask(null);
+            }
+          }}
+        >
 
-        <table className="w-full">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-700 bg-slate-950 shadow-2xl">
 
-          <thead className="bg-slate-800 text-left text-slate-300">
+            {/* MODAL HEADER */}
 
-            <tr>
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-slate-800 bg-slate-950/95 px-6 py-5 backdrop-blur">
 
-              <th className="px-6 py-4">
-                Week
-              </th>
+              <div>
 
-              <th className="px-6 py-4">
-                Task
-              </th>
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-400">
+                  Weekly Task
+                </p>
 
-              <th className="px-6 py-4">
-                Due Date
-              </th>
+                <h2 className="mt-1 text-xl font-bold">
+                  {selectedTask.title ||
+                    "Untitled Task"}
+                </h2>
 
-              <th className="px-6 py-4">
-                Priority
-              </th>
+              </div>
 
-              <th className="px-6 py-4">
-                Difficulty
-              </th>
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedTask(null)
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+              >
+                <X size={20} />
+              </button>
 
-              <th className="px-6 py-4">
-                XP
-              </th>
+            </div>
 
-              <th className="px-6 py-4 text-center">
-                Actions
-              </th>
+            {/* MODAL CONTENT */}
 
-            </tr>
+            <div className="space-y-6 p-6">
 
-          </thead>
+              {/* DESCRIPTION */}
 
-          <tbody>
+              <div>
 
-            {tasks.length > 0 ? (
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Description
+                </p>
 
-              tasks.map((task) => (
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
 
-                <tr
-                  key={task.id}
-                  className="border-t border-slate-800 hover:bg-slate-800/40"
-                >
-
-                  <td className="px-6 py-5">
-
-                    Week {task.week}
-
-                  </td>
-
-                  <td className="px-6 py-5">
-
-                    <h3 className="font-semibold">
-
-                      {task.title}
-
-                    </h3>
-
-                    <p className="mt-1 text-sm text-slate-400">
-
-                      {task.description || "No description"}
-
-                    </p>
-
-                  </td>
-
-                  <td className="px-6 py-5 text-slate-300">
-
-                    {task.due_date
-                      ? new Date(task.due_date).toLocaleDateString()
-                      : "-"}
-
-                  </td>
-
-                  <td className="px-6 py-5">
-
-                    <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs text-blue-400">
-
-                      {task.priority}
-
-                    </span>
-
-                  </td>
-
-                  <td className="px-6 py-5 text-slate-300">
-
-                    {task.difficulty}
-
-                  </td>
-
-                  <td className="px-6 py-5 text-yellow-400 font-semibold">
-
-                    {task.xp} XP
-
-                  </td>
-
-                  <td className="px-6 py-5">
-
-                    <div className="flex justify-center gap-3">
-
-                      <button
-                        onClick={() =>
-                          navigate(
-                            `/admin/lms/topic/${topicId}/tasks/view/${task.id}`
-                          )
-                        }
-                        className="text-blue-400 hover:text-blue-300"
-                      >
-                        <Eye size={18} />
-                      </button>
-
-                      <button
-                        onClick={() =>
-                          navigate(
-                            `/admin/lms/topic/${topicId}/tasks/edit/${task.id}`
-                          )
-                        }
-                        className="text-green-400 hover:text-green-300"
-                      >
-                        <Edit size={18} />
-                      </button>
-
-                      <button
-                        onClick={() =>
-                          handleDelete(task.id)
-                        }
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-
-                    </div>
-
-                  </td>
-
-                </tr>
-
-              ))
-
-            ) : (
-
-              <tr>
-
-                <td
-                  colSpan={7}
-                  className="px-6 py-20 text-center"
-                >
-
-                  <ClipboardList
-                    size={48}
-                    className="mx-auto mb-4 text-slate-600"
-                  />
-
-                  <h3 className="text-xl font-semibold text-white">
-
-                    No Weekly Tasks Yet
-
-                  </h3>
-
-                  <p className="mt-2 text-slate-400">
-
-                    Create the first task for this topic.
-
+                  <p className="whitespace-pre-wrap leading-7 text-slate-300">
+                    {selectedTask.description ||
+                      "No description available."}
                   </p>
 
-                  <div className="mt-6">
+                </div>
+              </div>
 
-                    <AdminButton
-                      icon={<Plus size={18} />}
-                      onClick={() =>
-                        navigate(`/admin/lms/topic/${topicId}/tasks/create`)
-                      }
-                    >
-                      Create Weekly Task
-                    </AdminButton>
+              {/* INFORMATION */}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                {/* COURSE */}
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+
+                    <BookOpen size={15} />
+
+                    Course
 
                   </div>
 
-                </td>
+                  <p className="mt-2 font-medium text-white">
+                    {getCourseTitle(
+                      selectedTask
+                    )}
+                  </p>
 
-              </tr>
+                </div>
 
-            )}
+                {/* TOPIC */}
 
-          </tbody>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
 
-        </table>
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
 
-      </div>
+                    <ClipboardList
+                      size={15}
+                    />
 
+                    Topic
+
+                  </div>
+
+                  <p className="mt-2 font-medium text-white">
+                    {getTopicTitle(
+                      selectedTask
+                    )}
+                  </p>
+
+                </div>
+
+                {/* WEEK */}
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+
+                    <CalendarDays
+                      size={15}
+                    />
+
+                    Week
+
+                  </div>
+
+                  <p className="mt-2 font-medium text-white">
+                    Week{" "}
+                    {selectedTask.week ||
+                      "—"}
+                  </p>
+
+                </div>
+
+                {/* DUE DATE */}
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+
+                    <Clock size={15} />
+
+                    Due Date
+
+                  </div>
+
+                  <p className="mt-2 font-medium text-white">
+                    {formatDate(
+                      selectedTask.due_date
+                    )}
+                  </p>
+
+                </div>
+
+                {/* XP */}
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+
+                    <Star size={15} />
+
+                    XP
+
+                  </div>
+
+                  <p className="mt-2 font-medium text-white">
+                    {selectedTask.xp || 0} XP
+                  </p>
+
+                </div>
+
+                {/* DIFFICULTY */}
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+
+                    <CheckCircle2
+                      size={15}
+                    />
+
+                    Difficulty
+
+                  </div>
+
+                  <p
+                    className={`mt-2 font-medium capitalize ${getDifficultyClass(
+                      selectedTask.difficulty
+                    )}`}
+                  >
+                    {selectedTask.difficulty ||
+                      "Normal"}
+                  </p>
+
+                </div>
+
+              </div>
+            </div>
+
+            {/* MODAL FOOTER */}
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-800 px-6 py-5">
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedTask(null)
+                }
+                className="rounded-xl bg-slate-800 px-4 py-2.5 text-slate-200 transition hover:bg-slate-700"
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedTask(null);
+                  handleEdit(
+                    selectedTask.id
+                  );
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white transition hover:bg-blue-500"
+              >
+                <Edit size={17} />
+
+                Edit Task
+              </button>
+
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-
   );
-
-};
-
-export default WeeklyTasksAdmin;
+}

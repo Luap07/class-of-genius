@@ -21,83 +21,78 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Delete,
+  FileText,
   Flag,
-  Grid3X3,
-  Menu,
+  Maximize,
+  Minimize,
   RotateCcw,
+  Target,
   Trophy,
   X,
+  XCircle,
 } from "lucide-react";
 
-import { supabase } from "../../lib/supabaseClient";
+import {
+  motion,
+  AnimatePresence,
+} from "framer-motion";
 
-/*
-|--------------------------------------------------------------------------
-| CONFIGURATION
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   CONFIGURATION
+============================================================ */
 
 const QUESTIONS_PER_SUBJECT = 40;
 const EXAM_DURATION_MINUTES = 120;
-const FORCE_FRESH_EXAM = false;
-
 
 /*
-|--------------------------------------------------------------------------
-| NORMALIZATION
-|--------------------------------------------------------------------------
-*/
+ * Set this to true only when you want to
+ * completely ignore an old saved exam.
+ */
+const FORCE_FRESH_EXAM = false;
 
-const normalize = (value) => {
-  return String(value ?? "")
-    .replace(/\u00A0/g, " ")
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL?.replace(
+    /\/$/,
+    ""
+  ) || "http://localhost:5000";
+
+/* ============================================================
+   GENERAL HELPERS
+============================================================ */
+
+const normalize = (value) =>
+  String(value ?? "")
+    .replace(/\u00a0/g, " ")
     .trim()
     .replace(/\s+/g, " ")
     .toLowerCase();
-};
 
-const examsMatch = (first, second) => {
-  const a = normalize(first);
-  const b = normalize(second);
+const examsMatch = (a, b) =>
+  normalize(a) === normalize(b);
 
-  return Boolean(a && b && a === b);
-};
+const subjectsMatch = (a, b) =>
+  normalize(a) === normalize(b);
 
-const subjectsMatch = (first, second) => {
-  const a = normalize(first);
-  const b = normalize(second);
+const formatSubjectName = (subject) =>
+  String(subject ?? "").trim() ||
+  "Subject";
 
-  return Boolean(a && b && a === b);
-};
+const shuffleArray = (items) => {
+  const array = [...items];
 
+  for (
+    let i = array.length - 1;
+    i > 0;
+    i--
+  ) {
+    const j = Math.floor(
+      Math.random() * (i + 1)
+    );
 
-/*
-|--------------------------------------------------------------------------
-| SUBJECT DISPLAY
-|--------------------------------------------------------------------------
-*/
-
-const getSubjectDisplayName = (subject) => {
-  return String(subject ?? "").trim();
-};
-
-
-/*
-|--------------------------------------------------------------------------
-| SHUFFLE
-|--------------------------------------------------------------------------
-*/
-
-const shuffleQuestions = (questions) => {
-  const array = Array.isArray(questions)
-    ? [...questions]
-    : [];
-
-  for (let i = array.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-
-    [array[i], array[j]] = [
+    [
+      array[i],
+      array[j],
+    ] = [
       array[j],
       array[i],
     ];
@@ -106,154 +101,213 @@ const shuffleQuestions = (questions) => {
   return array;
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| QUESTION TEXT
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   QUESTION HELPERS
+============================================================ */
 
 const getQuestionText = (question) => {
   if (!question) {
     return "";
   }
 
-  return String(
+  return (
     question.question ??
-      question.question_text ??
-      question.questionText ??
-      ""
-  ).trim();
+    question.question_text ??
+    question.text ??
+    ""
+  );
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| OPTIONS
-|--------------------------------------------------------------------------
-*/
-
-const getQuestionOptionsMap = (question) => {
+const getQuestionOptions = (question) => {
   if (!question) {
-    return {};
-  }
-
-  let options = question.options;
-
-  /*
-   * JSONB object
-   */
-  if (
-    options &&
-    typeof options === "object" &&
-    !Array.isArray(options)
-  ) {
-    return {
-      A: String(options.A ?? "").trim(),
-      B: String(options.B ?? "").trim(),
-      C: String(options.C ?? "").trim(),
-      D: String(options.D ?? "").trim(),
-    };
+    return [];
   }
 
   /*
-   * JSON string
+   * First try JSONB options.
    */
-  if (typeof options === "string") {
-    try {
-      const parsed = JSON.parse(options);
+  if (question.options) {
+    let options =
+      question.options;
 
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-      ) {
-        return {
-          A: String(parsed.A ?? "").trim(),
-          B: String(parsed.B ?? "").trim(),
-          C: String(parsed.C ?? "").trim(),
-          D: String(parsed.D ?? "").trim(),
-        };
+    if (
+      typeof options ===
+      "string"
+    ) {
+      try {
+        options =
+          JSON.parse(options);
+      } catch {
+        options = null;
       }
+    }
 
-      if (Array.isArray(parsed)) {
-        return {
-          A: String(parsed[0] ?? "").trim(),
-          B: String(parsed[1] ?? "").trim(),
-          C: String(parsed[2] ?? "").trim(),
-          D: String(parsed[3] ?? "").trim(),
-        };
-      }
-    } catch (error) {
-      /*
-       * Some databases may contain plain text
-       * inside the options column rather than JSON.
-       */
-      console.warn(
-        "Unable to parse question.options as JSON:",
-        error
+    /*
+     * JSON array:
+     *
+     * [
+     *   { key: "A", text: "..." },
+     *   ...
+     * ]
+     */
+    if (
+      Array.isArray(options)
+    ) {
+      return options
+        .map(
+          (
+            option,
+            index
+          ) => {
+            if (
+              option &&
+              typeof option ===
+                "object"
+            ) {
+              return {
+                key:
+                  option.key ??
+                  option.letter ??
+                  String.fromCharCode(
+                    65 + index
+                  ),
+                text:
+                  option.text ??
+                  option.value ??
+                  option.option ??
+                  "",
+              };
+            }
+
+            return {
+              key:
+                String.fromCharCode(
+                  65 + index
+                ),
+              text: String(
+                option ?? ""
+              ),
+            };
+          }
+        )
+        .filter(
+          (option) =>
+            String(
+              option.text ??
+                ""
+            ).trim() !== ""
+        );
+    }
+
+    /*
+     * JSON object.
+     */
+    if (
+      options &&
+      typeof options ===
+        "object"
+    ) {
+      const result = [];
+      const seen = new Set();
+
+      const possibleKeys = [
+        "A",
+        "B",
+        "C",
+        "D",
+        "a",
+        "b",
+        "c",
+        "d",
+        "optionA",
+        "optionB",
+        "optionC",
+        "optionD",
+      ];
+
+      possibleKeys.forEach(
+        (key) => {
+          const value =
+            options[key];
+
+          if (
+            value !==
+              undefined &&
+            value !== null &&
+            String(
+              value
+            ).trim() !== ""
+          ) {
+            const normalizedValue =
+              normalize(value);
+
+            if (
+              !seen.has(
+                normalizedValue
+              )
+            ) {
+              seen.add(
+                normalizedValue
+              );
+
+              result.push({
+                key: String.fromCharCode(
+                  65 +
+                    result.length
+                ),
+                text: String(
+                  value
+                ),
+              });
+            }
+          }
+        }
       );
+
+      if (result.length) {
+        return result;
+      }
     }
   }
 
   /*
-   * Legacy option columns
+   * Neon columns.
+   *
+   * These are deliberately referenced
+   * using normal JS property access.
    */
-  const legacyOptions = {
-    A: String(question.optionA ?? "").trim(),
-    B: String(question.optionB ?? "").trim(),
-    C: String(question.optionC ?? "").trim(),
-    D: String(question.optionD ?? "").trim(),
-  };
-
-  if (Object.values(legacyOptions).some(Boolean)) {
-    return legacyOptions;
-  }
-
-  /*
-   * Legacy array
-   */
-  if (Array.isArray(question.options)) {
-    const getArrayValue = (item) => {
-      if (item && typeof item === "object") {
-        return String(
-          item.text ??
-            item.value ??
-            item.label ??
-            ""
-        ).trim();
-      }
-
-      return String(item ?? "").trim();
-    };
-
-    return {
-      A: getArrayValue(question.options[0]),
-      B: getArrayValue(question.options[1]),
-      C: getArrayValue(question.options[2]),
-      D: getArrayValue(question.options[3]),
-    };
-  }
-
-  return {};
+  return [
+    {
+      key: "A",
+      text: question.optionA,
+    },
+    {
+      key: "B",
+      text: question.optionB,
+    },
+    {
+      key: "C",
+      text: question.optionC,
+    },
+    {
+      key: "D",
+      text: question.optionD,
+    },
+  ].filter(
+    (option) =>
+      option.text !==
+        undefined &&
+      option.text !==
+        null &&
+      String(
+        option.text
+      ).trim() !== ""
+  );
 };
 
-const getQuestionOptions = (question) => {
-  const optionMap = getQuestionOptionsMap(question);
-
-  return ["A", "B", "C", "D"]
-    .map((letter) => optionMap[letter])
-    .filter(Boolean);
-};
-
-
-/*
-|--------------------------------------------------------------------------
-| CORRECT ANSWER
-|--------------------------------------------------------------------------
-*/
-
-const getCorrectAnswerValue = (question) => {
+const getCorrectAnswerValue = (
+  question
+) => {
   if (!question) {
     return "";
   }
@@ -262,632 +316,1169 @@ const getCorrectAnswerValue = (question) => {
     question.answer ??
       question.correct_answer ??
       question.correctAnswer ??
-      question.correct_option ??
-      question.correctOption ??
       ""
   ).trim();
 };
 
-const normalizeAnswerLetter = (value) => {
-  return normalize(value)
-    .replace(/^option\s*/i, "")
-    .replace(
-      /^[\(\[]?([abcd])[\)\].:\-\s]*$/i,
-      "$1"
-    );
-};
+/* ============================================================
+   COMPREHENSION HELPERS
+============================================================ */
 
-
-/*
-|--------------------------------------------------------------------------
-| COMPREHENSION
-|--------------------------------------------------------------------------
-*/
-
-const getComprehensionId = (question) => {
+const getComprehensionId = (
+  question
+) => {
   if (!question) {
     return "";
   }
 
   return String(
-    question.comprehension_id ??
+    question.passage_id ??
+      question.comprehension_id ??
       question.comprehensionId ??
-      question.passage_id ??
-      question.passageId ??
-      question.comprehension_group_id ??
       ""
   ).trim();
 };
 
-const getComprehensionName = (question) => {
+const getComprehensionName = (
+  question
+) => {
   if (!question) {
     return "";
   }
 
   return String(
-    question.comprehension_name ??
-      question.comprehensionName ??
-      question.passage_name ??
-      question.passageName ??
+    question.passage_title ??
       question.comprehension_title ??
       question.comprehensionTitle ??
       ""
   ).trim();
 };
 
-const getPassageValue = (question) => {
+const getPassageValue = (
+  question
+) => {
   if (!question) {
     return "";
   }
 
   return String(
     question.passage ??
-      question.comprehension_passage ??
-      question.comprehensionPassage ??
       question.passage_text ??
-      question.passageText ??
+      question.comprehension ??
       ""
   ).trim();
 };
 
-const isComprehensionQuestion = (question) => {
-  if (!question) {
-    return false;
-  }
-
-  return Boolean(
-    getPassageValue(question) ||
-      getComprehensionId(question) ||
-      getComprehensionName(question) ||
-      normalize(question.question_type) === "comprehension" ||
-      normalize(question.questionType) === "comprehension"
-  );
-};
-
-const comprehensionNamesMatch = (first, second) => {
-  return (
-    normalize(first) !== "" &&
-    normalize(first) === normalize(second)
-  );
-};
-
-const getComprehensionPassage = (
-  question,
-  questions
-) => {
-  if (!question) {
-    return "";
-  }
-
-  const directPassage = getPassageValue(question);
-
-  if (directPassage) {
-    return directPassage;
-  }
-
-  const comprehensionId =
-    getComprehensionId(question);
-
-  if (comprehensionId && Array.isArray(questions)) {
-    const matching = questions.find(
-      (item) =>
-        getComprehensionId(item) === comprehensionId &&
-        getPassageValue(item)
-    );
-
-    if (matching) {
-      return getPassageValue(matching);
-    }
-  }
-
-  const comprehensionName =
-    getComprehensionName(question);
-
-  if (comprehensionName && Array.isArray(questions)) {
-    const matching = questions.find(
-      (item) =>
-        comprehensionNamesMatch(
-          getComprehensionName(item),
-          comprehensionName
-        ) &&
-        getPassageValue(item)
-    );
-
-    if (matching) {
-      return getPassageValue(matching);
-    }
-  }
-
-  return "";
-};
-
-const getComprehensionQuestionText = (question) => {
-  return getQuestionText(question)
-    .replace(/^\s*passage\s*:/i, "")
-    .trim();
-};
-
-
-/*
-|--------------------------------------------------------------------------
-| COMPREHENSION GROUP SELECTION
-|--------------------------------------------------------------------------
-*/
-
-const selectQuestionsKeepingComprehensionGroups = (
-  questions,
-  count
-) => {
-  if (
-    !Array.isArray(questions) ||
-    questions.length === 0 ||
-    count <= 0
-  ) {
-    return [];
-  }
-
-  const comprehensionGroups = new Map();
-  const standalone = [];
-
-  questions.forEach((question) => {
-    const id = getComprehensionId(question);
-    const name = getComprehensionName(question);
-
-    const key = id
-      ? `id:${id}`
-      : name
-      ? `name:${normalize(name)}`
-      : "";
-
-    if (key) {
-      if (!comprehensionGroups.has(key)) {
-        comprehensionGroups.set(key, []);
-      }
-
-      comprehensionGroups.get(key).push(question);
-    } else {
-      standalone.push(question);
-    }
-  });
-
-  const groups = shuffleQuestions(
-    Array.from(comprehensionGroups.values())
-  );
-
-  const result = [];
-
-  for (const group of groups) {
-    if (result.length + group.length <= count) {
-      result.push(...shuffleQuestions(group));
-    }
-  }
-
-  const shuffledStandalone =
-    shuffleQuestions(standalone);
-
-  for (const question of shuffledStandalone) {
-    if (result.length >= count) {
-      break;
-    }
-
-    result.push(question);
-  }
-
-  if (result.length < count) {
-    const usedIds = new Set(
-      result.map((question) =>
-        String(question.id ?? "")
+const isComprehensionQuestion = (
+  question
+) =>
+  Boolean(
+    getComprehensionId(
+      question
+    ) ||
+      getComprehensionName(
+        question
+      ) ||
+      getPassageValue(
+        question
       )
-    );
-
-    const remaining = shuffleQuestions(
-      questions.filter(
-        (question) =>
-          !usedIds.has(String(question.id ?? ""))
-      )
-    );
-
-    for (const question of remaining) {
-      if (result.length >= count) {
-        break;
-      }
-
-      result.push(question);
-    }
-  }
-
-  return shuffleQuestions(result).slice(0, count);
-};
-
-
-/*
-|--------------------------------------------------------------------------
-| MATHEMATICAL HTML
-|--------------------------------------------------------------------------
-|
-| IMPORTANT:
-|
-| The database may contain:
-|
-| <span class="math-fraction">
-|   <span>1</span>
-|   <span>5</span>
-| </span>
-|
-| React normally escapes this and displays the tags as text.
-|
-| MathText below safely sanitizes trusted mathematical markup
-| and then renders the allowed mathematical HTML.
-|
-|--------------------------------------------------------------------------
-*/
-
-
-/*
- * Convert common LaTeX-style fractions:
- *
- * \frac{1}{5}
- * \frac{a+b}{c}
- */
-const convertLatexFractions = (value) => {
-  let text = String(value ?? "");
-
-  let previous = "";
-
-  /*
-   * Repeat because a fraction may contain another fraction.
-   */
-  while (previous !== text) {
-    previous = text;
-
-    text = text.replace(
-      /\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g,
-      (_, numerator, denominator) => {
-        return (
-          `<span class="math-fraction">` +
-          `<span>${numerator}</span>` +
-          `<span>${denominator}</span>` +
-          `</span>`
-        );
-      }
-    );
-  }
-
-  return text;
-};
-
-
-/*
- * Convert common simple LaTeX commands to HTML.
- */
-const convertCommonMathSyntax = (value) => {
-  let text = String(value ?? "");
-
-  text = convertLatexFractions(text);
-
-  /*
-   * Square root
-   *
-   * \sqrt{x}
-   */
-  text = text.replace(
-    /\\sqrt\s*\{([^{}]*)\}/g,
-    `<span class="math-root"><span class="math-root-symbol">√</span><span>$1</span></span>`
   );
 
-  /*
-   * Superscripts:
-   *
-   * x^2
-   * x^{2}
-   */
-  text = text.replace(
-    /\^\{([^{}]+)\}/g,
-    `<sup>$1</sup>`
-  );
+/* ============================================================
+   SELECT QUESTIONS
+============================================================ */
 
-  text = text.replace(
-    /\^([A-Za-z0-9]+)/g,
-    `<sup>$1</sup>`
-  );
-
-  /*
-   * Subscripts:
-   *
-   * x_1
-   * x_{12}
-   */
-  text = text.replace(
-    /_\{([^{}]+)\}/g,
-    `<sub>$1</sub>`
-  );
-
-  text = text.replace(
-    /_([A-Za-z0-9]+)/g,
-    `<sub>$1</sub>`
-  );
-
-  /*
-   * Common LaTeX symbols.
-   */
-  const replacements = [
-    [/\\times/g, "×"],
-    [/\\div/g, "÷"],
-    [/\\pm/g, "±"],
-    [/\\leq/g, "≤"],
-    [/\\le/g, "≤"],
-    [/\\geq/g, "≥"],
-    [/\\ge/g, "≥"],
-    [/\\neq/g, "≠"],
-    [/\\ne/g, "≠"],
-    [/\\approx/g, "≈"],
-    [/\\pi/g, "π"],
-    [/\\infty/g, "∞"],
-    [/\\theta/g, "θ"],
-    [/\\alpha/g, "α"],
-    [/\\beta/g, "β"],
-    [/\\gamma/g, "γ"],
-    [/\\delta/g, "δ"],
-    [/\\lambda/g, "λ"],
-    [/\\mu/g, "μ"],
-    [/\\sigma/g, "σ"],
-    [/\\omega/g, "ω"],
-    [/\\degree/g, "°"],
-  ];
-
-  replacements.forEach(([pattern, replacement]) => {
-    text = text.replace(pattern, replacement);
-  });
-
-  return text;
-};
-
-
-/*
- * Allowed HTML tags for question content.
- */
-const ALLOWED_MATH_TAGS = new Set([
-  "SPAN",
-  "SUP",
-  "SUB",
-  "BR",
-  "STRONG",
-  "B",
-  "EM",
-  "I",
-  "U",
-  "P",
-  "DIV",
-  "SMALL",
-  "MARK",
-]);
-
-
-/*
- * Only mathematical/presentation classes are allowed.
- */
-const ALLOWED_MATH_CLASSES = new Set([
-  "math-fraction",
-  "math-root",
-  "math-root-symbol",
-  "math-inline",
-  "math-display",
-  "math-equation",
-  "math-numerator",
-  "math-denominator",
-  "math-sup",
-  "math-sub",
-]);
-
-
-/*
- * Sanitize mathematical HTML.
- *
- * This prevents question content from executing scripts
- * or injecting arbitrary event handlers.
- */
-const sanitizeMathHtml = (value) => {
-  if (value === null || value === undefined) {
-    return "";
-  }
-
-  let text = String(value);
-
-  /*
-   * If there is no HTML and no LaTeX syntax,
-   * return normal text safely through React.
-   */
-  const hasMarkup =
-    /<[^>]+>/.test(text) ||
-    /\\(frac|sqrt|times|div|leq|geq|neq|pi|infty|alpha|beta|gamma|delta|theta)/.test(
-      text
-    );
-
-  if (!hasMarkup) {
-    return text
-      .replace(/\u00A0/g, " ");
-  }
-
-  text = convertCommonMathSyntax(text);
-
-  /*
-   * DOMParser is available in the browser where the CBT runs.
-   */
-  if (typeof window === "undefined") {
-    return text;
-  }
-
-  const parser = new DOMParser();
-  const document = parser.parseFromString(
-    `<div>${text}</div>`,
-    "text/html"
-  );
-
-  const root = document.body.firstElementChild;
-
-  if (!root) {
-    return text;
-  }
-
-  const cleanNode = (node) => {
-    /*
-     * Remove comments.
-     */
-    if (node.nodeType === Node.COMMENT_NODE) {
-      node.remove();
-      return;
-    }
-
-    /*
-     * Text node.
-     */
-    if (node.nodeType === Node.TEXT_NODE) {
-      return;
-    }
-
-    /*
-     * Remove anything that is not an element.
-     */
-    if (node.nodeType !== Node.ELEMENT_NODE) {
-      node.remove();
-      return;
-    }
-
-    const tagName = node.tagName.toUpperCase();
-
-    /*
-     * Remove dangerous tags entirely.
-     */
+const selectQuestionsKeepingComprehensionGroups =
+  (
+    questions,
+    targetCount
+  ) => {
     if (
-      [
-        "SCRIPT",
-        "STYLE",
-        "IFRAME",
-        "OBJECT",
-        "EMBED",
-        "FORM",
-        "INPUT",
-        "BUTTON",
-        "TEXTAREA",
-        "SELECT",
-        "OPTION",
-        "LINK",
-        "META",
-        "SVG",
-        "MATH",
-      ].includes(tagName)
+      !Array.isArray(
+        questions
+      )
     ) {
-      node.remove();
-      return;
+      return [];
     }
 
-    /*
-     * Unsupported tags:
-     *
-     * Keep their text/content but remove the tag.
-     */
-    if (!ALLOWED_MATH_TAGS.has(tagName)) {
-      const fragment =
-        document.createDocumentFragment();
-
-      while (node.firstChild) {
-        fragment.appendChild(node.firstChild);
-      }
-
-      node.replaceWith(fragment);
-      return;
+    if (
+      questions.length <=
+      targetCount
+    ) {
+      return shuffleArray(
+        questions
+      );
     }
 
-    /*
-     * Remove every attribute except class.
-     */
-    Array.from(node.attributes).forEach(
-      (attribute) => {
-        const name =
-          attribute.name.toLowerCase();
+    const groups = new Map();
+    const standalone = [];
 
-        if (name !== "class") {
-          node.removeAttribute(
-            attribute.name
+    questions.forEach(
+      (question) => {
+        if (
+          isComprehensionQuestion(
+            question
+          )
+        ) {
+          const id =
+            getComprehensionId(
+              question
+            );
+
+          const title =
+            getComprehensionName(
+              question
+            );
+
+          const key =
+            id ||
+            normalize(title) ||
+            `passage-${Math.random()}`;
+
+          if (!groups.has(key)) {
+            groups.set(
+              key,
+              []
+            );
+          }
+
+          groups
+            .get(key)
+            .push(question);
+        } else {
+          standalone.push(
+            question
           );
         }
       }
     );
 
-    /*
-     * Restrict class names.
-     */
-    if (node.hasAttribute("class")) {
-      const classes =
-        node
-          .getAttribute("class")
-          .split(/\s+/)
-          .filter((className) =>
-            ALLOWED_MATH_CLASSES.has(
-              className
-            )
-          );
+    const shuffledGroups =
+      shuffleArray(
+        Array.from(
+          groups.values()
+        )
+      );
 
-      if (classes.length > 0) {
-        node.setAttribute(
-          "class",
-          classes.join(" ")
+    const shuffledStandalone =
+      shuffleArray(
+        standalone
+      );
+
+    const selected = [];
+
+    /*
+     * Keep complete comprehension
+     * groups where possible.
+     */
+    for (const group of shuffledGroups) {
+      if (
+        selected.length +
+          group.length <=
+        targetCount
+      ) {
+        selected.push(
+          ...shuffleArray(
+            group
+          )
         );
-      } else {
-        node.removeAttribute("class");
       }
     }
 
     /*
-     * Recursively clean children.
+     * Fill remaining spaces.
      */
-    Array.from(node.childNodes).forEach(
-      cleanNode
+    for (const question of shuffledStandalone) {
+      if (
+        selected.length >=
+        targetCount
+      ) {
+        break;
+      }
+
+      selected.push(
+        question
+      );
+    }
+
+    /*
+     * Final fallback.
+     */
+    if (
+      selected.length <
+      targetCount
+    ) {
+      const selectedIds =
+        new Set(
+          selected.map(
+            (question) =>
+              String(
+                question.id
+              )
+          )
+        );
+
+      const remaining =
+        shuffleArray(
+          questions.filter(
+            (question) =>
+              !selectedIds.has(
+                String(
+                  question.id
+                )
+              )
+          )
+        );
+
+      for (const question of remaining) {
+        if (
+          selected.length >=
+          targetCount
+        ) {
+          break;
+        }
+
+        selected.push(
+          question
+        );
+      }
+    }
+
+    return shuffleArray(
+      selected.slice(
+        0,
+        targetCount
+      )
     );
   };
 
-  Array.from(root.childNodes).forEach(
-    cleanNode
-  );
-
-  return root.innerHTML;
-};
-
+/* ============================================================
+   MATH RENDERING
+============================================================ */
 
 /*
-|--------------------------------------------------------------------------
-| MATH TEXT COMPONENT
-|--------------------------------------------------------------------------
-*/
+ * This renderer handles mathematics coming from the CBT
+ * database, including:
+ *
+ * <sup>8</sup>
+ * <sub>2</sub>
+ *
+ * <span class="math-fraction">
+ *   <span>1</span>
+ *   <span>3</span>
+ * </span>
+ *
+ * \<span class="math-fraction">\<span>1\</span>\<span>3\</span>\</span>
+ *
+ * \frac{1}{3}
+ * \sqrt{x}
+ * x^2
+ * x^{2}
+ * x_2
+ * x_{2}
+ *
+ * IMPORTANT:
+ *
+ * \left(
+ *
+ * must NOT become:
+ *
+ * ≤ft(
+ *
+ * So \left and \right are processed BEFORE
+ * \le / \leq / \ge / etc.
+ */
+
+/* ============================================================
+   SUPERSCRIPT / SUBSCRIPT MAPS
+============================================================ */
+
+const SUPER_MAP = {
+  "0": "⁰",
+  "1": "¹",
+  "2": "²",
+  "3": "³",
+  "4": "⁴",
+  "5": "⁵",
+  "6": "⁶",
+  "7": "⁷",
+  "8": "⁸",
+  "9": "⁹",
+  "+": "⁺",
+  "-": "⁻",
+  "=": "⁼",
+  "(": "⁽",
+  ")": "⁾",
+  n: "ⁿ",
+  i: "ⁱ",
+};
+
+const SUB_MAP = {
+  "0": "₀",
+  "1": "₁",
+  "2": "₂",
+  "3": "₃",
+  "4": "₄",
+  "5": "₅",
+  "6": "₆",
+  "7": "₇",
+  "8": "₈",
+  "9": "₉",
+  "+": "₊",
+  "-": "₋",
+  "=": "₌",
+  "(": "₍",
+  ")": "₎",
+  a: "ₐ",
+  e: "ₑ",
+  h: "ₕ",
+  i: "ᵢ",
+  j: "ⱼ",
+  k: "ₖ",
+  l: "ₗ",
+  m: "ₘ",
+  n: "ₙ",
+  o: "ₒ",
+  p: "ₚ",
+  r: "ᵣ",
+  s: "ₛ",
+  t: "ₜ",
+  u: "ᵤ",
+  v: "ᵥ",
+  x: "ₓ",
+};
+
+const toSuperscript = (value) =>
+  String(value ?? "")
+    .split("")
+    .map(
+      (char) =>
+        SUPER_MAP[char] ?? char
+    )
+    .join("");
+
+const toSubscript = (value) =>
+  String(value ?? "")
+    .split("")
+    .map(
+      (char) =>
+        SUB_MAP[char] ?? char
+    )
+    .join("");
+
+/* ============================================================
+   HTML ENTITY CLEANING
+============================================================ */
+
+const decodeHtmlEntities = (value) => {
+  if (!value) {
+    return "";
+  }
+
+  return String(value)
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#039;/gi, "'")
+    .replace(/&times;/gi, "×")
+    .replace(/&divide;/gi, "÷")
+    .replace(/&minus;/gi, "−")
+    .replace(/&plusmn;/gi, "±")
+    .replace(/&le;/gi, "≤")
+    .replace(/&ge;/gi, "≥")
+    .replace(/&ne;/gi, "≠");
+};
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const stripHtmlTags = (value) =>
+  String(value ?? "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ");
+
+/* ============================================================
+   NORMALIZE ESCAPED HTML
+============================================================ */
+
+const normalizeMathMarkup = (value) => {
+  let text = String(value ?? "");
+
+  /*
+   * Convert escaped HTML:
+   *
+   * \<span>
+   *
+   * into:
+   *
+   * <span>
+   */
+
+  text = text
+    .replace(/\\</g, "<")
+    .replace(/\\>/g, ">")
+    .replace(/\\"/g, '"')
+    .replace(/\\'/g, "'");
+
+  /*
+   * Decode HTML entities.
+   */
+  text = decodeHtmlEntities(text);
+
+  return text;
+};
+
+/* ============================================================
+   HTML SUP / SUB
+============================================================ */
+
+const convertHtmlMathTags = (value) => {
+  let text = normalizeMathMarkup(value);
+
+  /*
+   * <sup>8</sup>
+   * ↓
+   * ⁸
+   */
+
+  text = text.replace(
+    /<sup\b[^>]*>([\s\S]*?)<\/sup>/gi,
+    (_, content) => {
+      const clean = String(content)
+        .replace(/<[^>]*>/g, "")
+        .trim();
+
+      return toSuperscript(clean);
+    }
+  );
+
+  /*
+   * <sub>2</sub>
+   * ↓
+   * ₂
+   */
+
+  text = text.replace(
+    /<sub\b[^>]*>([\s\S]*?)<\/sub>/gi,
+    (_, content) => {
+      const clean = String(content)
+        .replace(/<[^>]*>/g, "")
+        .trim();
+
+      return toSubscript(clean);
+    }
+  );
+
+  return text;
+};
+
+/* ============================================================
+   MATH FRACTION EXTRACTION
+============================================================ */
+
+/*
+ * Converts:
+ *
+ * <span class="math-fraction">
+ *   <span>1</span>
+ *   <span>3</span>
+ * </span>
+ *
+ * into:
+ *
+ * [[MATH_FRACTION:1:3]]
+ *
+ * We do this BEFORE removing HTML tags.
+ */
+
+const convertMathFractionSpans = (value) => {
+  let text = normalizeMathMarkup(value);
+
+  /*
+   * Remove unnecessary whitespace between tags.
+   */
+  text = text.replace(
+    />\s+</g,
+    "><"
+  );
+
+  /*
+   * Standard:
+   *
+   * <span class="math-fraction"><span>1</span><span>3</span></span>
+   */
+
+  text = text.replace(
+    /<span\b[^>]*class\s*=\s*["'][^"']*math-fraction[^"']*["'][^>]*>\s*<span\b[^>]*>([\s\S]*?)<\/span>\s*<span\b[^>]*>([\s\S]*?)<\/span>\s*<\/span>/gi,
+    (_, numerator, denominator) => {
+      const cleanNumerator =
+        stripHtmlTags(
+          decodeHtmlEntities(
+            numerator
+          )
+        ).trim();
+
+      const cleanDenominator =
+        stripHtmlTags(
+          decodeHtmlEntities(
+            denominator
+          )
+        ).trim();
+
+      return `[[MATH_FRACTION:${cleanNumerator}:${cleanDenominator}]]`;
+    }
+  );
+
+  /*
+   * Some generated questions may have the class
+   * before other attributes or slightly different spacing.
+   */
+
+  text = text.replace(
+    /<span\b[^>]*math-fraction[^>]*>\s*<span\b[^>]*>([\s\S]*?)<\/span>\s*<span\b[^>]*>([\s\S]*?)<\/span>\s*<\/span>/gi,
+    (_, numerator, denominator) => {
+      const cleanNumerator =
+        stripHtmlTags(
+          decodeHtmlEntities(
+            numerator
+          )
+        ).trim();
+
+      const cleanDenominator =
+        stripHtmlTags(
+          decodeHtmlEntities(
+            denominator
+          )
+        ).trim();
+
+      return `[[MATH_FRACTION:${cleanNumerator}:${cleanDenominator}]]`;
+    }
+  );
+
+  return text;
+};
+
+/* ============================================================
+   BALANCED BRACE READER
+============================================================ */
+
+const readBalancedGroup = (
+  text,
+  startIndex
+) => {
+  if (
+    text[startIndex] !== "{"
+  ) {
+    return null;
+  }
+
+  let depth = 0;
+
+  for (
+    let i = startIndex;
+    i < text.length;
+    i++
+  ) {
+    if (text[i] === "{") {
+      depth++;
+    }
+
+    if (text[i] === "}") {
+      depth--;
+
+      if (depth === 0) {
+        return {
+          content: text.slice(
+            startIndex + 1,
+            i
+          ),
+          endIndex: i,
+        };
+      }
+    }
+  }
+
+  return null;
+};
+
+/* ============================================================
+   LATEX COMMAND MAP
+============================================================ */
+
+const LATEX_SYMBOLS = {
+  "\\times": "×",
+  "\\cdot": "·",
+  "\\div": "÷",
+  "\\pm": "±",
+  "\\mp": "∓",
+  "\\leq": "≤",
+  "\\le": "≤",
+  "\\geq": "≥",
+  "\\ge": "≥",
+  "\\neq": "≠",
+  "\\approx": "≈",
+  "\\equiv": "≡",
+  "\\infty": "∞",
+  "\\pi": "π",
+  "\\alpha": "α",
+  "\\beta": "β",
+  "\\gamma": "γ",
+  "\\delta": "δ",
+  "\\theta": "θ",
+  "\\lambda": "λ",
+  "\\mu": "μ",
+  "\\sigma": "σ",
+  "\\omega": "ω",
+  "\\sum": "∑",
+  "\\int": "∫",
+  "\\rightarrow": "→",
+  "\\to": "→",
+  "\\angle": "∠",
+  "\\degree": "°",
+};
+
+/* ============================================================
+   RENDER LATEX
+============================================================ */
+
+const renderLatexMath = (rawValue) => {
+  /*
+   * STEP 1
+   *
+   * Convert HTML sup/sub.
+   */
+  let text =
+    convertHtmlMathTags(
+      rawValue
+    );
+
+  /*
+   * STEP 2
+   *
+   * Convert math-fraction spans BEFORE
+   * removing remaining HTML.
+   */
+  text =
+    convertMathFractionSpans(
+      text
+    );
+
+  /*
+   * STEP 3
+   *
+   * Fix common corrupted forms.
+   *
+   * If old data has:
+   *
+   * ≤ft(
+   *
+   * this came from:
+   *
+   * \left(
+   *
+   * being incorrectly interpreted as \le.
+   *
+   * We repair it here too.
+   */
+
+  text = text
+    .replace(/≤ft/gi, "\\left")
+    .replace(/≥ight/gi, "\\right");
+
+  /*
+   * STEP 4
+   *
+   * Remove math delimiters.
+   */
+
+  text = text
+    .replace(
+      /\$\$(.*?)\$\$/gs,
+      "$1"
+    )
+    .replace(
+      /\$(.*?)\$/gs,
+      "$1"
+    )
+    .replace(
+      /\\\((.*?)\\\)/gs,
+      "$1"
+    )
+    .replace(
+      /\\\[(.*?)\\\]/gs,
+      "$1"
+    );
+
+  /*
+   * STEP 5
+   *
+   * Remove remaining ordinary HTML tags.
+   *
+   * IMPORTANT:
+   *
+   * math-fraction has already been
+   * converted to an internal marker.
+   */
+  text = text.replace(
+    /<[^>]*>/g,
+    ""
+  );
+
+  /*
+   * STEP 6
+   *
+   * Process the mathematical content.
+   */
+
+  let output = "";
+  let i = 0;
+
+  while (
+    i < text.length
+  ) {
+    /* --------------------------------------------------------
+       INTERNAL FRACTION
+    -------------------------------------------------------- */
+
+    if (
+      text.startsWith(
+        "[[MATH_FRACTION:",
+        i
+      )
+    ) {
+      const end =
+        text.indexOf(
+          "]]",
+          i
+        );
+
+      if (end !== -1) {
+        const content =
+          text.slice(
+            i +
+              "[[MATH_FRACTION:"
+                .length,
+            end
+          );
+
+        const separator =
+          content.indexOf(":");
+
+        if (
+          separator !== -1
+        ) {
+          const numerator =
+            content
+              .slice(
+                0,
+                separator
+              )
+              .trim();
+
+          const denominator =
+            content
+              .slice(
+                separator + 1
+              )
+              .trim();
+
+          output +=
+            `<span class="math-frac">` +
+            `<span class="math-num">` +
+            renderLatexMath(
+              numerator
+            ) +
+            `</span>` +
+            `<span class="math-den">` +
+            renderLatexMath(
+              denominator
+            ) +
+            `</span>` +
+            `</span>`;
+
+          i =
+            end + 2;
+
+          continue;
+        }
+      }
+    }
+
+    /* --------------------------------------------------------
+       \left
+       
+       IMPORTANT:
+       Process this BEFORE \le.
+       -------------------------------------------------------- */
+
+    if (
+      text.startsWith(
+        "\\left",
+        i
+      )
+    ) {
+      i += 5;
+      continue;
+    }
+
+    /* --------------------------------------------------------
+       \right
+       -------------------------------------------------------- */
+
+    if (
+      text.startsWith(
+        "\\right",
+        i
+      )
+    ) {
+      i += 6;
+      continue;
+    }
+
+    /* --------------------------------------------------------
+       \frac{a}{b}
+       -------------------------------------------------------- */
+
+    if (
+      text.startsWith(
+        "\\frac",
+        i
+      )
+    ) {
+      let cursor =
+        i + 5;
+
+      while (
+        cursor <
+          text.length &&
+        /\s/.test(
+          text[cursor]
+        )
+      ) {
+        cursor++;
+      }
+
+      const numerator =
+        readBalancedGroup(
+          text,
+          cursor
+        );
+
+      if (numerator) {
+        cursor =
+          numerator.endIndex +
+          1;
+
+        while (
+          cursor <
+            text.length &&
+          /\s/.test(
+            text[cursor]
+          )
+        ) {
+          cursor++;
+        }
+
+        const denominator =
+          readBalancedGroup(
+            text,
+            cursor
+          );
+
+        if (denominator) {
+          output +=
+            `<span class="math-frac">` +
+            `<span class="math-num">` +
+            renderLatexMath(
+              numerator.content
+            ) +
+            `</span>` +
+            `<span class="math-den">` +
+            renderLatexMath(
+              denominator.content
+            ) +
+            `</span>` +
+            `</span>`;
+
+          i =
+            denominator.endIndex +
+            1;
+
+          continue;
+        }
+      }
+    }
+
+    /* --------------------------------------------------------
+       \sqrt{x}
+       -------------------------------------------------------- */
+
+    if (
+      text.startsWith(
+        "\\sqrt",
+        i
+      )
+    ) {
+      let cursor =
+        i + 5;
+
+      while (
+        cursor <
+          text.length &&
+        /\s/.test(
+          text[cursor]
+        )
+      ) {
+        cursor++;
+      }
+
+      const root =
+        readBalancedGroup(
+          text,
+          cursor
+        );
+
+      if (root) {
+        output +=
+          `<span class="math-root">` +
+          `<span class="math-root-symbol">√</span>` +
+          `<span class="math-root-content">` +
+          renderLatexMath(
+            root.content
+          ) +
+          `</span>` +
+          `</span>`;
+
+        i =
+          root.endIndex +
+          1;
+
+        continue;
+      }
+    }
+
+    /* --------------------------------------------------------
+       x^{8}
+       -------------------------------------------------------- */
+
+    if (
+      text[i] === "^" &&
+      text[i + 1] === "{"
+    ) {
+      const group =
+        readBalancedGroup(
+          text,
+          i + 1
+        );
+
+      if (group) {
+        output +=
+          toSuperscript(
+            stripHtmlTags(
+              group.content
+            )
+          );
+
+        i =
+          group.endIndex +
+          1;
+
+        continue;
+      }
+    }
+
+    /* --------------------------------------------------------
+       x^8
+       -------------------------------------------------------- */
+
+    if (
+      text[i] === "^"
+    ) {
+      const next =
+        text[i + 1];
+
+      if (
+        next &&
+        /[A-Za-z0-9+\-=()]/.test(
+          next
+        )
+      ) {
+        output +=
+          SUPER_MAP[next] ??
+          next;
+
+        i += 2;
+
+        continue;
+      }
+    }
+
+    /* --------------------------------------------------------
+       x_{1}
+       -------------------------------------------------------- */
+
+    if (
+      text[i] === "_" &&
+      text[i + 1] === "{"
+    ) {
+      const group =
+        readBalancedGroup(
+          text,
+          i + 1
+        );
+
+      if (group) {
+        output +=
+          toSubscript(
+            stripHtmlTags(
+              group.content
+            )
+          );
+
+        i =
+          group.endIndex +
+          1;
+
+        continue;
+      }
+    }
+
+    /* --------------------------------------------------------
+       x_1
+       -------------------------------------------------------- */
+
+    if (
+      text[i] === "_"
+    ) {
+      const next =
+        text[i + 1];
+
+      if (
+        next &&
+        /[A-Za-z0-9]/.test(
+          next
+        )
+      ) {
+        output +=
+          SUB_MAP[next] ??
+          next;
+
+        i += 2;
+
+        continue;
+      }
+    }
+
+    /* --------------------------------------------------------
+       LATEX SYMBOLS
+       
+       IMPORTANT:
+       \left and \right have already been handled above.
+       -------------------------------------------------------- */
+
+    let foundCommand =
+      false;
+
+    for (
+      const [
+        command,
+        symbol,
+      ] of Object.entries(
+        LATEX_SYMBOLS
+      )
+    ) {
+      if (
+        text.startsWith(
+          command,
+          i
+        )
+      ) {
+        output += symbol;
+
+        i +=
+          command.length;
+
+        foundCommand =
+          true;
+
+        break;
+      }
+    }
+
+    if (foundCommand) {
+      continue;
+    }
+
+    /* --------------------------------------------------------
+       Remove LaTeX braces.
+       -------------------------------------------------------- */
+
+    if (
+      text[i] === "{" ||
+      text[i] === "}"
+    ) {
+      i++;
+      continue;
+    }
+
+    /* --------------------------------------------------------
+       Remove remaining escaped HTML markers.
+       -------------------------------------------------------- */
+
+    if (
+      text.startsWith(
+        "\\<",
+        i
+      )
+    ) {
+      i += 2;
+      continue;
+    }
+
+    if (
+      text.startsWith(
+        "\\>",
+        i
+      )
+    ) {
+      i += 2;
+      continue;
+    }
+
+    /* --------------------------------------------------------
+       Normal character.
+       -------------------------------------------------------- */
+
+    output += escapeHtml(
+      text[i]
+    );
+
+    i++;
+  }
+
+  return output;
+};
+
+/* ============================================================
+   MATH TEXT COMPONENT
+============================================================ */
 
 const MathText = ({
   children,
   className = "",
 }) => {
-  const rawValue =
-    children === null ||
-    children === undefined
-      ? ""
-      : String(children);
-
   const html =
-    sanitizeMathHtml(rawValue);
-
-  /*
-   * If there is no HTML, render normally.
-   * This gives React normal text handling.
-   */
-  if (
-    !/<[^>]+>/.test(html)
-  ) {
-    return (
-      <span
-        className={className}
-      >
-        {html}
-      </span>
+    renderLatexMath(
+      children
     );
-  }
 
   return (
     <span
@@ -899,211 +1490,158 @@ const MathText = ({
   );
 };
 
+/* ============================================================
+   MATH CSS
+============================================================ */
 
-/*
-|--------------------------------------------------------------------------
-| MATHEMATICAL CSS
-|--------------------------------------------------------------------------
-*/
+const MathStyles = () => (
+  <style>{`
+    .math-frac {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
+      margin: 0 0.2em;
+      min-width: 1.2em;
+      line-height: 1;
+    }
 
-const MathStyles = () => {
-  return (
-    <style>
-      {`
-        /*
-         * Proper stacked fraction.
-         *
-         * Example:
-         *
-         *  1
-         *  ─
-         *  5
-         */
-        .math-fraction {
-          display: inline-flex;
-          flex-direction: column;
-          align-items: stretch;
-          justify-content: center;
-          vertical-align: middle;
-          text-align: center;
-          line-height: 1;
-          margin: 0 0.16em;
-          min-width: 1.15em;
-          position: relative;
-          top: 0.08em;
-        }
+    .math-num {
+      display: block;
+      padding: 0 0.3em 0.14em;
+      border-bottom: 1.5px solid currentColor;
+      text-align: center;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
 
-        .math-fraction > span:first-child {
-          display: block;
-          padding: 0 0.22em 0.12em;
-          line-height: 1.05;
-          border-bottom: 1.5px solid currentColor;
-        }
+    .math-den {
+      display: block;
+      padding: 0.14em 0.3em 0;
+      text-align: center;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
 
-        .math-fraction > span:last-child {
-          display: block;
-          padding: 0.12em 0.22em 0;
-          line-height: 1.05;
-        }
+    .math-root {
+      display: inline-flex;
+      align-items: flex-start;
+      vertical-align: middle;
+      margin: 0 0.08em;
+    }
 
-        /*
-         * Larger fractions inside equations.
-         */
-        .math-display .math-fraction,
-        .math-equation .math-fraction {
-          font-size: 1.05em;
-        }
+    .math-root-symbol {
+      font-size: 1.2em;
+      line-height: 1;
+    }
 
-        /*
-         * Square root.
-         */
-        .math-root {
-          display: inline-flex;
-          align-items: flex-start;
-          vertical-align: middle;
-          white-space: nowrap;
-          margin: 0 0.08em;
-        }
+    .math-root-content {
+      border-top: 1.5px solid currentColor;
+      padding: 0 0.15em;
+      line-height: 1.1;
+    }
+  `}</style>
+);
 
-        .math-root-symbol {
-          font-size: 1.15em;
-          line-height: 1;
-          margin-right: 0.03em;
-        }
-
-        .math-root > span:last-child {
-          border-top: 1px solid currentColor;
-          padding: 0 0.15em;
-          line-height: 1.05;
-        }
-
-        /*
-         * Superscript and subscript.
-         */
-        .math-inline sup,
-        .math-equation sup,
-        sup {
-          font-size: 0.68em;
-          line-height: 0;
-          vertical-align: super;
-        }
-
-        .math-inline sub,
-        .math-equation sub,
-        sub {
-          font-size: 0.68em;
-          line-height: 0;
-          vertical-align: sub;
-        }
-
-        /*
-         * Equations.
-         */
-        .math-equation {
-          display: inline-block;
-          font-family:
-            "Cambria Math",
-            "STIX Two Math",
-            "STIX Math",
-            "Times New Roman",
-            serif;
-          letter-spacing: 0.01em;
-        }
-
-        /*
-         * Keep mathematical HTML aligned nicely
-         * with normal text.
-         */
-        .math-inline {
-          display: inline;
-        }
-
-        /*
-         * Paragraphs inside stored HTML.
-         */
-        .math-content p {
-          margin: 0 0 0.75rem;
-        }
-
-        .math-content p:last-child {
-          margin-bottom: 0;
-        }
-
-        /*
-         * Prevent huge injected formatting.
-         */
-        .math-content {
-          overflow-wrap: break-word;
-          word-break: normal;
-        }
-      `}
-    </style>
-  );
-};
-
-
-/*
-|--------------------------------------------------------------------------
-| RESULT CARD
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   RESULT CARD
+============================================================ */
 
 const ResultCard = ({
-  label,
+  title,
   value,
-}) => {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-      <p className="text-xs uppercase tracking-wider text-slate-500">
-        {label}
-      </p>
+  icon: Icon,
+  description,
+}) => (
+  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+    <div className="mb-3 flex items-center gap-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-400">
+        <Icon size={20} />
+      </div>
 
-      <p className="text-2xl font-bold text-blue-400 mt-2">
-        {value}
-      </p>
+      <span className="text-sm text-slate-400">
+        {title}
+      </span>
     </div>
-  );
-};
 
+    <div className="text-3xl font-black text-white">
+      {value}
+    </div>
 
-/*
-|--------------------------------------------------------------------------
-| MAIN COMPONENT
-|--------------------------------------------------------------------------
-*/
+    {description && (
+      <p className="mt-1 text-xs text-slate-500">
+        {description}
+      </p>
+    )}
+  </div>
+);
+
+/* ============================================================
+   MAIN COMPONENT
+============================================================ */
 
 const CBTExam = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const params = useParams();
+  const navigate =
+    useNavigate();
 
-  const exam =
-    location.state?.exam ??
-    params.exam ??
-    "";
+  const location =
+    useLocation();
+
+  const params =
+    useParams();
+
+  const exam = useMemo(
+    () =>
+      location.state?.exam ??
+      params.exam ??
+      "",
+    [
+      location.state?.exam,
+      params.exam,
+    ]
+  );
 
   const suppliedSubjects =
-    Array.isArray(location.state?.subjects)
-      ? location.state.subjects
-      : [];
+    useMemo(() => {
+      const subjects =
+        location.state?.subjects;
 
+      if (
+        !Array.isArray(subjects)
+      ) {
+        return [];
+      }
 
-  /*
-  |--------------------------------------------------------------------------
-  | STATE
-  |--------------------------------------------------------------------------
-  */
+      return subjects
+        .map((subject) =>
+          String(
+            subject ?? ""
+          ).trim()
+        )
+        .filter(Boolean);
+    }, [
+      location.state?.subjects,
+    ]);
+
+  /* ==========================================================
+     STATE
+  ========================================================== */
 
   const [loading, setLoading] =
     useState(true);
 
-  const [loadingMessage, setLoadingMessage] =
-    useState(
-      "Loading your examination..."
-    );
+  const [
+    loadingMessage,
+    setLoadingMessage,
+  ] = useState(
+    "Loading examination..."
+  );
 
-  const [fetchError, setFetchError] =
-    useState("");
+  const [
+    fetchError,
+    setFetchError,
+  ] = useState("");
 
   const [
     questionsBySubject,
@@ -1115,11 +1653,15 @@ const CBTExam = () => {
     setSelectedSubjects,
   ] = useState([]);
 
-  const [activeSubject, setActiveSubject] =
-    useState("");
+  const [
+    activeSubject,
+    setActiveSubject,
+  ] = useState("");
 
-  const [currentIndex, setCurrentIndex] =
-    useState(0);
+  const [
+    currentIndex,
+    setCurrentIndex,
+  ] = useState(0);
 
   const [answers, setAnswers] =
     useState({});
@@ -1127,476 +1669,540 @@ const CBTExam = () => {
   const [marked, setMarked] =
     useState({});
 
-  const [submitted, setSubmitted] =
-    useState(false);
+  const [
+    submitted,
+    setSubmitted,
+  ] = useState(false);
 
   const [endTime, setEndTime] =
     useState(null);
 
   const [timeLeft, setTimeLeft] =
     useState(
-      EXAM_DURATION_MINUTES * 60
+      EXAM_DURATION_MINUTES *
+        60
     );
 
-  const [showNavigator, setShowNavigator] =
-    useState(false);
-
-  const [showCalculator, setShowCalculator] =
-    useState(false);
-
-  const [calculatorValue, setCalculatorValue] =
-    useState("");
-
-
   /*
-  |--------------------------------------------------------------------------
-  | STORAGE KEY
-  |--------------------------------------------------------------------------
-  */
+   * IMPORTANT:
+   *
+   * FALSE = navigator CLOSED
+   * by default.
+   */
+  const [
+    showNavigator,
+    setShowNavigator,
+  ] = useState(false);
+
+  const [
+    showCalculator,
+    setShowCalculator,
+  ] = useState(false);
+
+  const [
+    calculatorValue,
+    setCalculatorValue,
+  ] = useState("");
+
+  const [
+    isFullscreen,
+    setIsFullscreen,
+  ] = useState(false);
+
+  /* ==========================================================
+     STORAGE KEY
+  ========================================================== */
 
   const storageKey = useMemo(() => {
-    if (!exam) {
-      return "";
-    }
+    const examPart =
+      normalize(exam) ||
+      "unknown-exam";
 
     const subjectPart =
-      suppliedSubjects
-        .map((subject) =>
-          normalize(subject)
-            .replace(/[^a-z0-9]+/g, "-")
-        )
-        .filter(Boolean)
-        .sort()
-        .join("-");
+      suppliedSubjects.length
+        ? suppliedSubjects
+            .map(normalize)
+            .sort()
+            .join("-")
+        : "all";
 
-    const examPart =
-      normalize(exam)
-        .replace(/[^a-z0-9]+/g, "-");
-
-    return `scholiqen-cbt-session-${examPart}-${subjectPart || "all"}`;
+    return `scholiqen-cbt-session-${examPart}-${subjectPart}`;
   }, [
     exam,
     suppliedSubjects,
   ]);
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | LOAD QUESTIONS
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     LOAD QUESTIONS
+  ========================================================== */
 
   useEffect(() => {
     let mounted = true;
 
-    const loadQuestions = async () => {
-      try {
-        setLoading(true);
-        setLoadingMessage(
-          "Loading examination questions..."
-        );
-        setFetchError("");
+    const loadQuestions =
+      async () => {
+        try {
+          setLoading(true);
+          setFetchError("");
 
-        const PAGE_SIZE = 1000;
+          /*
+           * RESTORE SESSION
+           */
+          let savedSession =
+            null;
 
-        let allDatabaseQuestions = [];
-        let from = 0;
+          if (
+            !FORCE_FRESH_EXAM
+          ) {
+            try {
+              const saved =
+                localStorage.getItem(
+                  storageKey
+                );
 
-        while (true) {
-          const to =
-            from + PAGE_SIZE - 1;
-
-          console.log(
-            `Fetching CBT questions ${from} - ${to}`
-          );
-
-          const {
-            data: pageData,
-            error: pageError,
-          } = await supabase
-            .from("cbt_questions")
-            .select("*")
-            .range(from, to);
-
-          if (pageError) {
-            throw pageError;
+              if (saved) {
+                savedSession =
+                  JSON.parse(
+                    saved
+                  );
+              }
+            } catch (error) {
+              console.error(
+                "Saved CBT session error:",
+                error
+              );
+            }
           }
 
-          const rows =
-            Array.isArray(pageData)
-              ? pageData
-              : [];
-
-          allDatabaseQuestions.push(
-            ...rows
-          );
-
-          if (rows.length < PAGE_SIZE) {
-            break;
-          }
-
-          from += PAGE_SIZE;
-        }
-
-        if (!mounted) {
-          return;
-        }
-
-        console.log(
-          "TOTAL DATABASE QUESTIONS:",
-          allDatabaseQuestions.length
-        );
-
-        if (
-          allDatabaseQuestions.length === 0
-        ) {
-          setFetchError(
-            "The cbt_questions table returned no questions."
-          );
-
-          setQuestionsBySubject({});
-          setSelectedSubjects([]);
-          setLoading(false);
-
-          return;
-        }
-
-        /*
-         * Selected exam
-         */
-        const examQuestions =
-          allDatabaseQuestions.filter(
-            (row) =>
-              examsMatch(
-                row.exam,
-                exam
+          /*
+           * RESTORE IF VALID
+           */
+          if (
+            savedSession &&
+            savedSession.questionsBySubject &&
+            savedSession.endTime
+          ) {
+            const savedSubjects =
+              Array.isArray(
+                savedSession.subjects
               )
-          );
+                ? savedSession.subjects
+                : Object.keys(
+                    savedSession.questionsBySubject
+                  );
 
-        console.log(
-          "SELECTED EXAM:",
-          exam
-        );
+            const savedQuestions =
+              savedSession.questionsBySubject;
 
-        console.log(
-          "EXAM QUESTIONS:",
-          examQuestions.length
-        );
+            const savedCount =
+              savedSubjects.reduce(
+                (
+                  total,
+                  subject
+                ) =>
+                  total +
+                  (
+                    savedQuestions[
+                      subject
+                    ] || []
+                  ).length,
+                0
+              );
 
-        if (examQuestions.length === 0) {
-          const availableExams = [
-            ...new Set(
-              allDatabaseQuestions
-                .map((row) =>
-                  String(
-                    row.exam ?? ""
-                  ).trim()
+            const savedEnd =
+              Number(
+                savedSession.endTime
+              );
+
+            if (
+              savedCount > 0 &&
+              savedEnd >
+                Date.now()
+            ) {
+              if (!mounted) {
+                return;
+              }
+
+              setQuestionsBySubject(
+                savedQuestions
+              );
+
+              setSelectedSubjects(
+                savedSubjects
+              );
+
+              setActiveSubject(
+                savedSession.activeSubject ||
+                  savedSubjects[0] ||
+                  ""
+              );
+
+              setCurrentIndex(
+                Math.max(
+                  0,
+                  Number(
+                    savedSession.currentIndex ??
+                      0
+                  )
                 )
-                .filter(Boolean)
-            ),
-          ];
+              );
 
-          setFetchError(
-            `No questions were found for "${exam}". Available exams: ${
-              availableExams.join(", ") ||
-              "None"
-            }`
-          );
+              setAnswers(
+                savedSession.answers ||
+                  {}
+              );
 
-          setQuestionsBySubject({});
-          setSelectedSubjects([]);
-          setLoading(false);
+              setMarked(
+                savedSession.marked ||
+                  {}
+              );
 
-          return;
-        }
+              setSubmitted(
+                Boolean(
+                  savedSession.submitted
+                )
+              );
 
-        /*
-         * Database subjects
-         */
-        const databaseSubjects = [
-          ...new Set(
-            examQuestions
-              .map((row) =>
-                String(
-                  row.subject ?? ""
-                ).trim()
-              )
-              .filter(Boolean)
-          ),
-        ];
+              setEndTime(
+                savedEnd
+              );
 
-        /*
-         * Use supplied subjects if present.
-         * Otherwise use all subjects for exam.
-         */
-        const subjectsToLoad =
-          suppliedSubjects.length > 0
-            ? suppliedSubjects
-            : databaseSubjects;
+              setTimeLeft(
+                Math.max(
+                  0,
+                  Math.floor(
+                    (
+                      savedEnd -
+                      Date.now()
+                    ) / 1000
+                  )
+                )
+              );
 
-        const uniqueSubjects = [];
+              setLoadingMessage(
+                "Restoring your examination..."
+              );
 
-        subjectsToLoad.forEach(
-          (subject) => {
-            const cleanSubject =
-              String(
-                subject ?? ""
-              ).trim();
+              setLoading(false);
 
-            if (!cleanSubject) {
               return;
             }
 
-            const exists =
-              uniqueSubjects.some(
-                (existing) =>
-                  subjectsMatch(
-                    existing,
-                    cleanSubject
-                  )
-              );
-
-            if (!exists) {
-              uniqueSubjects.push(
-                cleanSubject
-              );
-            }
-          }
-        );
-
-        /*
-         * Restore session
-         */
-        let savedSession = null;
-
-        if (
-          !FORCE_FRESH_EXAM &&
-          storageKey
-        ) {
-          try {
-            const saved =
-              localStorage.getItem(
+            try {
+              localStorage.removeItem(
                 storageKey
               );
-
-            if (saved) {
-              savedSession =
-                JSON.parse(saved);
+            } catch {
+              // ignore
             }
-          } catch (error) {
-            console.error(
-              "READ SAVED SESSION ERROR:",
-              error
-            );
-
-            savedSession = null;
           }
-        }
 
-        /*
-         * Restore valid session
-         */
-        if (
-          savedSession &&
-          savedSession.questionsBySubject &&
-          savedSession.endTime
-        ) {
-          const savedSubjects =
-            Array.isArray(
-              savedSession.subjects
-            )
-              ? savedSession.subjects
-              : Object.keys(
-                  savedSession.questionsBySubject
+          /*
+           * CLEAN REQUESTED SUBJECTS.
+           */
+          const requestedSubjects =
+            [];
+
+          suppliedSubjects.forEach(
+            (subject) => {
+              const clean =
+                String(
+                  subject ?? ""
+                ).trim();
+
+              if (!clean) {
+                return;
+              }
+
+              const alreadyExists =
+                requestedSubjects.some(
+                  (existing) =>
+                    subjectsMatch(
+                      existing,
+                      clean
+                    )
                 );
 
-          const savedQuestions =
-            savedSession.questionsBySubject;
+              if (
+                !alreadyExists
+              ) {
+                requestedSubjects.push(
+                  clean
+                );
+              }
+            }
+          );
 
-          const savedQuestionCount =
-            savedSubjects.reduce(
-              (total, subject) =>
-                total +
+          setLoadingMessage(
+            requestedSubjects.length
+              ? "Loading your selected subjects..."
+              : "Loading examination subjects..."
+          );
+
+          /*
+           * API REQUEST
+           */
+          const query =
+            new URLSearchParams();
+
+          query.set(
+            "exam",
+            String(exam).trim()
+          );
+
+          if (
+            requestedSubjects.length
+          ) {
+            query.set(
+              "subjects",
+              requestedSubjects.join(
+                ","
+              )
+            );
+          }
+
+          const url =
+            `${API_BASE_URL}/api/cbt/questions?${query.toString()}`;
+
+          console.log(
+            "======================================"
+          );
+
+          console.log(
+            "📝 CBT QUESTIONS REQUEST"
+          );
+
+          console.log(
+            "Exam:",
+            exam
+          );
+
+          console.log(
+            "Subjects:",
+            requestedSubjects
+          );
+
+          console.log(
+            "URL:",
+            url
+          );
+
+          console.log(
+            "======================================"
+          );
+
+          const response =
+            await fetch(url, {
+              method: "GET",
+              headers: {
+                Accept:
+                  "application/json",
+              },
+              cache: "no-store",
+            });
+
+          let data;
+
+          try {
+            data =
+              await response.json();
+          } catch {
+            data = null;
+          }
+
+          if (!response.ok) {
+            throw new Error(
+              data?.error ||
+                data?.message ||
+                `CBT server error (${response.status})`
+            );
+          }
+
+          const examQuestions =
+            Array.isArray(data)
+              ? data
+              : Array.isArray(
+                  data?.questions
+                )
+              ? data.questions
+              : Array.isArray(
+                  data?.data
+                )
+              ? data.data
+              : [];
+
+          if (
+            !examQuestions.length
+          ) {
+            throw new Error(
+              requestedSubjects.length
+                ? `No questions were found for ${exam} under the selected subjects.`
+                : `No questions were found for ${exam}.`
+            );
+          }
+
+          /*
+           * DATABASE SUBJECTS
+           */
+          const databaseSubjects =
+            [
+              ...new Set(
+                examQuestions
+                  .map((row) =>
+                    String(
+                      row.subject ??
+                        ""
+                    ).trim()
+                  )
+                  .filter(Boolean)
+              ),
+            ];
+
+          console.log(
+            "DATABASE SUBJECTS:",
+            databaseSubjects
+          );
+
+          /*
+           * USE THE ACTUAL SELECTED
+           * SUBJECTS.
+           */
+          const subjectsToLoad =
+            requestedSubjects.length
+              ? requestedSubjects
+              : databaseSubjects;
+
+          const uniqueSubjects =
+            [];
+
+          subjectsToLoad.forEach(
+            (subject) => {
+              const clean =
+                String(
+                  subject ?? ""
+                ).trim();
+
+              if (!clean) {
+                return;
+              }
+
+              if (
+                !uniqueSubjects.some(
+                  (existing) =>
+                    subjectsMatch(
+                      existing,
+                      clean
+                    )
+                )
+              ) {
+                uniqueSubjects.push(
+                  clean
+                );
+              }
+            }
+          );
+
+          /*
+           * GROUP QUESTIONS.
+           */
+          const grouped = {};
+          const finalSubjects =
+            [];
+
+          uniqueSubjects.forEach(
+            (subject) => {
+              const matching =
+                examQuestions.filter(
+                  (row) =>
+                    examsMatch(
+                      row.exam,
+                      exam
+                    ) &&
+                    subjectsMatch(
+                      row.subject,
+                      subject
+                    )
+                );
+
+              console.log(
+                `${subject}: ${matching.length} questions`
+              );
+
+              if (
+                !matching.length
+              ) {
+                return;
+              }
+
+              const selected =
+                selectQuestionsKeepingComprehensionGroups(
+                  matching,
+                  QUESTIONS_PER_SUBJECT
+                );
+
+              if (
+                selected.length
+              ) {
+                grouped[
+                  subject
+                ] = selected;
+
+                finalSubjects.push(
+                  subject
+                );
+              }
+            }
+          );
+
+          const total =
+            finalSubjects.reduce(
+              (
+                count,
+                subject
+              ) =>
+                count +
                 (
-                  savedQuestions[
+                  grouped[
                     subject
                   ] || []
                 ).length,
               0
             );
 
-          const savedEndTime =
-            Number(
-              savedSession.endTime
-            );
-
-          const sessionExpired =
-            savedEndTime <= Date.now();
-
           if (
-            savedQuestionCount > 0 &&
-            !sessionExpired
+            !finalSubjects.length ||
+            !total
           ) {
-            setQuestionsBySubject(
-              savedQuestions
+            throw new Error(
+              "No questions are available for the selected subjects."
             );
-
-            setSelectedSubjects(
-              savedSubjects
-            );
-
-            setActiveSubject(
-              savedSession.activeSubject ||
-                savedSubjects[0]
-            );
-
-            setCurrentIndex(
-              Math.max(
-                0,
-                Number(
-                  savedSession.currentIndex ?? 0
-                )
-              )
-            );
-
-            setAnswers(
-              savedSession.answers || {}
-            );
-
-            setMarked(
-              savedSession.marked || {}
-            );
-
-            setSubmitted(
-              Boolean(
-                savedSession.submitted
-              )
-            );
-
-            const remaining =
-              Math.max(
-                0,
-                Math.floor(
-                  (
-                    savedEndTime -
-                    Date.now()
-                  ) / 1000
-                )
-              );
-
-            setEndTime(savedEndTime);
-            setTimeLeft(remaining);
-
-            setLoadingMessage(
-              "Restoring your examination..."
-            );
-
-            setLoading(false);
-
-            return;
           }
 
-          localStorage.removeItem(
-            storageKey
-          );
+          /*
+           * NEW EXAM.
+           */
+          const newEndTime =
+            Date.now() +
+            EXAM_DURATION_MINUTES *
+              60 *
+              1000;
 
-          savedSession = null;
-        }
+          const newSession = {
+            exam,
+            subjects:
+              finalSubjects,
+            questionsBySubject:
+              grouped,
+            activeSubject:
+              finalSubjects[0],
+            currentIndex: 0,
+            answers: {},
+            marked: {},
+            endTime:
+              newEndTime,
+            submitted: false,
+          };
 
-        /*
-         * Create new question set
-         */
-        const grouped = {};
-        const finalSubjects = [];
-
-        uniqueSubjects.forEach(
-          (selectedSubject) => {
-            const matchingQuestions =
-              examQuestions.filter(
-                (row) =>
-                  examsMatch(
-                    row.exam,
-                    exam
-                  ) &&
-                  subjectsMatch(
-                    row.subject,
-                    selectedSubject
-                  )
-              );
-
-            const selectedQuestions =
-              selectQuestionsKeepingComprehensionGroups(
-                matchingQuestions,
-                QUESTIONS_PER_SUBJECT
-              );
-
-            if (
-              selectedQuestions.length > 0
-            ) {
-              grouped[
-                selectedSubject
-              ] = selectedQuestions;
-
-              finalSubjects.push(
-                selectedSubject
-              );
-            }
-          }
-        );
-
-        const totalFinalQuestions =
-          finalSubjects.reduce(
-            (total, subject) =>
-              total +
-              (
-                grouped[
-                  subject
-                ] || []
-              ).length,
-            0
-          );
-
-        if (
-          finalSubjects.length === 0 ||
-          totalFinalQuestions === 0
-        ) {
-          setQuestionsBySubject({});
-          setSelectedSubjects([]);
-
-          setFetchError(
-            `No questions were found for the selected subjects under ${exam}: ${
-              uniqueSubjects.join(", ") ||
-              "None selected"
-            }`
-          );
-
-          setLoading(false);
-
-          return;
-        }
-
-        /*
-         * New timer
-         */
-        const newEndTime =
-          Date.now() +
-          EXAM_DURATION_MINUTES *
-            60 *
-            1000;
-
-        const newSession = {
-          exam,
-          subjects: finalSubjects,
-          questionsBySubject: grouped,
-          activeSubject: finalSubjects[0],
-          currentIndex: 0,
-          answers: {},
-          marked: {},
-          endTime: newEndTime,
-          submitted: false,
-        };
-
-        if (storageKey) {
           try {
             localStorage.setItem(
               storageKey,
@@ -1606,45 +2212,58 @@ const CBTExam = () => {
             );
           } catch (error) {
             console.error(
-              "INITIAL SESSION SAVE ERROR:",
+              "CBT session storage error:",
               error
             );
           }
-        }
 
-        setQuestionsBySubject(grouped);
-        setSelectedSubjects(finalSubjects);
-        setActiveSubject(finalSubjects[0]);
-        setCurrentIndex(0);
-        setAnswers({});
-        setMarked({});
-        setSubmitted(false);
-        setEndTime(newEndTime);
+          if (!mounted) {
+            return;
+          }
 
-        setTimeLeft(
-          EXAM_DURATION_MINUTES * 60
-        );
-      } catch (error) {
-        console.error(
-          "CBT LOAD ERROR:",
-          error
-        );
-
-        if (mounted) {
-          setFetchError(
-            error?.message ||
-              "Unable to load CBT questions."
+          setQuestionsBySubject(
+            grouped
           );
 
-          setQuestionsBySubject({});
-          setSelectedSubjects([]);
+          setSelectedSubjects(
+            finalSubjects
+          );
+
+          setActiveSubject(
+            finalSubjects[0]
+          );
+
+          setCurrentIndex(0);
+          setAnswers({});
+          setMarked({});
+          setSubmitted(false);
+
+          setEndTime(
+            newEndTime
+          );
+
+          setTimeLeft(
+            EXAM_DURATION_MINUTES *
+              60
+          );
+        } catch (error) {
+          console.error(
+            "❌ CBT LOAD ERROR:",
+            error
+          );
+
+          if (mounted) {
+            setFetchError(
+              error?.message ||
+                "Unable to load CBT questions."
+            );
+          }
+        } finally {
+          if (mounted) {
+            setLoading(false);
+          }
         }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
+      };
 
     loadQuestions();
 
@@ -1657,44 +2276,43 @@ const CBTExam = () => {
     suppliedSubjects,
   ]);
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | SAVE SESSION
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     SAVE SESSION
+  ========================================================== */
 
   useEffect(() => {
     if (
-      FORCE_FRESH_EXAM ||
       loading ||
+      !endTime ||
       !storageKey ||
-      selectedSubjects.length === 0 ||
-      Object.keys(
+      !Object.keys(
         questionsBySubject
-      ).length === 0
+      ).length
     ) {
       return;
     }
 
+    const session = {
+      exam,
+      subjects:
+        selectedSubjects,
+      questionsBySubject,
+      activeSubject,
+      currentIndex,
+      answers,
+      marked,
+      endTime,
+      submitted,
+    };
+
     try {
       localStorage.setItem(
         storageKey,
-        JSON.stringify({
-          exam,
-          subjects: selectedSubjects,
-          questionsBySubject,
-          activeSubject,
-          currentIndex,
-          answers,
-          marked,
-          endTime,
-          submitted,
-        })
+        JSON.stringify(session)
       );
     } catch (error) {
       console.error(
-        "SAVE SESSION ERROR:",
+        "CBT save error:",
         error
       );
     }
@@ -1712,42 +2330,41 @@ const CBTExam = () => {
     submitted,
   ]);
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | TIMER
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     TIMER
+  ========================================================== */
 
   useEffect(() => {
     if (
-      loading ||
-      submitted ||
-      !endTime
+      !endTime ||
+      submitted
     ) {
       return undefined;
     }
 
-    const updateTimer = () => {
-      const remaining =
-        Math.max(
-          0,
-          Math.floor(
-            (
-              endTime -
-              Date.now()
-            ) / 1000
-          )
+    const updateTimer =
+      () => {
+        const remaining =
+          Math.max(
+            0,
+            Math.floor(
+              (
+                endTime -
+                Date.now()
+              ) / 1000
+            )
+          );
+
+        setTimeLeft(
+          remaining
         );
 
-      setTimeLeft(remaining);
-
-      if (remaining <= 0) {
-        setSubmitted(true);
-        setShowNavigator(false);
-        setShowCalculator(false);
-      }
-    };
+        if (
+          remaining <= 0
+        ) {
+          setSubmitted(true);
+        }
+      };
 
     updateTimer();
 
@@ -1760,61 +2377,46 @@ const CBTExam = () => {
     return () =>
       clearInterval(timer);
   }, [
-    loading,
-    submitted,
     endTime,
+    submitted,
   ]);
 
+  /* ==========================================================
+     TIME DISPLAY
+  ========================================================== */
 
-  /*
-  |--------------------------------------------------------------------------
-  | TIME FORMAT
-  |--------------------------------------------------------------------------
-  */
+  const formattedTime =
+    useMemo(() => {
+      const hours =
+        Math.floor(
+          timeLeft / 3600
+        );
 
-  const formatTime = (seconds) => {
-    const safeSeconds =
-      Math.max(
-        0,
-        Number(seconds) || 0
-      );
+      const minutes =
+        Math.floor(
+          (timeLeft % 3600) /
+            60
+        );
 
-    const hours =
-      Math.floor(
-        safeSeconds / 3600
-      );
+      const seconds =
+        timeLeft % 60;
 
-    const minutes =
-      Math.floor(
-        (safeSeconds % 3600) / 60
-      );
+      return [
+        hours,
+        minutes,
+        seconds,
+      ]
+        .map((value) =>
+          String(
+            value
+          ).padStart(2, "0")
+        )
+        .join(":");
+    }, [timeLeft]);
 
-    const secs =
-      safeSeconds % 60;
-
-    return [
-      hours,
-      minutes,
-      secs,
-    ]
-      .map((value) =>
-        String(value).padStart(2, "0")
-      )
-      .join(":");
-  };
-
-  const timerDanger =
-    timeLeft <= 10 * 60;
-
-  const timerCritical =
-    timeLeft <= 5 * 60;
-
-
-  /*
-  |--------------------------------------------------------------------------
-  | CURRENT QUESTION
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     CURRENT QUESTIONS
+  ========================================================== */
 
   const currentQuestions =
     questionsBySubject[
@@ -1824,189 +2426,141 @@ const CBTExam = () => {
   const currentQuestion =
     currentQuestions[
       currentIndex
-    ];
+    ] || null;
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | CURRENT QUESTION CONTENT
-  |--------------------------------------------------------------------------
-  */
-
-  const currentQuestionContent =
-    useMemo(() => {
-      if (!currentQuestion) {
-        return {
-          isComprehension: false,
-          passage: "",
-          question: "",
-        };
-      }
-
-      const directPassage =
-        getPassageValue(
-          currentQuestion
-        );
-
-      const sharedPassage =
-        getComprehensionPassage(
-          currentQuestion,
-          currentQuestions
-        );
-
-      return {
-        isComprehension:
-          isComprehensionQuestion(
-            currentQuestion
-          ),
-
-        passage:
-          sharedPassage ||
-          directPassage ||
-          "",
-
-        question:
-          getComprehensionQuestionText(
-            currentQuestion
-          ),
-      };
-    }, [
-      currentQuestion,
-      currentQuestions,
-    ]);
-
-
-  /*
-  |--------------------------------------------------------------------------
-  | TOTAL QUESTIONS
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     TOTAL QUESTIONS
+  ========================================================== */
 
   const totalQuestions =
-    useMemo(() => {
-      return selectedSubjects.reduce(
-        (total, subject) =>
-          total +
+    useMemo(
+      () =>
+        selectedSubjects.reduce(
           (
-            questionsBySubject[
+            total,
+            subject
+          ) =>
+            total +
+            (
+              questionsBySubject[
+                subject
+              ] || []
+            ).length,
+          0
+        ),
+      [
+        selectedSubjects,
+        questionsBySubject,
+      ]
+    );
+
+  /* ==========================================================
+     GLOBAL QUESTION NUMBER
+  ========================================================== */
+
+  const getGlobalQuestionNumber =
+    useCallback(
+      (
+        subject,
+        index
+      ) => {
+        let number = 0;
+
+        for (
+          const currentSubject of
+            selectedSubjects
+        ) {
+          if (
+            subjectsMatch(
+              currentSubject,
               subject
-            ] || []
-          ).length,
-        0
-      );
-    }, [
-      selectedSubjects,
-      questionsBySubject,
-    ]);
+            )
+          ) {
+            break;
+          }
 
+          number +=
+            (
+              questionsBySubject[
+                currentSubject
+              ] || []
+            ).length;
+        }
 
-  /*
-  |--------------------------------------------------------------------------
-  | GLOBAL QUESTION NUMBER
-  |--------------------------------------------------------------------------
-  */
-
-  const getGlobalQuestionNumber = (
-    subject,
-    index
-  ) => {
-    let number = 0;
-
-    for (
-      const selectedSubject of
-        selectedSubjects
-    ) {
-      if (
-        subjectsMatch(
-          selectedSubject,
-          subject
-        )
-      ) {
         return (
           number +
           index +
           1
         );
-      }
+      },
+      [
+        selectedSubjects,
+        questionsBySubject,
+      ]
+    );
 
-      number +=
-        (
-          questionsBySubject[
-            selectedSubject
-          ] || []
-        ).length;
-    }
+  /* ==========================================================
+     SELECT ANSWER
+  ========================================================== */
 
-    return index + 1;
-  };
-
-
-  /*
-  |--------------------------------------------------------------------------
-  | SELECT ANSWER
-  |--------------------------------------------------------------------------
-  */
-
-  const selectAnswer = (option) => {
-    if (
-      !currentQuestion ||
-      submitted
-    ) {
+  const selectAnswer = (
+    questionId,
+    answer
+  ) => {
+    if (submitted) {
       return;
     }
 
-    setAnswers((previous) => ({
-      ...previous,
-      [currentQuestion.id]:
-        option,
-    }));
+    setAnswers(
+      (previous) => ({
+        ...previous,
+        [questionId]:
+          answer,
+      })
+    );
   };
 
+  /* ==========================================================
+     MARK QUESTION
+  ========================================================== */
 
-  /*
-  |--------------------------------------------------------------------------
-  | MARK
-  |--------------------------------------------------------------------------
-  */
-
-  const toggleMark = () => {
-    if (
-      !currentQuestion ||
-      submitted
-    ) {
+  const toggleMark = (
+    questionId
+  ) => {
+    if (submitted) {
       return;
     }
 
-    setMarked((previous) => ({
-      ...previous,
-      [currentQuestion.id]:
-        !previous[
-          currentQuestion.id
-        ],
-    }));
+    setMarked(
+      (previous) => ({
+        ...previous,
+        [questionId]:
+          !previous[
+            questionId
+          ],
+      })
+    );
   };
 
+  /* ==========================================================
+     NEXT
+  ========================================================== */
 
-  /*
-  |--------------------------------------------------------------------------
-  | NEXT
-  |--------------------------------------------------------------------------
-  */
-
-  const nextQuestion = () => {
+  const goNext = () => {
     if (
       currentIndex <
-      currentQuestions.length - 1
+      currentQuestions.length -
+        1
     ) {
       setCurrentIndex(
-        (previous) =>
-          previous + 1
+        (value) =>
+          value + 1
       );
 
       return;
     }
 
-    const position =
+    const subjectIndex =
       selectedSubjects.findIndex(
         (subject) =>
           subjectsMatch(
@@ -2015,39 +2569,41 @@ const CBTExam = () => {
           )
       );
 
-    const nextSubject =
-      selectedSubjects[
-        position + 1
-      ];
+    if (
+      subjectIndex <
+      selectedSubjects.length -
+        1
+    ) {
+      const nextSubject =
+        selectedSubjects[
+          subjectIndex + 1
+        ];
 
-    if (nextSubject) {
       setActiveSubject(
         nextSubject
       );
 
       setCurrentIndex(0);
-      setShowCalculator(false);
     }
   };
 
+  /* ==========================================================
+     PREVIOUS
+  ========================================================== */
 
-  /*
-  |--------------------------------------------------------------------------
-  | PREVIOUS
-  |--------------------------------------------------------------------------
-  */
-
-  const previousQuestion = () => {
-    if (currentIndex > 0) {
+  const goPrevious = () => {
+    if (
+      currentIndex > 0
+    ) {
       setCurrentIndex(
-        (previous) =>
-          previous - 1
+        (value) =>
+          value - 1
       );
 
       return;
     }
 
-    const position =
+    const subjectIndex =
       selectedSubjects.findIndex(
         (subject) =>
           subjectsMatch(
@@ -2056,12 +2612,14 @@ const CBTExam = () => {
           )
       );
 
-    const previousSubject =
-      selectedSubjects[
-        position - 1
-      ];
+    if (
+      subjectIndex > 0
+    ) {
+      const previousSubject =
+        selectedSubjects[
+          subjectIndex - 1
+        ];
 
-    if (previousSubject) {
       const previousQuestions =
         questionsBySubject[
           previousSubject
@@ -2073,143 +2631,125 @@ const CBTExam = () => {
 
       setCurrentIndex(
         Math.max(
-          previousQuestions.length - 1,
-          0
+          0,
+          previousQuestions.length -
+            1
         )
       );
-
-      setShowCalculator(false);
     }
   };
 
+  /* ==========================================================
+     CHANGE SUBJECT
+  ========================================================== */
 
-  /*
-  |--------------------------------------------------------------------------
-  | CHANGE SUBJECT
-  |--------------------------------------------------------------------------
-  */
+  const changeSubject = (
+    subject
+  ) => {
+    setActiveSubject(
+      subject
+    );
 
-  const changeSubject = (subject) => {
-    setActiveSubject(subject);
     setCurrentIndex(0);
-
-    if (
-      normalize(subject) !==
-      "mathematics"
-    ) {
-      setShowCalculator(false);
-    }
   };
 
+  /* ==========================================================
+     CALCULATOR
+  ========================================================== */
 
-  /*
-  |--------------------------------------------------------------------------
-  | CALCULATOR
-  |--------------------------------------------------------------------------
-  */
+  const calculateExpression =
+    () => {
+      const expression =
+        calculatorValue.trim();
 
-  const calculatorPress = (value) => {
-    if (value === "C") {
-      setCalculatorValue("");
-      return;
-    }
+      if (!expression) {
+        return;
+      }
 
-    if (value === "DEL") {
-      setCalculatorValue(
-        (previous) =>
-          previous.slice(0, -1)
-      );
+      if (
+        !/^[0-9+\-*/().%\s]+$/.test(
+          expression
+        )
+      ) {
+        setCalculatorValue(
+          "Invalid"
+        );
 
-      return;
-    }
+        return;
+      }
 
-    if (value === "=") {
       try {
-        const expression =
-          calculatorValue
-            .replace(/×/g, "*")
-            .replace(/÷/g, "/")
-            .replace(/−/g, "-");
-
-        if (!expression.trim()) {
-          return;
-        }
-
-        if (
-          !/^[0-9+\-*/().\s]+$/.test(
-            expression
-          )
-        ) {
-          setCalculatorValue("Error");
-          return;
-        }
-
-        /*
-         * Calculator expression has already
-         * been restricted to numeric operators.
-         */
         const result =
           Function(
             `"use strict"; return (${expression})`
           )();
 
+        setCalculatorValue(
+          String(result)
+        );
+      } catch {
+        setCalculatorValue(
+          "Error"
+        );
+      }
+    };
+
+  /* ==========================================================
+     FULLSCREEN
+  ========================================================== */
+
+  const toggleFullscreen =
+    async () => {
+      try {
         if (
-          typeof result === "number" &&
-          Number.isFinite(result)
+          !document.fullscreenElement
         ) {
-          setCalculatorValue(
-            String(
-              Number(
-                result.toFixed(10)
-              )
-            )
+          await document.documentElement.requestFullscreen();
+
+          setIsFullscreen(
+            true
           );
         } else {
-          setCalculatorValue("Error");
+          await document.exitFullscreen();
+
+          setIsFullscreen(
+            false
+          );
         }
-      } catch {
-        setCalculatorValue("Error");
+      } catch (error) {
+        console.error(
+          "Fullscreen error:",
+          error
+        );
       }
+    };
 
-      return;
-    }
+  useEffect(() => {
+    const handleFullscreen =
+      () => {
+        setIsFullscreen(
+          Boolean(
+            document.fullscreenElement
+          )
+        );
+      };
 
-    setCalculatorValue(
-      (previous) =>
-        previous === "Error"
-          ? value
-          : previous + value
+    document.addEventListener(
+      "fullscreenchange",
+      handleFullscreen
     );
-  };
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | SUBMIT
-  |--------------------------------------------------------------------------
-  */
-
-  const submitExam = () => {
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to submit this examination?"
+    return () => {
+      document.removeEventListener(
+        "fullscreenchange",
+        handleFullscreen
       );
+    };
+  }, []);
 
-    if (!confirmed) {
-      return;
-    }
-
-    setSubmitted(true);
-    setShowNavigator(false);
-    setShowCalculator(false);
-  };
-
-
-  /*
-  |--------------------------------------------------------------------------
-  | ANSWER CHECK
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     ANSWER CHECK
+  ========================================================== */
 
   const isAnswerCorrect =
     useCallback(
@@ -2218,205 +2758,308 @@ const CBTExam = () => {
           return false;
         }
 
-        const selectedAnswer =
-          answers[
+        const questionId =
+          String(
             question.id
-          ];
-
-        const correctAnswer =
-          getCorrectAnswerValue(
-            question
           );
 
+        const selected =
+          answers[
+            questionId
+          ];
+
         if (
-          selectedAnswer === undefined ||
-          selectedAnswer === null ||
-          !correctAnswer
+          selected ===
+            undefined ||
+          selected ===
+            null ||
+          String(
+            selected
+          ).trim() === ""
         ) {
           return false;
         }
 
-        const selected =
-          normalize(
-            selectedAnswer
-          );
-
         const correct =
-          normalize(
-            correctAnswer
-          );
-
-        /*
-         * Exact match.
-         */
-        if (selected === correct) {
-          return true;
-        }
-
-        const optionMap =
-          getQuestionOptionsMap(
+          getCorrectAnswerValue(
             question
           );
 
-        /*
-         * Convert selected option text to letter.
-         */
-        let selectedLetter = "";
+        const selectedNormalized =
+          normalize(
+            selected
+          );
 
-        for (
-          const letter of [
-            "A",
-            "B",
-            "C",
-            "D",
-          ]
-        ) {
-          if (
-            normalize(
-              optionMap[letter]
-            ) === selected
-          ) {
-            selectedLetter =
-              letter.toLowerCase();
-
-            break;
-          }
-        }
-
-        if (!selectedLetter) {
-          selectedLetter =
-            normalizeAnswerLetter(
-              selected
-            );
-        }
-
-        /*
-         * Correct answer may be A/B/C/D.
-         */
-        let correctLetter =
-          normalizeAnswerLetter(
+        const correctNormalized =
+          normalize(
             correct
           );
 
         /*
-         * Correct answer may be option text.
+         * Direct answer comparison.
          */
         if (
-          ![
-            "a",
-            "b",
-            "c",
-            "d",
-          ].includes(correctLetter)
+          selectedNormalized ===
+          correctNormalized
         ) {
-          for (
-            const letter of [
-              "A",
-              "B",
-              "C",
-              "D",
-            ]
-          ) {
-            if (
-              normalize(
-                optionMap[letter]
-              ) === correct
-            ) {
-              correctLetter =
-                letter.toLowerCase();
-
-              break;
-            }
-          }
+          return true;
         }
 
-        return (
-          selectedLetter !== "" &&
-          correctLetter !== "" &&
-          selectedLetter ===
-            correctLetter
-        );
+        /*
+         * Compare selected option text.
+         */
+        const options =
+          getQuestionOptions(
+            question
+          );
+
+        const selectedOption =
+          options.find(
+            (option) =>
+              normalize(
+                option.key
+              ) ===
+              selectedNormalized
+          );
+
+        if (
+          selectedOption &&
+          normalize(
+            selectedOption.text
+          ) ===
+            correctNormalized
+        ) {
+          return true;
+        }
+
+        /*
+         * Compare correct option
+         * against selected text.
+         */
+        const correctOption =
+          options.find(
+            (option) =>
+              normalize(
+                option.key
+              ) ===
+              correctNormalized
+          );
+
+        if (
+          correctOption &&
+          normalize(
+            correctOption.text
+          ) ===
+            selectedNormalized
+        ) {
+          return true;
+        }
+
+        return false;
       },
       [answers]
     );
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | ALL QUESTIONS
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     ALL QUESTIONS
+  ========================================================== */
 
   const allQuestions =
     useMemo(() => {
-      return selectedSubjects.flatMap(
-        (subject) =>
-          questionsBySubject[
-            subject
-          ] || []
+      const result = [];
+
+      selectedSubjects.forEach(
+        (subject) => {
+          const questions =
+            questionsBySubject[
+              subject
+            ] || [];
+
+          questions.forEach(
+            (
+              question,
+              index
+            ) => {
+              result.push({
+                question,
+                subject,
+                index,
+              });
+            }
+          );
+        }
       );
+
+      return result;
     }, [
       selectedSubjects,
       questionsBySubject,
     ]);
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | SCORE
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     SCORE
+  ========================================================== */
 
   const score =
-    useMemo(() => {
-      return allQuestions.filter(
-        (question) =>
-          isAnswerCorrect(question)
-      ).length;
-    }, [
-      allQuestions,
-      isAnswerCorrect,
-    ]);
+    useMemo(
+      () =>
+        allQuestions.filter(
+          ({
+            question,
+          }) =>
+            isAnswerCorrect(
+              question
+            )
+        ).length,
+      [
+        allQuestions,
+        isAnswerCorrect,
+      ]
+    );
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | ANSWERED
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     ANSWERED
+  ========================================================== */
 
   const answeredCount =
-    useMemo(() => {
-      return allQuestions.filter(
-        (question) => {
-          const answer =
-            answers[
-              question.id
-            ];
+    useMemo(
+      () =>
+        allQuestions.filter(
+          ({
+            question,
+          }) => {
+            const answer =
+              answers[
+                String(
+                  question.id
+                )
+              ];
 
-          return (
-            answer !== undefined &&
-            answer !== null &&
-            String(answer).trim() !== ""
-          );
-        }
-      ).length;
-    }, [
-      allQuestions,
-      answers,
-    ]);
+            return (
+              answer !==
+                undefined &&
+              answer !==
+                null &&
+              String(
+                answer
+              ).trim() !== ""
+            );
+          }
+        ).length,
+      [
+        allQuestions,
+        answers,
+      ]
+    );
 
+  const unansweredCount =
+    Math.max(
+      0,
+      totalQuestions -
+        answeredCount
+    );
 
-  /*
-  |--------------------------------------------------------------------------
-  | LOCATION CHECK
-  |--------------------------------------------------------------------------
-  */
+  const percentage =
+    totalQuestions
+      ? Math.round(
+          (score /
+            totalQuestions) *
+            100
+        )
+      : 0;
 
-  if (
-    !location.state &&
-    !params.exam
-  ) {
+  /* ==========================================================
+     SUBJECT SCORES
+  ========================================================== */
+
+  const subjectScores =
+    useMemo(
+      () =>
+        selectedSubjects.map(
+          (subject) => {
+            const questions =
+              questionsBySubject[
+                subject
+              ] || [];
+
+            const correct =
+              questions.filter(
+                (
+                  question
+                ) =>
+                  isAnswerCorrect(
+                    question
+                  )
+              ).length;
+
+            return {
+              subject,
+              total:
+                questions.length,
+              correct,
+              percentage:
+                questions.length
+                  ? Math.round(
+                      (correct /
+                        questions.length) *
+                        100
+                    )
+                  : 0,
+            };
+          }
+        ),
+      [
+        selectedSubjects,
+        questionsBySubject,
+        isAnswerCorrect,
+      ]
+    );
+
+  /* ==========================================================
+     SUBMIT
+  ========================================================== */
+
+  const submitExam = () => {
+    const confirmed =
+      window.confirm(
+        "Are you sure you want to submit your examination?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSubmitted(true);
+
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          exam,
+          subjects:
+            selectedSubjects,
+          questionsBySubject,
+          activeSubject,
+          currentIndex,
+          answers,
+          marked,
+          endTime,
+          submitted: true,
+        })
+      );
+    } catch (error) {
+      console.error(
+        "Submit storage error:",
+        error
+      );
+    }
+  };
+
+  /* ==========================================================
+     ROUTE GUARD
+  ========================================================== */
+
+  if (!exam) {
     return (
       <Navigate
         to="/cbt"
@@ -2425,907 +3068,508 @@ const CBTExam = () => {
     );
   }
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | LOADING
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================
+     LOADING SCREEN
+  ========================================================== */
 
   if (loading) {
     return (
-      <>
+      <div className="min-h-screen bg-[#020617] text-white">
         <MathStyles />
 
-        <div className="min-h-screen bg-[#071426] text-white flex items-center justify-center px-6">
-          <div className="text-center max-w-xl w-full">
+        <div className="flex min-h-screen items-center justify-center px-6">
+          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/[0.04] p-10 text-center">
 
-            <div className="relative w-16 h-16 mx-auto mb-6">
-
-              <div className="absolute inset-0 rounded-2xl bg-blue-500/10 border border-blue-500/20" />
-
-              <div className="absolute inset-2 rounded-xl border-2 border-blue-500/20 border-t-blue-400 animate-spin" />
-
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-400">
+              <BookOpen
+                size={30}
+              />
             </div>
 
-            <p className="text-xl font-bold">
+            <div className="mb-5 h-2 overflow-hidden rounded-full bg-white/10">
+              <motion.div
+                className="h-full rounded-full bg-cyan-400"
+                initial={{
+                  width: "0%",
+                }}
+                animate={{
+                  width: "100%",
+                }}
+                transition={{
+                  duration: 1.5,
+                  repeat: Infinity,
+                  repeatType:
+                    "reverse",
+                }}
+              />
+            </div>
+
+            <h1 className="text-2xl font-black">
+              Preparing Your Examination
+            </h1>
+
+            <p className="mt-3 text-sm text-slate-400">
               {loadingMessage}
             </p>
 
-            <p className="text-sm text-slate-500 mt-2">
-              Loading your questions,
-              examination settings
-              and saved progress.
+            <p className="mt-5 text-xs text-slate-600">
+              Loading questions from Neon...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ============================================================
+     ERROR SCREEN
+  ============================================================ */
+
+  if (
+    fetchError ||
+    selectedSubjects.length ===
+      0 ||
+    totalQuestions === 0
+  ) {
+    return (
+      <div className="min-h-screen bg-[#020617] px-6 py-12 text-white">
+        <MathStyles />
+
+        <div className="mx-auto flex min-h-[80vh] max-w-2xl items-center justify-center">
+          <div className="w-full rounded-3xl border border-red-400/20 bg-red-400/[0.04] p-8 text-center">
+
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-400/10 text-red-400">
+              <AlertTriangle
+                size={30}
+              />
+            </div>
+
+            <h1 className="text-2xl font-black">
+              Unable to Start Examination
+            </h1>
+
+            <p className="mt-4 text-sm leading-7 text-slate-400">
+              {fetchError ||
+                "No questions are available for this examination."}
             </p>
 
+            <button
+              onClick={() =>
+                navigate(
+                  "/cbt"
+                )
+              }
+              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-300"
+            >
+              <ArrowLeft
+                size={18}
+              />
+              Back to CBT
+            </button>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
-
-  /*
-  |--------------------------------------------------------------------------
-  | NO QUESTIONS
-  |--------------------------------------------------------------------------
-  */
-
-  if (totalQuestions === 0) {
-    return (
-      <>
-        <MathStyles />
-
-        <div className="min-h-screen bg-[#071426] text-white flex items-center justify-center px-6">
-
-          <div className="max-w-2xl w-full">
-
-            <div className="rounded-3xl border border-red-500/20 bg-red-500/[0.04] p-8 md:p-10 text-center shadow-2xl">
-
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-
-                <AlertTriangle
-                  size={30}
-                  className="text-red-400"
-                />
-
-              </div>
-
-              <h1 className="text-2xl md:text-3xl font-bold mt-6">
-                No Questions Found
-              </h1>
-
-              <p className="text-slate-400 mt-3 leading-7">
-                No questions could
-                be found for the
-                selected subjects
-                under {exam}.
-              </p>
-
-              {fetchError && (
-                <div className="mt-5 p-4 rounded-xl bg-red-500/5 border border-red-500/10 text-left">
-
-                  <p className="text-xs uppercase tracking-wider text-red-400 font-bold">
-                    Database Response
-                  </p>
-
-                  <p className="text-sm text-slate-300 mt-2 break-words">
-                    {fetchError}
-                  </p>
-
-                </div>
-              )}
-
-              <button
-                onClick={() =>
-                  navigate("/cbt")
-                }
-                className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold transition"
-              >
-                <ArrowLeft size={17} />
-                Back to CBT
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
-      </>
-    );
-  }
-
-
-  /*
-  |--------------------------------------------------------------------------
-  | RESULT
-  |--------------------------------------------------------------------------
-  */
+  /* ============================================================
+     RESULT SCREEN
+  ============================================================ */
 
   if (submitted) {
-    const percentage =
-      totalQuestions > 0
-        ? Math.round(
-            (score /
-              totalQuestions) *
-              100
-          )
-        : 0;
-
     return (
-      <>
+      <div className="min-h-screen bg-[#020617] px-4 py-8 text-white sm:px-6">
         <MathStyles />
 
-        <div className="min-h-screen bg-[#071426] text-white px-4 py-10">
+        <div className="mx-auto max-w-6xl">
 
-          <div className="max-w-6xl mx-auto">
+          <div className="mb-8 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+            <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
 
-            <div className="text-center mb-10">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-400">
+                  Examination Completed
+                </p>
 
-              <div className="w-20 h-20 mx-auto rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                <h1 className="mt-2 text-3xl font-black">
+                  {exam}
+                </h1>
 
-                <Trophy
-                  size={36}
-                  className="text-blue-400"
-                />
-
+                <p className="mt-2 text-sm text-slate-400">
+                  Your examination result is ready.
+                </p>
               </div>
 
-              <h1 className="text-3xl md:text-4xl font-bold mt-5">
-                Examination Complete
-              </h1>
+              <div className="flex flex-wrap gap-2">
 
-              <p className="text-slate-400 mt-2">
-                {exam} CBT Examination
-              </p>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem(
+                      storageKey
+                    );
 
-              <p className="text-blue-400 text-sm mt-2">
-                {selectedSubjects.join(
-                  " • "
-                )}
-              </p>
+                    window.location.reload();
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-slate-300 hover:bg-white/[0.08]"
+                >
+                  <RotateCcw
+                    size={17}
+                  />
+                  Retake
+                </button>
 
-              <p className="text-slate-500 text-xs mt-3">
-                {totalQuestions} total
-                questions
-              </p>
+                <button
+                  onClick={() =>
+                    navigate(
+                      "/cbt"
+                    )
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300"
+                >
+                  <ArrowLeft
+                    size={17}
+                  />
+                  Exit
+                </button>
 
-              {timeLeft === 0 && (
-                <p className="mt-3 text-red-400 text-sm font-semibold">
-                  Time expired. Your
-                  examination was
-                  submitted
-                  automatically.
-                </p>
-              )}
-
+              </div>
             </div>
+          </div>
 
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-            <div className="grid md:grid-cols-4 gap-4 mb-10">
+            <ResultCard
+              title="Total Questions"
+              value={
+                totalQuestions
+              }
+              icon={FileText}
+            />
 
-              <ResultCard
-                label="Score"
-                value={`${score}/${totalQuestions}`}
-              />
+            <ResultCard
+              title="Score"
+              value={`${score}/${totalQuestions}`}
+              icon={Trophy}
+            />
 
-              <ResultCard
-                label="Percentage"
-                value={`${percentage}%`}
-              />
+            <ResultCard
+              title="Percentage"
+              value={`${percentage}%`}
+              icon={Target}
+            />
 
-              <ResultCard
-                label="Answered"
-                value={answeredCount}
-              />
+            <ResultCard
+              title="Answered"
+              value={`${answeredCount}/${totalQuestions}`}
+              icon={CheckCircle2}
+            />
 
-              <ResultCard
-                label="Unanswered"
-                value={
-                  totalQuestions -
-                  answeredCount
-                }
-              />
+          </div>
 
-            </div>
+          {/* SUBJECT PERFORMANCE */}
 
+          <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+            <h2 className="text-xl font-black">
+              Subject Performance
+            </h2>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+            <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 
-              {selectedSubjects.map(
-                (subject) => {
-                  const subjectQuestions =
-                    questionsBySubject[
+              {subjectScores.map(
+                ({
+                  subject,
+                  total,
+                  correct,
+                  percentage:
+                    subjectPercentage,
+                }) => (
+                  <div
+                    key={
                       subject
-                    ] || [];
+                    }
+                    className="rounded-2xl border border-white/10 bg-black/20 p-5"
+                  >
+                    <div className="flex items-center justify-between gap-3">
 
-                  const subjectScore =
-                    subjectQuestions.filter(
-                      (question) =>
-                        isAnswerCorrect(
-                          question
-                        )
-                    ).length;
-
-                  return (
-                    <div
-                      key={subject}
-                      className="rounded-2xl border border-white/10 bg-white/[0.03] p-5"
-                    >
-
-                      <p className="text-sm text-slate-400">
-                        {getSubjectDisplayName(
+                      <h3 className="font-bold text-white">
+                        {formatSubjectName(
                           subject
                         )}
-                      </p>
+                      </h3>
 
-                      <p className="text-2xl font-bold text-blue-400 mt-2">
-                        {subjectScore}/
+                      <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-bold text-cyan-400">
                         {
-                          subjectQuestions.length
+                          subjectPercentage
                         }
-                      </p>
-
-                      <p className="text-xs text-slate-500 mt-1">
-                        {subjectQuestions.length
-                          ? Math.round(
-                              (
-                                subjectScore /
-                                subjectQuestions.length
-                              ) *
-                                100
-                            )
-                          : 0}
                         %
-                      </p>
-
+                      </span>
                     </div>
-                  );
-                }
+
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full bg-cyan-400"
+                        style={{
+                          width: `${subjectPercentage}%`,
+                        }}
+                      />
+                    </div>
+
+                    <p className="mt-3 text-xs text-slate-500">
+                      {correct} correct out of{" "}
+                      {total}
+                    </p>
+                  </div>
+                )
               )}
 
             </div>
+          </div>
 
+          {/* REVIEW */}
 
-            <div className="space-y-5">
+          <div className="mt-8">
+            <h2 className="text-xl font-black">
+              Question Review
+            </h2>
+
+            <div className="mt-5 space-y-5">
 
               {allQuestions.map(
-                (
+                ({
                   question,
-                  index
-                ) => {
+                  subject,
+                  index,
+                }) => {
+                  const questionId =
+                    String(
+                      question.id
+                    );
+
+                  const selected =
+                    answers[
+                      questionId
+                    ];
+
                   const correct =
                     isAnswerCorrect(
                       question
                     );
 
-                  const selectedAnswer =
-                    answers[
-                      question.id
-                    ];
+                  const options =
+                    getQuestionOptions(
+                      question
+                    );
 
                   const correctAnswer =
                     getCorrectAnswerValue(
                       question
                     );
 
-                  const optionMap =
-                    getQuestionOptionsMap(
-                      question
-                    );
-
-                  const resultPassage =
-                    getComprehensionPassage(
-                      question,
-                      allQuestions
-                    );
-
-                  const resultIsComprehension =
-                    isComprehensionQuestion(
-                      question
-                    );
-
                   return (
                     <div
                       key={
-                        question.id ||
-                        index
+                        questionId
                       }
-                      className={`rounded-2xl border p-6 ${
+                      className={`rounded-3xl border p-6 ${
                         correct
-                          ? "bg-emerald-500/5 border-emerald-500/20"
-                          : "bg-red-500/5 border-red-500/20"
+                          ? "border-emerald-400/20 bg-emerald-400/[0.03]"
+                          : "border-red-400/20 bg-red-400/[0.03]"
                       }`}
                     >
 
-                      <div className="flex items-start gap-4">
-
-                        <div
-                          className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${
-                            correct
-                              ? "bg-emerald-500/10 text-emerald-400"
-                              : "bg-red-500/10 text-red-400"
-                          }`}
-                        >
-                          {correct ? (
-                            <CheckCircle2
-                              size={20}
-                            />
-                          ) : (
-                            <X size={20} />
-                          )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-
-                          <p className="text-xs text-slate-500 mb-2">
-                            Question{" "}
-                            {index + 1}
-                          </p>
-
-                          {question.subject && (
-                            <p className="text-xs text-blue-400 mb-2">
-                              {getSubjectDisplayName(
-                                question.subject
-                              )}
-                            </p>
-                          )}
-
-                          {resultIsComprehension &&
-                            resultPassage && (
-                              <div className="mb-5 rounded-2xl border border-blue-500/20 bg-[#091a2e] overflow-hidden">
-
-                                <div className="px-4 py-3 border-b border-blue-500/10 bg-blue-500/[0.05] flex items-center gap-2">
-
-                                  <BookOpen
-                                    size={15}
-                                    className="text-blue-400"
-                                  />
-
-                                  <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
-                                    Comprehension
-                                    Passage
-                                  </span>
-
-                                </div>
-
-                                <div className="p-5 max-h-[420px] overflow-y-auto">
-
-                                  <MathText
-                                    className="math-content block text-sm md:text-base leading-7 text-slate-300 whitespace-pre-wrap"
-                                  >
-                                    {resultPassage}
-                                  </MathText>
-
-                                </div>
-
-                              </div>
-                            )}
-
-                          <h2 className="font-semibold text-lg leading-7">
-
-                            <MathText className="math-content">
-                              {getComprehensionQuestionText(
-                                question
-                              )}
-                            </MathText>
-
-                          </h2>
-
-                          {question.image && (
-                            <img
-                              src={
-                                question.image
-                              }
-                              alt="Question"
-                              className="max-w-full max-h-[350px] mt-5 rounded-xl object-contain border border-white/10"
-                            />
-                          )}
-
-                          <div className="mt-4 space-y-2">
-
-                            <p className="text-sm">
-
-                              <span className="text-slate-500">
-                                Your answer:
-                              </span>{" "}
-
-                              <span
-                                className={
-                                  correct
-                                    ? "text-emerald-400"
-                                    : "text-red-400"
-                                }
-                              >
-                                {selectedAnswer ? (
-                                  <MathText className="math-content">
-                                    {selectedAnswer}
-                                  </MathText>
-                                ) : (
-                                  "Not answered"
-                                )}
-                              </span>
-
-                            </p>
-
-                            {!correct && (
-                              <p className="text-sm">
-
-                                <span className="text-slate-500">
-                                  Correct answer:
-                                </span>{" "}
-
-                                <span className="text-emerald-400">
-
-                                  {correctAnswer ? (
-                                    <MathText className="math-content">
-                                      {correctAnswer}
-                                    </MathText>
-                                  ) : (
-                                    "Not provided"
-                                  )}
-
-                                </span>
-
-                              </p>
-                            )}
-
-                            <div className="mt-4 space-y-2">
-
-                              {[
-                                "A",
-                                "B",
-                                "C",
-                                "D",
-                              ].map(
-                                (letter) => {
-                                  const option =
-                                    optionMap[
-                                      letter
-                                    ];
-
-                                  if (!option) {
-                                    return null;
-                                  }
-
-                                  return (
-                                    <div
-                                      key={
-                                        letter
-                                      }
-                                      className="flex gap-3 text-sm text-slate-400"
-                                    >
-
-                                      <span className="font-bold text-slate-500">
-                                        {letter}.
-                                      </span>
-
-                                      <MathText className="math-content">
-                                        {option}
-                                      </MathText>
-
-                                    </div>
-                                  );
-                                }
-                              )}
-
-                            </div>
-
-                            {question.reason && (
-                              <div className="mt-4 p-4 rounded-xl bg-[#0b1b30] border border-white/10">
-
-                                <p className="text-xs uppercase tracking-wider text-blue-400 font-semibold mb-2">
-                                  Reason
-                                </p>
-
-                                <MathText className="math-content text-sm text-slate-300 leading-6">
-                                  {question.reason}
-                                </MathText>
-
-                              </div>
-                            )}
-
-                          </div>
-
-                        </div>
-
-                      </div>
-
-                    </div>
-                  );
-                }
-              )}
-
-            </div>
-
-
-            <div className="flex justify-center mt-10">
-
-              <button
-                onClick={() => {
-                  if (storageKey) {
-                    localStorage.removeItem(
-                      storageKey
-                    );
-                  }
-
-                  window.location.reload();
-                }}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition font-semibold"
-              >
-
-                <RotateCcw size={18} />
-
-                Retake Examination
-
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
-      </>
-    );
-  }
-
-
-  /*
-  |--------------------------------------------------------------------------
-  | CURRENT DATA
-  |--------------------------------------------------------------------------
-  */
-
-  const globalNumber =
-    getGlobalQuestionNumber(
-      activeSubject,
-      currentIndex
-    );
-
-  const currentAnswer =
-    currentQuestion
-      ? answers[
-          currentQuestion.id
-        ]
-      : null;
-
-  const currentOptionMap =
-    getQuestionOptionsMap(
-      currentQuestion
-    );
-
-  const activeSubjectPosition =
-    selectedSubjects.findIndex(
-      (subject) =>
-        subjectsMatch(
-          subject,
-          activeSubject
-        )
-    );
-
-  const isMathematics =
-    normalize(activeSubject) ===
-    "mathematics";
-
-  const isLastQuestionOfExam =
-    activeSubjectPosition ===
-      selectedSubjects.length - 1 &&
-    currentIndex ===
-      currentQuestions.length - 1;
-
-
-  /*
-  |--------------------------------------------------------------------------
-  | RENDER
-  |--------------------------------------------------------------------------
-  */
-
-  return (
-    <>
-      <MathStyles />
-
-      <div className="min-h-screen bg-[#071426] text-white">
-
-        {/* BACKGROUND */}
-
-        <div className="fixed inset-0 pointer-events-none overflow-hidden">
-
-          <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-600/[0.04] rounded-full blur-3xl" />
-
-          <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-indigo-600/[0.035] rounded-full blur-3xl" />
-
-          <div
-            className="absolute inset-0 opacity-[0.025]"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
-              backgroundSize:
-                "28px 28px",
-            }}
-          />
-
-        </div>
-
-
-        {/* HEADER */}
-
-        <header className="sticky top-0 z-50 bg-[#071426]/95 backdrop-blur-2xl border-b border-white/[0.08] shadow-2xl">
-
-          <div className="max-w-[1600px] mx-auto px-4 md:px-7">
-
-            <div className="h-[76px] grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-
-              <div className="flex items-center gap-4 min-w-0">
-
-                <div className="flex items-center gap-2.5 shrink-0">
-
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/[0.08] border border-blue-400/20 flex items-center justify-center">
-
-                    <div className="font-black text-blue-400">
-                      COG
-                    </div>
-
-                  </div>
-
-                  <div className="hidden sm:block">
-
-                    <p className="font-bold text-base tracking-tight">
-                      Scholiqen
-                    </p>
-
-                    <p className="text-[9px] uppercase tracking-[0.22em] text-slate-500">
-                      Learning Portal
-                    </p>
-
-                  </div>
-
-                </div>
-
-                <div className="hidden md:block w-px h-9 bg-white/10" />
-
-                <div
-                  className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl border ${
-                    timerCritical
-                      ? "bg-red-500/10 border-red-500/30 text-red-400"
-                      : timerDanger
-                      ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                      : "bg-white/[0.035] border-white/10 text-slate-200"
-                  }`}
-                >
-
-                  <Clock3
-                    size={17}
-                    className={
-                      timerCritical
-                        ? "text-red-400"
-                        : timerDanger
-                        ? "text-amber-400"
-                        : "text-blue-400"
-                    }
-                  />
-
-                  <div className="leading-none">
-
-                    <p className="text-[8px] uppercase tracking-[0.18em] text-slate-500 mb-1">
-                      Time Left
-                    </p>
-
-                    <p className="font-mono text-sm font-bold tracking-wider">
-                      {formatTime(
-                        timeLeft
-                      )}
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-
-              <div className="text-center min-w-0">
-
-                <p className="text-[10px] uppercase tracking-[0.25em] text-blue-400 font-semibold truncate">
-                  {exam}
-                </p>
-
-                <h1 className="font-bold text-base md:text-lg mt-1 truncate">
-                  CBT Examination
-                </h1>
-
-              </div>
-
-
-              <div className="flex items-center justify-end gap-2">
-
-                {isMathematics && (
-                  <button
-                    onClick={() =>
-                      setShowCalculator(
-                        (previous) =>
-                          !previous
-                      )
-                    }
-                    title="Open Mathematics Calculator"
-                    className={`w-10 h-10 rounded-xl border flex items-center justify-center ${
-                      showCalculator
-                        ? "bg-blue-600 border-blue-400 text-white"
-                        : "bg-white/[0.035] border-white/10 text-slate-300 hover:text-white hover:bg-white/[0.07]"
-                    }`}
-                  >
-                    <Calculator size={18} />
-                  </button>
-                )}
-
-                <button
-                  onClick={() =>
-                    setShowNavigator(true)
-                  }
-                  title="Question Navigator"
-                  className="w-10 h-10 rounded-xl border border-white/10 bg-white/[0.035] text-slate-300 hover:text-white hover:bg-white/[0.07] transition flex items-center justify-center"
-                >
-                  <Grid3X3 size={18} />
-                </button>
-
-                <button
-                  onClick={submitExam}
-                  className="hidden sm:flex items-center gap-2 px-4 md:px-5 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 transition font-semibold text-sm"
-                >
-                  Submit
-
-                  <span className="hidden md:inline">
-                    Exam
-                  </span>
-                </button>
-
-                <button
-                  onClick={() =>
-                    setShowNavigator(true)
-                  }
-                  className="sm:hidden w-10 h-10 rounded-xl border border-white/10 bg-white/[0.035] flex items-center justify-center"
-                >
-                  <Menu size={18} />
-                </button>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </header>
-
-
-        {/* MAIN */}
-
-        <main className="relative z-10 max-w-[1400px] mx-auto px-4 md:px-7 py-7">
-
-          {/* SUBJECT TABS */}
-
-          <div className="mb-6">
-
-            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] backdrop-blur-xl p-2">
-
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-
-                {selectedSubjects.map(
-                  (subject) => {
-                    const subjectQuestions =
-                      questionsBySubject[
-                        subject
-                      ] || [];
-
-                    const subjectAnswered =
-                      subjectQuestions.filter(
-                        (question) => {
-                          const answer =
-                            answers[
-                              question.id
-                            ];
-
-                          return (
-                            answer !== undefined &&
-                            answer !== null &&
-                            String(
-                              answer
-                            ).trim() !== ""
-                          );
-                        }
-                      ).length;
-
-                    const active =
-                      subjectsMatch(
-                        activeSubject,
-                        subject
-                      );
-
-                    return (
-                      <button
-                        key={subject}
-                        onClick={() =>
-                          changeSubject(
-                            subject
-                          )
-                        }
-                        className={`relative shrink-0 min-w-[150px] px-5 py-3 rounded-xl text-sm font-semibold transition-all border ${
-                          active
-                            ? "bg-blue-600/15 border-blue-500/40 text-blue-300"
-                            : "bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-white/[0.04]"
-                        }`}
-                      >
-
-                        <div className="flex items-center justify-center gap-2">
-
-                          <span>
-                            {getSubjectDisplayName(
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+
+                        <div>
+                          <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                            {formatSubjectName(
                               subject
                             )}
                           </span>
 
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-                              active
-                                ? "bg-blue-500/15 text-blue-300"
-                                : "bg-white/[0.05] text-slate-500"
-                            }`}
-                          >
-                            {subjectAnswered}/
-                            {
-                              subjectQuestions.length
-                            }
-                          </span>
-
+                          <h3 className="mt-1 font-bold text-slate-200">
+                            Question{" "}
+                            {getGlobalQuestionNumber(
+                              subject,
+                              index
+                            )}
+                          </h3>
                         </div>
 
-                        {active && (
-                          <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 rounded-full bg-blue-400" />
+                        {correct ? (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-400">
+                            <CheckCircle2
+                              size={15}
+                            />
+                            Correct
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-red-400/10 px-3 py-2 text-xs font-bold text-red-400">
+                            <XCircle
+                              size={15}
+                            />
+                            Incorrect
+                          </span>
                         )}
 
-                      </button>
-                    );
-                  }
-                )}
+                      </div>
 
-              </div>
+                      {/* PASSAGE */}
 
-            </div>
+                      {isComprehensionQuestion(
+                        question
+                      ) &&
+                        getPassageValue(
+                          question
+                        ) && (
+                          <div className="mt-5 rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.03] p-5">
 
-          </div>
+                            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-400">
+                              {getComprehensionName(
+                                question
+                              ) ||
+                                "Passage"}
+                            </p>
 
+                            <div className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                              <MathText>
+                                {getPassageValue(
+                                  question
+                                )}
+                              </MathText>
+                            </div>
 
-          {/* SUBJECT SUMMARY */}
-
-          <div className="max-w-5xl mx-auto mb-6">
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-
-              {selectedSubjects.map(
-                (subject) => {
-                  const count =
-                    (
-                      questionsBySubject[
-                        subject
-                      ] || []
-                    ).length;
-
-                  return (
-                    <div
-                      key={`summary-${subject}`}
-                      className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3"
-                    >
-
-                      <p className="text-xs text-slate-500 truncate">
-                        {getSubjectDisplayName(
-                          subject
+                          </div>
                         )}
-                      </p>
 
-                      <p className="text-lg font-bold text-blue-400 mt-1">
-                        {count}{" "}
-                        <span className="text-xs text-slate-500 font-normal">
-                          questions
-                        </span>
-                      </p>
+                      {/* QUESTION */}
+
+                      <div className="mt-5 text-base leading-8 text-white">
+                        <MathText>
+                          {getQuestionText(
+                            question
+                          )}
+                        </MathText>
+                      </div>
+
+                      {/* OPTIONS */}
+
+                      <div className="mt-6 space-y-3">
+
+                        {options.map(
+                          (
+                            option
+                          ) => {
+                            const isSelected =
+                              normalize(
+                                selected
+                              ) ===
+                                normalize(
+                                  option.key
+                                ) ||
+                              normalize(
+                                selected
+                              ) ===
+                                normalize(
+                                  option.text
+                                );
+
+                            const isCorrectOption =
+                              normalize(
+                                option.key
+                              ) ===
+                                normalize(
+                                  correctAnswer
+                                ) ||
+                              normalize(
+                                option.text
+                              ) ===
+                                normalize(
+                                  correctAnswer
+                                );
+
+                            return (
+                              <div
+                                key={
+                                  option.key
+                                }
+                                className={`rounded-2xl border p-4 ${
+                                  isCorrectOption
+                                    ? "border-emerald-400/30 bg-emerald-400/10"
+                                    : isSelected
+                                    ? "border-red-400/30 bg-red-400/10"
+                                    : "border-white/10 bg-white/[0.02]"
+                                }`}
+                              >
+                                <div className="flex gap-3">
+
+                                  <span className="font-black text-cyan-400">
+                                    {
+                                      option.key
+                                    }
+                                    .
+                                  </span>
+
+                                  <MathText className="text-sm leading-7 text-slate-300">
+                                    {
+                                      option.text
+                                    }
+                                  </MathText>
+
+                                </div>
+                              </div>
+                            );
+                          }
+                        )}
+
+                      </div>
+
+                      {/* ANSWERS */}
+
+                      <div className="mt-5 grid gap-3 md:grid-cols-2">
+
+                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                            Your Answer
+                          </p>
+
+                          <p className="mt-2 text-sm text-slate-200">
+                            {selected ||
+                              "Not answered"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                            Correct Answer
+                          </p>
+
+                          <p className="mt-2 text-sm font-bold text-emerald-400">
+                            {correctAnswer ||
+                              "Not available"}
+                          </p>
+                        </div>
+
+                      </div>
+
+                      {/* REASON */}
+
+                      {question.reason && (
+                        <div className="mt-5 rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.03] p-5">
+
+                          <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                            Explanation
+                          </p>
+
+                          <div className="mt-2 text-sm leading-7 text-slate-300">
+                            <MathText>
+                              {
+                                question.reason
+                              }
+                            </MathText>
+                          </div>
+
+                        </div>
+                      )}
 
                     </div>
                   );
@@ -3333,460 +3577,670 @@ const CBTExam = () => {
               )}
 
             </div>
-
           </div>
+        </div>
+      </div>
+    );
+  }
 
+  /* ============================================================
+     MAIN EXAM UI
+  ============================================================ */
 
-          {/* TOOLBAR */}
+  return (
+    <div className="min-h-screen bg-[#020617] text-white">
+      <MathStyles />
 
-          <div className="max-w-5xl mx-auto mb-6">
+      {/* BACKGROUND */}
 
-            <div className="flex items-center justify-between gap-4">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
 
-              <div>
+        <div className="absolute left-0 top-0 h-[450px] w-[450px] rounded-full bg-cyan-500/5 blur-[130px]" />
 
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                  Current Subject
-                </p>
+        <div className="absolute bottom-0 right-0 h-[450px] w-[450px] rounded-full bg-blue-500/5 blur-[130px]" />
 
-                <h2 className="text-lg font-bold mt-1">
-                  {getSubjectDisplayName(
-                    activeSubject
-                  )}
-                </h2>
+        <div
+          className="absolute inset-0 opacity-[0.025]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, white 1px, transparent 1px)",
+            backgroundSize:
+              "24px 24px",
+          }}
+        />
 
-              </div>
+      </div>
+
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#020617]/90 backdrop-blur-xl">
+
+        <div className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6">
+
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
+            <div className="flex min-w-0 items-center gap-3">
 
               <button
-                onClick={toggleMark}
-                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold ${
-                  marked[
-                    currentQuestion?.id
-                  ]
-                    ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-400"
-                    : "border-white/10 bg-white/[0.03] text-slate-400 hover:text-white"
+                onClick={() =>
+                  navigate(
+                    "/cbt"
+                  )
+                }
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
+              >
+                <ArrowLeft
+                  size={19}
+                />
+              </button>
+
+              <div className="min-w-0">
+
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-400">
+                  CBT Examination
+                </p>
+
+                <h1 className="truncate text-lg font-black sm:text-xl">
+                  {exam}
+                </h1>
+
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+
+              {/* TIMER */}
+
+              <div
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 sm:px-4 ${
+                  timeLeft <= 300
+                    ? "border-red-400/30 bg-red-400/10 text-red-400"
+                    : "border-white/10 bg-white/[0.04] text-slate-200"
                 }`}
               >
-                <Flag size={15} />
+                <Clock3
+                  size={18}
+                />
 
-                {marked[
-                  currentQuestion?.id
-                ]
-                  ? "Marked"
-                  : "Mark Question"}
+                <span className="font-mono text-sm font-bold sm:text-base">
+                  {
+                    formattedTime
+                  }
+                </span>
+              </div>
+
+              {/* NAVIGATOR TOGGLE */}
+
+              <button
+                onClick={() =>
+                  setShowNavigator(
+                    (value) =>
+                      !value
+                  )
+                }
+                className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition ${
+                  showNavigator
+                    ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-400"
+                    : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                }`}
+              >
+                <FileText
+                  size={17}
+                />
+
+                <span className="hidden sm:inline">
+                  Questions
+                </span>
+              </button>
+
+              {/* FULLSCREEN */}
+
+              <button
+                onClick={
+                  toggleFullscreen
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+              >
+                {isFullscreen ? (
+                  <Minimize
+                    size={17}
+                  />
+                ) : (
+                  <Maximize
+                    size={17}
+                  />
+                )}
               </button>
 
             </div>
-
           </div>
+        </div>
+      </header>
 
+      {/* ========================================================
+          SUBJECT BAR
+      ======================================================== */}
 
-          {/* CALCULATOR */}
+      <div className="relative z-40 border-b border-white/10 bg-[#020617]/80 backdrop-blur-xl">
 
-          {showCalculator &&
-            isMathematics && (
-              <div className="fixed top-[88px] right-5 z-50 w-[330px] rounded-3xl border border-blue-400/20 bg-[#081a2f]/98 backdrop-blur-2xl shadow-2xl overflow-hidden">
+        <div className="mx-auto max-w-[1600px] px-4 py-3 sm:px-6">
 
-                <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <div className="flex gap-2 overflow-x-auto pb-1">
 
-                  <div className="flex items-center gap-3">
+            {selectedSubjects.map(
+              (subject) => {
+                const subjectQuestions =
+                  questionsBySubject[
+                    subject
+                  ] || [];
 
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-400/20 flex items-center justify-center">
+                const subjectAnswered =
+                  subjectQuestions.filter(
+                    (
+                      question
+                    ) => {
+                      const answer =
+                        answers[
+                          String(
+                            question.id
+                          )
+                        ];
 
-                      <Calculator
-                        size={19}
-                        className="text-blue-400"
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <p className="text-sm font-bold">
-                        Scientific Calculator
-                      </p>
-
-                      <p className="text-[9px] text-blue-400 uppercase tracking-[0.18em] mt-1">
-                        Mathematics
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      setShowCalculator(false)
+                      return (
+                        answer !==
+                          undefined &&
+                        answer !==
+                          null &&
+                        String(
+                          answer
+                        ).trim() !==
+                          ""
+                      );
                     }
-                    className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white"
-                  >
-                    <X size={17} />
-                  </button>
+                  ).length;
 
-                </div>
+                const active =
+                  subjectsMatch(
+                    subject,
+                    activeSubject
+                  );
 
-                <div className="p-5">
-
-                  <input
-                    value={calculatorValue}
-                    readOnly
-                    className="w-full h-16 bg-[#04101f] border border-white/10 rounded-2xl px-4 text-right text-2xl font-mono text-white outline-none"
-                    placeholder="0"
-                  />
-
-                  <div className="grid grid-cols-4 gap-2 mt-4">
-
-                    {[
-                      "7",
-                      "8",
-                      "9",
-                      "÷",
-                      "4",
-                      "5",
-                      "6",
-                      "×",
-                      "1",
-                      "2",
-                      "3",
-                      "−",
-                      "0",
-                      ".",
-                      "(",
-                      ")",
-                      "C",
-                      "DEL",
-                      "+",
-                      "=",
-                    ].map(
-                      (value) => (
-                        <button
-                          key={value}
-                          onClick={() =>
-                            calculatorPress(
-                              value
-                            )
-                          }
-                          className={`h-12 rounded-xl border font-semibold ${
-                            value === "="
-                              ? "bg-blue-600 hover:bg-blue-500 border-blue-400 text-white"
-                              : value === "C" ||
-                                value === "DEL"
-                              ? "bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-300"
-                              : "bg-white/[0.035] hover:bg-white/[0.08] border-white/10 text-slate-200"
-                          }`}
-                        >
-                          {value === "DEL" ? (
-                            <Delete
-                              size={17}
-                              className="mx-auto"
-                            />
-                          ) : (
-                            value
-                          )}
-                        </button>
+                return (
+                  <button
+                    key={
+                      subject
+                    }
+                    onClick={() =>
+                      changeSubject(
+                        subject
                       )
+                    }
+                    className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-bold ${
+                      active
+                        ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
+                        : "border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                    }`}
+                  >
+
+                    {formatSubjectName(
+                      subject
                     )}
 
-                  </div>
+                    <span className="ml-2 text-xs opacity-60">
+                      {
+                        subjectAnswered
+                      }
+                      /
+                      {
+                        subjectQuestions.length
+                      }
+                    </span>
 
-                </div>
-
-              </div>
+                  </button>
+                );
+              }
             )}
 
+          </div>
+        </div>
+      </div>
 
-          {/* QUESTION */}
+      {/* ========================================================
+          MAIN
+      ======================================================== */}
 
-          <div className="max-w-5xl mx-auto">
+      <main className="relative z-10 mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:py-8">
 
-            <div className="rounded-3xl border border-white/[0.08] bg-white/[0.025] backdrop-blur-xl overflow-hidden shadow-2xl">
+        {/*
+         * THIS IS THE IMPORTANT GRID FIX.
+         *
+         * Navigator closed:
+         *     one full-width column.
+         *
+         * Navigator open:
+         *     question + right navigator.
+         */}
+        <div
+          className={`grid gap-6 ${
+            showNavigator
+              ? "lg:grid-cols-[minmax(0,1fr)_330px]"
+              : "lg:grid-cols-1"
+          }`}
+        >
 
-              <div className="px-5 md:px-8 py-5 border-b border-white/[0.07]">
+          {/* ======================================================
+              QUESTION AREA
+          ====================================================== */}
 
-                <div className="flex items-center justify-between gap-4">
+          <section className="min-w-0">
 
-                  <div className="flex items-center gap-3">
+            {/* STATS */}
 
-                    <div className="w-11 h-11 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold">
-                      {globalNumber}
-                    </div>
+            <div className="mb-5 grid gap-3 sm:grid-cols-3">
 
-                    <div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <p className="text-xs text-slate-500">
+                  Total Questions
+                </p>
 
-                      <p className="text-xs text-slate-500">
-                        Question
-                      </p>
-
-                      <p className="text-sm font-semibold">
-                        {getSubjectDisplayName(
-                          activeSubject
-                        )}
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                  <div className="text-right">
-
-                    <p className="text-[10px] uppercase tracking-wider text-slate-500">
-                      Subject Progress
-                    </p>
-
-                    <p className="text-sm font-semibold mt-1">
-                      {currentIndex + 1} /{" "}
-                      {
-                        currentQuestions.length
-                      }
-                    </p>
-
-                  </div>
-
-                </div>
-
+                <p className="mt-1 text-2xl font-black">
+                  {
+                    totalQuestions
+                  }
+                </p>
               </div>
 
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <p className="text-xs text-slate-500">
+                  Answered
+                </p>
 
-              <div className="p-5 md:p-8">
+                <p className="mt-1 text-2xl font-black text-cyan-400">
+                  {
+                    answeredCount
+                  }
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <p className="text-xs text-slate-500">
+                  Remaining
+                </p>
+
+                <p className="mt-1 text-2xl font-black">
+                  {
+                    unansweredCount
+                  }
+                </p>
+              </div>
+
+            </div>
+
+            {/* CALCULATOR */}
+
+            <AnimatePresence>
+              {showCalculator && (
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    y: -10,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    y: -10,
+                  }}
+                  className="mb-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.03] p-5"
+                >
+
+                  <div className="mb-3 flex items-center justify-between">
+
+                    <div className="flex items-center gap-2">
+                      <Calculator
+                        size={18}
+                        className="text-cyan-400"
+                      />
+
+                      <span className="font-bold">
+                        Calculator
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        setShowCalculator(
+                          false
+                        )
+                      }
+                      className="text-slate-500 hover:text-white"
+                    >
+                      <X
+                        size={18}
+                      />
+                    </button>
+
+                  </div>
+
+                  <input
+                    value={
+                      calculatorValue
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setCalculatorValue(
+                        event.target
+                          .value
+                      )
+                    }
+                    onKeyDown={(
+                      event
+                    ) => {
+                      if (
+                        event.key ===
+                        "Enter"
+                      ) {
+                        calculateExpression();
+                      }
+                    }}
+                    placeholder="Example: 25 * 4 + 10"
+                    className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-white outline-none focus:border-cyan-400/30"
+                  />
+
+                  <div className="mt-3 flex gap-2">
+
+                    <button
+                      onClick={
+                        calculateExpression
+                      }
+                      className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-cyan-300"
+                    >
+                      Calculate
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        setCalculatorValue(
+                          ""
+                        )
+                      }
+                      className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-slate-300 hover:bg-white/[0.05]"
+                    >
+                      Clear
+                    </button>
+
+                  </div>
+
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* ====================================================
+                QUESTION CARD
+            ==================================================== */}
+
+            {currentQuestion && (
+              <motion.div
+                key={`${activeSubject}-${currentQuestion.id}`}
+                initial={{
+                  opacity: 0,
+                  y: 10,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                className="rounded-3xl border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/20 sm:p-7"
+              >
+
+                {/* ==================================================
+                    QUESTION HEADER
+
+                    SUBJECT + QUESTION NUMBER ARE TOGETHER.
+                ================================================== */}
+
+                <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+
+                  <div className="min-w-0">
+
+                    <div className="flex flex-wrap items-center gap-2">
+
+                      {/* ACTIVE SUBJECT */}
+
+                      <span className="rounded-full bg-cyan-400/10 px-3 py-1.5 text-xs font-black text-cyan-400">
+                        {formatSubjectName(
+                          activeSubject
+                        )}
+                      </span>
+
+                      {/* QUESTION NUMBER */}
+
+                      <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-bold text-slate-300">
+                        Question{" "}
+                        {currentIndex +
+                          1}{" "}
+                        of{" "}
+                        {
+                          currentQuestions.length
+                        }
+                      </span>
+
+                    </div>
+
+                    <p className="mt-2 text-xs text-slate-600">
+                      Overall question{" "}
+                      {getGlobalQuestionNumber(
+                        activeSubject,
+                        currentIndex
+                      )}{" "}
+                      of{" "}
+                      {totalQuestions}
+                    </p>
+
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+
+                    {/* CALCULATOR */}
+
+                    {normalize(
+                      activeSubject
+                    ).includes(
+                      "mathemat"
+                    ) && (
+                      <button
+                        onClick={() =>
+                          setShowCalculator(
+                            (value) =>
+                              !value
+                          )
+                        }
+                        className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-bold text-slate-300 hover:bg-white/[0.07] hover:text-white"
+                      >
+                        <Calculator
+                          size={16}
+                        />
+
+                        <span className="hidden sm:inline">
+                          Calculator
+                        </span>
+                      </button>
+                    )}
+
+                    {/* MARK */}
+
+                    <button
+                      onClick={() =>
+                        toggleMark(
+                          String(
+                            currentQuestion.id
+                          )
+                        )
+                      }
+                      className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold ${
+                        marked[
+                          String(
+                            currentQuestion.id
+                          )
+                        ]
+                          ? "border-amber-400/30 bg-amber-400/10 text-amber-400"
+                          : "border-white/10 bg-white/[0.03] text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Flag
+                        size={16}
+                      />
+
+                      <span className="hidden sm:inline">
+                        {marked[
+                          String(
+                            currentQuestion.id
+                          )
+                        ]
+                          ? "Marked"
+                          : "Mark"}
+                      </span>
+                    </button>
+
+                  </div>
+                </div>
+
+                {/* ==================================================
+                    PASSAGE
+                ================================================== */}
+
+                {isComprehensionQuestion(
+                  currentQuestion
+                ) &&
+                  getPassageValue(
+                    currentQuestion
+                  ) && (
+                    <div className="mb-7 rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.025] p-5">
+
+                      <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.15em] text-cyan-400">
+
+                        <BookOpen
+                          size={15}
+                        />
+
+                        {getComprehensionName(
+                          currentQuestion
+                        ) ||
+                          "Comprehension Passage"}
+
+                      </div>
+
+                      <div className="whitespace-pre-wrap text-sm leading-8 text-slate-300">
+                        <MathText>
+                          {getPassageValue(
+                            currentQuestion
+                          )}
+                        </MathText>
+                      </div>
+
+                    </div>
+                  )}
+
+                {/* ==================================================
+                    QUESTION TEXT
+                ================================================== */}
+
+                <div className="text-lg font-semibold leading-9 text-white sm:text-xl">
+                  <MathText>
+                    {getQuestionText(
+                      currentQuestion
+                    )}
+                  </MathText>
+                </div>
 
                 {/* IMAGE */}
 
-                {currentQuestion?.image && (
-                  <div className="mb-6">
-
+                {currentQuestion.image && (
+                  <div className="mt-6">
                     <img
                       src={
                         currentQuestion.image
                       }
-                      alt="Question"
-                      className="max-w-full max-h-[400px] mx-auto rounded-2xl object-contain border border-white/10"
+                      alt="Question illustration"
+                      className="max-h-[500px] max-w-full rounded-2xl border border-white/10 object-contain"
                     />
-
                   </div>
                 )}
 
-
-                {/* COMPREHENSION PASSAGE */}
-
-                {currentQuestionContent.isComprehension &&
-                  currentQuestionContent.passage && (
-                    <div className="mb-8 rounded-2xl border border-blue-500/20 bg-[#091a2e]/80 overflow-hidden shadow-xl">
-
-                      <div className="px-5 md:px-6 py-4 border-b border-blue-500/10 bg-blue-500/[0.06]">
-
-                        <div className="flex items-center justify-between gap-4">
-
-                          <div className="flex items-center gap-3">
-
-                            <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-
-                              <BookOpen
-                                size={17}
-                                className="text-blue-400"
-                              />
-
-                            </div>
-
-                            <div>
-
-                              <p className="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-bold">
-                                Comprehension
-                              </p>
-
-                              <p className="text-sm font-semibold text-white mt-0.5">
-                                Comprehension
-                                Passage
-                              </p>
-
-                            </div>
-
-                          </div>
-
-                          <div className="text-right shrink-0">
-
-                            <p className="text-[9px] uppercase tracking-wider text-slate-500">
-                              Related
-                              Questions
-                            </p>
-
-                            <p className="text-xs text-blue-400 font-semibold mt-1">
-
-                              {(() => {
-                                const comprehensionId =
-                                  getComprehensionId(
-                                    currentQuestion
-                                  );
-
-                                const currentName =
-                                  getComprehensionName(
-                                    currentQuestion
-                                  );
-
-                                if (
-                                  comprehensionId
-                                ) {
-                                  const related =
-                                    currentQuestions.filter(
-                                      (
-                                        question
-                                      ) =>
-                                        getComprehensionId(
-                                          question
-                                        ) ===
-                                        comprehensionId
-                                    ).length;
-
-                                  return `${related} question${
-                                    related === 1
-                                      ? ""
-                                      : "s"
-                                  }`;
-                                }
-
-                                if (
-                                  currentName
-                                ) {
-                                  const related =
-                                    currentQuestions.filter(
-                                      (
-                                        question
-                                      ) =>
-                                        comprehensionNamesMatch(
-                                          getComprehensionName(
-                                            question
-                                          ),
-                                          currentName
-                                        )
-                                    ).length;
-
-                                  return `${related} question${
-                                    related === 1
-                                      ? ""
-                                      : "s"
-                                  }`;
-                                }
-
-                                return "Passage";
-                              })()}
-
-                            </p>
-
-                          </div>
-
-                        </div>
-
-                      </div>
-
-                      <div className="p-5 md:p-7 max-h-[480px] overflow-y-auto overscroll-contain">
-
-                        <MathText
-                          className="math-content block text-[15px] md:text-base leading-8 text-slate-300 whitespace-pre-wrap"
-                        >
-                          {
-                            currentQuestionContent.passage
-                          }
-                        </MathText>
-
-                      </div>
-
-                    </div>
-                  )}
-
-
-                {/* QUESTION TEXT */}
-
-                <div>
-
-                  {currentQuestionContent.isComprehension && (
-                    <div className="flex items-center gap-2 mb-3">
-
-                      <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500 font-bold">
-                        Question
-                      </span>
-
-                      <span className="w-1 h-1 rounded-full bg-blue-400" />
-
-                    </div>
-                  )}
-
-                  <MathText className="math-content block text-lg md:text-xl font-semibold leading-8 text-white whitespace-pre-wrap">
-                    {
-                      currentQuestionContent.question
-                    }
-                  </MathText>
-
-                </div>
-
-
-                {/* OPTIONS */}
+                {/* ==================================================
+                    OPTIONS
+                ================================================== */}
 
                 <div className="mt-8 space-y-3">
 
-                  {[
-                    "A",
-                    "B",
-                    "C",
-                    "D",
-                  ].map(
-                    (letter) => {
-                      const option =
-                        currentOptionMap[
-                          letter
-                        ];
-
-                      if (!option) {
-                        return null;
-                      }
+                  {getQuestionOptions(
+                    currentQuestion
+                  ).map(
+                    (option) => {
+                      const questionId =
+                        String(
+                          currentQuestion.id
+                        );
 
                       const selected =
+                        answers[
+                          questionId
+                        ];
+
+                      const active =
                         normalize(
-                          currentAnswer
+                          selected
                         ) ===
+                          normalize(
+                            option.key
+                          ) ||
                         normalize(
-                          option
-                        );
+                          selected
+                        ) ===
+                          normalize(
+                            option.text
+                          );
 
                       return (
                         <button
-                          key={`${currentQuestion?.id}-${letter}`}
+                          key={
+                            option.key
+                          }
                           onClick={() =>
                             selectAnswer(
-                              option
+                              questionId,
+                              option.key
                             )
                           }
-                          className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center gap-4 ${
-                            selected
-                              ? "border-blue-500/60 bg-blue-500/10"
-                              : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05]"
+                          className={`group flex w-full items-start gap-4 rounded-2xl border p-4 text-left transition ${
+                            active
+                              ? "border-cyan-400/40 bg-cyan-400/10"
+                              : "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]"
                           }`}
                         >
 
                           <span
-                            className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
-                              selected
-                                ? "bg-blue-600 text-white"
-                                : "bg-[#102238] text-slate-400"
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-sm font-black ${
+                              active
+                                ? "border-cyan-400/30 bg-cyan-400/20 text-cyan-300"
+                                : "border-white/10 bg-white/[0.04] text-slate-400 group-hover:text-white"
                             }`}
                           >
-                            {letter}
+                            {
+                              option.key
+                            }
                           </span>
 
-                          <MathText
-                            className={`math-content ${
-                              selected
-                                ? "text-white"
-                                : "text-slate-300"
-                            }`}
-                          >
-                            {option}
+                          <MathText className="pt-1 text-sm leading-7 text-slate-300 sm:text-base">
+                            {
+                              option.text
+                            }
                           </MathText>
-
-                          {selected && (
-                            <CheckCircle2
-                              className="ml-auto text-blue-400 shrink-0"
-                              size={20}
-                            />
-                          )}
 
                         </button>
                       );
@@ -3795,370 +4249,443 @@ const CBTExam = () => {
 
                 </div>
 
+                {/* ==================================================
+                    NAVIGATION
+                ================================================== */}
 
-                {/* NO OPTIONS */}
+                <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
 
-                {Object.values(
-                  currentOptionMap
-                ).filter(Boolean).length ===
-                  0 && (
-                  <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
+                  <button
+                    onClick={
+                      goPrevious
+                    }
+                    disabled={
+                      currentIndex ===
+                        0 &&
+                      selectedSubjects.findIndex(
+                        (
+                          subject
+                        ) =>
+                          subjectsMatch(
+                            subject,
+                            activeSubject
+                          )
+                      ) === 0
+                    }
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-bold text-slate-300 hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ChevronLeft
+                      size={18}
+                    />
+                    Previous
+                  </button>
 
-                    <div className="flex items-start gap-3">
+                  <button
+                    onClick={
+                      submitExam
+                    }
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-5 py-3 text-sm font-black text-red-400 hover:bg-red-400/15"
+                  >
+                    <CheckCircle2
+                      size={18}
+                    />
+                    Submit Exam
+                  </button>
 
-                      <AlertTriangle
-                        size={20}
-                        className="text-red-400 shrink-0"
-                      />
+                  <button
+                    onClick={goNext}
+                    disabled={
+                      currentIndex ===
+                        currentQuestions.length -
+                          1 &&
+                      selectedSubjects.findIndex(
+                        (
+                          subject
+                        ) =>
+                          subjectsMatch(
+                            subject,
+                            activeSubject
+                          )
+                      ) ===
+                        selectedSubjects.length -
+                          1
+                    }
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    Next
+                    <ChevronRight
+                      size={18}
+                    />
+                  </button>
 
-                      <div>
+                </div>
 
-                        <p className="font-semibold text-red-300">
-                          No options found
-                        </p>
+              </motion.div>
+            )}
 
-                        <p className="text-sm text-red-300/70 mt-1">
-                          This database
-                          question has
-                          no readable
-                          options.
-                        </p>
+          </section>
 
-                        <p className="text-xs text-slate-500 mt-2">
-                          Expected database
-                          format:
-                        </p>
+          {/* ======================================================
+              RIGHT QUESTION NAVIGATOR
 
-                        <pre className="mt-2 text-[10px] text-blue-300 bg-black/20 rounded-lg p-3 overflow-auto">
-{`{
-  "A": "Option A",
-  "B": "Option B",
-  "C": "Option C",
-  "D": "Option D"
-}`}
-                        </pre>
+              CLOSED BY DEFAULT.
 
-                        <details className="mt-3">
+              It appears only when:
+              showNavigator === true
+          ====================================================== */}
 
-                          <summary className="cursor-pointer text-xs text-slate-500">
-                            View database
-                            record
-                          </summary>
+          {showNavigator && (
+            <aside className="block">
 
-                          <pre className="mt-3 text-[10px] text-slate-500 overflow-auto whitespace-pre-wrap">
-                            {JSON.stringify(
-                              currentQuestion,
-                              null,
-                              2
-                            )}
-                          </pre>
+              <div className="sticky top-[130px] space-y-5">
 
-                        </details>
+                {/* PROGRESS */}
 
-                      </div>
+                <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
 
+                  <div className="flex items-center justify-between">
+
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Progress
+                      </p>
+
+                      <p className="mt-1 text-2xl font-black">
+                        {totalQuestions
+                          ? Math.round(
+                              (answeredCount /
+                                totalQuestions) *
+                                100
+                            )
+                          : 0}
+                        %
+                      </p>
                     </div>
 
+                    <Target
+                      size={26}
+                      className="text-cyan-400"
+                    />
+
                   </div>
-                )}
 
-              </div>
-
-            </div>
-
-
-            {/* NAVIGATION */}
-
-            <div className="flex items-center justify-between gap-3 mt-5">
-
-              <button
-                onClick={
-                  previousQuestion
-                }
-                disabled={
-                  currentIndex === 0 &&
-                  activeSubjectPosition === 0
-                }
-                className="flex items-center gap-2 px-5 py-3 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] disabled:opacity-30 disabled:cursor-not-allowed transition font-semibold text-sm"
-              >
-
-                <ChevronLeft size={18} />
-
-                Previous
-
-              </button>
-
-
-              <button
-                onClick={() =>
-                  setShowNavigator(true)
-                }
-                className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] transition text-sm font-semibold"
-              >
-
-                <Grid3X3 size={17} />
-
-                Questions
-
-              </button>
-
-
-              {isLastQuestionOfExam ? (
-
-                <button
-                  onClick={submitExam}
-                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition font-semibold text-sm"
-                >
-
-                  Submit Exam
-
-                  <CheckCircle2 size={18} />
-
-                </button>
-
-              ) : (
-
-                <button
-                  onClick={nextQuestion}
-                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition font-semibold text-sm"
-                >
-
-                  Next
-
-                  <ChevronRight size={18} />
-
-                </button>
-
-              )}
-
-            </div>
-
-          </div>
-
-        </main>
-
-
-        {/* QUESTION NAVIGATOR */}
-
-        {showNavigator && (
-          <>
-
-            <div
-              onClick={() =>
-                setShowNavigator(false)
-              }
-              className="fixed inset-0 z-[55] bg-black/40 backdrop-blur-[2px]"
-            />
-
-            <aside className="fixed right-4 top-20 z-[60] w-[330px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-105px)] overflow-y-auto rounded-2xl border border-white/10 bg-[#0a1b30]/98 backdrop-blur-2xl shadow-2xl">
-
-              <div className="sticky top-0 z-10 bg-[#0a1b30]/98 backdrop-blur-xl border-b border-white/10 p-4 flex items-center justify-between">
-
-                <div>
-
-                  <h3 className="font-semibold">
-                    Question Navigator
-                  </h3>
-
-                  <p className="text-xs text-slate-500 mt-1">
-                    {answeredCount}/
-                    {totalQuestions}{" "}
-                    answered
-                  </p>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-cyan-400 transition-all"
+                      style={{
+                        width: `${
+                          totalQuestions
+                            ? (
+                                answeredCount /
+                                totalQuestions
+                              ) *
+                              100
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
 
                 </div>
 
-                <button
-                  onClick={() =>
-                    setShowNavigator(false)
-                  }
-                  className="p-2 rounded-lg hover:bg-white/10"
-                >
-                  <X size={18} />
-                </button>
+                {/* QUESTION NAVIGATOR */}
 
-              </div>
+                <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
 
+                  <div className="mb-4 flex items-center justify-between">
 
-              <div className="p-4">
+                    <div>
+                      <h2 className="font-black">
+                        Question Navigator
+                      </h2>
 
-                {selectedSubjects.map(
-                  (subject) => {
-                    const subjectQuestions =
-                      questionsBySubject[
-                        subject
-                      ] || [];
+                      <p className="mt-1 text-xs text-slate-500">
+                        Select a question
+                      </p>
+                    </div>
 
-                    const subjectAnswered =
-                      subjectQuestions.filter(
-                        (question) => {
-                          const answer =
-                            answers[
-                              question.id
-                            ];
+                    <button
+                      onClick={() =>
+                        setShowNavigator(
+                          false
+                        )
+                      }
+                      className="text-slate-500 hover:text-white"
+                    >
+                      <X
+                        size={18}
+                      />
+                    </button>
 
-                          return (
-                            answer !== undefined &&
-                            answer !== null &&
-                            String(
-                              answer
-                            ).trim() !== ""
-                          );
-                        }
-                      ).length;
+                  </div>
 
-                    return (
-                      <div
-                        key={subject}
-                        className="mb-6"
-                      >
+                  <div className="max-h-[55vh] overflow-y-auto pr-1">
 
-                        <div className="flex items-center justify-between mb-3">
+                    {selectedSubjects.map(
+                      (subject) => {
+                        const questions =
+                          questionsBySubject[
+                            subject
+                          ] || [];
 
-                          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                            {getSubjectDisplayName(
+                        return (
+                          <div
+                            key={
                               subject
-                            )}
-                          </p>
-
-                          <span className="text-[10px] text-slate-600">
-                            {subjectAnswered}/
-                            {
-                              subjectQuestions.length
                             }
-                          </span>
+                            className="mb-5 last:mb-0"
+                          >
 
-                        </div>
+                            {/* SUBJECT */}
 
+                            <div className="mb-3 flex items-center justify-between">
 
-                        <div className="grid grid-cols-5 gap-2">
+                              <span className="truncate text-xs font-bold text-slate-300">
+                                {formatSubjectName(
+                                  subject
+                                )}
+                              </span>
 
-                          {subjectQuestions.map(
+                              <span className="text-[10px] text-slate-600">
+                                {
+                                  questions.length
+                                }
+                              </span>
+
+                            </div>
+
+                            {/* NUMBER GRID */}
+
+                            <div className="grid grid-cols-5 gap-2">
+
+                              {questions.map(
+                                (
+                                  question,
+                                  index
+                                ) => {
+                                  const id =
+                                    String(
+                                      question.id
+                                    );
+
+                                  const answered =
+                                    answers[
+                                      id
+                                    ] !==
+                                      undefined &&
+                                    answers[
+                                      id
+                                    ] !==
+                                      null &&
+                                    String(
+                                      answers[
+                                        id
+                                      ]
+                                    ).trim() !==
+                                      "";
+
+                                  const current =
+                                    subjectsMatch(
+                                      subject,
+                                      activeSubject
+                                    ) &&
+                                    currentIndex ===
+                                      index;
+
+                                  const isMarked =
+                                    Boolean(
+                                      marked[
+                                        id
+                                      ]
+                                    );
+
+                                  return (
+                                    <button
+                                      key={
+                                        id
+                                      }
+                                      onClick={() => {
+                                        setActiveSubject(
+                                          subject
+                                        );
+
+                                        setCurrentIndex(
+                                          index
+                                        );
+
+                                        /*
+                                         * Close after
+                                         * selecting on
+                                         * small screens.
+                                         */
+                                        if (
+                                          window.innerWidth <
+                                          1024
+                                        ) {
+                                          setShowNavigator(
+                                            false
+                                          );
+                                        }
+                                      }}
+                                      className={`relative flex h-9 items-center justify-center rounded-lg border text-xs font-bold transition ${
+                                        current
+                                          ? "border-cyan-400 bg-cyan-400 text-slate-950"
+                                          : answered
+                                          ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-400"
+                                          : "border-white/10 bg-white/[0.025] text-slate-500 hover:bg-white/[0.08] hover:text-white"
+                                      }`}
+                                    >
+
+                                      {
+                                        index +
+                                        1
+                                      }
+
+                                      {isMarked && (
+                                        <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-amber-400" />
+                                      )}
+
+                                    </button>
+                                  );
+                                }
+                              )}
+
+                            </div>
+                          </div>
+                        );
+                      }
+                    )}
+
+                  </div>
+                </div>
+
+                {/* SUBJECT SUMMARY */}
+
+                <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
+
+                  <h2 className="mb-4 font-black">
+                    Subject Summary
+                  </h2>
+
+                  <div className="space-y-3">
+
+                    {selectedSubjects.map(
+                      (subject) => {
+                        const questions =
+                          questionsBySubject[
+                            subject
+                          ] || [];
+
+                        const answered =
+                          questions.filter(
                             (
-                              question,
-                              index
+                              question
                             ) => {
-                              const selected =
+                              const answer =
                                 answers[
-                                  question.id
+                                  String(
+                                    question.id
+                                  )
                                 ];
-
-                              const markedQuestion =
-                                marked[
-                                  question.id
-                                ];
-
-                              const isCurrent =
-                                subjectsMatch(
-                                  subject,
-                                  activeSubject
-                                ) &&
-                                index ===
-                                  currentIndex;
-
-                              const isComprehension =
-                                isComprehensionQuestion(
-                                  question
-                                );
 
                               return (
-                                <button
-                                  key={
-                                    question.id ||
-                                    `${subject}-${index}`
-                                  }
-                                  onClick={() => {
-                                    setActiveSubject(
-                                      subject
-                                    );
-
-                                    setCurrentIndex(
-                                      index
-                                    );
-
-                                    setShowNavigator(
-                                      false
-                                    );
-                                  }}
-                                  title={
-                                    isComprehension
-                                      ? "Comprehension question"
-                                      : "Question"
-                                  }
-                                  className={`relative aspect-square rounded-xl text-xs font-semibold border transition ${
-                                    isCurrent
-                                      ? "bg-blue-600 border-blue-400 text-white"
-                                      : selected
-                                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                                      : "bg-[#102238] border-white/10 text-slate-400 hover:bg-[#17304d]"
-                                  }`}
-                                >
-
-                                  {index + 1}
-
-                                  {isComprehension && (
-                                    <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-400" />
-                                  )}
-
-                                  {markedQuestion && (
-                                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                                  )}
-
-                                </button>
+                                answer !==
+                                  undefined &&
+                                answer !==
+                                  null &&
+                                String(
+                                  answer
+                                ).trim() !==
+                                  ""
                               );
                             }
-                          )}
+                          ).length;
 
-                        </div>
+                        const active =
+                          subjectsMatch(
+                            subject,
+                            activeSubject
+                          );
 
-                      </div>
-                    );
-                  }
-                )}
+                        return (
+                          <button
+                            key={
+                              subject
+                            }
+                            onClick={() =>
+                              changeSubject(
+                                subject
+                              )
+                            }
+                            className={`w-full rounded-2xl border p-4 text-left ${
+                              active
+                                ? "border-cyan-400/20 bg-cyan-400/[0.05]"
+                                : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05]"
+                            }`}
+                          >
 
-              </div>
+                            <div className="flex items-center justify-between gap-3">
 
+                              <span className="truncate text-sm font-bold text-slate-200">
+                                {formatSubjectName(
+                                  subject
+                                )}
+                              </span>
 
-              <div className="border-t border-white/10 p-4">
+                              <ChevronRight
+                                size={15}
+                                className="shrink-0 text-slate-600"
+                              />
 
-                <div className="grid grid-cols-2 gap-3 text-[10px] text-slate-500">
+                            </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-blue-600" />
-                    Current
+                            <div className="mt-2 flex items-center justify-between text-xs">
+
+                              <span className="text-slate-500">
+                                {
+                                  answered
+                                }{" "}
+                                answered
+                              </span>
+
+                              <span className="text-slate-600">
+                                {
+                                  questions.length
+                                }{" "}
+                                questions
+                              </span>
+
+                            </div>
+
+                          </button>
+                        );
+                      }
+                    )}
+
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/30" />
-                    Answered
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-[#102238] border border-white/10" />
-                    Unanswered
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-yellow-400" />
-                    Marked
-                  </div>
-
-                  <div className="flex items-center gap-2 col-span-2">
-                    <span className="w-3 h-3 rounded-full bg-blue-400" />
-                    Comprehension
-                  </div>
-
                 </div>
 
+                {/* SUBMIT */}
+
+                <button
+                  onClick={
+                    submitExam
+                  }
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-400 px-5 py-4 font-black text-slate-950 hover:bg-red-300"
+                >
+                  <CheckCircle2
+                    size={19}
+                  />
+                  Submit Examination
+                </button>
+
               </div>
-
             </aside>
+          )}
 
-          </>
-        )}
-
-      </div>
-    </>
+        </div>
+      </main>
+    </div>
   );
 };
 

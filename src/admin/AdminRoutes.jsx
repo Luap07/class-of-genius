@@ -59,9 +59,17 @@ import ResourcesAdmin from "../pages/admin/lms/ResourcesAdmin";
 import CreateResource from "../pages/admin/lms/CreateResource";
 import EditResource from "../pages/admin/lms/EditResource";
 
+/* ============================================================
+   TASKS
+============================================================ */
+
 import WeeklyTasksAdmin from "../pages/admin/lms/WeeklyTasksAdmin";
 import CreateWeeklyTask from "../pages/admin/lms/CreateWeeklyTask";
 import EditWeeklyTask from "../pages/admin/lms/EditWeeklyTask";
+
+/* ============================================================
+   MONTHLY QUIZZES
+============================================================ */
 
 import MonthlyQuizAdmin from "../pages/admin/lms/MonthlyQuizAdmin";
 import CreateMonthlyQuiz from "../pages/admin/lms/CreateMonthlyQuiz";
@@ -97,19 +105,6 @@ import ResultsAdmin from "../pages/admin/cbt/ResultsAdmin";
 import AnalyticsAdmin from "../pages/admin/cbt/AnalyticsAdmin";
 import QuestionsAdmin from "../pages/admin/cbt/QuestionsAdmin";
 
-/*
-   IMPORTANT:
-
-   QuestionImporter.jsx must exist here:
-
-   src/pages/admin/QuestionImporter.jsx
-
-   If yours is instead:
-
-   src/pages/admin/cbt/QuestionImporter.jsx
-
-   change this import accordingly.
-*/
 import QuestionImporter from "../pages/admin/QuestionImporter";
 
 /* ============================================================
@@ -168,6 +163,9 @@ import StorageSettings from "../pages/admin/settings/StorageSettings";
 import Integrations from "../pages/admin/settings/Integrations";
 import APIKeys from "../pages/admin/settings/APIKeys";
 
+/* ============================================================
+   ADMIN ROUTES
+============================================================ */
 
 const AdminRoutes = () => {
   return (
@@ -188,7 +186,6 @@ const AdminRoutes = () => {
           element={<AdminDashboard />}
         />
 
-
         {/* ====================================================
             LMS
         ==================================================== */}
@@ -198,15 +195,36 @@ const AdminRoutes = () => {
           element={<CoursesAdmin />}
         />
 
+        {/* ====================================================
+            MAIN TASKS PAGE
+        ==================================================== */}
+
+        <Route
+          path="lms/tasks"
+          element={<WeeklyTasksAdmin />}
+        />
+
+        {/* ====================================================
+            CREATE COURSE
+        ==================================================== */}
+
         <Route
           path="lms/create"
           element={<CreateCourse />}
         />
 
+        {/* ====================================================
+            EDIT COURSE
+        ==================================================== */}
+
         <Route
           path="lms/edit/:id"
           element={<EditCourse />}
         />
+
+        {/* ====================================================
+            COURSE TOPICS
+        ==================================================== */}
 
         <Route
           path="lms/course/:courseId/topics"
@@ -223,6 +241,10 @@ const AdminRoutes = () => {
           element={<EditTopic />}
         />
 
+        {/* ====================================================
+            COURSE MATERIALS
+        ==================================================== */}
+
         <Route
           path="lms/course/:courseId/materials"
           element={<MaterialsAdmin />}
@@ -233,17 +255,18 @@ const AdminRoutes = () => {
           element={<CreateMaterial />}
         />
 
+        {/* ====================================================
+            COURSE CATEGORIES
+        ==================================================== */}
+
         <Route
           path="lms/categories"
           element={<CourseCategories />}
         />
 
-        <Route
-          path="lms/tasks/edit/:id"
-          element={<EditWeeklyTask />}
-        />
-
-        {/* LMS RESOURCES */}
+        {/* ====================================================
+            LMS RESOURCES
+        ==================================================== */}
 
         <Route
           path="lms/topic/:topicId/resources"
@@ -265,7 +288,9 @@ const AdminRoutes = () => {
           element={<ResourcesAdmin />}
         />
 
-        {/* WEEKLY TASKS */}
+        {/* ====================================================
+            WEEKLY TASKS
+        ==================================================== */}
 
         <Route
           path="lms/topic/:topicId/tasks"
@@ -282,7 +307,18 @@ const AdminRoutes = () => {
           element={<EditWeeklyTask />}
         />
 
-        {/* MONTHLY QUIZZES */}
+        {/* ====================================================
+            LEGACY / GENERAL TASK EDIT
+        ==================================================== */}
+
+        <Route
+          path="lms/tasks/edit/:id"
+          element={<EditWeeklyTask />}
+        />
+
+        {/* ====================================================
+            MONTHLY QUIZZES
+        ==================================================== */}
 
         <Route
           path="lms/topic/:topicId/quizzes"
@@ -303,7 +339,6 @@ const AdminRoutes = () => {
           path="lms/topic/:topicId/quizzes/view/:id"
           element={<ViewMonthlyQuiz />}
         />
-
 
         {/* ====================================================
             LANGUAGES
@@ -379,7 +414,6 @@ const AdminRoutes = () => {
           element={<LanguageCMSAdmin />}
         />
 
-
         {/* ====================================================
             SCHOOLS
         ==================================================== */}
@@ -388,8 +422,6 @@ const AdminRoutes = () => {
           path="schools"
           element={<SchoolsAdmin />}
         />
-
-        {/* UNIVERSITIES */}
 
         <Route
           path="schools/universities"
@@ -411,8 +443,6 @@ const AdminRoutes = () => {
           element={<SchoolDetailsAdmin />}
         />
 
-        {/* COLLEGES */}
-
         <Route
           path="schools/colleges"
           element={<CollegesAdmin />}
@@ -432,8 +462,6 @@ const AdminRoutes = () => {
           path="schools/colleges/:id"
           element={<SchoolDetailsAdmin />}
         />
-
-        {/* POLYTECHNICS */}
 
         <Route
           path="schools/polytechnics"
@@ -455,20 +483,15 @@ const AdminRoutes = () => {
           element={<SchoolDetailsAdmin />}
         />
 
-        {/* GENERIC SCHOOL DETAILS */}
-
         <Route
           path="schools/:type/:id"
           element={<SchoolDetailsAdmin />}
         />
 
-        {/* FACULTIES */}
-
         <Route
           path="schools/:type/:schoolId/faculties"
           element={<FacultyManager />}
         />
-
 
         {/* ====================================================
             CBT
@@ -479,64 +502,40 @@ const AdminRoutes = () => {
           element={<CBTDashboard />}
         />
 
-        {/* ====================================================
-            QUESTION IMPORTER
-        ====================================================
-
-            FINAL URL:
-
-            /admin/cbt/questions/upload
-
-            This MUST render QuestionImporter.
-        */}
-
         <Route
           path="cbt/questions/upload"
           element={<QuestionImporter />}
         />
-
-        {/* Optional alias */}
 
         <Route
           path="cbt/question-importer"
           element={<QuestionImporter />}
         />
 
-        {/* MANAGE QUESTIONS */}
-
         <Route
           path="cbt/questions"
           element={<QuestionsAdmin />}
         />
-
-        {/* SUBJECTS */}
 
         <Route
           path="cbt/subjects"
           element={<SubjectsAdmin />}
         />
 
-        {/* EXAMS */}
-
         <Route
           path="cbt/exams"
           element={<ExamsAdmin />}
         />
-
-        {/* RESULTS */}
 
         <Route
           path="cbt/results"
           element={<ResultsAdmin />}
         />
 
-        {/* CBT ANALYTICS */}
-
         <Route
           path="cbt/analytics"
           element={<AnalyticsAdmin />}
         />
-
 
         {/* ====================================================
             DOCUMENTS
@@ -546,7 +545,6 @@ const AdminRoutes = () => {
           path="documents"
           element={<DocumentsAdmin />}
         />
-
 
         {/* ====================================================
             VIRTUAL LABS
@@ -586,7 +584,6 @@ const AdminRoutes = () => {
           path="labs/edit/:id"
           element={<EditExperiment />}
         />
-
 
         {/* ====================================================
             NOVELS
@@ -632,7 +629,6 @@ const AdminRoutes = () => {
           element={<NovelReviews />}
         />
 
-
         {/* ====================================================
             NEWSLETTER
         ==================================================== */}
@@ -642,7 +638,6 @@ const AdminRoutes = () => {
           element={<NewsletterAdmin />}
         />
 
-
         {/* ====================================================
             MESSAGES
         ==================================================== */}
@@ -651,7 +646,6 @@ const AdminRoutes = () => {
           path="messages"
           element={<MessagesAdmin />}
         />
-
 
         {/* ====================================================
             USERS
@@ -687,7 +681,6 @@ const AdminRoutes = () => {
           element={<Roles />}
         />
 
-
         {/* ====================================================
             ANALYTICS
         ==================================================== */}
@@ -722,7 +715,6 @@ const AdminRoutes = () => {
           element={<RevenueAnalytics />}
         />
 
-
         {/* ====================================================
             MEDIA
         ==================================================== */}
@@ -751,7 +743,6 @@ const AdminRoutes = () => {
           path="media/audio"
           element={<Audio />}
         />
-
 
         {/* ====================================================
             SETTINGS
@@ -795,7 +786,7 @@ const AdminRoutes = () => {
       </Route>
 
       {/* ======================================================
-          UNKNOWN ADMIN ROUTES
+          UNKNOWN ADMIN ROUTE
       ====================================================== */}
 
       <Route

@@ -1,4 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, {
+  useEffect,
+  useState,
+} from "react";
+
 import {
   Users,
   GraduationCap,
@@ -9,455 +13,601 @@ import {
   Clock,
   ArrowUpRight,
   RefreshCw,
-  ClipboardCheck,
   Activity,
   BarChart3,
 } from "lucide-react";
+
 import { Link } from "react-router-dom";
-import { supabase } from "../lib/supabaseClient";
+
+/* =========================================================
+   API CONFIG
+========================================================= */
+
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
+
+const AUTH_TOKEN_KEY =
+  "scholiqen_auth_token";
+
+/* =========================================================
+   ADMIN DASHBOARD
+========================================================= */
 
 const AdminDashboard = () => {
+  /* =======================================================
+     STATS
+  ======================================================= */
+
   const [stats, setStats] = useState([
     {
       title: "Total Users",
       value: 0,
       change: "Live",
       icon: Users,
-      color: "from-blue-500 to-cyan-500",
+      color:
+        "from-blue-500 to-cyan-500",
     },
+
     {
       title: "Courses",
       value: 0,
       change: "Live",
       icon: GraduationCap,
-      color: "from-indigo-500 to-violet-500",
+      color:
+        "from-indigo-500 to-violet-500",
     },
+
     {
       title: "Virtual Labs",
       value: 0,
       change: "Live",
       icon: FlaskConical,
-      color: "from-emerald-500 to-green-500",
+      color:
+        "from-emerald-500 to-green-500",
     },
+
     {
       title: "CBT Questions",
       value: 0,
       change: "Live",
       icon: FileQuestion,
-      color: "from-orange-500 to-red-500",
+      color:
+        "from-orange-500 to-red-500",
     },
+
     {
       title: "Novels",
       value: 0,
       change: "Live",
       icon: BookOpen,
-      color: "from-pink-500 to-rose-500",
+      color:
+        "from-pink-500 to-rose-500",
     },
+
     {
       title: "Project Growth",
       value: 0,
-      change: "Live",
+      change: "Last 30 days",
       icon: TrendingUp,
-      color: "from-cyan-500 to-blue-500",
+      color:
+        "from-cyan-500 to-blue-500",
     },
   ]);
 
-  const [activities, setActivities] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  /* =======================================================
+     ACTIVITIES
+  ======================================================= */
 
-  const [growth, setGrowth] = useState({
-    users: 0,
-    courses: 0,
-    labs: 0,
-    questions: 0,
-    novels: 0,
-    overall: 0,
-  });
+  const [activities, setActivities] =
+    useState([]);
 
-  // -------------------------------------------------------
-  // FORMAT NUMBER
-  // -------------------------------------------------------
+  /* =======================================================
+     STATE
+  ======================================================= */
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  /* =======================================================
+     GROWTH
+  ======================================================= */
+
+  const [growth, setGrowth] =
+    useState({
+      users: 0,
+      courses: 0,
+      labs: 0,
+      questions: 0,
+      novels: 0,
+      overall: 0,
+    });
+
+  /* =======================================================
+     FORMAT NUMBER
+  ======================================================= */
 
   const formatNumber = (number) => {
-    return new Intl.NumberFormat("en-US").format(number || 0);
+    return new Intl.NumberFormat(
+      "en-US"
+    ).format(
+      Number(number) || 0
+    );
   };
 
-  // -------------------------------------------------------
-  // TIME AGO
-  // -------------------------------------------------------
+  /* =======================================================
+     TIME AGO
+  ======================================================= */
 
   const timeAgo = (date) => {
-    if (!date) return "Recently";
+    if (!date) {
+      return "Recently";
+    }
 
     const now = new Date();
-    const past = new Date(date);
 
-    const seconds = Math.floor((now - past) / 1000);
+    const past =
+      new Date(date);
+
+    const seconds = Math.floor(
+      (now - past) / 1000
+    );
 
     if (seconds < 60) {
       return "Just now";
     }
 
-    const minutes = Math.floor(seconds / 60);
+    const minutes = Math.floor(
+      seconds / 60
+    );
 
     if (minutes < 60) {
-      return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+      return `${minutes} minute${
+        minutes === 1
+          ? ""
+          : "s"
+      } ago`;
     }
 
-    const hours = Math.floor(minutes / 60);
+    const hours = Math.floor(
+      minutes / 60
+    );
 
     if (hours < 24) {
-      return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+      return `${hours} hour${
+        hours === 1
+          ? ""
+          : "s"
+      } ago`;
     }
 
-    const days = Math.floor(hours / 24);
+    const days = Math.floor(
+      hours / 24
+    );
 
     if (days < 7) {
-      return `${days} day${days === 1 ? "" : "s"} ago`;
+      return `${days} day${
+        days === 1
+          ? ""
+          : "s"
+      } ago`;
     }
 
     return past.toLocaleDateString();
   };
 
-  // -------------------------------------------------------
-  // LIVE TABLE COUNT
-  // -------------------------------------------------------
-
-  const getCount = async (table) => {
-    const { count, error } = await supabase
-      .from(table)
-      .select("*", {
-        count: "exact",
-        head: true,
-      });
-
-    if (error) {
-      console.error(`Error counting ${table}:`, error);
-      return 0;
-    }
-
-    return count || 0;
-  };
-
-  // -------------------------------------------------------
-  // COUNT CREATED RECORDS IN A PERIOD
-  // -------------------------------------------------------
-
-  const getCountSince = async (table, date) => {
-    const { count, error } = await supabase
-      .from(table)
-      .select("*", {
-        count: "exact",
-        head: true,
-      })
-      .gte("created_at", date.toISOString());
-
-    if (error) {
-      console.error(`Error calculating growth for ${table}:`, error);
-      return 0;
-    }
-
-    return count || 0;
-  };
-
-  // -------------------------------------------------------
-  // AUTHENTICATION USER COUNT
-  // -------------------------------------------------------
-
-  const getAuthUserCount = async () => {
-    const { data, error } = await supabase.rpc(
-      "get_auth_user_count"
-    );
-
-    if (error) {
-      console.error(
-        "Error fetching authentication user count:",
-        error
-      );
-
-      return 0;
-    }
-
-    return Number(data || 0);
-  };
-
-  // -------------------------------------------------------
-  // CALCULATE PROJECT GROWTH
-  // -------------------------------------------------------
-
-  const calculateGrowth = async () => {
-    /*
-      We calculate project growth from records created
-      during the last 30 days.
-
-      This is intentionally NOT revenue.
-
-      Tomorrow, when payments are added, revenue growth
-      can be connected to the payment/transactions table.
-    */
-
-    const thirtyDaysAgo = new Date();
-
-    thirtyDaysAgo.setDate(
-      thirtyDaysAgo.getDate() - 30
-    );
-
-    const [
-      usersGrowth,
-      coursesGrowth,
-      labsGrowth,
-      questionsGrowth,
-      novelsGrowth,
-    ] = await Promise.all([
-      getCountSince("profiles", thirtyDaysAgo),
-      getCountSince("courses", thirtyDaysAgo),
-      getCountSince("virtual_labs", thirtyDaysAgo),
-      getCountSince("cbt_questions", thirtyDaysAgo),
-      getCountSince("novels", thirtyDaysAgo),
-    ]);
-
-    const totalGrowth =
-      usersGrowth +
-      coursesGrowth +
-      labsGrowth +
-      questionsGrowth +
-      novelsGrowth;
-
-    setGrowth({
-      users: usersGrowth,
-      courses: coursesGrowth,
-      labs: labsGrowth,
-      questions: questionsGrowth,
-      novels: novelsGrowth,
-      overall: totalGrowth,
-    });
-
-    return {
-      usersGrowth,
-      coursesGrowth,
-      labsGrowth,
-      questionsGrowth,
-      novelsGrowth,
-      totalGrowth,
-    };
-  };
-
-  // -------------------------------------------------------
-  // FETCH LIVE DASHBOARD DATA
-  // -------------------------------------------------------
+  /* =======================================================
+     FETCH DASHBOARD
+  ======================================================= */
 
   const fetchDashboard = async () => {
     try {
       setRefreshing(true);
+      setError("");
 
-      // ---------------------------------------------------
-      // LIVE COUNTS
-      // ---------------------------------------------------
+      /* ---------------------------------------------------
+         GET AUTH TOKEN
+      --------------------------------------------------- */
 
-      const [
-        authUsersCount,
-        coursesCount,
-        labsCount,
-        questionsCount,
-        novelsCount,
-      ] = await Promise.all([
-        getAuthUserCount(),
-        getCount("courses"),
-        getCount("virtual_labs"),
-        getCount("cbt_questions"),
-        getCount("novels"),
-      ]);
+      const token =
+        localStorage.getItem(
+          AUTH_TOKEN_KEY
+        );
 
-      // ---------------------------------------------------
-      // PROJECT GROWTH
-      // ---------------------------------------------------
+      if (!token) {
+        throw new Error(
+          "Your admin session has expired. Please login again."
+        );
+      }
 
-      const growthData = await calculateGrowth();
+      /* ---------------------------------------------------
+         FETCH FROM NEON BACKEND
+      --------------------------------------------------- */
 
-      const overallGrowth = growthData.totalGrowth;
+      const response =
+        await fetch(
+          `${API_URL}/api/admin/dashboard`,
+          {
+            method: "GET",
+
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+
+              "Content-Type":
+                "application/json",
+            },
+          }
+        );
+
+      /* ---------------------------------------------------
+         READ RESPONSE
+      --------------------------------------------------- */
+
+      let data = null;
+
+      try {
+        data =
+          await response.json();
+      } catch {
+        throw new Error(
+          `Server returned an invalid response (${response.status}).`
+        );
+      }
+
+      /* ---------------------------------------------------
+         HANDLE HTTP ERRORS
+      --------------------------------------------------- */
+
+      if (!response.ok) {
+        if (
+          response.status === 401
+        ) {
+          localStorage.removeItem(
+            AUTH_TOKEN_KEY
+          );
+
+          localStorage.removeItem(
+            "scholiqen_current_user"
+          );
+
+          throw new Error(
+            "Your session has expired. Please login again."
+          );
+        }
+
+        if (
+          response.status === 403
+        ) {
+          throw new Error(
+            "You do not have administrator access."
+          );
+        }
+
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            `Dashboard request failed (${response.status}).`
+        );
+      }
+
+      /* ---------------------------------------------------
+         VALIDATE RESPONSE
+      --------------------------------------------------- */
+
+      if (
+        !data ||
+        data.success !== true
+      ) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Dashboard data could not be loaded."
+        );
+      }
+
+      /* ---------------------------------------------------
+         STATS
+      --------------------------------------------------- */
+
+      const dashboardStats =
+        data.stats || {};
+
+      const users =
+        Number(
+          dashboardStats.users
+        ) || 0;
+
+      const courses =
+        Number(
+          dashboardStats.courses
+        ) || 0;
+
+      const labs =
+        Number(
+          dashboardStats.labs
+        ) || 0;
+
+      const questions =
+        Number(
+          dashboardStats.questions
+        ) || 0;
+
+      const novels =
+        Number(
+          dashboardStats.novels
+        ) || 0;
+
+      /* ---------------------------------------------------
+         GROWTH
+      --------------------------------------------------- */
+
+      const dashboardGrowth =
+        data.growth || {};
+
+      const usersGrowth =
+        Number(
+          dashboardGrowth.users
+        ) || 0;
+
+      const coursesGrowth =
+        Number(
+          dashboardGrowth.courses
+        ) || 0;
+
+      const labsGrowth =
+        Number(
+          dashboardGrowth.labs
+        ) || 0;
+
+      const questionsGrowth =
+        Number(
+          dashboardGrowth.questions
+        ) || 0;
+
+      const novelsGrowth =
+        Number(
+          dashboardGrowth.novels
+        ) || 0;
+
+      const overallGrowth =
+        Number(
+          dashboardGrowth.overall
+        ) ||
+        (
+          usersGrowth +
+          coursesGrowth +
+          labsGrowth +
+          questionsGrowth +
+          novelsGrowth
+        );
+
+      /* ---------------------------------------------------
+         UPDATE STATS
+      --------------------------------------------------- */
 
       setStats([
         {
           title: "Total Users",
-          value: authUsersCount,
-          change: "Authentication",
+          value: users,
+          change: "Neon Database",
           icon: Users,
-          color: "from-blue-500 to-cyan-500",
+          color:
+            "from-blue-500 to-cyan-500",
         },
+
         {
           title: "Courses",
-          value: coursesCount,
+          value: courses,
           change: "Live",
           icon: GraduationCap,
-          color: "from-indigo-500 to-violet-500",
+          color:
+            "from-indigo-500 to-violet-500",
         },
+
         {
           title: "Virtual Labs",
-          value: labsCount,
+          value: labs,
           change: "Live",
           icon: FlaskConical,
-          color: "from-emerald-500 to-green-500",
+          color:
+            "from-emerald-500 to-green-500",
         },
+
         {
           title: "CBT Questions",
-          value: questionsCount,
+          value: questions,
           change: "Live",
           icon: FileQuestion,
-          color: "from-orange-500 to-red-500",
+          color:
+            "from-orange-500 to-red-500",
         },
+
         {
           title: "Novels",
-          value: novelsCount,
+          value: novels,
           change: "Live",
           icon: BookOpen,
-          color: "from-pink-500 to-rose-500",
+          color:
+            "from-pink-500 to-rose-500",
         },
+
         {
           title: "Project Growth",
           value: overallGrowth,
           change: "Last 30 days",
           icon: TrendingUp,
-          color: "from-cyan-500 to-blue-500",
+          color:
+            "from-cyan-500 to-blue-500",
         },
       ]);
 
-      // ---------------------------------------------------
-      // RECENT CBT ATTEMPTS
-      // ---------------------------------------------------
+      /* ---------------------------------------------------
+         UPDATE GROWTH
+      --------------------------------------------------- */
 
-      /*
-        cbt_attempts DOES NOT EXIST in your database.
+      setGrowth({
+        users: usersGrowth,
+        courses: coursesGrowth,
+        labs: labsGrowth,
+        questions: questionsGrowth,
+        novels: novelsGrowth,
+        overall: overallGrowth,
+      });
 
-        Therefore we intentionally do not query it.
-
-        This prevents:
-
-        PGRST205:
-        Could not find table public.cbt_attempts
-
-        CBT activity can be added later when you create
-        the attempts table.
-      */
+      /* ===================================================
+         RECENT ACTIVITIES
+      =================================================== */
 
       const liveActivities = [];
 
-      // ---------------------------------------------------
-      // RECENT NOVELS
-      // ---------------------------------------------------
+      const recent =
+        data.recent || {};
 
-      const {
-        data: recentNovels,
-        error: novelsError,
-      } = await supabase
-        .from("novels")
-        .select("id, title, created_at")
-        .order("created_at", {
-          ascending: false,
-        })
-        .limit(3);
+      /* ---------------------------------------------------
+         NOVELS
+      --------------------------------------------------- */
 
-      if (novelsError) {
-        console.error(
-          "Error fetching recent novels:",
-          novelsError
-        );
-      }
+      const recentNovels =
+        Array.isArray(
+          recent.novels
+        )
+          ? recent.novels
+          : [];
 
-      if (recentNovels?.length) {
-        recentNovels.forEach((novel) => {
+      recentNovels.forEach(
+        (novel) => {
           liveActivities.push({
-            title: `Novel added: ${novel.title}`,
-            time: timeAgo(novel.created_at),
+            title:
+              `Novel added: ${
+                novel.title ||
+                "Untitled novel"
+              }`,
+
+            time:
+              timeAgo(
+                novel.created_at
+              ),
+
             icon: BookOpen,
-            date: novel.created_at,
+
+            date:
+              novel.created_at,
           });
-        });
-      }
+        }
+      );
 
-      // ---------------------------------------------------
-      // RECENT COURSES
-      // ---------------------------------------------------
+      /* ---------------------------------------------------
+         COURSES
+      --------------------------------------------------- */
 
-      const {
-        data: recentCourses,
-        error: coursesError,
-      } = await supabase
-        .from("courses")
-        .select("id, title, created_at")
-        .order("created_at", {
-          ascending: false,
-        })
-        .limit(3);
+      const recentCourses =
+        Array.isArray(
+          recent.courses
+        )
+          ? recent.courses
+          : [];
 
-      if (coursesError) {
-        console.error(
-          "Error fetching recent courses:",
-          coursesError
-        );
-      }
-
-      if (recentCourses?.length) {
-        recentCourses.forEach((course) => {
+      recentCourses.forEach(
+        (course) => {
           liveActivities.push({
-            title: `Course added: ${course.title}`,
-            time: timeAgo(course.created_at),
-            icon: GraduationCap,
-            date: course.created_at,
+            title:
+              `Course added: ${
+                course.title ||
+                "Untitled course"
+              }`,
+
+            time:
+              timeAgo(
+                course.created_at
+              ),
+
+            icon:
+              GraduationCap,
+
+            date:
+              course.created_at,
           });
-        });
-      }
+        }
+      );
 
-      // ---------------------------------------------------
-      // RECENT CBT QUESTIONS
-      // ---------------------------------------------------
+      /* ---------------------------------------------------
+         CBT QUESTIONS
+      --------------------------------------------------- */
 
-      const {
-        data: recentQuestions,
-        error: questionsError,
-      } = await supabase
-        .from("cbt_questions")
-        .select("id, created_at")
-        .order("created_at", {
-          ascending: false,
-        })
-        .limit(3);
+      const recentQuestions =
+        Array.isArray(
+          recent.questions
+        )
+          ? recent.questions
+          : [];
 
-      if (questionsError) {
-        console.error(
-          "Error fetching recent CBT questions:",
-          questionsError
-        );
-      }
+      recentQuestions.forEach(
+        (question) => {
+          const subject =
+            question.subject
+              ? ` — ${question.subject}`
+              : "";
 
-      if (recentQuestions?.length) {
-        recentQuestions.forEach((question) => {
+          const exam =
+            question.exam
+              ? ` (${question.exam})`
+              : "";
+
           liveActivities.push({
-            title: "CBT question added",
-            time: timeAgo(question.created_at),
-            icon: FileQuestion,
-            date: question.created_at,
-          });
-        });
-      }
+            title:
+              `CBT question added${subject}${exam}`,
 
-      // ---------------------------------------------------
-      // SORT ACTIVITIES
-      // ---------------------------------------------------
+            time:
+              timeAgo(
+                question.created_at
+              ),
+
+            icon:
+              FileQuestion,
+
+            date:
+              question.created_at,
+          });
+        }
+      );
+
+      /* ---------------------------------------------------
+         SORT
+      --------------------------------------------------- */
 
       liveActivities.sort(
         (a, b) =>
-          new Date(b.date || 0) -
-          new Date(a.date || 0)
+          new Date(
+            b.date || 0
+          ) -
+          new Date(
+            a.date || 0
+          )
       );
 
       setActivities(
-        liveActivities.slice(0, 8)
+        liveActivities.slice(
+          0,
+          8
+        )
       );
     } catch (error) {
       console.error(
-        "Dashboard error:",
+        "Admin Dashboard Error:",
         error
+      );
+
+      setError(
+        error?.message ||
+          "Unable to load dashboard data."
       );
     } finally {
       setLoading(false);
@@ -465,17 +615,17 @@ const AdminDashboard = () => {
     }
   };
 
-  // -------------------------------------------------------
-  // INITIAL LOAD
-  // -------------------------------------------------------
+  /* =======================================================
+     INITIAL LOAD
+  ======================================================= */
 
   useEffect(() => {
     fetchDashboard();
   }, []);
 
-  // -------------------------------------------------------
-  // QUICK ACTIONS
-  // -------------------------------------------------------
+  /* =======================================================
+     QUICK ACTIONS
+  ======================================================= */
 
   const quickActions = [
     {
@@ -483,16 +633,19 @@ const AdminDashboard = () => {
       link: "/admin/lms/create",
       icon: GraduationCap,
     },
+
     {
       title: "Upload Novel",
       link: "/admin/novels",
       icon: BookOpen,
     },
+
     {
       title: "Add Experiment",
       link: "/admin/labs/add",
       icon: FlaskConical,
     },
+
     {
       title: "Add CBT Questions",
       link: "/admin/cbt/questions",
@@ -500,34 +653,36 @@ const AdminDashboard = () => {
     },
   ];
 
-  // -------------------------------------------------------
-  // LOADING
-  // -------------------------------------------------------
+  /* =======================================================
+     LOADING
+  ======================================================= */
 
   if (loading) {
     return (
       <div className="space-y-8">
 
         <div>
-          <div className="h-10 w-72 bg-slate-800 rounded-xl animate-pulse" />
+          <div className="h-10 w-72 rounded-xl bg-slate-800 animate-pulse" />
 
-          <div className="h-4 w-96 bg-slate-800 rounded-lg animate-pulse mt-3" />
+          <div className="mt-3 h-4 w-96 rounded-lg bg-slate-800 animate-pulse" />
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
 
-          {[...Array(6)].map((_, index) => (
-            <div
-              key={index}
-              className="rounded-3xl border border-slate-800 bg-slate-900 p-6 animate-pulse"
-            >
-              <div className="h-4 w-24 bg-slate-800 rounded" />
+          {[...Array(6)].map(
+            (_, index) => (
+              <div
+                key={index}
+                className="rounded-3xl border border-slate-800 bg-slate-900 p-6 animate-pulse"
+              >
+                <div className="h-4 w-24 rounded bg-slate-800" />
 
-              <div className="h-10 w-32 bg-slate-800 rounded mt-4" />
+                <div className="mt-4 h-10 w-32 rounded bg-slate-800" />
 
-              <div className="h-4 w-20 bg-slate-800 rounded mt-4" />
-            </div>
-          ))}
+                <div className="mt-4 h-4 w-20 rounded bg-slate-800" />
+              </div>
+            )
+          )}
 
         </div>
 
@@ -535,16 +690,18 @@ const AdminDashboard = () => {
     );
   }
 
-  // -------------------------------------------------------
-  // MAIN UI
-  // -------------------------------------------------------
+  /* =======================================================
+     MAIN UI
+  ======================================================= */
 
   return (
     <div className="space-y-8">
 
-      {/* HEADER */}
+      {/* ===================================================
+          HEADER
+      =================================================== */}
 
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 
         <div>
           <h1 className="text-4xl font-bold">
@@ -552,14 +709,15 @@ const AdminDashboard = () => {
           </h1>
 
           <p className="mt-2 text-slate-400">
-            Here's what's happening across Scholiqen today.
+            Here's what's happening across
+            Scholiqen today.
           </p>
         </div>
 
         <button
           onClick={fetchDashboard}
           disabled={refreshing}
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-5 py-3 text-sm font-medium text-slate-200 hover:bg-slate-800 transition disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-slate-800 disabled:opacity-50"
         >
           <RefreshCw
             size={18}
@@ -577,15 +735,49 @@ const AdminDashboard = () => {
 
       </div>
 
-      {/* LIVE STATUS */}
+      {/* ===================================================
+          ERROR
+      =================================================== */}
+
+      {error && (
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-5">
+
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+
+            <div>
+              <p className="font-semibold text-red-400">
+                Dashboard could not load
+              </p>
+
+              <p className="mt-1 text-sm text-red-300/80">
+                {error}
+              </p>
+            </div>
+
+            <button
+              onClick={fetchDashboard}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
+            >
+              <RefreshCw size={16} />
+              Try Again
+            </button>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* ===================================================
+          LIVE STATUS
+      =================================================== */}
 
       <div className="flex flex-wrap items-center gap-4 text-xs">
 
         <div className="flex items-center gap-2 text-emerald-400">
 
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
 
-          Live database statistics
+          Live Neon database statistics
 
         </div>
 
@@ -593,7 +785,7 @@ const AdminDashboard = () => {
 
           <span className="h-2 w-2 rounded-full bg-blue-400" />
 
-          Users sourced from Authentication
+          Users sourced from Neon
 
         </div>
 
@@ -607,58 +799,65 @@ const AdminDashboard = () => {
 
       </div>
 
-      {/* STATS */}
+      {/* ===================================================
+          STATS
+      =================================================== */}
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
 
-        {stats.map((item) => {
+        {stats.map(
+          (item) => {
+            const Icon =
+              item.icon;
 
-          const Icon = item.icon;
+            return (
+              <div
+                key={item.title}
+                className="rounded-3xl border border-slate-800 bg-slate-900 p-6 transition hover:border-slate-700"
+              >
 
-          return (
-            <div
-              key={item.title}
-              className="rounded-3xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition"
-            >
+                <div className="flex justify-between">
 
-              <div className="flex justify-between">
+                  <div>
 
-                <div>
+                    <p className="text-slate-400">
+                      {item.title}
+                    </p>
 
-                  <p className="text-slate-400">
-                    {item.title}
-                  </p>
+                    <h2 className="mt-3 text-4xl font-bold">
+                      {formatNumber(
+                        item.value
+                      )}
+                    </h2>
 
-                  <h2 className="mt-3 text-4xl font-bold">
-                    {formatNumber(item.value)}
-                  </h2>
+                    <p className="mt-3 text-sm text-emerald-400">
+                      {item.change}
+                    </p>
 
-                  <p className="mt-3 text-emerald-400 text-sm">
-                    {item.change}
-                  </p>
+                  </div>
 
-                </div>
+                  <div
+                    className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-r ${item.color}`}
+                  >
+                    <Icon size={30} />
+                  </div>
 
-                <div
-                  className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-r ${item.color}`}
-                >
-                  <Icon size={30} />
                 </div>
 
               </div>
-
-            </div>
-          );
-
-        })}
+            );
+          }
+        )}
 
       </div>
 
-      {/* PROJECT GROWTH */}
+      {/* ===================================================
+          PROJECT GROWTH
+      =================================================== */}
 
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
 
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
           <div>
 
@@ -693,13 +892,18 @@ const AdminDashboard = () => {
 
             <Activity size={16} />
 
-            {formatNumber(growth.overall)} new records
+            {formatNumber(
+              growth.overall
+            )}{" "}
+            new records
 
           </div>
 
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+
+          {/* USERS */}
 
           <div className="rounded-2xl bg-slate-800 p-5">
 
@@ -713,10 +917,14 @@ const AdminDashboard = () => {
             </p>
 
             <p className="mt-1 text-2xl font-bold">
-              {formatNumber(growth.users)}
+              {formatNumber(
+                growth.users
+              )}
             </p>
 
           </div>
+
+          {/* COURSES */}
 
           <div className="rounded-2xl bg-slate-800 p-5">
 
@@ -730,10 +938,14 @@ const AdminDashboard = () => {
             </p>
 
             <p className="mt-1 text-2xl font-bold">
-              {formatNumber(growth.courses)}
+              {formatNumber(
+                growth.courses
+              )}
             </p>
 
           </div>
+
+          {/* LABS */}
 
           <div className="rounded-2xl bg-slate-800 p-5">
 
@@ -747,10 +959,14 @@ const AdminDashboard = () => {
             </p>
 
             <p className="mt-1 text-2xl font-bold">
-              {formatNumber(growth.labs)}
+              {formatNumber(
+                growth.labs
+              )}
             </p>
 
           </div>
+
+          {/* QUESTIONS */}
 
           <div className="rounded-2xl bg-slate-800 p-5">
 
@@ -764,10 +980,14 @@ const AdminDashboard = () => {
             </p>
 
             <p className="mt-1 text-2xl font-bold">
-              {formatNumber(growth.questions)}
+              {formatNumber(
+                growth.questions
+              )}
             </p>
 
           </div>
+
+          {/* NOVELS */}
 
           <div className="rounded-2xl bg-slate-800 p-5">
 
@@ -781,7 +1001,9 @@ const AdminDashboard = () => {
             </p>
 
             <p className="mt-1 text-2xl font-bold">
-              {formatNumber(growth.novels)}
+              {formatNumber(
+                growth.novels
+              )}
             </p>
 
           </div>
@@ -790,11 +1012,15 @@ const AdminDashboard = () => {
 
       </div>
 
-      {/* MIDDLE */}
+      {/* ===================================================
+          MIDDLE SECTION
+      =================================================== */}
 
       <div className="grid gap-8 lg:grid-cols-3">
 
-        {/* QUICK ACTIONS */}
+        {/* =================================================
+            QUICK ACTIONS
+        ================================================= */}
 
         <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6">
 
@@ -804,40 +1030,49 @@ const AdminDashboard = () => {
 
           <div className="mt-6 space-y-4">
 
-            {quickActions.map((action) => {
+            {quickActions.map(
+              (action) => {
+                const Icon =
+                  action.icon;
 
-              const Icon = action.icon;
+                return (
+                  <Link
+                    key={
+                      action.title
+                    }
+                    to={
+                      action.link
+                    }
+                    className="flex items-center justify-between rounded-2xl bg-slate-800 px-5 py-4 transition hover:bg-slate-700"
+                  >
 
-              return (
-                <Link
-                  key={action.title}
-                  to={action.link}
-                  className="flex items-center justify-between rounded-2xl bg-slate-800 px-5 py-4 transition hover:bg-slate-700"
-                >
+                    <div className="flex items-center gap-3">
 
-                  <div className="flex items-center gap-3">
+                      <Icon
+                        className="text-blue-400"
+                        size={20}
+                      />
 
-                    <Icon
-                      className="text-blue-400"
-                      size={20}
+                      {action.title}
+
+                    </div>
+
+                    <ArrowUpRight
+                      size={18}
                     />
 
-                    {action.title}
-
-                  </div>
-
-                  <ArrowUpRight size={18} />
-
-                </Link>
-              );
-
-            })}
+                  </Link>
+                );
+              }
+            )}
 
           </div>
 
         </div>
 
-        {/* RECENT ACTIVITY */}
+        {/* =================================================
+            RECENT ACTIVITY
+        ================================================= */}
 
         <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 lg:col-span-2">
 
@@ -864,10 +1099,14 @@ const AdminDashboard = () => {
 
           <div className="mt-6 space-y-4">
 
-            {activities.length > 0 ? (
+            {activities.length >
+            0 ? (
 
               activities.map(
-                (activity, index) => {
+                (
+                  activity,
+                  index
+                ) => {
 
                   const Icon =
                     activity.icon ||
@@ -893,11 +1132,15 @@ const AdminDashboard = () => {
                         <div>
 
                           <p className="font-medium">
-                            {activity.title}
+                            {
+                              activity.title
+                            }
                           </p>
 
                           <p className="text-sm text-slate-400">
-                            {activity.time}
+                            {
+                              activity.time
+                            }
                           </p>
 
                         </div>
@@ -906,7 +1149,6 @@ const AdminDashboard = () => {
 
                     </div>
                   );
-
                 }
               )
 
@@ -916,7 +1158,7 @@ const AdminDashboard = () => {
 
                 <Clock
                   size={30}
-                  className="mx-auto text-slate-500 mb-3"
+                  className="mx-auto mb-3 text-slate-500"
                 />
 
                 <p className="text-slate-400">
@@ -933,11 +1175,13 @@ const AdminDashboard = () => {
 
       </div>
 
-      {/* PAYMENT / REVENUE READY */}
+      {/* ===================================================
+          REVENUE
+      =================================================== */}
 
       <div className="rounded-3xl border border-dashed border-slate-700 bg-slate-900/70 p-6">
 
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
 
           <div className="flex items-center gap-4">
 

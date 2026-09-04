@@ -1,4 +1,5 @@
-import { useContext } from "react";
+import React, { useState, useEffect } from "react";
+
 import {
   BrowserRouter as Router,
   Routes,
@@ -29,7 +30,6 @@ import ResetPassword from "./pages/ResetPassword";
    CONTEXTS
 =========================== */
 
-import { AuthContext } from "./context/AuthContext";
 import { CourseProvider } from "./context/LMSContext/CourseContext";
 import { SearchProvider } from "./context/SearchContext";
 import { DocumentProvider } from "./context/DocumentContext";
@@ -110,11 +110,10 @@ import CategorySubjects from "./pages/courses/CategorySubjects";
 import SubjectCourses from "./pages/courses/SubjectCourses";
 import CategorySubjectPayment from "./pages/courses/CategorySubjectPayment";
 
-/* ===========================
-   PDF READER
-=========================== */
+/* =========================== PDF READER =========================== */
 
 import PDFReader from "./pages/courses/PDFReader";
+import VideoReader from "./pages/VideoReader";
 
 /* ===========================
    INSTRUCTOR
@@ -177,13 +176,186 @@ import ChatSupport from "./pages/support/ChatSupport";
 import DashboardLayout from "./layout/DashboardLayout";
 
 /* ============================================================
+   API CONFIG
+============================================================ */
+
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000"
+).replace(/\/$/, "");
+
+const AUTH_TOKEN_KEY = "scholiqen_auth_token";
+const AUTH_USER_KEY = "scholiqen_current_user";
+
+/* ============================================================
    PROTECTED ROUTE
+   NEON + JWT AUTHENTICATION
 ============================================================ */
 
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useContext(AuthContext);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    let mounted = true;
+
+    const checkAuthentication = async () => {
+      try {
+        /*
+         * Get JWT saved by Login.jsx
+         */
+        const token = localStorage.getItem(
+          AUTH_TOKEN_KEY
+        );
+
+        /*
+         * No token = not logged in
+         */
+        if (!token) {
+          if (mounted) {
+            setAuthenticated(false);
+            setCheckingAuth(false);
+          }
+
+          return;
+        }
+
+        /*
+         * Verify token with Express backend
+         */
+        const response = await fetch(
+          `${API_URL}/api/auth/me`,
+          {
+            method: "GET",
+
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        /*
+         * Try to read JSON response
+         */
+        let data = {};
+
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+
+        /*
+         * JWT is invalid / expired
+         */
+        if (!response.ok) {
+          console.warn(
+            "Authentication session is invalid or expired."
+          );
+
+          localStorage.removeItem(
+            AUTH_TOKEN_KEY
+          );
+
+          localStorage.removeItem(
+            AUTH_USER_KEY
+          );
+
+          if (mounted) {
+            setAuthenticated(false);
+            setCheckingAuth(false);
+          }
+
+          return;
+        }
+
+        /*
+         * Backend returned a valid user
+         */
+        if (data?.user) {
+          /*
+           * Keep the latest user cached
+           */
+          localStorage.setItem(
+            AUTH_USER_KEY,
+            JSON.stringify(data.user)
+          );
+
+          if (mounted) {
+            setAuthenticated(true);
+            setCheckingAuth(false);
+          }
+
+          return;
+        }
+
+        /*
+         * No user returned
+         */
+        localStorage.removeItem(
+          AUTH_TOKEN_KEY
+        );
+
+        localStorage.removeItem(
+          AUTH_USER_KEY
+        );
+
+        if (mounted) {
+          setAuthenticated(false);
+          setCheckingAuth(false);
+        }
+      } catch (error) {
+        console.error(
+          "Protected Route Authentication Error:",
+          error
+        );
+
+        /*
+         * IMPORTANT:
+         *
+         * If the backend is temporarily unreachable,
+         * don't immediately destroy the JWT.
+         *
+         * If we already have a cached user, allow the
+         * application to continue loading.
+         */
+        const cachedUser =
+          localStorage.getItem(AUTH_USER_KEY);
+
+        if (cachedUser) {
+          try {
+            const parsedUser =
+              JSON.parse(cachedUser);
+
+            if (parsedUser?.id && mounted) {
+              setAuthenticated(true);
+              setCheckingAuth(false);
+              return;
+            }
+          } catch {
+            // Ignore invalid cached user
+          }
+        }
+
+        if (mounted) {
+          setAuthenticated(false);
+          setCheckingAuth(false);
+        }
+      }
+    };
+
+    checkAuthentication();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /*
+   * Authentication check in progress
+   */
+  if (checkingAuth) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
         <div className="text-center">
@@ -199,7 +371,10 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  if (!user) {
+  /*
+   * Not authenticated
+   */
+  if (!authenticated) {
     return (
       <Navigate
         to="/login"
@@ -208,6 +383,9 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
+  /*
+   * Authenticated
+   */
   return children;
 };
 
@@ -699,7 +877,16 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-
+       <Route
+  path="/video/:id"
+  element={
+    <ProtectedRoute>
+      <PageWrapper>
+        <VideoReader />
+      </PageWrapper>
+    </ProtectedRoute>
+  }
+/>
         {/* =====================================================
             CBT
         ===================================================== */}

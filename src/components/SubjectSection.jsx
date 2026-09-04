@@ -1,4 +1,3 @@
-
 import React from "react";
 import { motion } from "framer-motion";
 import {
@@ -6,13 +5,9 @@ import {
   FlaskConical,
   Dna,
   Calculator,
-  Lock,
   ArrowRight,
-  Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const LAB_PRICE = 7;
 
 const subjects = [
   {
@@ -23,7 +18,6 @@ const subjects = [
       "Explore motion, force, electricity, waves and energy through simulations.",
     experiments: 24,
     path: "/lab/physics",
-    paymentKey: "physics",
   },
   {
     title: "Chemistry",
@@ -33,7 +27,6 @@ const subjects = [
       "Perform reactions, study molecules and investigate chemical properties.",
     experiments: 18,
     path: "/lab/chemistry",
-    paymentKey: "chemistry",
   },
   {
     title: "Biology",
@@ -43,7 +36,6 @@ const subjects = [
       "Discover cells, genetics, ecosystems and human body systems.",
     experiments: 20,
     path: "/lab/biology",
-    paymentKey: "biology",
   },
   {
     title: "Mathematics",
@@ -53,30 +45,14 @@ const subjects = [
       "Visualize graphs, geometry, statistics and mathematical models.",
     experiments: 16,
     path: "/lab/mathematics",
-    paymentKey: "mathematics",
   },
 ];
 
 const SubjectSection = () => {
   const navigate = useNavigate();
 
-  const handleUnlock = (subject) => {
-    /*
-      Each subject has its own payment key.
-
-      Example:
-
-      Physics     → /lab/payment/physics
-      Chemistry   → /lab/payment/chemistry
-      Biology     → /lab/payment/biology
-      Mathematics → /lab/payment/mathematics
-
-      The payment page will handle Paystack.
-    */
-
-    navigate(
-      `/lab/payment/${subject.paymentKey}`
-    );
+  const handleExplore = (subject) => {
+    navigate(subject.path);
   };
 
   return (
@@ -114,9 +90,9 @@ const SubjectSection = () => {
           className="mb-16 text-center"
         >
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/[0.07] px-4 py-2 text-xs font-black uppercase tracking-widest text-cyan-300">
-            <Sparkles size={14} />
+            <Atom size={14} />
 
-            Premium Laboratories
+            Virtual Laboratory
           </div>
 
           <h2 className="mt-5 text-4xl font-black md:text-6xl">
@@ -127,16 +103,10 @@ const SubjectSection = () => {
           </h2>
 
           <p className="mx-auto mt-6 max-w-2xl text-slate-400">
-            Unlock individual virtual laboratories and gain
-            access to interactive experiments, simulations
-            and practical learning tools.
+            Explore interactive laboratories, simulations and
+            practical learning tools designed to make complex
+            concepts easier to understand.
           </p>
-
-          <div className="mt-5 flex items-center justify-center gap-2 text-sm font-bold text-amber-300">
-            <Lock size={15} />
-
-            Each laboratory costs ${LAB_PRICE}
-          </div>
         </motion.div>
 
         {/* =====================================================
@@ -177,6 +147,7 @@ const SubjectSection = () => {
 
                 <div
                   className={`
+                    pointer-events-none
                     absolute
                     inset-0
                     rounded-3xl
@@ -192,46 +163,22 @@ const SubjectSection = () => {
 
                 {/* Card */}
 
-                <div className="
-                  relative
-                  h-full
-                  overflow-hidden
-                  rounded-3xl
-                  border
-                  border-white/10
-                  bg-slate-900/80
-                  p-8
-                  backdrop-blur-xl
-                  transition-all
-                  duration-300
-                  group-hover:border-white/20
-                ">
-
-                  {/* Premium Badge */}
-
-                  <div className="
-                    absolute
-                    right-5
-                    top-5
-                    flex
-                    items-center
-                    gap-1.5
-                    rounded-full
+                <div
+                  className="
+                    relative
+                    h-full
+                    overflow-hidden
+                    rounded-3xl
                     border
-                    border-amber-400/20
-                    bg-amber-400/[0.08]
-                    px-3
-                    py-1.5
-                    text-[10px]
-                    font-black
-                    uppercase
-                    tracking-wider
-                    text-amber-300
-                  ">
-                    <Lock size={11} />
-
-                    Premium
-                  </div>
+                    border-white/10
+                    bg-slate-900/80
+                    p-8
+                    backdrop-blur-xl
+                    transition-all
+                    duration-300
+                    group-hover:border-white/20
+                  "
+                >
 
                   {/* Gradient Accent */}
 
@@ -291,8 +238,8 @@ const SubjectSection = () => {
                       {subject.experiments} Experiments
                     </span>
 
-                    <span className="rounded-full bg-white/[0.05] px-3 py-1 text-xs font-bold text-slate-400">
-                      Premium
+                    <span className="rounded-full bg-cyan-400/[0.08] px-3 py-1 text-xs font-bold text-cyan-300">
+                      Available
                     </span>
 
                   </div>
@@ -301,31 +248,23 @@ const SubjectSection = () => {
 
                   <div className="my-6 h-px bg-white/[0.08]" />
 
-                  {/* Price */}
+                  {/* Access */}
 
-                  <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                      Laboratory
+                    </p>
 
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                        Unlock access
-                      </p>
-
-                      <div className="mt-1 text-3xl font-black text-white">
-                        ${LAB_PRICE}
-                      </div>
-                    </div>
-
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/[0.05] text-slate-400">
-                      <Lock size={18} />
-                    </div>
-
+                    <p className="mt-1 text-sm font-bold text-slate-300">
+                      Interactive Virtual Lab
+                    </p>
                   </div>
 
-                  {/* Unlock Button */}
+                  {/* Explore Button */}
 
                   <button
                     type="button"
-                    onClick={() => handleUnlock(subject)}
+                    onClick={() => handleExplore(subject)}
                     className="
                       mt-6
                       flex
@@ -351,7 +290,7 @@ const SubjectSection = () => {
                       active:scale-[0.98]
                     "
                   >
-                    Unlock {subject.title}
+                    Explore {subject.title}
 
                     <ArrowRight
                       size={17}
@@ -363,6 +302,7 @@ const SubjectSection = () => {
 
                   <div
                     className={`
+                      pointer-events-none
                       absolute
                       -bottom-10
                       -right-10
@@ -385,7 +325,6 @@ const SubjectSection = () => {
           })}
 
         </div>
-
       </div>
     </section>
   );

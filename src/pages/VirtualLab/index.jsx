@@ -2,7 +2,6 @@ import Cog from "../../assets/cog.png";
 import HeroSection from "../../components/HeroSection";
 import SubjectSection from "../../components/SubjectSection";
 import ExperimentsSection from "../../components/ExperimentsSection";
-import AIAssistantSection from "../../components/AIAssistantSection";
 import FeaturesSection from "../../components/FeaturesSection";
 import LabCTASection from "../../components/LabCTASection";
 import LabFooter from "../../components/LabFooter";
@@ -84,11 +83,7 @@ export default function Index() {
           <ExperimentsSection />
         </section>
 
-        <section className="py-8">
-          <AIAssistantSection />
-        </section>
-
-        <section className="py-8">
+           <section className="py-8">
           <FeaturesSection />
         </section>
 

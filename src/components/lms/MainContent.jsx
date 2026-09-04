@@ -2,7 +2,6 @@ import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import Dashboard from "../../pages/lms/Dashboard";
-import Courses from "../../pages/lms/Courses";
 import Course from "../../pages/lms/Course";
 import Lesson from "../../pages/lms/Lesson";
 import WeeklyTasks from "../../pages/lms/WeeklyTasks";
@@ -26,17 +25,18 @@ const pageAnimation = {
   },
 };
 
-const MainContent = ({ activePage }) => {
+const MainContent = ({ activePage, setActivePage }) => {
   const renderPage = () => {
     switch (activePage) {
       case "dashboard":
-        return <Dashboard />;
-
-      case "courses":
-        return <Courses />;
+        return (
+          <Dashboard
+            setActivePage={setActivePage}
+          />
+        );
 
       case "course":
-        return <CourseDetails />;
+        return <Course />;
 
       case "lesson":
         return <Lesson />;
@@ -57,7 +57,11 @@ const MainContent = ({ activePage }) => {
         return <Profile />;
 
       default:
-        return <Dashboard />;
+        return (
+          <Dashboard
+            setActivePage={setActivePage}
+          />
+        );
     }
   };
 

@@ -1,3 +1,5 @@
+// src/App.jsx
+
 import React, { useState, useEffect } from "react";
 
 import {
@@ -26,25 +28,19 @@ import EditProfile from "./pages/EditProfile";
 import LearningStats from "./pages/LearningStats";
 import ResetPassword from "./pages/ResetPassword";
 
-/* ===========================
-   CONTEXTS
-=========================== */
+/* =========================== CONTEXTS =========================== */
 
 import { CourseProvider } from "./context/LMSContext/CourseContext";
 import { SearchProvider } from "./context/SearchContext";
 import { DocumentProvider } from "./context/DocumentContext";
 
-/* ===========================
-   LANGUAGE
-=========================== */
+/* ===========================  LANGUAGE  =========================== */
 
 import GrammarReader from "./pages/languages/GrammarReader";
 import LanguagesHome from "./pages/languages/LanguagesHome";
 import LanguageDetails from "./pages/languages/LanguageDetails";
 
-/* ===========================
-   SCHOOLS
-=========================== */
+/* =========================== SCHOOLS =========================== */
 
 import Polytechnics from "./pages/Polytechnics/Polytechnics";
 import PolytechnicDetails from "./pages/Polytechnics/PolytechnicDetails";
@@ -55,24 +51,18 @@ import CollegeDetails from "./pages/colleges/CollegeDetails";
 import Universities from "./pages/universities/Universities";
 import UniversityDetails from "./pages/universities/UniversityDetails";
 
-/* ===========================
-   ADMIN
-=========================== */
+/* =========================== ADMIN =========================== */
 
 import AdminRoutes from "./admin/AdminRoutes";
 import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 
-/* ===========================
-   COMPONENTS
-=========================== */
+/* =========================== COMPONENTS =========================== */
 
 import Navbar from "./components/Navbar";
 import Login from "./components/Login";
 import Contact from "./components/Contact";
 
-/* ===========================
-   GENERAL PAGES
-=========================== */
+/* =========================== GENERAL PAGES =========================== */
 
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
@@ -99,6 +89,12 @@ import GenrePayment from "./pages/Payment";
 =========================== */
 
 import LMSPortal from "./pages/lms/LMSPortal";
+
+/*
+  IMPORTANT:
+  Courses is located here:
+  src/pages/courses/Courses.jsx
+*/
 import Courses from "./pages/lms/Courses";
 import CourseDetails from "./pages/lms/CourseDetails";
 import Lesson from "./pages/lms/Lesson";
@@ -110,7 +106,9 @@ import CategorySubjects from "./pages/courses/CategorySubjects";
 import SubjectCourses from "./pages/courses/SubjectCourses";
 import CategorySubjectPayment from "./pages/courses/CategorySubjectPayment";
 
-/* =========================== PDF READER =========================== */
+/* ===========================
+   PDF READER
+=========================== */
 
 import PDFReader from "./pages/courses/PDFReader";
 import VideoReader from "./pages/VideoReader";
@@ -189,7 +187,6 @@ const AUTH_USER_KEY = "scholiqen_current_user";
 
 /* ============================================================
    PROTECTED ROUTE
-   NEON + JWT AUTHENTICATION
 ============================================================ */
 
 const ProtectedRoute = ({ children }) => {
@@ -201,16 +198,10 @@ const ProtectedRoute = ({ children }) => {
 
     const checkAuthentication = async () => {
       try {
-        /*
-         * Get JWT saved by Login.jsx
-         */
         const token = localStorage.getItem(
           AUTH_TOKEN_KEY
         );
 
-        /*
-         * No token = not logged in
-         */
         if (!token) {
           if (mounted) {
             setAuthenticated(false);
@@ -220,9 +211,6 @@ const ProtectedRoute = ({ children }) => {
           return;
         }
 
-        /*
-         * Verify token with Express backend
-         */
         const response = await fetch(
           `${API_URL}/api/auth/me`,
           {
@@ -235,9 +223,6 @@ const ProtectedRoute = ({ children }) => {
           }
         );
 
-        /*
-         * Try to read JSON response
-         */
         let data = {};
 
         try {
@@ -246,9 +231,6 @@ const ProtectedRoute = ({ children }) => {
           data = {};
         }
 
-        /*
-         * JWT is invalid / expired
-         */
         if (!response.ok) {
           console.warn(
             "Authentication session is invalid or expired."
@@ -270,13 +252,7 @@ const ProtectedRoute = ({ children }) => {
           return;
         }
 
-        /*
-         * Backend returned a valid user
-         */
         if (data?.user) {
-          /*
-           * Keep the latest user cached
-           */
           localStorage.setItem(
             AUTH_USER_KEY,
             JSON.stringify(data.user)
@@ -290,9 +266,6 @@ const ProtectedRoute = ({ children }) => {
           return;
         }
 
-        /*
-         * No user returned
-         */
         localStorage.removeItem(
           AUTH_TOKEN_KEY
         );
@@ -311,15 +284,6 @@ const ProtectedRoute = ({ children }) => {
           error
         );
 
-        /*
-         * IMPORTANT:
-         *
-         * If the backend is temporarily unreachable,
-         * don't immediately destroy the JWT.
-         *
-         * If we already have a cached user, allow the
-         * application to continue loading.
-         */
         const cachedUser =
           localStorage.getItem(AUTH_USER_KEY);
 
@@ -331,6 +295,7 @@ const ProtectedRoute = ({ children }) => {
             if (parsedUser?.id && mounted) {
               setAuthenticated(true);
               setCheckingAuth(false);
+
               return;
             }
           } catch {
@@ -352,9 +317,6 @@ const ProtectedRoute = ({ children }) => {
     };
   }, []);
 
-  /*
-   * Authentication check in progress
-   */
   if (checkingAuth) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
@@ -371,9 +333,6 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  /*
-   * Not authenticated
-   */
   if (!authenticated) {
     return (
       <Navigate
@@ -383,9 +342,6 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  /*
-   * Authenticated
-   */
   return children;
 };
 
@@ -432,9 +388,9 @@ const AnimatedRoutes = () => {
         key={location.pathname}
       >
 
-        {/* =====================================================
+        {/* =========================
             HOME
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/"
@@ -449,18 +405,18 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             LOGIN
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/login"
           element={<Login />}
         />
 
-        {/* =====================================================
+        {/* =========================
             PROFILE
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/profile"
@@ -484,9 +440,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             GENERAL
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/contact"
@@ -549,9 +505,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             LANGUAGE
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/languages"
@@ -578,9 +534,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             SUPPORT
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/support"
@@ -597,9 +553,9 @@ const AnimatedRoutes = () => {
           element={<FAQ />}
         />
 
-        {/* =====================================================
+        {/* =========================
             AI TUTOR
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/ai-tutor"
@@ -619,9 +575,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             NOVELS
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/novels"
@@ -659,9 +615,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             INSTRUCTOR
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/become-instructor"
@@ -670,9 +626,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             CERTIFICATE
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/verify/:certificate_number"
@@ -681,9 +637,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             CONTACT INBOX
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/contact-inbox"
@@ -696,9 +652,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             ADMIN
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/admin/*"
@@ -773,10 +729,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            VIRTUAL LAB PREMIUM PAYMENT
-        ===================================================== */}
-
         <Route
           path="/lab/payment/:subject"
           element={
@@ -787,10 +739,6 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-
-        {/* =====================================================
-            PHYSICS LAB
-        ===================================================== */}
 
         <Route
           path="/lab/physics"
@@ -803,10 +751,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            CHEMISTRY LAB
-        ===================================================== */}
-
         <Route
           path="/lab/chemistry"
           element={
@@ -817,10 +761,6 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-
-        {/* =====================================================
-            BIOLOGY LAB
-        ===================================================== */}
 
         <Route
           path="/lab/biology"
@@ -833,10 +773,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            MATHEMATICS LAB
-        ===================================================== */}
-
         <Route
           path="/lab/mathematics"
           element={
@@ -847,10 +783,6 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-
-        {/* =====================================================
-            WORK & ENERGY
-        ===================================================== */}
 
         <Route
           path="/lab/work-energy"
@@ -863,9 +795,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             PDF READER
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/pdf/:id"
@@ -877,16 +809,22 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-       <Route
-  path="/video/:id"
-  element={
-    <ProtectedRoute>
-      <PageWrapper>
-        <VideoReader />
-      </PageWrapper>
-    </ProtectedRoute>
-  }
-/>
+
+        {/* =========================
+            VIDEO READER
+        ========================= */}
+
+        <Route
+          path="/video/:id"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <VideoReader />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
         {/* =====================================================
             CBT
         ===================================================== */}
@@ -902,10 +840,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            CBT PAYMENT
-        ===================================================== */}
-
         <Route
           path="/cbt/payment/:exam"
           element={
@@ -917,10 +851,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            CBT INSTRUCTION
-        ===================================================== */}
-
         <Route
           path="/cbt/instruction"
           element={
@@ -929,10 +859,6 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-
-        {/* =====================================================
-            CBT EXAM / SUBJECT SELECTION
-        ===================================================== */}
 
         <Route
           path="/cbt/exam/:exam"
@@ -944,10 +870,6 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-
-        {/* =====================================================
-            CBT START
-        ===================================================== */}
 
         <Route
           path="/cbt/start"
@@ -975,16 +897,10 @@ const AnimatedRoutes = () => {
           }
         />
 
-        <Route
-          path="/lms/courses"
-          element={
-            <ProtectedRoute>
-              <PageWrapper>
-                <Courses />
-              </PageWrapper>
-            </ProtectedRoute>
-          }
-        />
+        {/* =====================================================
+            COURSES
+            STANDALONE PAGE
+        ===================================================== */}
 
         <Route
           path="/courses"
@@ -1023,10 +939,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            CATEGORY SUBJECTS
-        ===================================================== */}
-
         <Route
           path="/courses/category/:categoryId"
           element={
@@ -1037,10 +949,6 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-
-        {/* =====================================================
-            DOCUMENT PAYMENT
-        ===================================================== */}
 
         <Route
           path="/courses/category/:categoryId/payment"
@@ -1054,7 +962,7 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            COURSES
+            COURSE DETAILS
         ===================================================== */}
 
         <Route
@@ -1101,9 +1009,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
+        {/* =========================
             UNIVERSITIES
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/universities"
@@ -1115,9 +1023,9 @@ const AnimatedRoutes = () => {
           element={<UniversityDetails />}
         />
 
-        {/* =====================================================
+        {/* =========================
             COLLEGES
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/colleges"
@@ -1129,9 +1037,9 @@ const AnimatedRoutes = () => {
           element={<CollegeDetails />}
         />
 
-        {/* =====================================================
+        {/* =========================
             POLYTECHNICS
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="/polytechnics"
@@ -1143,9 +1051,9 @@ const AnimatedRoutes = () => {
           element={<PolytechnicDetails />}
         />
 
-        {/* =====================================================
+        {/* =========================
             404
-        ===================================================== */}
+        ========================= */}
 
         <Route
           path="*"

@@ -5,10 +5,39 @@ import {
   BookOpen,
   Brain,
   Atom,
+  Calculator,
+  ArrowUpRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const LabFooter = () => {
+  const subjects = [
+    {
+      name: "Physics",
+      path: "/lab/physics",
+      icon: Atom,
+      color: "text-blue-400",
+    },
+    {
+      name: "Chemistry",
+      path: "/lab/chemistry",
+      icon: FlaskConical,
+      color: "text-cyan-400",
+    },
+    {
+      name: "Biology",
+      path: "/lab/biology",
+      icon: Brain,
+      color: "text-teal-400",
+    },
+    {
+      name: "Mathematics",
+      path: "/lab/mathematics",
+      icon: Calculator,
+      color: "text-sky-400",
+    },
+  ];
+
   return (
     <footer className="relative overflow-hidden border-t border-white/10 bg-slate-950">
 
@@ -18,11 +47,22 @@ const LabFooter = () => {
 
       <div className="pointer-events-none absolute left-0 top-0 h-72 w-72 rounded-full bg-cyan-500/10 blur-[120px]" />
 
-      <div className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 rounded-full bg-purple-500/10 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 rounded-full bg-blue-500/10 blur-[120px]" />
+
+      {/* Subtle grid */}
+
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.025]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.3) 1px, transparent 1px)",
+          backgroundSize: "55px 55px",
+        }}
+      />
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 py-16">
 
-        <div className="grid gap-10 md:grid-cols-4">
+        <div className="grid gap-12 md:grid-cols-4">
 
           {/* =================================================
               BRAND
@@ -41,8 +81,9 @@ const LabFooter = () => {
                   justify-center
                   rounded-xl
                   border
-                  border-cyan-500/20
-                  bg-cyan-500/10
+                  border-cyan-400/20
+                  bg-cyan-400/[0.08]
+                  shadow-[0_0_30px_rgba(34,211,238,0.08)]
                 "
               >
                 <FlaskConical
@@ -53,22 +94,23 @@ const LabFooter = () => {
 
               <div>
 
-                <h3 className="text-xl font-bold text-white">
+                <h3 className="text-xl font-black text-white">
                   Virtual Lab
                 </h3>
 
-                <p className="text-sm text-slate-400">
-                  Scholiqen AI Learning Platform
+                <p className="text-sm text-slate-500">
+                  Scholiqen Learning Platform
                 </p>
 
               </div>
 
             </div>
 
-            <p className="leading-relaxed text-slate-400">
+            <p className="max-w-sm leading-relaxed text-slate-400">
               Explore science through interactive simulations,
-              AI tutoring, virtual experiments, and immersive
-              learning experiences.
+              virtual experiments, guided learning and practical
+              experiences designed to make difficult concepts easier
+              to understand.
             </p>
 
           </div>
@@ -79,27 +121,68 @@ const LabFooter = () => {
 
           <div>
 
-            <h4 className="mb-5 font-semibold text-white">
+            <h4 className="mb-5 font-bold text-white">
               Subjects
             </h4>
 
-            <ul className="space-y-3">
+            <ul className="space-y-2">
 
-              <li className="text-slate-400 transition hover:text-cyan-400">
-                Physics
-              </li>
+              {subjects.map((subject) => {
+                const Icon = subject.icon;
 
-              <li className="text-slate-400 transition hover:text-cyan-400">
-                Chemistry
-              </li>
+                return (
+                  <li key={subject.name}>
 
-              <li className="text-slate-400 transition hover:text-cyan-400">
-                Biology
-              </li>
+                    <Link
+                      to={subject.path}
+                      className="
+                        group
+                        flex
+                        items-center
+                        justify-between
+                        rounded-xl
+                        px-3
+                        py-2.5
+                        text-slate-400
+                        transition-all
+                        duration-200
+                        hover:bg-white/[0.04]
+                        hover:text-white
+                      "
+                    >
 
-              <li className="text-slate-400 transition hover:text-cyan-400">
-                Mathematics
-              </li>
+                      <span className="flex items-center gap-3">
+
+                        <Icon
+                          size={17}
+                          className={`${subject.color} transition-transform duration-200 group-hover:scale-110`}
+                        />
+
+                        <span>
+                          {subject.name}
+                        </span>
+
+                      </span>
+
+                      <ArrowUpRight
+                        size={15}
+                        className="
+                          text-slate-600
+                          opacity-0
+                          transition-all
+                          duration-200
+                          group-hover:translate-x-0.5
+                          group-hover:-translate-y-0.5
+                          group-hover:text-cyan-400
+                          group-hover:opacity-100
+                        "
+                      />
+
+                    </Link>
+
+                  </li>
+                );
+              })}
 
             </ul>
 
@@ -111,25 +194,88 @@ const LabFooter = () => {
 
           <div>
 
-            <h4 className="mb-5 font-semibold text-white">
+            <h4 className="mb-5 font-bold text-white">
               Features
             </h4>
 
-            <ul className="space-y-4">
+            <ul className="space-y-2">
 
-              <li className="flex items-center gap-3 text-slate-400">
-                <Brain size={18} className="text-purple-400" />
-                AI Tutor
+              <li>
+                <Link
+                  to="/ai-tutor"
+                  className="
+                    group
+                    flex
+                    items-center
+                    gap-3
+                    rounded-xl
+                    px-3
+                    py-2.5
+                    text-slate-400
+                    transition-all
+                    hover:bg-white/[0.04]
+                    hover:text-white
+                  "
+                >
+                  <Brain
+                    size={18}
+                    className="text-cyan-400 transition-transform group-hover:scale-110"
+                  />
+
+                  AI Tutor
+                </Link>
               </li>
 
-              <li className="flex items-center gap-3 text-slate-400">
-                <Atom size={18} className="text-cyan-400" />
-                Virtual Experiments
+              <li>
+                <Link
+                  to="/lab"
+                  className="
+                    group
+                    flex
+                    items-center
+                    gap-3
+                    rounded-xl
+                    px-3
+                    py-2.5
+                    text-slate-400
+                    transition-all
+                    hover:bg-white/[0.04]
+                    hover:text-white
+                  "
+                >
+                  <Atom
+                    size={18}
+                    className="text-blue-400 transition-transform group-hover:scale-110"
+                  />
+
+                  Virtual Experiments
+                </Link>
               </li>
 
-              <li className="flex items-center gap-3 text-slate-400">
-                <BookOpen size={18} className="text-blue-400" />
-                Interactive Learning
+              <li>
+                <Link
+                  to="/lab"
+                  className="
+                    group
+                    flex
+                    items-center
+                    gap-3
+                    rounded-xl
+                    px-3
+                    py-2.5
+                    text-slate-400
+                    transition-all
+                    hover:bg-white/[0.04]
+                    hover:text-white
+                  "
+                >
+                  <BookOpen
+                    size={18}
+                    className="text-teal-400 transition-transform group-hover:scale-110"
+                  />
+
+                  Interactive Learning
+                </Link>
               </li>
 
             </ul>
@@ -142,21 +288,33 @@ const LabFooter = () => {
 
           <div>
 
-            <h4 className="mb-5 font-semibold text-white">
+            <h4 className="mb-5 font-bold text-white">
               Contact
             </h4>
 
             <div className="space-y-4">
 
-              <div className="flex items-center gap-3 text-slate-400">
-                <Mail
-                  size={18}
-                  className="shrink-0 text-cyan-400"
-                />
+              <div className="flex items-start gap-3 text-slate-400">
 
-                <span>
-                  scholiqen@gmail.com
-                </span>
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-400/10 bg-cyan-400/[0.05]">
+                  <Mail
+                    size={17}
+                    className="text-cyan-400"
+                  />
+                </div>
+
+                <div>
+
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Email
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-400">
+                    scholiqen@gmail.com
+                  </p>
+
+                </div>
+
               </div>
 
             </div>
@@ -169,7 +327,7 @@ const LabFooter = () => {
             DIVIDER
         ===================================================== */}
 
-        <div className="mt-12 border-t border-white/10 pt-8">
+        <div className="mt-14 border-t border-white/[0.07] pt-8">
 
           <div className="flex flex-col items-center justify-between gap-5 md:flex-row">
 

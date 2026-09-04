@@ -1,64 +1,303 @@
-// src/pages/lms/Dashboard.jsx
-
 import React from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
-  Award,
   BookOpen,
   Brain,
   CheckCircle2,
+  FlaskConical,
   GraduationCap,
-  Layers3,
   Lightbulb,
-  PlayCircle,
+  MessageCircle,
   Rocket,
   Sparkles,
   Target,
   Trophy,
-  Users,
+  Zap,
 } from "lucide-react";
 
-import { useProfile } from "../../context/LMSContext/ProfileContext";
+import { useNavigate } from "react-router-dom";
 
+import { useProfile } from "../../context/LMSContext/ProfileContext";
 import Footer from "../../components/lms/Footer";
 
 /* =========================================================
-   HELPERS
+   ANIMATIONS
 ========================================================= */
 
-const getGreeting = () => {
-  const hour = new Date().getHours();
+const fadeUp = {
+  hidden: {
+    opacity: 0,
+    y: 30,
+  },
 
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-
-  return "Good evening";
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.65,
+      ease: "easeOut",
+    },
+  },
 };
 
-const formatDate = () =>
-  new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date());
+const stagger = {
+  hidden: {},
+
+  visible: {
+    transition: {
+      staggerChildren: 0.08,
+    },
+  },
+};
 
 /* =========================================================
-   SECTION WRAPPER
+   LEARNING AREAS
 ========================================================= */
 
-const Section = ({ children, className = "" }) => {
+const learningAreas = [
+  {
+    icon: BookOpen,
+    number: "01",
+    title: "Core Knowledge",
+    description:
+      "Build a strong understanding of the concepts and ideas that form the foundation of your subjects.",
+    topics: [
+      "Clear explanations",
+      "Essential concepts",
+      "Structured learning",
+    ],
+  },
+
+  {
+    icon: Brain,
+    number: "02",
+    title: "Critical Thinking",
+    description:
+      "Develop the ability to analyse information, solve problems and approach difficult questions with confidence.",
+    topics: [
+      "Problem solving",
+      "Logical reasoning",
+      "Analytical thinking",
+    ],
+  },
+
+  {
+    icon: FlaskConical,
+    number: "03",
+    title: "Practical Application",
+    description:
+      "Move beyond theory by connecting what you learn with practical situations and real-world applications.",
+    topics: [
+      "Practical examples",
+      "Experiments",
+      "Real-world learning",
+    ],
+  },
+
+  {
+    icon: Zap,
+    number: "04",
+    title: "Skills Development",
+    description:
+      "Strengthen the academic and practical skills you need to become a more capable and independent learner.",
+    topics: [
+      "Academic skills",
+      "Study techniques",
+      "Independent learning",
+    ],
+  },
+
+  {
+    icon: Target,
+    number: "05",
+    title: "Assessment & Practice",
+    description:
+      "Test your understanding through meaningful practice and assessment that helps reveal areas for improvement.",
+    topics: [
+      "Practice questions",
+      "CBT preparation",
+      "Self-assessment",
+    ],
+  },
+
+  {
+    icon: Rocket,
+    number: "06",
+    title: "Continuous Growth",
+    description:
+      "Keep developing your knowledge, confidence and learning habits as you progress through your academic journey.",
+    topics: [
+      "Consistent learning",
+      "Personal growth",
+      "Long-term improvement",
+    ],
+  },
+];
+
+/* =========================================================
+   FEATURES
+========================================================= */
+
+const features = [
+  {
+    icon: GraduationCap,
+    title: "Structured Learning",
+    description:
+      "A focused learning environment designed to make studying clearer and more organised.",
+  },
+
+  {
+    icon: Brain,
+    title: "Think Deeper",
+    description:
+      "Develop stronger reasoning and problem-solving skills instead of simply memorising information.",
+  },
+
+  {
+    icon: FlaskConical,
+    title: "Learn by Doing",
+    description:
+      "Connect classroom knowledge with practical activities, experiments and real-world examples.",
+  },
+
+  {
+    icon: MessageCircle,
+    title: "Learning Support",
+    description:
+      "Get guidance and support when you need help understanding challenging concepts.",
+  },
+
+  {
+    icon: Target,
+    title: "Practice & Prepare",
+    description:
+      "Reinforce your knowledge with practice activities and assessment opportunities.",
+  },
+
+  {
+    icon: Trophy,
+    title: "Grow With Confidence",
+    description:
+      "Build the knowledge, skills and confidence needed to take on bigger academic challenges.",
+  },
+];
+
+/* =========================================================
+   OUTCOMES
+========================================================= */
+
+const outcomes = [
+  {
+    icon: CheckCircle2,
+    title: "Stronger Understanding",
+    description:
+      "Understand important concepts instead of relying only on memorisation.",
+  },
+
+  {
+    icon: Brain,
+    title: "Better Thinking",
+    description:
+      "Approach questions and problems with stronger reasoning and confidence.",
+  },
+
+  {
+    icon: FlaskConical,
+    title: "Practical Skills",
+    description:
+      "Understand how academic knowledge can be applied beyond the classroom.",
+  },
+
+  {
+    icon: Trophy,
+    title: "Academic Confidence",
+    description:
+      "Become more comfortable tackling lessons, assignments and examinations.",
+  },
+
+  {
+    icon: MessageCircle,
+    title: "Communication",
+    description:
+      "Express ideas more clearly through better understanding and organised thinking.",
+  },
+
+  {
+    icon: Rocket,
+    title: "Long-Term Growth",
+    description:
+      "Develop learning habits that continue to benefit you throughout your education.",
+  },
+];
+
+/* =========================================================
+   SECTION HEADING
+========================================================= */
+
+const SectionHeading = ({
+  eyebrow,
+  title,
+  description,
+}) => {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 18 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.12 }}
-      transition={{ duration: 0.5 }}
-      className={className}
+    <motion.div
+      variants={fadeUp}
+      className="mx-auto mb-14 max-w-3xl text-center"
     >
-      {children}
-    </motion.section>
+      <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/[0.06] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">
+        <Sparkles className="h-3.5 w-3.5" />
+
+        {eyebrow}
+      </div>
+
+      <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+        {title}
+      </h2>
+
+      <p className="mt-5 text-base leading-7 text-slate-400 sm:text-lg">
+        {description}
+      </p>
+    </motion.div>
+  );
+};
+
+/* =========================================================
+   FEATURE CARD
+========================================================= */
+
+const FeatureCard = ({
+  icon: Icon,
+  title,
+  description,
+}) => {
+  return (
+    <motion.div
+      variants={fadeUp}
+      whileHover={{
+        y: -6,
+      }}
+      transition={{
+        duration: 0.2,
+      }}
+      className="group relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/50 p-6 backdrop-blur-xl"
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.05] via-transparent to-cyan-500/[0.04] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+      <div className="relative">
+        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+          <Icon className="h-6 w-6" />
+        </div>
+
+        <h3 className="text-lg font-semibold text-white">
+          {title}
+        </h3>
+
+        <p className="mt-3 text-sm leading-6 text-slate-400">
+          {description}
+        </p>
+      </div>
+    </motion.div>
   );
 };
 
@@ -72,117 +311,45 @@ const LearningCard = ({
   title,
   description,
   topics,
-  iconClass,
 }) => {
   return (
     <motion.div
+      variants={fadeUp}
       whileHover={{
         y: -6,
       }}
-      transition={{
-        duration: 0.25,
-      }}
-      className="
-        group
-        relative
-        overflow-hidden
-        rounded-[28px]
-        border border-white/[0.07]
-        bg-[#0b1220]
-        p-6
-        shadow-[0_20px_70px_rgba(0,0,0,0.16)]
-      "
+      className="group relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/45 p-6 backdrop-blur-xl transition-colors duration-300 hover:border-blue-500/30"
     >
-      <div
-        className="
-          pointer-events-none
-          absolute
-          -right-20
-          -top-20
-          h-48
-          w-48
-          rounded-full
-          bg-cyan-500/[0.04]
-          blur-3xl
-          transition
-          duration-500
-          group-hover:bg-cyan-500/[0.08]
-        "
-      />
+      <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-blue-500/[0.06] blur-3xl transition-all duration-500 group-hover:bg-blue-500/[0.1]" />
 
-      <div className="relative z-10">
-        <div className="flex items-start justify-between">
-          <div
-            className={`
-              flex
-              h-14
-              w-14
-              items-center
-              justify-center
-              rounded-2xl
-              ${iconClass}
-            `}
-          >
-            <Icon size={25} />
+      <div className="relative">
+        <div className="mb-6 flex items-start justify-between">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/[0.07] text-cyan-300">
+            <Icon className="h-6 w-6" />
           </div>
 
-          <span
-            className="
-              text-4xl
-              font-black
-              tracking-tight
-              text-white/[0.05]
-            "
-          >
+          <span className="text-xs font-semibold tracking-[0.2em] text-slate-600">
             {number}
           </span>
         </div>
 
-        <h3
-          className="
-            mt-7
-            text-xl
-            font-bold
-            tracking-tight
-            text-white
-          "
-        >
+        <h3 className="text-xl font-semibold text-white">
           {title}
         </h3>
 
-        <p
-          className="
-            mt-3
-            text-sm
-            leading-7
-            text-slate-500
-          "
-        >
+        <p className="mt-3 text-sm leading-6 text-slate-400">
           {description}
         </p>
 
-        <div className="mt-6 space-y-3">
+        <div className="mt-6 space-y-2.5">
           {topics.map((topic) => (
             <div
               key={topic}
-              className="
-                flex
-                items-start
-                gap-3
-                text-sm
-                text-slate-400
-              "
+              className="flex items-center gap-2 text-sm text-slate-500"
             >
-              <CheckCircle2
-                size={17}
-                className="
-                  mt-0.5
-                  shrink-0
-                  text-cyan-400
-                "
-              />
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
 
-              <span>{topic}</span>
+              {topic}
             </div>
           ))}
         </div>
@@ -202,55 +369,22 @@ const OutcomeCard = ({
 }) => {
   return (
     <motion.div
-      whileHover={{
-        y: -4,
-      }}
-      transition={{
-        duration: 0.25,
-      }}
-      className="
-        rounded-[24px]
-        border border-white/[0.07]
-        bg-[#0b1220]
-        p-6
-      "
+      variants={fadeUp}
+      className="flex gap-4 rounded-2xl border border-slate-800/70 bg-slate-900/35 p-5 backdrop-blur-xl"
     >
-      <div
-        className="
-          flex
-          h-12
-          w-12
-          items-center
-          justify-center
-          rounded-2xl
-          bg-cyan-500/10
-          text-cyan-400
-        "
-      >
-        <Icon size={22} />
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-300">
+        <Icon className="h-5 w-5" />
       </div>
 
-      <h3
-        className="
-          mt-5
-          text-lg
-          font-bold
-          text-white
-        "
-      >
-        {title}
-      </h3>
+      <div>
+        <h3 className="font-semibold text-white">
+          {title}
+        </h3>
 
-      <p
-        className="
-          mt-2
-          text-sm
-          leading-6
-          text-slate-500
-        "
-      >
-        {description}
-      </p>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          {description}
+        </p>
+      </div>
     </motion.div>
   );
 };
@@ -260,15 +394,9 @@ const OutcomeCard = ({
 ========================================================= */
 
 const Dashboard = () => {
-  const profileContext = useProfile() || {};
+  const navigate = useNavigate();
 
-  const {
-    profile,
-  } = profileContext;
-
-  /* =======================================================
-     USER
-  ======================================================= */
+  const { profile } = useProfile();
 
   const displayName =
     profile?.username ||
@@ -277,1091 +405,576 @@ const Dashboard = () => {
     profile?.name ||
     "Student";
 
-  const firstName =
-    String(displayName)
-      .trim()
-      .split(/\s+/)[0] || "Student";
+  const firstName = displayName.split(" ")[0];
 
   /* =======================================================
-     LEARNING CONTENT
+     GO TO COURSES
   ======================================================= */
 
-  const learningAreas = [
-    {
-      number: "01",
-      icon: BookOpen,
-      title: "Core Knowledge",
-      description:
-        "Build a strong understanding of the fundamental concepts that form the foundation of your chosen area of study.",
-      topics: [
-        "Understand important concepts and principles",
-        "Build a strong academic foundation",
-        "Connect theory with practical examples",
-      ],
-      iconClass:
-        "bg-cyan-500/10 text-cyan-400",
-    },
-    {
-      number: "02",
-      icon: Brain,
-      title: "Critical Thinking",
-      description:
-        "Develop the ability to understand problems, analyse information and make informed decisions using what you learn.",
-      topics: [
-        "Analyse information effectively",
-        "Solve academic and practical problems",
-        "Develop independent thinking skills",
-      ],
-      iconClass:
-        "bg-violet-500/10 text-violet-400",
-    },
-    {
-      number: "03",
-      icon: Layers3,
-      title: "Practical Application",
-      description:
-        "Move beyond memorising information by learning how knowledge can be applied to realistic situations and challenges.",
-      topics: [
-        "Apply concepts to practical situations",
-        "Work through real-world examples",
-        "Build useful problem-solving abilities",
-      ],
-      iconClass:
-        "bg-emerald-500/10 text-emerald-400",
-    },
-    {
-      number: "04",
-      icon: Lightbulb,
-      title: "Skills Development",
-      description:
-        "Strengthen the skills needed to learn effectively, communicate ideas clearly and approach new challenges with confidence.",
-      topics: [
-        "Improve learning and study skills",
-        "Communicate ideas more effectively",
-        "Build confidence through practice",
-      ],
-      iconClass:
-        "bg-amber-500/10 text-amber-400",
-    },
-    {
-      number: "05",
-      icon: Target,
-      title: "Assessment & Practice",
-      description:
-        "Use exercises, questions and practical activities to test your understanding and identify areas that need more attention.",
-      topics: [
-        "Test your understanding",
-        "Identify areas for improvement",
-        "Strengthen knowledge through repetition",
-      ],
-      iconClass:
-        "bg-blue-500/10 text-blue-400",
-    },
-    {
-      number: "06",
-      icon: Rocket,
-      title: "Continuous Growth",
-      description:
-        "Develop a learning mindset that encourages you to keep improving as you progress through your educational journey.",
-      topics: [
-        "Build consistent learning habits",
-        "Track your development",
-        "Prepare for more advanced learning",
-      ],
-      iconClass:
-        "bg-orange-500/10 text-orange-400",
-    },
-  ];
+  const goToCourses = () => {
+    navigate("/courses");
+  };
 
-  const outcomes = [
-    {
-      icon: GraduationCap,
-      title: "Stronger Understanding",
-      description:
-        "You will develop a clearer and deeper understanding of the subjects and concepts you study.",
-    },
-    {
-      icon: Brain,
-      title: "Better Thinking",
-      description:
-        "You will learn to approach questions, problems and unfamiliar situations more logically.",
-    },
-    {
-      icon: Lightbulb,
-      title: "Practical Skills",
-      description:
-        "You will learn how to move from simply knowing something to understanding how to use it.",
-    },
-    {
-      icon: Award,
-      title: "Academic Confidence",
-      description:
-        "Consistent learning and practice will help you become more confident in your academic abilities.",
-    },
-    {
-      icon: Users,
-      title: "Communication",
-      description:
-        "You will develop the ability to understand, organise and communicate what you have learned.",
-    },
-    {
-      icon: Trophy,
-      title: "Long-Term Growth",
-      description:
-        "The knowledge and skills you develop here provide a foundation for continued learning.",
-    },
-  ];
+  /* =======================================================
+     GREETING
+  ======================================================= */
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) {
+      return "Good morning";
+    }
+
+    if (hour < 17) {
+      return "Good afternoon";
+    }
+
+    return "Good evening";
+  };
+
+  /* =======================================================
+     SCROLL TO LEARNING EXPERIENCE
+  ======================================================= */
+
+  const scrollToLearning = () => {
+    document
+      .getElementById("learning-experience")
+      ?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+  };
+
+  /* =======================================================
+     SCROLL TO LEARNING AREAS
+  ======================================================= */
+
+  const scrollToLearningAreas = () => {
+    document
+      .getElementById("learning-areas")
+      ?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+  };
 
   return (
-    <div className="min-h-screen bg-[#050912] text-white">
-      <main
-        className="
-          mx-auto
-          w-full
-          max-w-[1600px]
-          px-4
-          py-6
-          sm:px-6
-          lg:px-8
-          lg:py-8
-        "
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+
+      {/* =====================================================
+          GLOBAL BACKGROUND
+      ===================================================== */}
+
+      <div
+        className="pointer-events-none fixed inset-0 opacity-[0.025]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px)",
+          backgroundSize: "55px 55px",
+        }}
+      />
+
+      <div className="pointer-events-none fixed left-[5%] top-[10%] h-96 w-96 rounded-full bg-blue-600/[0.06] blur-[140px]" />
+
+      <div className="pointer-events-none fixed right-[5%] top-[35%] h-96 w-96 rounded-full bg-cyan-500/[0.045] blur-[150px]" />
+
+      <div className="pointer-events-none fixed bottom-0 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-blue-500/[0.035] blur-[150px]" />
+
+      {/* =====================================================
+          HERO
+      ===================================================== */}
+
+      <section className="relative isolate overflow-hidden">
+
+        <div className="mx-auto max-w-[1500px] px-6 pb-24 pt-16 sm:px-8 sm:pt-20 lg:px-12 lg:pb-32 lg:pt-24">
+
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={stagger}
+            className="mx-auto max-w-5xl text-center"
+          >
+
+            {/* HERO BADGE */}
+
+            <motion.div variants={fadeUp}>
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/[0.06] px-4 py-2 text-xs font-medium text-blue-300 shadow-lg shadow-blue-950/20">
+
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-50" />
+
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-400" />
+                </span>
+
+                Scholiqen Learning Management System
+
+              </div>
+            </motion.div>
+
+            {/* GREETING */}
+
+            <motion.p
+              variants={fadeUp}
+              className="mt-8 text-sm font-medium text-slate-500"
+            >
+              {getGreeting()}, {firstName}
+            </motion.p>
+
+            {/* HERO TITLE */}
+
+            <motion.h1
+              variants={fadeUp}
+              className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl"
+            >
+              Learn with purpose.
+
+              <span className="block bg-gradient-to-r from-blue-400 via-cyan-300 to-teal-300 bg-clip-text text-transparent">
+                Grow with confidence.
+              </span>
+            </motion.h1>
+
+            {/* HERO DESCRIPTION */}
+
+            <motion.p
+              variants={fadeUp}
+              className="mx-auto mt-7 max-w-2xl text-base leading-7 text-slate-400 sm:text-lg sm:leading-8"
+            >
+              Welcome to a learning environment designed to help you
+              understand more, think better, practise what you learn,
+              and build the confidence to keep moving forward.
+            </motion.p>
+
+            {/* HERO BUTTONS */}
+
+            <motion.div
+              variants={fadeUp}
+              className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row"
+            >
+
+              {/* COURSES */}
+
+              <button
+                type="button"
+                onClick={goToCourses}
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition-all duration-300 hover:bg-blue-400 hover:shadow-blue-500/20"
+              >
+                <BookOpen className="h-4 w-4" />
+
+                Courses
+
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </button>
+
+              {/* EXPLORE LEARNING */}
+
+              <button
+                type="button"
+                onClick={scrollToLearning}
+                className="group inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900/60 px-6 py-3.5 text-sm font-semibold text-slate-200 transition-all duration-300 hover:border-blue-500/30 hover:bg-slate-800"
+              >
+                <Brain className="h-4 w-4 text-cyan-300" />
+
+                Explore Learning
+
+                <ArrowRight className="h-4 w-4 opacity-60 transition-transform duration-300 group-hover:translate-x-1" />
+              </button>
+
+              {/* DISCOVER MORE */}
+
+              <button
+                type="button"
+                onClick={scrollToLearningAreas}
+                className="group inline-flex items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-6 py-3.5 text-sm font-semibold text-slate-300 transition-all duration-300 hover:border-slate-600 hover:bg-slate-900 hover:text-white"
+              >
+                <Sparkles className="h-4 w-4 text-blue-300" />
+
+                Discover More
+
+                <ArrowRight className="h-4 w-4 opacity-60 transition-transform duration-300 group-hover:translate-x-1" />
+              </button>
+
+            </motion.div>
+
+          </motion.div>
+
+          {/* HERO VISUAL */}
+
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 40,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            transition={{
+              delay: 0.5,
+              duration: 0.8,
+            }}
+            className="relative mx-auto mt-20 max-w-5xl"
+          >
+
+            <div className="absolute inset-0 rounded-3xl bg-blue-500/[0.08] blur-3xl" />
+
+            <div className="relative overflow-hidden rounded-3xl border border-slate-800/80 bg-slate-900/60 p-1 shadow-2xl shadow-black/30 backdrop-blur-xl">
+
+              <div className="rounded-[22px] border border-slate-800/70 bg-slate-950/80 p-5 sm:p-7">
+
+                <div className="grid gap-4 sm:grid-cols-3">
+
+                  {/* LEARN */}
+
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
+                      <BookOpen className="h-5 w-5" />
+                    </div>
+
+                    <p className="mt-5 text-sm font-semibold text-white">
+                      Learn
+                    </p>
+
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      Understand concepts clearly and build strong
+                      foundations.
+                    </p>
+
+                  </div>
+
+                  {/* PRACTISE */}
+
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">
+                      <Brain className="h-5 w-5" />
+                    </div>
+
+                    <p className="mt-5 text-sm font-semibold text-white">
+                      Practise
+                    </p>
+
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      Apply your knowledge and strengthen your
+                      understanding.
+                    </p>
+
+                  </div>
+
+                  {/* GROW */}
+
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-300">
+                      <Rocket className="h-5 w-5" />
+                    </div>
+
+                    <p className="mt-5 text-sm font-semibold text-white">
+                      Grow
+                    </p>
+
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      Turn knowledge into confidence and lasting
+                      skills.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </motion.div>
+
+        </div>
+
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
+
+      </section>
+
+      {/* =====================================================
+          LEARNING EXPERIENCE
+      ===================================================== */}
+
+      <section
+        id="learning-experience"
+        className="relative scroll-mt-20 px-6 py-24 sm:px-8 lg:px-12 lg:py-28"
       >
 
-        {/* =================================================
-            HERO
-        ================================================= */}
+        <div className="mx-auto max-w-[1400px]">
 
-        <motion.section
-          initial={{
-            opacity: 0,
-            y: 20,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{
-            duration: 0.5,
-          }}
-          className="
-            relative
-            overflow-hidden
-            rounded-[32px]
-            border
-            border-white/[0.07]
-            bg-[#0a1220]
-            shadow-[0_30px_100px_rgba(0,0,0,0.25)]
-          "
-        >
-          {/* BACKGROUND */}
-
-          <div
-            className="
-              pointer-events-none
-              absolute
-              inset-0
-            "
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{
+              once: true,
+              amount: 0.15,
+            }}
+            variants={stagger}
           >
-            <div
-              className="
-                absolute
-                -left-32
-                -top-32
-                h-96
-                w-96
-                rounded-full
-                bg-cyan-500/[0.08]
-                blur-[100px]
-              "
+
+            <SectionHeading
+              eyebrow="The Learning Experience"
+              title="Everything is built around better learning."
+              description="Scholiqen brings together the tools, learning experiences and support you need to make your academic journey more effective."
             />
 
-            <div
-              className="
-                absolute
-                -bottom-40
-                right-0
-                h-[500px]
-                w-[500px]
-                rounded-full
-                bg-blue-600/[0.06]
-                blur-[120px]
-              "
-            />
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 
-            <div
-              className="
-                absolute
-                inset-0
-                opacity-[0.035]
-                [background-image:linear-gradient(rgba(255,255,255,.2)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.2)_1px,transparent_1px)]
-                [background-size:36px_36px]
-              "
-            />
-          </div>
+              {features.map((feature) => (
+                <FeatureCard
+                  key={feature.title}
+                  {...feature}
+                />
+              ))}
 
-          <div
-            className="
-              relative
-              z-10
-              p-7
-              sm:p-9
-              lg:p-12
-            "
+            </div>
+
+          </motion.div>
+
+        </div>
+
+      </section>
+
+      {/* =====================================================
+          HOW IT WORKS
+      ===================================================== */}
+
+      <section className="relative border-y border-slate-800/60 bg-slate-900/[0.18] px-6 py-24 sm:px-8 lg:px-12 lg:py-28">
+
+        <div className="mx-auto max-w-[1200px]">
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{
+              once: true,
+              amount: 0.2,
+            }}
+            variants={stagger}
           >
-            <div
-              className="
-                grid
-                gap-10
-                lg:grid-cols-[1fr_auto]
-                lg:items-center
-              "
-            >
 
-              {/* HERO CONTENT */}
+            <SectionHeading
+              eyebrow="A Better Approach"
+              title="Learn. Practise. Master."
+              description="Learning becomes more powerful when knowledge is followed by practice and reflection."
+            />
 
-              <div className="max-w-3xl">
+            <div className="relative grid gap-8 md:grid-cols-3">
 
-                <div
-                  className="
-                    inline-flex
-                    items-center
-                    gap-2
-                    rounded-full
-                    border
-                    border-cyan-400/15
-                    bg-cyan-400/[0.07]
-                    px-4
-                    py-2
-                    text-sm
-                    font-semibold
-                    text-cyan-300
-                  "
+              <div className="pointer-events-none absolute left-[16%] right-[16%] top-12 hidden h-px bg-gradient-to-r from-blue-500/10 via-cyan-400/40 to-blue-500/10 md:block" />
+
+              {[
+                {
+                  number: "01",
+                  icon: BookOpen,
+                  title: "Learn",
+                  description:
+                    "Build your knowledge through clear explanations and structured learning experiences.",
+                },
+
+                {
+                  number: "02",
+                  icon: Lightbulb,
+                  title: "Practise",
+                  description:
+                    "Use questions, activities and practical experiences to reinforce what you understand.",
+                },
+
+                {
+                  number: "03",
+                  icon: Rocket,
+                  title: "Master",
+                  description:
+                    "Develop confidence by applying your knowledge and continuously improving your skills.",
+                },
+              ].map((step) => (
+                <motion.div
+                  key={step.number}
+                  variants={fadeUp}
+                  className="relative text-center"
                 >
-                  <Sparkles size={16} />
 
-                  Your Learning Dashboard
-                </div>
+                  <div className="relative mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-blue-400/20 bg-slate-950 shadow-xl shadow-blue-950/20">
 
-                <h1
-                  className="
-                    mt-6
-                    text-4xl
-                    font-black
-                    leading-[1.05]
-                    tracking-tight
-                    sm:text-5xl
-                    lg:text-6xl
-                  "
-                >
-                  {getGreeting()},
-
-                  <span className="text-cyan-400">
-                    {" "}
-                    {firstName}
-                  </span>
-                </h1>
-
-                <p
-                  className="
-                    mt-5
-                    max-w-2xl
-                    text-base
-                    leading-7
-                    text-slate-400
-                    sm:text-lg
-                  "
-                >
-                  {formatDate()}
-                  <br />
-                  <span className="mt-2 block">
-                    Your learning journey starts here.
-                    Explore the knowledge, skills and
-                    practical understanding you will
-                    develop throughout your learning
-                    experience.
-                  </span>
-                </p>
-
-              </div>
-
-              {/* HERO SUMMARY */}
-
-              <div
-                className="
-                  grid
-                  grid-cols-2
-                  gap-3
-                  lg:w-[340px]
-                "
-              >
-
-                <div
-                  className="
-                    rounded-[22px]
-                    border
-                    border-white/[0.07]
-                    bg-black/20
-                    p-5
-                  "
-                >
-                  <div
-                    className="
-                      flex
-                      h-10
-                      w-10
-                      items-center
-                      justify-center
-                      rounded-xl
-                      bg-cyan-500/10
-                      text-cyan-400
-                    "
-                  >
-                    <BookOpen size={20} />
-                  </div>
-
-                  <p
-                    className="
-                      mt-5
-                      text-3xl
-                      font-black
-                    "
-                  >
-                    01
-                  </p>
-
-                  <p
-                    className="
-                      mt-1
-                      text-sm
-                      text-slate-500
-                    "
-                  >
-                    Learn
-                  </p>
-                </div>
-
-                <div
-                  className="
-                    rounded-[22px]
-                    border
-                    border-white/[0.07]
-                    bg-black/20
-                    p-5
-                  "
-                >
-                  <div
-                    className="
-                      flex
-                      h-10
-                      w-10
-                      items-center
-                      justify-center
-                      rounded-xl
-                      bg-violet-500/10
-                      text-violet-400
-                    "
-                  >
-                    <Brain size={20} />
-                  </div>
-
-                  <p
-                    className="
-                      mt-5
-                      text-3xl
-                      font-black
-                    "
-                  >
-                    02
-                  </p>
-
-                  <p
-                    className="
-                      mt-1
-                      text-sm
-                      text-slate-500
-                    "
-                  >
-                    Understand
-                  </p>
-                </div>
-
-                <div
-                  className="
-                    col-span-2
-                    rounded-[22px]
-                    border
-                    border-white/[0.07]
-                    bg-black/20
-                    p-5
-                  "
-                >
-                  <div className="flex items-center justify-between">
-
-                    <div>
-                      <p
-                        className="
-                          text-sm
-                          font-semibold
-                          text-slate-300
-                        "
-                      >
-                        Your learning journey
-                      </p>
-
-                      <p
-                        className="
-                          mt-1
-                          text-xs
-                          text-slate-500
-                        "
-                      >
-                        Learn • Practise • Apply • Grow
-                      </p>
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-500/10 text-blue-300">
+                      <step.icon className="h-6 w-6" />
                     </div>
 
-                    <div
-                      className="
-                        flex
-                        h-10
-                        w-10
-                        items-center
-                        justify-center
-                        rounded-xl
-                        bg-emerald-500/10
-                        text-emerald-400
-                      "
-                    >
-                      <Rocket size={20} />
-                    </div>
+                    <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-[10px] font-bold text-cyan-300">
+                      {step.number}
+                    </span>
 
                   </div>
 
-                  <div className="mt-5 flex gap-1.5">
-                    <div className="h-1.5 flex-1 rounded-full bg-cyan-400" />
-                    <div className="h-1.5 flex-1 rounded-full bg-blue-400" />
-                    <div className="h-1.5 flex-1 rounded-full bg-violet-400" />
-                    <div className="h-1.5 flex-1 rounded-full bg-emerald-400" />
-                  </div>
+                  <h3 className="mt-7 text-xl font-semibold text-white">
+                    {step.title}
+                  </h3>
 
-                </div>
+                  <p className="mx-auto mt-3 max-w-xs text-sm leading-6 text-slate-400">
+                    {step.description}
+                  </p>
 
-              </div>
-            </div>
-          </div>
-        </motion.section>
+                </motion.div>
+              ))}
 
-        {/* =================================================
-            INTRODUCTION
-        ================================================= */}
-
-        <Section className="mt-16">
-          <div className="max-w-3xl">
-
-            <div
-              className="
-                inline-flex
-                items-center
-                gap-2
-                rounded-full
-                bg-cyan-500/10
-                px-4
-                py-2
-                text-sm
-                font-semibold
-                text-cyan-400
-              "
-            >
-              <BookOpen size={16} />
-              What You'll Learn
             </div>
 
-            <h2
-              className="
-                mt-5
-                text-3xl
-                font-black
-                tracking-tight
-                sm:text-4xl
-              "
-            >
-              Build knowledge that goes
-              <span className="text-cyan-400">
-                {" "}
-                beyond the classroom.
-              </span>
-            </h2>
+          </motion.div>
 
-            <p
-              className="
-                mt-5
-                text-base
-                leading-8
-                text-slate-500
-                sm:text-lg
-              "
-            >
-              This learning experience is designed to
-              help you understand concepts, develop useful
-              skills, practise what you learn and become
-              confident applying your knowledge.
-            </p>
+        </div>
 
-          </div>
-        </Section>
+      </section>
 
-        {/* =================================================
-            LEARNING AREAS
-        ================================================= */}
+      {/* =====================================================
+          LEARNING AREAS
+      ===================================================== */}
 
-        <Section className="mt-10">
+      <section
+        id="learning-areas"
+        className="relative scroll-mt-20 px-6 py-24 sm:px-8 lg:px-12 lg:py-32"
+      >
 
-          <div
-            className="
-              grid
-              gap-5
-              md:grid-cols-2
-              xl:grid-cols-3
-            "
-          >
-            {learningAreas.map((area) => (
-              <LearningCard
-                key={area.number}
-                {...area}
-              />
-            ))}
-          </div>
+        <div className="mx-auto max-w-[1400px]">
 
-        </Section>
-
-        {/* =================================================
-            LEARNING PROCESS
-        ================================================= */}
-
-        <Section className="mt-16">
-
-          <div
-            className="
-              relative
-              overflow-hidden
-              rounded-[32px]
-              border
-              border-white/[0.07]
-              bg-[#0a1220]
-              p-7
-              sm:p-9
-              lg:p-12
-            "
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{
+              once: true,
+              amount: 0.1,
+            }}
+            variants={stagger}
           >
 
-            <div
-              className="
-                pointer-events-none
-                absolute
-                right-0
-                top-0
-                h-72
-                w-72
-                rounded-full
-                bg-cyan-500/[0.05]
-                blur-[100px]
-              "
+            <SectionHeading
+              eyebrow="What You'll Develop"
+              title="Build more than just knowledge."
+              description="A strong education is about understanding, thinking, applying, practising and continuing to grow."
             />
 
-            <div className="relative z-10">
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
 
-              <div className="max-w-2xl">
+              {learningAreas.map((area) => (
+                <LearningCard
+                  key={area.number}
+                  {...area}
+                />
+              ))}
 
-                <div
-                  className="
-                    flex
-                    items-center
-                    gap-3
-                  "
-                >
-                  <div
-                    className="
-                      flex
-                      h-11
-                      w-11
-                      items-center
-                      justify-center
-                      rounded-xl
-                      bg-violet-500/10
-                      text-violet-400
-                    "
-                  >
-                    <PlayCircle size={21} />
-                  </div>
-
-                  <span
-                    className="
-                      text-sm
-                      font-bold
-                      uppercase
-                      tracking-[0.2em]
-                      text-violet-400
-                    "
-                  >
-                    How You'll Learn
-                  </span>
-                </div>
-
-                <h2
-                  className="
-                    mt-5
-                    text-3xl
-                    font-black
-                    tracking-tight
-                    sm:text-4xl
-                  "
-                >
-                  Learn at your own pace,
-                  <span className="text-violet-400">
-                    {" "}
-                    one concept at a time.
-                  </span>
-                </h2>
-
-                <p
-                  className="
-                    mt-4
-                    text-base
-                    leading-7
-                    text-slate-500
-                  "
-                >
-                  Your learning experience combines
-                  explanations, examples, practice and
-                  continuous reinforcement so that each
-                  concept becomes easier to understand
-                  and remember.
-                </p>
-
-              </div>
-
-              <div
-                className="
-                  mt-10
-                  grid
-                  gap-4
-                  md:grid-cols-4
-                "
-              >
-
-                <div
-                  className="
-                    rounded-2xl
-                    border
-                    border-white/[0.06]
-                    bg-black/20
-                    p-5
-                  "
-                >
-                  <span
-                    className="
-                      text-xs
-                      font-black
-                      text-cyan-400
-                    "
-                  >
-                    01
-                  </span>
-
-                  <h3
-                    className="
-                      mt-4
-                      font-bold
-                    "
-                  >
-                    Learn
-                  </h3>
-
-                  <p
-                    className="
-                      mt-2
-                      text-sm
-                      leading-6
-                      text-slate-500
-                    "
-                  >
-                    Understand the concept and its
-                    important principles.
-                  </p>
-                </div>
-
-                <div
-                  className="
-                    rounded-2xl
-                    border
-                    border-white/[0.06]
-                    bg-black/20
-                    p-5
-                  "
-                >
-                  <span
-                    className="
-                      text-xs
-                      font-black
-                      text-blue-400
-                    "
-                  >
-                    02
-                  </span>
-
-                  <h3
-                    className="
-                      mt-4
-                      font-bold
-                    "
-                  >
-                    Practise
-                  </h3>
-
-                  <p
-                    className="
-                      mt-2
-                      text-sm
-                      leading-6
-                      text-slate-500
-                    "
-                  >
-                    Reinforce your understanding through
-                    questions and activities.
-                  </p>
-                </div>
-
-                <div
-                  className="
-                    rounded-2xl
-                    border
-                    border-white/[0.06]
-                    bg-black/20
-                    p-5
-                  "
-                >
-                  <span
-                    className="
-                      text-xs
-                      font-black
-                      text-violet-400
-                    "
-                  >
-                    03
-                  </span>
-
-                  <h3
-                    className="
-                      mt-4
-                      font-bold
-                    "
-                  >
-                    Apply
-                  </h3>
-
-                  <p
-                    className="
-                      mt-2
-                      text-sm
-                      leading-6
-                      text-slate-500
-                    "
-                  >
-                    Use what you know to solve practical
-                    problems and situations.
-                  </p>
-                </div>
-
-                <div
-                  className="
-                    rounded-2xl
-                    border
-                    border-white/[0.06]
-                    bg-black/20
-                    p-5
-                  "
-                >
-                  <span
-                    className="
-                      text-xs
-                      font-black
-                      text-emerald-400
-                    "
-                  >
-                    04
-                  </span>
-
-                  <h3
-                    className="
-                      mt-4
-                      font-bold
-                    "
-                  >
-                    Grow
-                  </h3>
-
-                  <p
-                    className="
-                      mt-2
-                      text-sm
-                      leading-6
-                      text-slate-500
-                    "
-                  >
-                    Build confidence and prepare for
-                    more advanced learning.
-                  </p>
-                </div>
-
-              </div>
-            </div>
-          </div>
-
-        </Section>
-
-        {/* =================================================
-            WHAT YOU WILL GAIN
-        ================================================= */}
-
-        <Section className="mt-16">
-
-          <div className="max-w-2xl">
-
-            <div
-              className="
-                flex
-                items-center
-                gap-3
-              "
-            >
-              <div
-                className="
-                  flex
-                  h-11
-                  w-11
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-emerald-500/10
-                  text-emerald-400
-                "
-              >
-                <Award size={21} />
-              </div>
-
-              <span
-                className="
-                  text-sm
-                  font-bold
-                  uppercase
-                  tracking-[0.2em]
-                  text-emerald-400
-                "
-              >
-                Learning Outcomes
-              </span>
             </div>
 
-            <h2
-              className="
-                mt-5
-                text-3xl
-                font-black
-                tracking-tight
-                sm:text-4xl
-              "
-            >
-              What you'll be able to
-              <span className="text-emerald-400">
-                {" "}
-                do.
-              </span>
-            </h2>
+          </motion.div>
 
-            <p
-              className="
-                mt-4
-                text-base
-                leading-7
-                text-slate-500
-              "
-            >
-              The goal is not simply to finish lessons.
-              It is to leave each learning experience with
-              knowledge and skills you can actually use.
-            </p>
+        </div>
 
-          </div>
+      </section>
 
-          <div
-            className="
-              mt-8
-              grid
-              gap-4
-              sm:grid-cols-2
-              xl:grid-cols-3
-            "
-          >
-            {outcomes.map((outcome) => (
-              <OutcomeCard
-                key={outcome.title}
-                {...outcome}
-              />
-            ))}
-          </div>
+      {/* =====================================================
+          LEARNING OUTCOMES
+      ===================================================== */}
 
-        </Section>
+      <section className="relative border-y border-slate-800/60 bg-slate-900/[0.16] px-6 py-24 sm:px-8 lg:px-12 lg:py-28">
 
-        {/* =================================================
-            FINAL LEARNING MESSAGE
-        ================================================= */}
+        <div className="mx-auto max-w-[1200px]">
 
-        <Section className="mt-16">
-
-          <div
-            className="
-              relative
-              overflow-hidden
-              rounded-[32px]
-              border
-              border-cyan-400/[0.10]
-              bg-gradient-to-br
-              from-cyan-500/[0.08]
-              via-[#0a1220]
-              to-[#0a1220]
-              p-8
-              text-center
-              sm:p-12
-              lg:p-16
-            "
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{
+              once: true,
+              amount: 0.1,
+            }}
+            variants={stagger}
           >
 
-            <div
-              className="
-                pointer-events-none
-                absolute
-                left-1/2
-                top-0
-                h-64
-                w-64
-                -translate-x-1/2
-                rounded-full
-                bg-cyan-500/[0.07]
-                blur-[100px]
-              "
+            <SectionHeading
+              eyebrow="Learning Outcomes"
+              title="Where your learning can take you."
+              description="The goal is not simply to complete lessons. It is to become a stronger, more confident and more capable learner."
             />
 
-            <div className="relative z-10 mx-auto max-w-3xl">
+            <div className="grid gap-4 md:grid-cols-2">
 
-              <div
-                className="
-                  mx-auto
-                  flex
-                  h-16
-                  w-16
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  bg-cyan-500/10
-                  text-cyan-400
-                "
-              >
-                <Sparkles size={28} />
+              {outcomes.map((outcome) => (
+                <OutcomeCard
+                  key={outcome.title}
+                  {...outcome}
+                />
+              ))}
+
+            </div>
+
+          </motion.div>
+
+        </div>
+
+      </section>
+
+      {/* =====================================================
+          FINAL CTA
+      ===================================================== */}
+
+      <section className="relative overflow-hidden px-6 py-24 sm:px-8 lg:px-12 lg:py-32">
+
+        <div className="mx-auto max-w-[1100px]">
+
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 30,
+            }}
+            whileInView={{
+              opacity: 1,
+              y: 0,
+            }}
+            viewport={{
+              once: true,
+            }}
+            transition={{
+              duration: 0.7,
+            }}
+            className="relative overflow-hidden rounded-3xl border border-blue-500/20 bg-gradient-to-br from-blue-500/[0.09] via-slate-900/80 to-cyan-500/[0.05] p-8 text-center shadow-2xl shadow-blue-950/20 sm:p-12 lg:p-16"
+          >
+
+            <div className="pointer-events-none absolute left-1/2 top-0 h-48 w-96 -translate-x-1/2 rounded-full bg-blue-500/[0.1] blur-[100px]" />
+
+            <div className="relative">
+
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+                <GraduationCap className="h-7 w-7" />
               </div>
 
-              <h2
-                className="
-                  mt-7
-                  text-3xl
-                  font-black
-                  tracking-tight
-                  sm:text-4xl
-                  lg:text-5xl
-                "
-              >
-                Your learning journey is
-                <span className="text-cyan-400">
-                  {" "}
-                  just beginning.
+              <h2 className="mt-7 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+                Keep learning.
+
+                <span className="block bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+                  Keep growing.
                 </span>
               </h2>
 
-              <p
-                className="
-                  mx-auto
-                  mt-5
-                  max-w-2xl
-                  text-base
-                  leading-8
-                  text-slate-500
-                  sm:text-lg
-                "
-              >
-                Every lesson is an opportunity to
-                understand something new, practise a
-                valuable skill and become better than you
-                were yesterday.
+              <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-400 sm:text-lg">
+                Your learning journey is built one concept, one
+                practice session and one breakthrough at a time.
               </p>
 
-              <div
-                className="
-                  mt-8
-                  flex
-                  flex-wrap
-                  items-center
-                  justify-center
-                  gap-3
-                  text-sm
-                  font-semibold
-                  text-slate-400
-                "
-              >
-                <span className="flex items-center gap-2">
-                  <CheckCircle2
-                    size={17}
-                    className="text-cyan-400"
-                  />
-                  Learn with purpose
-                </span>
-
-                <span className="text-slate-700">
-                  •
-                </span>
-
-                <span className="flex items-center gap-2">
-                  <CheckCircle2
-                    size={17}
-                    className="text-cyan-400"
-                  />
-                  Practise consistently
-                </span>
-
-                <span className="text-slate-700">
-                  •
-                </span>
-
-                <span className="flex items-center gap-2">
-                  <CheckCircle2
-                    size={17}
-                    className="text-cyan-400"
-                  />
-                  Keep growing
-                </span>
-              </div>
-
             </div>
-          </div>
 
-        </Section>
+          </motion.div>
 
-        {/* =================================================
-            FOOTER
-        ================================================= */}
-
-        <div className="mt-12">
-          <Footer />
         </div>
 
-      </main>
+      </section>
+
+      {/* =====================================================
+          FOOTER
+      ===================================================== */}
+
+      <Footer />
+
     </div>
   );
 };

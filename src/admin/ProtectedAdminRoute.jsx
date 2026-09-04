@@ -3,41 +3,76 @@ import { Navigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
 const ProtectedAdminRoute = ({ children }) => {
-  const {
-    user,
-    profile,
-    loading,
-  } = useContext(AuthContext);
+  const auth = useContext(AuthContext);
 
-  // Wait for Neon authentication check
-  if (loading) {
+  // Prevent crashing if AuthProvider is missing
+  if (!auth) {
+    console.error(
+      "ProtectedAdminRoute: AuthContext is unavailable. " +
+        "Make sure App is wrapped with <AuthProvider>."
+    );
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#05070f] text-white">
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-blue-500" />
+          <h1 className="text-xl font-bold mb-2">
+            Authentication configuration error
+          </h1>
 
-          <p className="text-sm font-medium text-slate-300">
-            Checking admin access...
+          <p className="text-slate-400">
+            AuthProvider is not available.
           </p>
         </div>
       </div>
     );
   }
 
-  // Not logged in
+  const {
+    user,
+    profile,
+    loading,
+  } = auth;
+
+  // Don't redirect while authentication is being restored
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
+
+          <p className="text-slate-400">
+            Checking administrator access...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // No authenticated user
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Neon role
-  const role = profile?.role || user?.role;
+  // Normalize role
+  const role = String(
+    profile?.role ||
+      user?.role ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
 
-  // Logged in but not admin
+  console.log("Admin route authentication:", {
+    user,
+    profile,
+    role,
+  });
+
+  // Authenticated but not admin
   if (role !== "admin") {
     return <Navigate to="/" replace />;
   }
 
-  // Admin
   return children;
 };
 

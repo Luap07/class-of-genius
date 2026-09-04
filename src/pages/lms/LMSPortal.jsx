@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 
-import Sidebar from "../../components/lms/Sidebar";
 import Topbar from "../../components/lms/Topbar";
 import MainContent from "../../components/lms/MainContent";
 
@@ -8,51 +7,68 @@ import { LMSProvider } from "../../context/LMSContext";
 
 const LMSPortalContent = () => {
   const [activePage, setActivePage] = useState("dashboard");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <div className="h-screen w-full bg-slate-950 text-slate-100 flex overflow-hidden p-3 gap-3">
-      {/* Sidebar */}
-      <aside
-        className={`flex-shrink-0 transition-all duration-500 ease-in-out ${
-          sidebarOpen ? "w-64" : "w-20"
-        } bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl overflow-hidden`}
+    <div className="min-h-screen w-full overflow-hidden bg-slate-950 text-slate-100">
+
+      {/* =====================================================
+          TOPBAR
+      ===================================================== */}
+
+      <header
+        className="
+          sticky
+          top-0
+          z-50
+          h-16
+          w-full
+          border-b
+          border-slate-800/80
+          bg-slate-950/80
+          backdrop-blur-xl
+        "
       >
-        <Sidebar
-          activePage={activePage}
-          setActivePage={setActivePage}
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-        />
-      </aside>
-
-      {/* Main Column */}
-      <div className="flex flex-col flex-1 h-full gap-3 overflow-hidden">
-        {/* Header */}
-        <header className="h-16 flex-shrink-0 bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl flex items-center px-6 overflow-hidden">
+        <div className="mx-auto flex h-full w-full max-w-[1600px] items-center px-6 lg:px-8">
           <div className="w-full min-w-0">
-            <Topbar
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-            />
+            <Topbar />
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent bg-slate-900/30 border border-slate-800/50 rounded-2xl flex flex-col relative">
-          <div className="flex-1 p-8">
-            <div className="max-w-7xl mx-auto">
-              <MainContent
-                activePage={activePage}
-                setActivePage={setActivePage}
-              />
-            </div>
-          </div>
+      {/* =====================================================
+          MAIN CONTENT
+      ===================================================== */}
 
-          {/* Footer */}
-          
-        </main>
-      </div>
+      <main className="relative min-h-[calc(100vh-4rem)] w-full overflow-y-auto">
+
+        {/* Background glow */}
+
+        <div className="pointer-events-none fixed left-[10%] top-[15%] h-72 w-72 rounded-full bg-blue-500/[0.04] blur-[120px]" />
+
+        <div className="pointer-events-none fixed bottom-[10%] right-[10%] h-80 w-80 rounded-full bg-cyan-500/[0.04] blur-[140px]" />
+
+        {/* Subtle grid */}
+
+        <div
+          className="pointer-events-none fixed inset-0 opacity-[0.02]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.3) 1px, transparent 1px)",
+            backgroundSize: "55px 55px",
+          }}
+        />
+
+        <div className="relative z-10 mx-auto w-full max-w-[1600px] px-6 py-8 lg:px-8 lg:py-10">
+
+          <MainContent
+            activePage={activePage}
+            setActivePage={setActivePage}
+          />
+
+        </div>
+
+      </main>
+
     </div>
   );
 };

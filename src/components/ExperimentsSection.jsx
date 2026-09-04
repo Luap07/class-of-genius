@@ -5,8 +5,6 @@ import {
   FlaskConical,
   Dna,
   TrendingUp,
-  Lock,
-  Sparkles,
 } from "lucide-react";
 
 const experiments = [
@@ -47,7 +45,6 @@ const experiments = [
 const ExperimentsSection = () => {
   return (
     <section className="relative overflow-hidden bg-[#020617] px-6 py-28 text-white">
-
       {/* =====================================================
           BACKGROUND GLOW
       ===================================================== */}
@@ -57,7 +54,6 @@ const ExperimentsSection = () => {
       <div className="pointer-events-none absolute bottom-0 right-0 h-96 w-96 rounded-full bg-purple-500/10 blur-[140px]" />
 
       <div className="relative z-10 mx-auto max-w-7xl">
-
         {/* =====================================================
             HEADER
         ===================================================== */}
@@ -97,9 +93,9 @@ const ExperimentsSection = () => {
               text-cyan-300
             "
           >
-            <Sparkles size={14} />
+            <Atom size={14} />
 
-            Premium Simulations
+            Virtual Laboratory
           </div>
 
           <h2 className="mt-5 text-4xl font-black md:text-6xl">
@@ -121,7 +117,6 @@ const ExperimentsSection = () => {
         ===================================================== */}
 
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
-
           {experiments.map((experiment, index) => {
             const Icon = experiment.icon;
 
@@ -149,7 +144,6 @@ const ExperimentsSection = () => {
                 }}
                 className="group relative"
               >
-
                 {/* =================================================
                     OUTER GLOW
                 ================================================= */}
@@ -189,7 +183,6 @@ const ExperimentsSection = () => {
                     group-hover:border-white/20
                   "
                 >
-
                   {/* Top Gradient */}
 
                   <div
@@ -202,37 +195,6 @@ const ExperimentsSection = () => {
                   />
 
                   <div className="p-8">
-
-                    {/* =================================================
-                        PREMIUM BADGE
-                    ================================================= */}
-
-                    <div
-                      className="
-                        absolute
-                        right-5
-                        top-5
-                        flex
-                        items-center
-                        gap-1.5
-                        rounded-full
-                        border
-                        border-amber-400/20
-                        bg-amber-400/[0.08]
-                        px-3
-                        py-1.5
-                        text-[10px]
-                        font-black
-                        uppercase
-                        tracking-wider
-                        text-amber-300
-                      "
-                    >
-                      <Lock size={11} />
-
-                      Premium
-                    </div>
-
                     {/* =================================================
                         ICON
                     ================================================= */}
@@ -284,25 +246,23 @@ const ExperimentsSection = () => {
                     </p>
 
                     {/* =================================================
-                        ACCESS INFO
+                        ACCESS
                     ================================================= */}
 
                     <div className="mt-8 border-t border-white/[0.08] pt-6">
-
                       <div className="flex items-center justify-between">
-
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                            Available inside
+                            Available in
                           </p>
 
                           <p className="mt-1 text-sm font-bold text-slate-300">
-                            Premium Laboratory
+                            Virtual Laboratory
                           </p>
                         </div>
 
                         <div
-                          className="
+                          className={`
                             flex
                             h-10
                             w-10
@@ -312,16 +272,16 @@ const ExperimentsSection = () => {
                             border
                             border-white/10
                             bg-white/[0.04]
-                            text-slate-400
-                          "
+                            text-cyan-400
+                            transition-all
+                            duration-300
+                            group-hover:scale-110
+                          `}
                         >
-                          <Lock size={16} />
+                          <Icon size={17} />
                         </div>
-
                       </div>
-
                     </div>
-
                   </div>
 
                   {/* =================================================
@@ -346,15 +306,11 @@ const ExperimentsSection = () => {
                       group-hover:opacity-25
                     `}
                   />
-
                 </div>
-
               </motion.div>
             );
           })}
-
         </div>
-
       </div>
     </section>
   );

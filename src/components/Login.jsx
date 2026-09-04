@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useContext } from "react";
-import { useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import {
   ArrowRight,
@@ -21,7 +20,7 @@ import { ConnectContext } from "../context/ConnectContext";
 const API_URL = (
   import.meta.env.VITE_API_URL ||
   "http://localhost:5000"
-).replace(/\/$/, "");
+).replace(/\/+$/, "");
 
 /* =========================================================
    STORAGE KEYS
@@ -35,7 +34,6 @@ const AUTH_USER_KEY = "scholiqen_current_user";
 ========================================================= */
 
 const Login = () => {
-  const navigate = useNavigate();
   const { darkMode } = useContext(ConnectContext);
 
   const [isSignup, setIsSignup] = useState(false);
@@ -46,7 +44,8 @@ const Login = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
 
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -92,6 +91,23 @@ const Login = () => {
   };
 
   /* =========================================================
+     NORMALIZE USER
+  ========================================================= */
+
+  const normalizeUser = (user) => {
+    if (!user || typeof user !== "object") {
+      return null;
+    }
+
+    return {
+      ...user,
+      role: String(user.role || "")
+        .trim()
+        .toLowerCase(),
+    };
+  };
+
+  /* =========================================================
      SAVE AUTH SESSION
   ========================================================= */
 
@@ -102,26 +118,58 @@ const Login = () => {
       );
     }
 
+    const normalizedUser = normalizeUser(user);
+
     localStorage.setItem(
       AUTH_TOKEN_KEY,
       token
     );
 
-    if (user) {
+    if (normalizedUser) {
       localStorage.setItem(
         AUTH_USER_KEY,
-        JSON.stringify(user)
+        JSON.stringify(normalizedUser)
       );
     }
 
+    const savedToken =
+      localStorage.getItem(
+        AUTH_TOKEN_KEY
+      );
+
+    const savedUser =
+      localStorage.getItem(
+        AUTH_USER_KEY
+      );
+
     console.log(
-      "✅ Neon JWT saved:",
-      Boolean(
-        localStorage.getItem(
-          AUTH_TOKEN_KEY
-        )
-      )
+      "================================================"
     );
+
+    console.log(
+      "✅ AUTH SESSION SAVED"
+    );
+
+    console.log(
+      "Token saved:",
+      Boolean(savedToken)
+    );
+
+    console.log(
+      "User saved:",
+      savedUser
+    );
+
+    console.log(
+      "User role:",
+      normalizedUser?.role
+    );
+
+    console.log(
+      "================================================"
+    );
+
+    return normalizedUser;
   };
 
   /* =========================================================
@@ -191,6 +239,10 @@ const Login = () => {
     setLoading(true);
 
     try {
+      console.log(
+        "📝 Attempting signup..."
+      );
+
       const response = await fetch(
         `${API_URL}/api/auth/signup`,
         {
@@ -235,30 +287,19 @@ const Login = () => {
         );
       }
 
-      /*
-       * Backend returns:
-       *
-       * {
-       *   message,
-       *   token,
-       *   user
-       * }
-       */
-
       if (!data?.token) {
         throw new Error(
           "Account was created, but no authentication token was returned."
         );
       }
 
-      /* Save Neon session */
+      const loggedInUser =
+        normalizeUser(data.user);
 
       saveAuthSession(
         data.token,
-        data.user
+        loggedInUser
       );
-
-      /* Clear old local progress */
 
       clearLocalProgress();
 
@@ -267,10 +308,8 @@ const Login = () => {
       );
 
       /*
-       * Use a full navigation so AuthContext
-       * starts again and reads the Neon JWT.
+       * Normal signup accounts go to dashboard.
        */
-
       window.location.href =
         "/dashboard";
     } catch (err) {
@@ -318,7 +357,25 @@ const Login = () => {
 
     try {
       console.log(
-        "🔐 Attempting Neon login..."
+        "================================================"
+      );
+
+      console.log(
+        "🔐 ATTEMPTING LOGIN"
+      );
+
+      console.log(
+        "Email:",
+        cleanEmail
+      );
+
+      console.log(
+        "API:",
+        `${API_URL}/api/auth/login`
+      );
+
+      console.log(
+        "================================================"
       );
 
       const response = await fetch(
@@ -384,16 +441,61 @@ const Login = () => {
       }
 
       /* =====================================================
+         NORMALIZE USER
+      ===================================================== */
+
+      const loggedInUser =
+        normalizeUser(data.user);
+
+      if (!loggedInUser) {
+        throw new Error(
+          "Login succeeded, but the server did not return valid user information."
+        );
+      }
+
+      console.log(
+        "================================================"
+      );
+
+      console.log(
+        "👤 LOGGED IN USER"
+      );
+
+      console.log(
+        "ID:",
+        loggedInUser.id
+      );
+
+      console.log(
+        "Username:",
+        loggedInUser.username
+      );
+
+      console.log(
+        "Email:",
+        loggedInUser.email
+      );
+
+      console.log(
+        "Role:",
+        loggedInUser.role
+      );
+
+      console.log(
+        "================================================"
+      );
+
+      /* =====================================================
          SAVE NEON JWT
       ===================================================== */
 
       saveAuthSession(
         data.token,
-        data.user
+        loggedInUser
       );
 
       /* =====================================================
-         VERIFY IT WAS ACTUALLY SAVED
+         VERIFY TOKEN
       ===================================================== */
 
       const savedToken =
@@ -407,13 +509,37 @@ const Login = () => {
         );
       }
 
+      /* =====================================================
+         VERIFY USER
+      ===================================================== */
+
+      const savedUserRaw =
+        localStorage.getItem(
+          AUTH_USER_KEY
+        );
+
+      let savedUser = null;
+
+      try {
+        savedUser =
+          JSON.parse(savedUserRaw);
+      } catch {
+        savedUser = null;
+      }
+
+      if (!savedUser) {
+        throw new Error(
+          "User information could not be saved in this browser."
+        );
+      }
+
       console.log(
-        "✅ Authentication token confirmed in localStorage."
+        "✅ Authentication token confirmed."
       );
 
       console.log(
-        "✅ Logged in user:",
-        data.user
+        "✅ User confirmed in localStorage:",
+        savedUser
       );
 
       /* =====================================================
@@ -423,24 +549,68 @@ const Login = () => {
       clearLocalProgress();
 
       /* =====================================================
-         GO TO DASHBOARD
+         DETERMINE DESTINATION
       ===================================================== */
 
+      const userRole = String(
+        savedUser?.role || ""
+      )
+        .trim()
+        .toLowerCase();
+
+      console.log(
+        "================================================"
+      );
+
+      console.log(
+        "🚦 LOGIN REDIRECT"
+      );
+
+      console.log(
+        "Detected role:",
+        userRole
+      );
+
+      console.log(
+        "================================================"
+      );
+
       /*
-       * IMPORTANT:
+       * ADMIN
        *
-       * We intentionally use window.location.href
-       * instead of navigate() + reload().
-       *
-       * This guarantees AuthContext initializes
-       * from the newly saved Neon JWT.
+       * Admin users go directly to the admin panel.
        */
+      if (userRole === "admin") {
+        console.log(
+          "🛡️ ADMIN DETECTED"
+        );
+
+        console.log(
+          "➡️ Redirecting to /admin"
+        );
+
+        window.location.href =
+          "/admin";
+
+        return;
+      }
+
+      /*
+       * NORMAL USER
+       */
+      console.log(
+        "👤 NORMAL USER DETECTED"
+      );
+
+      console.log(
+        "➡️ Redirecting to /dashboard"
+      );
 
       window.location.href =
         "/dashboard";
     } catch (err) {
       console.error(
-        "Login error:",
+        "❌ Login error:",
         err
       );
 

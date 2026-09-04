@@ -34,7 +34,6 @@ const CTASection = () => {
       </div>
 
       <div className="relative mx-auto max-w-5xl text-center">
-        {/* Premium badge */}
         <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-300 backdrop-blur-xl">
           <Sparkles className="h-4 w-4" />
           <span>Unlock Your Full Potential</span>

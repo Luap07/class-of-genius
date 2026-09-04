@@ -24,6 +24,12 @@ import novelRoutes from "./routes/novelRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 
 // ============================================================
+// SCHOLIQEN ACADEMY ROUTES
+// ============================================================
+
+import academyRoutes from "./routes/academyRoutes.js";
+
+// ============================================================
 // PATH CONFIGURATION
 // ============================================================
 
@@ -300,7 +306,6 @@ app.use(
       origin,
       callback
     ) => {
-
       if (!origin) {
         return callback(
           null,
@@ -392,7 +397,6 @@ app.use(
 
 app.use(
   (req, res, next) => {
-
     console.log(
       `➡️ ${req.method} ${req.originalUrl}`
     );
@@ -408,9 +412,7 @@ app.use(
 app.get(
   "/",
   (req, res) => {
-
     return res.status(200).json({
-
       success: true,
 
       message:
@@ -424,6 +426,9 @@ app.get(
         "development",
 
       endpoints: {
+        // ======================================================
+        // AUTH
+        // ======================================================
 
         auth:
           "/api/auth",
@@ -437,11 +442,19 @@ app.get(
         currentUser:
           "GET /api/auth/me",
 
+        // ======================================================
+        // ADMIN
+        // ======================================================
+
         admin:
           "/api/admin",
 
         adminDashboard:
           "GET /api/admin/dashboard",
+
+        // ======================================================
+        // COURSES
+        // ======================================================
 
         courses:
           "/api/courses",
@@ -451,6 +464,10 @@ app.get(
 
         courseCategories:
           "/api/course-categories",
+
+        // ======================================================
+        // DOCUMENTS / RESOURCES
+        // ======================================================
 
         documents:
           "/api/documents",
@@ -466,6 +483,10 @@ app.get(
 
         singleResource:
           "GET /api/resources/:id",
+
+        // ======================================================
+        // TASKS
+        // ======================================================
 
         tasks:
           "/api/tasks",
@@ -491,11 +512,19 @@ app.get(
         deleteTask:
           "DELETE /api/tasks/:id",
 
+        // ======================================================
+        // NOVELS
+        // ======================================================
+
         novels:
           "/api/novels",
 
         singleNovel:
           "GET /api/novels/:id",
+
+        // ======================================================
+        // CBT
+        // ======================================================
 
         cbtQuestions:
           "GET /api/cbt/questions",
@@ -503,11 +532,42 @@ app.get(
         cbtQuestionCount:
           "GET /api/cbt/questions/count",
 
+        // ======================================================
+        // TUTOR / AI
+        // ======================================================
+
         tutor:
           "/api/tutor",
 
+        // ======================================================
+        // PAYMENTS
+        // ======================================================
+
         payments:
           "/api/payments",
+
+        // ======================================================
+        // SCHOLIQEN ACADEMY
+        // ======================================================
+
+        academy:
+          "/api/academy",
+
+        studentEnrollment:
+          "POST /api/academy/student-enrollment",
+
+        tutorApplication:
+          "POST /api/academy/tutor-application",
+
+        studentEnrollmentByUser:
+          "GET /api/academy/student/:userId",
+
+        tutorApplicationByReference:
+          "GET /api/academy/tutor-application/:reference",
+
+        // ======================================================
+        // HEALTH
+        // ======================================================
 
         health:
           "GET /api/health",
@@ -517,7 +577,6 @@ app.get(
         FRONTEND_URL,
 
       database: {
-
         provider:
           "PostgreSQL / Neon",
 
@@ -526,7 +585,6 @@ app.get(
       },
 
       authentication: {
-
         provider:
           "JWT",
 
@@ -536,7 +594,6 @@ app.get(
       },
 
       payment: {
-
         testPriceNaira:
           PREMIUM_PRICE_NAIRA,
 
@@ -556,7 +613,6 @@ app.get(
       },
 
       services: {
-
         authentication:
           databaseConfigured &&
           jwtConfigured,
@@ -582,10 +638,11 @@ app.get(
 
         groq:
           groqConfigured,
+
+        academy:
+          databaseConfigured,
       },
-
     });
-
   }
 );
 
@@ -596,7 +653,6 @@ app.get(
 app.get(
   "/api/health",
   async (req, res) => {
-
     let databaseStatus =
       databaseConfigured;
 
@@ -606,9 +662,7 @@ app.get(
         : "missing";
 
     if (databaseConfigured) {
-
       try {
-
         await pool.query(
           "SELECT 1"
         );
@@ -617,9 +671,7 @@ app.get(
 
         databaseMessage =
           "connected";
-
       } catch (error) {
-
         databaseStatus = false;
 
         databaseMessage =
@@ -629,13 +681,10 @@ app.get(
           "❌ PostgreSQL health check failed:",
           error?.message
         );
-
       }
-
     }
 
     return res.status(200).json({
-
       success: true,
 
       server:
@@ -659,7 +708,6 @@ app.get(
         jwtConfigured,
 
       database: {
-
         provider:
           "PostgreSQL / Neon",
 
@@ -684,7 +732,6 @@ app.get(
       paystackMode,
 
       payment: {
-
         currency:
           "NGN",
 
@@ -702,9 +749,7 @@ app.get(
 
       timestamp:
         new Date().toISOString(),
-
     });
-
   }
 );
 
@@ -715,9 +760,7 @@ app.get(
 app.get(
   "/api/cbt/questions",
   async (req, res) => {
-
     try {
-
       const exam =
         String(
           req.query.exam || ""
@@ -753,21 +796,14 @@ app.get(
       );
 
       if (!exam) {
-
         return res.status(400).json({
-
           success: false,
-
           questions: [],
-
           count: 0,
-
           total: 0,
-
           error:
             "Exam is required.",
         });
-
       }
 
       const subjects =
@@ -815,7 +851,6 @@ app.get(
       if (
         subjects.length > 0
       ) {
-
         const placeholders =
           subjects.map(
             (_, index) =>
@@ -837,7 +872,6 @@ app.get(
         values.push(
           ...subjects
         );
-
       }
 
       query += `
@@ -866,7 +900,6 @@ app.get(
 
       result.rows.forEach(
         (row) => {
-
           const subject =
             row.subject ||
             "Unknown";
@@ -879,7 +912,6 @@ app.get(
                 subject
               ] || 0
             ) + 1;
-
         }
       );
 
@@ -895,11 +927,9 @@ app.get(
         subjectCounts
       ).forEach(
         ([subject, count]) => {
-
           console.log(
             `   • ${subject}: ${count}`
           );
-
         }
       );
 
@@ -910,7 +940,6 @@ app.get(
       console.log("");
 
       return res.status(200).json({
-
         success: true,
 
         questions:
@@ -923,11 +952,8 @@ app.get(
           result.rows.length,
 
         subjectCounts,
-
       });
-
     } catch (error) {
-
       console.error("");
 
       console.error(
@@ -979,7 +1005,6 @@ app.get(
       console.error("");
 
       return res.status(500).json({
-
         success: false,
 
         questions: [],
@@ -996,11 +1021,8 @@ app.get(
           "development"
             ? error?.message
             : undefined,
-
       });
-
     }
-
   }
 );
 
@@ -1011,9 +1033,7 @@ app.get(
 app.get(
   "/api/cbt/questions/count",
   async (req, res) => {
-
     try {
-
       console.log(
         "🔎 Counting CBT questions from Neon..."
       );
@@ -1036,7 +1056,6 @@ app.get(
       );
 
       return res.status(200).json({
-
         success: true,
 
         count,
@@ -1046,11 +1065,8 @@ app.get(
 
         questionCount:
           count,
-
       });
-
     } catch (error) {
-
       console.error("");
 
       console.error(
@@ -1092,7 +1108,6 @@ app.get(
       console.error("");
 
       return res.status(500).json({
-
         success: false,
 
         count: 0,
@@ -1109,11 +1124,8 @@ app.get(
           "development"
             ? error?.message
             : undefined,
-
       });
-
     }
-
   }
 );
 
@@ -1220,18 +1232,43 @@ app.use(
 );
 
 // ============================================================
+// SCHOLIQEN ACADEMY ROUTES
+// ============================================================
+//
+// Student:
+//
+// POST /api/academy/student-enrollment
+//
+// Existing student:
+//
+// GET /api/academy/student/:userId
+//
+// Tutor:
+//
+// POST /api/academy/tutor-application
+//
+// Tutor application lookup:
+//
+// GET /api/academy/tutor-application/:reference
+//
+// ============================================================
+
+app.use(
+  "/api/academy",
+  academyRoutes
+);
+
+// ============================================================
 // 404 HANDLER
 // ============================================================
 
 app.use(
   (req, res) => {
-
     console.log(
       `❌ Route not found: ${req.method} ${req.originalUrl}`
     );
 
     return res.status(404).json({
-
       success: false,
 
       error:
@@ -1242,9 +1279,7 @@ app.use(
 
       method:
         req.method,
-
     });
-
   }
 );
 
@@ -1259,7 +1294,6 @@ app.use(
     res,
     next
   ) => {
-
     console.error("");
 
     console.error(
@@ -1287,22 +1321,17 @@ app.use(
     if (
       res.headersSent
     ) {
-
       return next(error);
-
     }
 
     return res
       .status(500)
       .json({
-
         success: false,
 
         error:
           "Internal server error.",
-
       });
-
   }
 );
 
@@ -1313,7 +1342,6 @@ app.use(
 app.listen(
   PORT,
   () => {
-
     console.log("");
 
     console.log(
@@ -1400,6 +1428,30 @@ app.listen(
       `💳 Payments:      http://localhost:${PORT}/api/payments`
     );
 
+    // ========================================================
+    // ACADEMY LOGS
+    // ========================================================
+
+    console.log(
+      `🎓 Academy:       http://localhost:${PORT}/api/academy`
+    );
+
+    console.log(
+      `📝 Student Enroll: POST http://localhost:${PORT}/api/academy/student-enrollment`
+    );
+
+    console.log(
+      `👨‍🏫 Tutor Apply:   POST http://localhost:${PORT}/api/academy/tutor-application`
+    );
+
+    console.log(
+      `👤 Student Data:  GET  http://localhost:${PORT}/api/academy/student/:userId`
+    );
+
+    console.log(
+      `🔎 Tutor Lookup:  GET  http://localhost:${PORT}/api/academy/tutor-application/:reference`
+    );
+
     console.log(
       `❤️ Health:        http://localhost:${PORT}/api/health`
     );
@@ -1475,6 +1527,28 @@ app.listen(
     console.log("");
 
     console.log(
+      "🎓 SCHOLIQEN ACADEMY"
+    );
+
+    console.log(
+      "   • Student Enrollment: ENABLED"
+    );
+
+    console.log(
+      "   • Tutor Applications: ENABLED"
+    );
+
+    console.log(
+      "   • Enrollment Payment: NOT CONNECTED"
+    );
+
+    console.log(
+      "   • Student Portal: READY"
+    );
+
+    console.log("");
+
+    console.log(
       "📦 PREMIUM PRODUCTS"
     );
 
@@ -1485,11 +1559,9 @@ app.listen(
         key,
         product,
       ]) => {
-
         console.log(
           `   • ${key}: ${product.name} — ₦${product.priceNaira}`
         );
-
       }
     );
 
@@ -1500,6 +1572,5 @@ app.listen(
     );
 
     console.log("");
-
   }
 );

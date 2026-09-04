@@ -52,7 +52,7 @@ const Footer = () => {
             </p>
           </div>
 
-          {/* Premium CTA */}
+          {/* CTA */}
           <Link
             to="/login"
             className="group inline-flex w-fit items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3.5 text-sm font-bold text-white backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-blue-400/30 hover:bg-blue-500/10"

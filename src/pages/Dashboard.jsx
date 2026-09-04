@@ -7,30 +7,29 @@ import {
   cbt,
   lms,
   novel,
-  multilingual,
   virtual,
+  school,
 } from "../assets";
 
 import {
   Calendar,
-  Sparkles,
   BookOpen,
   GraduationCap,
-  School,
+  School as SchoolIcon,
   Wrench,
   ArrowUpRight,
   ChevronRight,
   ChevronDown,
   HelpCircle,
   MessageCircle,
-  ShieldCheck,
   Brain,
-  Library,
-  Clock3,
+  Sparkles,
+  Users,
+  PlayCircle,
 } from "lucide-react";
 
 /* =========================================================
-   PREMIUM DASHBOARD CARD
+   MAIN DASHBOARD CARD
 ========================================================= */
 
 const Card = ({
@@ -53,8 +52,10 @@ const Card = ({
         ease: "easeOut",
       }}
       onClick={onClick}
-      className="group relative h-72 cursor-pointer overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-2xl"
+      className="group relative h-[380px] cursor-pointer overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-2xl"
     >
+      {/* Image */}
+
       {bgImage && (
         <img
           src={bgImage}
@@ -65,112 +66,51 @@ const Card = ({
         />
       )}
 
-      <div className="absolute inset-0 bg-slate-950/20" />
+      {/* Light image overlay */}
 
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/5" />
+      <div className="absolute inset-0 bg-slate-950/15" />
 
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/0 via-transparent to-blue-500/0 transition duration-500 group-hover:from-cyan-400/10 group-hover:to-blue-500/10" />
+      {/* Bottom gradient */}
+
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
+
+      {/* Content */}
 
       <div className="absolute inset-x-0 bottom-0 z-10 p-7">
+
         <div className="flex items-end justify-between gap-4">
+
           <div className="min-w-0 flex-1">
-            <h3 className="text-2xl font-black tracking-tight text-white">
+
+            <h3 className="text-2xl font-black tracking-tight text-white drop-shadow-lg">
               {title}
             </h3>
 
-            <p className="mt-2 truncate text-sm font-medium text-slate-300">
+            <p className="mt-3 max-w-[230px] text-sm font-medium leading-6 text-slate-200 drop-shadow-md">
               {description}
             </p>
+
           </div>
 
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white backdrop-blur-md transition duration-300 group-hover:bg-cyan-400 group-hover:text-slate-950">
-            <ArrowUpRight size={19} />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white backdrop-blur-md transition-all duration-300 group-hover:bg-cyan-400 group-hover:text-slate-950">
+            <ArrowUpRight size={20} />
           </div>
+
         </div>
 
-        <div className="mt-5 h-px w-full bg-white/10">
+        <div className="mt-6 h-px w-full bg-white/15">
+
           <div className="h-full w-0 bg-cyan-400 transition-all duration-500 group-hover:w-full" />
+
         </div>
+
       </div>
     </motion.div>
   );
 };
 
 /* =========================================================
-   AI TUTOR CARD
-========================================================= */
-
-const AITutorCard = ({ onClick }) => {
-  return (
-    <motion.div
-      whileHover={{
-        y: -8,
-        scale: 1.02,
-      }}
-      whileTap={{
-        scale: 0.98,
-      }}
-      transition={{
-        duration: 0.25,
-        ease: "easeOut",
-      }}
-      onClick={onClick}
-      className="group relative flex h-72 cursor-pointer flex-col justify-between overflow-hidden rounded-3xl border border-cyan-300/20 bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-700 p-7 text-white shadow-2xl"
-    >
-      <motion.div
-        animate={{
-          rotate: [0, 360],
-        }}
-        transition={{
-          repeat: Infinity,
-          duration: 20,
-          ease: "linear",
-        }}
-        className="absolute -right-24 -top-24 h-64 w-64 rounded-full border border-white/10"
-      />
-
-      <motion.div
-        animate={{
-          scale: [1, 1.12, 1],
-        }}
-        transition={{
-          repeat: Infinity,
-          duration: 5,
-          ease: "easeInOut",
-        }}
-        className="absolute -bottom-24 -left-20 h-56 w-56 rounded-full bg-white/5 blur-3xl"
-      />
-
-      <div className="relative z-10 flex items-start justify-between">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md">
-          <Sparkles size={28} />
-        </div>
-
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 backdrop-blur-md transition duration-300 group-hover:bg-white group-hover:text-blue-600">
-          <ArrowUpRight size={18} />
-        </div>
-      </div>
-
-      <div className="relative z-10">
-        <h3 className="text-2xl font-black tracking-tight">
-          Scholiqen AI
-        </h3>
-
-        <p className="mt-2 truncate text-sm font-medium text-blue-50">
-          Intelligent tutoring, explanations, translation and personalized learning.
-        </p>
-
-        <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold backdrop-blur-md">
-          Powered by AI
-          <ChevronRight size={13} />
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-/* =========================================================
-   EXPLORE SCHOOLS CARD
+   SCHOOL TYPE CARD
 ========================================================= */
 
 const SchoolTypeCard = ({
@@ -190,18 +130,23 @@ const SchoolTypeCard = ({
       }}
       transition={{
         duration: 0.25,
-        ease: "easeOut",
       }}
       onClick={onClick}
       className="group relative cursor-pointer overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-7 shadow-2xl"
     >
+      {/* Glow */}
+
       <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl transition duration-500 group-hover:bg-cyan-400/20" />
+
+      {/* Bottom accent */}
 
       <div className="absolute bottom-0 left-0 h-1 w-0 bg-cyan-400 transition-all duration-500 group-hover:w-full" />
 
       <div className="relative z-10">
+
         <div className="flex items-center justify-between">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-cyan-400 backdrop-blur-md transition duration-300 group-hover:scale-110 group-hover:bg-cyan-400/10">
+
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-cyan-400 backdrop-blur-md transition duration-300 group-hover:scale-110">
             <Icon
               size={31}
               strokeWidth={1.8}
@@ -211,23 +156,28 @@ const SchoolTypeCard = ({
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition duration-300 group-hover:bg-cyan-400 group-hover:text-slate-950">
             <ArrowUpRight size={18} />
           </div>
+
         </div>
 
         <h3 className="mt-7 text-2xl font-black tracking-tight text-white">
           {title}
         </h3>
 
-        <p className="mt-2 truncate text-sm font-medium text-slate-400">
+        <p className="mt-2 text-sm font-medium leading-6 text-slate-400">
           {description}
         </p>
 
         <div className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-cyan-400">
+
           Explore
+
           <ChevronRight
             size={16}
             className="transition-transform duration-300 group-hover:translate-x-1"
           />
+
         </div>
+
       </div>
     </motion.div>
   );
@@ -239,24 +189,19 @@ const SchoolTypeCard = ({
 
 const faqItems = [
   {
-    question: "What is Scholiqen?",
+    question: "What can I do here?",
     answer:
-      "Scholiqen is an intelligent learning platform that brings courses, CBT practice, language learning, virtual laboratories, digital reading and school discovery together in one place.",
+      "You can learn courses, practice examinations, explore virtual experiments, read novels, discover schools and use the different learning resources available to you.",
   },
   {
-    question: "Can I use Scholiqen to learn courses?",
+    question: "Can I use the LMS to learn courses?",
     answer:
-      "Yes. The LMS Portal gives you access to learning materials, courses, quizzes and other academic resources available on the platform.",
+      "Yes. The LMS Portal gives you access to learning materials, courses, quizzes and other academic resources available for your learning.",
   },
   {
     question: "Can I practice CBT examinations?",
     answer:
       "Yes. The CBT section is designed for examination practice. You can explore available examinations and practice questions directly from the CBT area.",
-  },
-  {
-    question: "Can I learn foreign languages?",
-    answer:
-      "Yes. The Multilingual Hub provides a dedicated space for language learning, including vocabulary, grammar, pronunciation and other language-learning materials.",
   },
   {
     question: "What is the Virtual Laboratory?",
@@ -269,19 +214,19 @@ const faqItems = [
       "Yes. The Explore Schools section lets you browse universities, colleges and polytechnics and explore information about their programs and opportunities.",
   },
   {
-    question: "What is Scholiqen AI?",
+    question: "What is the AI Tutor?",
     answer:
-      "Scholiqen AI is the platform's intelligent learning assistant. It is designed to help with explanations, tutoring, translation and personalized learning support.",
+      "The AI Tutor provides intelligent learning support such as explanations, tutoring, translation and personalized assistance when you need help.",
   },
   {
-    question: "Can I read novels on Scholiqen?",
+    question: "Can I read novels here?",
     answer:
       "Yes. The Novel Library provides a dedicated reading space where available stories, novels and other literary materials can be explored.",
   },
   {
     question: "Do I need to complete everything at once?",
     answer:
-      "No. You can move through the platform at your own pace. Explore the learning tools that are useful to you and return whenever you are ready to continue.",
+      "No. You can move through the learning resources at your own pace. Explore the tools that are useful to you and return whenever you are ready to continue.",
   },
 ];
 
@@ -309,6 +254,7 @@ const FAQItem = ({
         aria-expanded={isOpen}
       >
         <div className="flex min-w-0 items-center gap-4">
+
           <div
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
               isOpen
@@ -322,6 +268,7 @@ const FAQItem = ({
           <span className="text-sm font-bold leading-6 text-white sm:text-base">
             {item.question}
           </span>
+
         </div>
 
         <div
@@ -333,9 +280,11 @@ const FAQItem = ({
         >
           <ChevronDown size={18} />
         </div>
+
       </button>
 
       <AnimatePresence initial={false}>
+
         {isOpen && (
           <motion.div
             initial={{
@@ -356,14 +305,19 @@ const FAQItem = ({
             }}
           >
             <div className="border-t border-white/5 px-5 pb-6 pt-4 sm:px-6">
+
               <div className="pl-14">
+
                 <p className="max-w-3xl text-sm leading-7 text-slate-400">
                   {item.answer}
                 </p>
+
               </div>
+
             </div>
           </motion.div>
         )}
+
       </AnimatePresence>
     </div>
   );
@@ -387,10 +341,11 @@ const Dashboard = () => {
 
   return (
     <section className="min-h-screen bg-slate-950 px-4 py-6 text-white sm:px-6 lg:px-8">
+
       <div className="mx-auto max-w-7xl">
 
         {/* =================================================
-            PREMIUM WELCOME HERO
+            HERO
         ================================================= */}
 
         <motion.div
@@ -404,10 +359,10 @@ const Dashboard = () => {
           }}
           transition={{
             duration: 0.6,
-            ease: "easeOut",
           }}
           className="relative mb-10 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/60 p-7 shadow-2xl sm:p-10"
         >
+
           <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
 
           <div className="absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-blue-600/10 blur-3xl" />
@@ -415,16 +370,23 @@ const Dashboard = () => {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_35%)]" />
 
           <div className="relative z-10">
+
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-cyan-400">
+
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+
               Your Learning Space
+
             </div>
 
             <h1 className="max-w-4xl text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
+
               Welcome Back
+
               <span className="ml-2 text-cyan-400">
                 👋
               </span>
+
             </h1>
 
             <p className="mt-5 max-w-3xl text-base leading-7 text-slate-400 sm:text-lg">
@@ -432,6 +394,7 @@ const Dashboard = () => {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
+
               <button
                 type="button"
                 onClick={() => navigate("/lms")}
@@ -444,33 +407,28 @@ const Dashboard = () => {
               <button
                 type="button"
                 onClick={() => navigate("/cbt")}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white backdrop-blur-md transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10"
               >
                 Practice CBT
                 <ChevronRight size={16} />
               </button>
+
             </div>
+
           </div>
         </motion.div>
 
         {/* =================================================
-            SIX MAIN LEARNING MODULES
+            FOUR MAIN CARDS
         ================================================= */}
 
-        <div className="mb-14 grid gap-7 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mb-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
 
           <Card
             title="LMS Portal"
             description="Courses, materials, quizzes and certificates."
             bgImage={lms}
             onClick={() => navigate("/lms")}
-          />
-
-          <Card
-            title="Multilingual Hub"
-            description="Learn languages, pronunciation, grammar and vocabulary."
-            bgImage={multilingual}
-            onClick={() => navigate("/languages")}
           />
 
           <Card
@@ -494,16 +452,292 @@ const Dashboard = () => {
             onClick={() => navigate("/cbt")}
           />
 
-          <AITutorCard
-            onClick={() => navigate("/ai-tutor")}
-          />
         </div>
+
+        {/* =================================================
+            SCHOLIQEN ACADEMY
+            EVERYTHING ON THE IMAGE
+        ================================================= */}
+
+        <motion.section
+          initial={{
+            opacity: 0,
+            y: 30,
+          }}
+          whileInView={{
+            opacity: 1,
+            y: 0,
+          }}
+          viewport={{
+            once: true,
+            margin: "-80px",
+          }}
+          transition={{
+            duration: 0.7,
+          }}
+          className="group relative mb-16 h-[560px] overflow-hidden rounded-[2.25rem] border border-cyan-400/15 bg-slate-900 shadow-2xl sm:h-[620px] lg:h-[680px]"
+        >
+
+          {/* =================================================
+              SCHOOL IMAGE
+          ================================================= */}
+
+          {school && (
+            <img
+              src={school}
+              alt="Scholiqen Academy"
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover object-center brightness-[0.68] saturate-[0.88] transition-transform duration-[1400ms] ease-out group-hover:scale-[1.025]"
+            />
+          )}
+
+          {/* Dark cinematic overlay */}
+
+          <div className="absolute inset-0 bg-slate-950/25" />
+
+          {/* Main gradient for text readability */}
+
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-950/35 to-slate-950/80" />
+
+          {/* Center glow */}
+
+          <div className="absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400/10 blur-[120px]" />
+
+          {/* =================================================
+              TEXT ON IMAGE
+          ================================================= */}
+
+          <div className="absolute inset-0 z-10 flex items-center justify-center px-6 py-12 text-center sm:px-10">
+
+            <div className="mx-auto max-w-4xl">
+
+              {/* Badge */}
+
+              <motion.div
+                initial={{
+                  opacity: 0,
+                  y: 20,
+                }}
+                whileInView={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                viewport={{
+                  once: true,
+                }}
+                transition={{
+                  duration: 0.5,
+                }}
+                className="mx-auto inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-slate-950/45 px-5 py-2.5 text-xs font-black uppercase tracking-[0.2em] text-cyan-300 shadow-xl backdrop-blur-md"
+              >
+
+                <Sparkles size={15} />
+
+                Scholiqen Online School
+
+              </motion.div>
+
+              {/* Heading */}
+
+              <motion.h2
+                initial={{
+                  opacity: 0,
+                  y: 25,
+                }}
+                whileInView={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                viewport={{
+                  once: true,
+                }}
+                transition={{
+                  delay: 0.1,
+                  duration: 0.6,
+                }}
+                className="mt-7 text-4xl font-black leading-tight tracking-tight text-white drop-shadow-2xl sm:text-5xl lg:text-6xl"
+              >
+
+                Welcome to{" "}
+
+                <span className="text-cyan-300">
+                  Scholiqen Academy
+                </span>
+
+              </motion.h2>
+
+              {/* Description */}
+
+              <motion.p
+                initial={{
+                  opacity: 0,
+                  y: 20,
+                }}
+                whileInView={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                viewport={{
+                  once: true,
+                }}
+                transition={{
+                  delay: 0.18,
+                  duration: 0.6,
+                }}
+                className="mx-auto mt-6 max-w-2xl text-base font-medium leading-8 text-slate-100 drop-shadow-xl sm:text-lg"
+              >
+                A complete online learning environment designed
+                to help you learn, develop your skills and move
+                closer to your academic goals — wherever you are.
+              </motion.p>
+
+              {/* Features */}
+
+              <motion.div
+                initial={{
+                  opacity: 0,
+                  y: 15,
+                }}
+                whileInView={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                viewport={{
+                  once: true,
+                }}
+                transition={{
+                  delay: 0.25,
+                  duration: 0.5,
+                }}
+                className="mt-8 flex flex-wrap items-center justify-center gap-3"
+              >
+
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-slate-950/40 px-4 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-md">
+
+                  <BookOpen
+                    size={16}
+                    className="text-cyan-300"
+                  />
+
+                  Structured Courses
+
+                </div>
+
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-slate-950/40 px-4 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-md">
+
+                  <PlayCircle
+                    size={16}
+                    className="text-blue-300"
+                  />
+
+                  Learn Online
+
+                </div>
+
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-slate-950/40 px-4 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-md">
+
+                  <Users
+                    size={16}
+                    className="text-violet-300"
+                  />
+
+                  Learning Community
+
+                </div>
+
+              </motion.div>
+
+              {/* =================================================
+                  ENROLL BUTTON
+              ================================================= */}
+
+              <motion.div
+                initial={{
+                  opacity: 0,
+                  y: 20,
+                }}
+                whileInView={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                viewport={{
+                  once: true,
+                }}
+                transition={{
+                  delay: 0.32,
+                  duration: 0.5,
+                }}
+                className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row"
+              >
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/academy")}
+                  className="group/enroll inline-flex min-h-[58px] items-center justify-center gap-3 rounded-2xl bg-cyan-400 px-8 py-4 text-sm font-black text-slate-950 shadow-2xl shadow-cyan-500/30 transition-all duration-300 hover:-translate-y-1 hover:bg-cyan-300 hover:shadow-cyan-400/50"
+                >
+
+                  Enroll into Scholiqen Academy
+
+                  <ArrowUpRight
+                    size={20}
+                    className="transition-transform duration-300 group-hover/enroll:translate-x-1 group-hover/enroll:-translate-y-1"
+                  />
+
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/lms")}
+                  className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-2xl border border-white/20 bg-slate-950/45 px-7 py-4 text-sm font-bold text-white shadow-xl backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:bg-slate-950/65"
+                >
+
+                  Explore Learning
+
+                  <ChevronRight size={18} />
+
+                </button>
+
+              </motion.div>
+
+              {/* Supporting text */}
+
+              <p className="mt-6 text-xs font-semibold text-white/65 drop-shadow-lg">
+                Start your online learning journey today.
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* Bottom image label */}
+
+          <div className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2">
+
+            <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-white/15 bg-slate-950/50 px-5 py-2.5 text-xs font-bold text-white shadow-2xl backdrop-blur-md">
+
+              <GraduationCap
+                size={16}
+                className="text-cyan-300"
+              />
+
+              Your Online School
+
+            </div>
+
+          </div>
+
+          {/* Bottom accent */}
+
+          <div className="absolute inset-x-0 bottom-0 z-20 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-80" />
+
+        </motion.section>
 
         {/* =================================================
             EXPLORE SCHOOLS
         ================================================= */}
 
-        <motion.div
+        <motion.section
           initial={{
             opacity: 0,
             y: 25,
@@ -520,13 +754,17 @@ const Dashboard = () => {
           }}
           className="mb-14 overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/70 p-7 shadow-2xl backdrop-blur-xl sm:p-9"
         >
+
           <div className="mb-9 flex flex-col items-center text-center">
+
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/10">
+
               <GraduationCap
                 size={29}
                 className="text-cyan-400"
                 strokeWidth={1.8}
               />
+
             </div>
 
             <h2 className="mt-5 text-3xl font-black tracking-tight text-white sm:text-4xl">
@@ -534,8 +772,10 @@ const Dashboard = () => {
             </h2>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
-              Discover universities, colleges and polytechnics and explore what they offer.
+              Discover universities, colleges and polytechnics
+              and explore what they offer.
             </p>
+
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
@@ -550,7 +790,7 @@ const Dashboard = () => {
             <SchoolTypeCard
               title="Colleges"
               description="Discover colleges, courses, programs and admission opportunities."
-              icon={School}
+              icon={SchoolIcon}
               onClick={() => navigate("/colleges")}
             />
 
@@ -562,13 +802,14 @@ const Dashboard = () => {
             />
 
           </div>
-        </motion.div>
+
+        </motion.section>
 
         {/* =================================================
-            PERSONAL CALENDAR
+            MY CALENDAR
         ================================================= */}
 
-        <motion.div
+        <motion.section
           initial={{
             opacity: 0,
             y: 25,
@@ -585,15 +826,20 @@ const Dashboard = () => {
           }}
           className="mb-16 overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/70 p-7 shadow-2xl backdrop-blur-xl sm:p-9"
         >
+
           <div className="mb-7 flex items-center gap-4">
+
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/10 bg-violet-400/10">
+
               <Calendar
                 size={23}
                 className="text-violet-400"
               />
+
             </div>
 
             <div>
+
               <h2 className="text-2xl font-black text-white">
                 My Calendar
               </h2>
@@ -601,17 +847,20 @@ const Dashboard = () => {
               <p className="mt-1 text-sm text-slate-400">
                 Organize your personal learning schedule.
               </p>
+
             </div>
+
           </div>
 
           <MyCalendar
             events={events}
             setEvents={setEvents}
           />
-        </motion.div>
+
+        </motion.section>
 
         {/* =================================================
-            PREMIUM FAQ
+            FAQ
         ================================================= */}
 
         <motion.section
@@ -631,86 +880,93 @@ const Dashboard = () => {
           transition={{
             duration: 0.6,
           }}
-          className="scroll-mt-24 mb-16 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/20 p-7 shadow-2xl sm:p-10"
+          className="mb-16 scroll-mt-24 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/20 p-7 shadow-2xl sm:p-10"
         >
-          {/* Background decoration */}
 
-          <div className="pointer-events-none absolute" />
+          <div className="mx-auto mb-10 max-w-3xl text-center">
 
-          <div className="relative">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/10">
 
-            {/* Header */}
+              <HelpCircle
+                size={28}
+                className="text-cyan-400"
+              />
 
-            <div className="mx-auto mb-10 max-w-3xl text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/10">
-                <HelpCircle
-                  size={28}
-                  className="text-cyan-400"
-                />
-              </div>
-
-              <p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">
-                Frequently Asked Questions
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
-                Questions? We've Got Answers.
-              </h2>
-
-              <p className="mt-4 text-sm leading-7 text-slate-400 sm:text-base">
-                Find quick answers about learning, CBT practice,
-                schools, languages, AI and everything else
-                available on Scholiqen.
-              </p>
             </div>
 
-            {/* FAQ LIST */}
+            <p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">
+              Frequently Asked Questions
+            </p>
 
-            <div className="mx-auto max-w-4xl space-y-3">
-              {faqItems.map((item, index) => (
-                <FAQItem
-                  key={item.question}
-                  item={item}
-                  isOpen={openFAQ === index}
-                  onClick={() => toggleFAQ(index)}
-                />
-              ))}
-            </div>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+              Questions? We've Got Answers.
+            </h2>
 
-            {/* Bottom Support Card */}
+            <p className="mt-4 text-sm leading-7 text-slate-400 sm:text-base">
+              Find quick answers about learning, CBT practice,
+              schools, AI and the resources available to you.
+            </p>
 
-            <div className="mx-auto mt-8 max-w-4xl rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.035] p-5 sm:p-6">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-400">
-                    <MessageCircle size={20} />
-                  </div>
+          <div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-2">
 
-                  <div>
-                    <h3 className="font-black text-white">
-                      Still need help?
-                    </h3>
+            {faqItems.map((item, index) => (
+              <FAQItem
+                key={item.question}
+                item={item}
+                isOpen={openFAQ === index}
+                onClick={() => toggleFAQ(index)}
+              />
+            ))}
 
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      Our help and contact areas are available whenever you need assistance.
-                    </p>
-                  </div>
+          </div>
+
+          {/* Help */}
+
+          <div className="mx-auto mt-8 max-w-6xl rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.035] p-5 sm:p-6">
+
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+
+              <div className="flex items-start gap-4">
+
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-400">
+
+                  <MessageCircle size={20} />
+
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => navigate("/help")}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-bold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950"
-                >
-                  Visit Help
-                  <ArrowUpRight size={16} />
-                </button>
+                <div>
+
+                  <h3 className="font-black text-white">
+                    Still need help?
+                  </h3>
+
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    Our help and contact areas are available whenever
+                    you need assistance.
+                  </p>
+
+                </div>
 
               </div>
+
+              <button
+                type="button"
+                onClick={() => navigate("/help")}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-bold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950"
+              >
+
+                Visit Help
+
+                <ArrowUpRight size={16} />
+
+              </button>
+
             </div>
 
           </div>
+
         </motion.section>
 
         {/* =================================================
@@ -722,6 +978,7 @@ const Dashboard = () => {
           <div className="mx-auto mb-8 grid max-w-4xl gap-4 sm:grid-cols-3">
 
             <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5">
+
               <BookOpen
                 size={20}
                 className="mx-auto text-cyan-400"
@@ -731,12 +988,14 @@ const Dashboard = () => {
                 Learn
               </p>
 
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 Build knowledge at your pace.
               </p>
+
             </div>
 
             <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5">
+
               <Brain
                 size={20}
                 className="mx-auto text-violet-400"
@@ -746,12 +1005,14 @@ const Dashboard = () => {
                 Practice
               </p>
 
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 Test yourself and improve.
               </p>
+
             </div>
 
             <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5">
+
               <GraduationCap
                 size={20}
                 className="mx-auto text-blue-400"
@@ -761,9 +1022,10 @@ const Dashboard = () => {
                 Grow
               </p>
 
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 Keep moving toward your goals.
               </p>
+
             </div>
 
           </div>
@@ -773,10 +1035,9 @@ const Dashboard = () => {
           </h2>
 
           <p className="mx-auto mt-5 max-w-3xl leading-8 text-slate-400">
-            Scholiqen brings learning, AI tutoring,
-            multilingual education, virtual laboratories,
-            CBT practice and digital libraries together
-            in one intelligent platform.
+            Bring learning, AI tutoring, virtual laboratories,
+            CBT practice and digital libraries together in one
+            intelligent learning experience.
           </p>
 
           <div className="mt-10 flex flex-wrap justify-center gap-8 text-slate-400">
@@ -815,21 +1076,14 @@ const Dashboard = () => {
 
           </div>
 
-          <div className="mt-10 flex items-center justify-center gap-2 text-slate-700">
-            <Sparkles size={14} />
-
-            <span className="text-xs font-semibold uppercase tracking-[0.15em]">
-              Scholiqen
-            </span>
-          </div>
-
-          <p className="mt-2 pb-8 text-xs text-slate-700">
+          <p className="mt-10 pb-8 text-xs text-slate-700">
             Your learning. Your journey. Your progress.
           </p>
 
         </footer>
 
       </div>
+
     </section>
   );
 };

@@ -31,6 +31,24 @@ const formatUser = (user) => ({
   created_at: user.created_at,
 });
 
+const isAdminRole = (role) => {
+  if (!role) return false;
+
+  const normalized = String(role)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+  return [
+    "admin",
+    "super_admin",
+    "superadmin",
+    "content_admin",
+    "analytics_admin",
+    "moderator",
+  ].includes(normalized);
+};
+
 /* =========================================================
    AUTH MIDDLEWARE
 ========================================================= */
@@ -106,6 +124,30 @@ const requireAuth = async (req, res, next) => {
 };
 
 /* =========================================================
+   ADMIN MIDDLEWARE
+========================================================= */
+
+const requireAdmin = async (req, res, next) => {
+  try {
+    if (!req.user || !isAdminRole(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Administrator access is required.",
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error("Admin authorization error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to verify administrator access.",
+    });
+  }
+};
+
+/* =========================================================
    SIGN UP
    POST /api/auth/signup
 ========================================================= */
@@ -117,10 +159,6 @@ router.post("/signup", async (req, res) => {
       email,
       password,
     } = req.body;
-
-    /* -----------------------------
-       VALIDATION
-    ----------------------------- */
 
     if (!username || !email || !password) {
       return res.status(400).json({
@@ -146,10 +184,6 @@ router.post("/signup", async (req, res) => {
       });
     }
 
-    /* -----------------------------
-       CHECK EXISTING USER
-    ----------------------------- */
-
     const existingUser = await pool.query(
       `
       SELECT id
@@ -167,18 +201,10 @@ router.post("/signup", async (req, res) => {
       });
     }
 
-    /* -----------------------------
-       HASH PASSWORD
-    ----------------------------- */
-
     const passwordHash = await bcrypt.hash(
       password,
       12
     );
-
-    /* -----------------------------
-       CREATE USER
-    ----------------------------- */
 
     const result = await pool.query(
       `
@@ -240,10 +266,6 @@ router.post("/login", async (req, res) => {
       password,
     } = req.body;
 
-    /* -----------------------------
-       VALIDATION
-    ----------------------------- */
-
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -254,10 +276,6 @@ router.post("/login", async (req, res) => {
     const cleanEmail = String(email)
       .trim()
       .toLowerCase();
-
-    /* -----------------------------
-       FIND USER
-    ----------------------------- */
 
     const result = await pool.query(
       `
@@ -284,10 +302,6 @@ router.post("/login", async (req, res) => {
 
     const user = result.rows[0];
 
-    /* -----------------------------
-       CHECK PASSWORD
-    ----------------------------- */
-
     if (!user.password_hash) {
       return res.status(500).json({
         success: false,
@@ -309,15 +323,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    /* -----------------------------
-       CREATE JWT
-    ----------------------------- */
-
     const token = createToken(user);
-
-    /* -----------------------------
-       REMOVE PASSWORD HASH
-    ----------------------------- */
 
     const safeUser = {
       id: user.id,
@@ -373,8 +379,475 @@ router.get("/me", requireAuth, async (req, res) => {
 });
 
 /* =========================================================
+   GET ALL ADMINS
+   GET /api/auth/admins
+========================================================= */
+
+router.get(
+  "/admins",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          id,
+          username,
+          email,
+          role,
+          created_at
+        FROM users
+        WHERE role IS NOT NULL
+          AND (
+            LOWER(role) = 'admin'
+            OR LOWER(role) = 'super_admin'
+            OR LOWER(role) = 'superadmin'
+            OR LOWER(role) = 'content_admin'
+            OR LOWER(role) = 'analytics_admin'
+            OR LOWER(role) = 'moderator'
+          )
+        ORDER BY created_at DESC
+      `);
+
+      return res.status(200).json({
+        success: true,
+        admins: result.rows,
+        count: result.rows.length,
+      });
+    } catch (error) {
+      console.error("Get admins error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Unable to load administrators.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   CREATE ADMIN
+   POST /api/auth/admins
+========================================================= */
+
+router.post(
+  "/admins",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const {
+        username,
+        email,
+        password,
+        role,
+      } = req.body;
+
+      if (
+        !username ||
+        !email ||
+        !password ||
+        !role
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Username, email, password and role are required.",
+        });
+      }
+
+      const cleanUsername = String(username).trim();
+      const cleanEmail = String(email)
+        .trim()
+        .toLowerCase();
+
+      const cleanRole = String(role).trim();
+
+      if (cleanUsername.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Username must be at least 2 characters.",
+        });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Password must be at least 6 characters.",
+        });
+      }
+
+      if (!isAdminRole(cleanRole)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "The selected role is not an administrator role.",
+        });
+      }
+
+      const existing = await pool.query(
+        `
+        SELECT id
+        FROM users
+        WHERE LOWER(email) = LOWER($1)
+        LIMIT 1
+        `,
+        [cleanEmail]
+      );
+
+      if (existing.rows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "An account with this email already exists.",
+        });
+      }
+
+      const passwordHash =
+        await bcrypt.hash(password, 12);
+
+      const result = await pool.query(
+        `
+        INSERT INTO users (
+          username,
+          email,
+          password_hash,
+          role
+        )
+        VALUES ($1, $2, $3, $4)
+        RETURNING
+          id,
+          username,
+          email,
+          role,
+          created_at
+        `,
+        [
+          cleanUsername,
+          cleanEmail,
+          passwordHash,
+          cleanRole,
+        ]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Administrator created successfully.",
+        admin: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Create admin error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Unable to create administrator.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   EDIT ADMIN
+   PATCH /api/auth/admins/:id
+========================================================= */
+
+router.patch(
+  "/admins/:id",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const {
+        username,
+        email,
+        role,
+        password,
+      } = req.body;
+
+      const existing = await pool.query(
+        `
+        SELECT
+          id,
+          username,
+          email,
+          role,
+          password_hash,
+          created_at
+        FROM users
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [id]
+      );
+
+      if (existing.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Administrator not found.",
+        });
+      }
+
+      const current = existing.rows[0];
+
+      const newUsername =
+        username !== undefined
+          ? String(username).trim()
+          : current.username;
+
+      const newEmail =
+        email !== undefined
+          ? String(email).trim().toLowerCase()
+          : current.email;
+
+      const newRole =
+        role !== undefined
+          ? String(role).trim()
+          : current.role;
+
+      if (newUsername.length < 2) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Username must be at least 2 characters.",
+        });
+      }
+
+      if (!isAdminRole(newRole)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "The selected role is not an administrator role.",
+        });
+      }
+
+      const duplicate = await pool.query(
+        `
+        SELECT id
+        FROM users
+        WHERE LOWER(email) = LOWER($1)
+          AND id <> $2
+        LIMIT 1
+        `,
+        [newEmail, id]
+      );
+
+      if (duplicate.rows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Another account already uses this email.",
+        });
+      }
+
+      let passwordHash = current.password_hash;
+
+      if (password) {
+        if (password.length < 6) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Password must be at least 6 characters.",
+          });
+        }
+
+        passwordHash =
+          await bcrypt.hash(password, 12);
+      }
+
+      const result = await pool.query(
+        `
+        UPDATE users
+        SET
+          username = $1,
+          email = $2,
+          role = $3,
+          password_hash = $4
+        WHERE id = $5
+        RETURNING
+          id,
+          username,
+          email,
+          role,
+          created_at
+        `,
+        [
+          newUsername,
+          newEmail,
+          newRole,
+          passwordHash,
+          id,
+        ]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Administrator updated successfully.",
+        admin: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Edit admin error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update administrator.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   ACTIVATE / DEACTIVATE ADMIN
+   PATCH /api/auth/admins/:id/status
+========================================================= */
+
+router.patch(
+  "/admins/:id/status",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!["active", "inactive"].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Status must be active or inactive.",
+        });
+      }
+
+      const result = await pool.query(
+        `
+        UPDATE users
+        SET role = CASE
+          WHEN $1 = 'inactive'
+            THEN 'inactive_admin'
+          ELSE 'admin'
+        END
+        WHERE id = $2
+        RETURNING
+          id,
+          username,
+          email,
+          role,
+          created_at
+        `,
+        [status, id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Administrator not found.",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          status === "active"
+            ? "Administrator activated."
+            : "Administrator deactivated.",
+        admin: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Admin status error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to change administrator status.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   DELETE ADMIN
+   DELETE /api/auth/admins/:id
+========================================================= */
+
+router.delete(
+  "/admins/:id",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      /* -----------------------------------------
+         PREVENT SELF DELETE
+      ----------------------------------------- */
+
+      if (String(req.user.id) === String(id)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "You cannot delete your own administrator account.",
+        });
+      }
+
+      const existing = await pool.query(
+        `
+        SELECT
+          id,
+          username,
+          email,
+          role
+        FROM users
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [id]
+      );
+
+      if (existing.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Administrator not found.",
+        });
+      }
+
+      if (!isAdminRole(existing.rows[0].role)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "This account is not an administrator.",
+        });
+      }
+
+      await pool.query(
+        `
+        DELETE FROM users
+        WHERE id = $1
+        `,
+        [id]
+      );
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Administrator removed successfully.",
+      });
+    } catch (error) {
+      console.error("Delete admin error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to remove administrator.",
+      });
+    }
+  }
+);
+
+/* =========================================================
    AUTH TEST
-   GET /api/auth/test
 ========================================================= */
 
 router.get("/test", (req, res) => {
@@ -385,6 +858,11 @@ router.get("/test", (req, res) => {
       "POST /api/auth/signup",
       "POST /api/auth/login",
       "GET /api/auth/me",
+      "GET /api/auth/admins",
+      "POST /api/auth/admins",
+      "PATCH /api/auth/admins/:id",
+      "PATCH /api/auth/admins/:id/status",
+      "DELETE /api/auth/admins/:id",
     ],
   });
 });

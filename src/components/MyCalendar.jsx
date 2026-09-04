@@ -247,7 +247,7 @@ const MyCalendar = () => {
     <div className="relative w-full overflow-hidden rounded-[2rem] p-3 sm:p-5 md:p-7">
 
       {/* =====================================================
-          PREMIUM BACKGROUND
+           BACKGROUND
       ===================================================== */}
 
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
@@ -552,7 +552,7 @@ const MyCalendar = () => {
       )}
 
       {/* =====================================================
-          PREMIUM CALENDAR STYLES
+           CALENDAR STYLES
       ===================================================== */}
 
       <style>{`

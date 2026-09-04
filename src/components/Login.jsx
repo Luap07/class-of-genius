@@ -717,7 +717,7 @@ const Login = () => {
       }`}
     >
       {/* =====================================================
-          PREMIUM BACKGROUND
+         BACKGROUND
       ===================================================== */}
 
       <div className="pointer-events-none fixed inset-0 overflow-hidden">

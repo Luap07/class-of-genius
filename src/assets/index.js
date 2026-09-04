@@ -73,6 +73,8 @@ import finnishImg from './finnishImg.jpeg';
 import norwegianImg from './norwegianImg.jpeg';
 import czechImg from './czechImg.jpeg';
 import labhero from './labhero.jpg';
+import school from './school.jpg';
+
 export {
     
     Cog,
@@ -148,5 +150,6 @@ danishImg,
 finnishImg,
 norwegianImg,
 czechImg,
-labhero
+labhero,
+school,
 }

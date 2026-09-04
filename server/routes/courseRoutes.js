@@ -1,25 +1,13 @@
-// server/routes/courseRoutes.js
-
 import express from "express";
 import pool from "../lib/db.js";
 
 const router = express.Router();
 
-/*
-|--------------------------------------------------------------------------
-| GET ALL COURSES
-|--------------------------------------------------------------------------
-| GET /api/courses
-|
-| Optional:
-| ?status=Published
-| ?featured=true
-| ?category_id=UUID
-| ?search=mathematics
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+   GET ALL COURSES
+========================================================= */
 
-router.get("/", async (req, res, next) => {
+router.get("/", async (req, res) => {
   try {
     const {
       status,
@@ -28,56 +16,50 @@ router.get("/", async (req, res, next) => {
       search,
     } = req.query;
 
-    const values = [];
-    const conditions = [];
-
     let query = `
       SELECT
-        c.*
+        c.*,
+        cc.name AS category_name
       FROM courses c
+      LEFT JOIN course_categories cc
+        ON cc.id = c.category_id
     `;
+
+    const conditions = [];
+    const values = [];
 
     if (status) {
       values.push(status);
-
       conditions.push(
         `c.status = $${values.length}`
       );
     }
 
     if (featured === "true") {
-      conditions.push(
-        `c.featured = true`
-      );
+      conditions.push(`c.featured = true`);
     }
 
     if (category_id) {
       values.push(category_id);
-
       conditions.push(
         `c.category_id = $${values.length}`
       );
     }
 
-    if (search?.trim()) {
-      values.push(
-        `%${search.trim()}%`
-      );
-
-      const searchParam =
-        `$${values.length}`;
+    if (search) {
+      values.push(`%${search}%`);
 
       conditions.push(`
         (
-          c.title ILIKE ${searchParam}
-          OR c.description ILIKE ${searchParam}
-          OR c.instructor ILIKE ${searchParam}
-          OR c.slug ILIKE ${searchParam}
+          c.title ILIKE $${values.length}
+          OR c.description ILIKE $${values.length}
+          OR c.instructor ILIKE $${values.length}
+          OR c.slug ILIKE $${values.length}
         )
       `);
     }
 
-    if (conditions.length > 0) {
+    if (conditions.length) {
       query += `
         WHERE ${conditions.join(" AND ")}
       `;
@@ -95,372 +77,318 @@ router.get("/", async (req, res, next) => {
     const courses = result.rows.map(
       (course) => ({
         ...course,
-
         thumbnail:
           course.thumbnail_url ||
           course.thumbnail ||
           "",
-
         rating:
           Number(course.rating) || 0,
-
         students:
           Number(course.students) || 0,
-
         price:
           Number(course.price) || 0,
-
         featured:
           course.featured === true,
       })
     );
 
-    res.json({
+    return res.json({
       success: true,
       courses,
       count: courses.length,
     });
   } catch (error) {
     console.error(
-      "GET COURSES ERROR:",
+      "Get courses error:",
       error
     );
 
-    next(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch courses.",
+    });
   }
 });
 
-/*
-|--------------------------------------------------------------------------
-| GET FEATURED COURSES
-|--------------------------------------------------------------------------
-| GET /api/courses/featured
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+   GET FEATURED COURSES
+========================================================= */
 
 router.get(
   "/featured",
-  async (req, res, next) => {
+  async (req, res) => {
     try {
-      const result =
-        await pool.query(`
-          SELECT *
-          FROM courses
-          WHERE
-            featured = true
-            AND status = 'Published'
-          ORDER BY
-            created_at DESC NULLS LAST
-        `);
+      const result = await pool.query(`
+        SELECT
+          c.*,
+          cc.name AS category_name
+        FROM courses c
+        LEFT JOIN course_categories cc
+          ON cc.id = c.category_id
+        WHERE c.featured = true
+          AND c.status = 'Published'
+        ORDER BY c.created_at DESC NULLS LAST
+      `);
 
-      const courses =
-        result.rows.map((course) => ({
-          ...course,
-
-          thumbnail:
-            course.thumbnail_url ||
-            course.thumbnail ||
-            "",
-
-          rating:
-            Number(course.rating) || 0,
-
-          students:
-            Number(course.students) || 0,
-
-          price:
-            Number(course.price) || 0,
-        }));
-
-      res.json({
+      return res.json({
         success: true,
-        courses,
-        count: courses.length,
-      });
-    } catch (error) {
-      console.error(
-        "FEATURED COURSES ERROR:",
-        error
-      );
-
-      next(error);
-    }
-  }
-);
-
-/*
-|--------------------------------------------------------------------------
-| GET RECENT COURSES
-|--------------------------------------------------------------------------
-| GET /api/courses/recent
-|--------------------------------------------------------------------------
-*/
-
-router.get(
-  "/recent",
-  async (req, res, next) => {
-    try {
-      let limit =
-        Number(req.query.limit) || 12;
-
-      limit = Math.min(
-        Math.max(limit, 1),
-        100
-      );
-
-      const result =
-        await pool.query(
-          `
-            SELECT *
-            FROM courses
-            ORDER BY
-              created_at DESC NULLS LAST
-            LIMIT $1
-          `,
-          [limit]
-        );
-
-      const courses =
-        result.rows.map((course) => ({
-          ...course,
-
-          thumbnail:
-            course.thumbnail_url ||
-            course.thumbnail ||
-            "",
-
-          rating:
-            Number(course.rating) || 0,
-
-          students:
-            Number(course.students) || 0,
-
-          price:
-            Number(course.price) || 0,
-        }));
-
-      res.json({
-        success: true,
-        courses,
-        count: courses.length,
-      });
-    } catch (error) {
-      console.error(
-        "RECENT COURSES ERROR:",
-        error
-      );
-
-      next(error);
-    }
-  }
-);
-
-/*
-|--------------------------------------------------------------------------
-| GET COURSE STATISTICS
-|--------------------------------------------------------------------------
-| GET /api/courses/stats
-|--------------------------------------------------------------------------
-*/
-
-router.get(
-  "/stats",
-  async (req, res, next) => {
-    try {
-      const coursesResult =
-        await pool.query(`
-          SELECT COUNT(*)::int AS count
-          FROM courses
-          WHERE status = 'Published'
-        `);
-
-      const categoriesResult =
-        await pool.query(`
-          SELECT COUNT(*)::int AS count
-          FROM course_categories
-        `);
-
-      const studentsResult =
-        await pool.query(`
-          SELECT COUNT(*)::int AS count
-          FROM profiles
-          WHERE LOWER(COALESCE(role, '')) = 'student'
-        `);
-
-      let certificatesCount = 0;
-
-      try {
-        const certificatesResult =
-          await pool.query(`
-            SELECT COUNT(*)::int AS count
-            FROM certificates
-          `);
-
-        certificatesCount =
-          Number(
-            certificatesResult.rows[0]?.count
-          ) || 0;
-      } catch (certificateError) {
-        console.warn(
-          "CERTIFICATES TABLE ERROR:",
-          certificateError.message
-        );
-
-        certificatesCount = 0;
-      }
-
-      const stats = {
-        courses:
-          Number(
-            coursesResult.rows[0]?.count
-          ) || 0,
-
-        categories:
-          Number(
-            categoriesResult.rows[0]?.count
-          ) || 0,
-
-        students:
-          Number(
-            studentsResult.rows[0]?.count
-          ) || 0,
-
-        certificates:
-          certificatesCount,
-      };
-
-      res.json({
-        success: true,
-        stats,
-      });
-    } catch (error) {
-      console.error(
-        "COURSE STATS ERROR:",
-        error
-      );
-
-      next(error);
-    }
-  }
-);
-
-/*
-|--------------------------------------------------------------------------
-| GET TOPICS FOR A COURSE
-|--------------------------------------------------------------------------
-| GET /api/courses/:courseId/topics
-|--------------------------------------------------------------------------
-*/
-
-router.get(
-  "/:courseId/topics",
-  async (req, res, next) => {
-    try {
-      const { courseId } = req.params;
-
-      if (!courseId) {
-        return res.status(400).json({
-          success: false,
-          message: "Course ID is required.",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            SELECT
-              id,
-              title,
-              course_id,
-              position
-            FROM course_topics
-            WHERE course_id = $1
-            ORDER BY
-              position ASC NULLS LAST,
-              title ASC
-          `,
-          [courseId]
-        );
-
-      res.json({
-        success: true,
-        topics: result.rows || [],
+        courses: result.rows,
         count: result.rows.length,
       });
     } catch (error) {
       console.error(
-        "GET COURSE TOPICS ERROR:",
+        "Featured courses error:",
         error
       );
 
-      next(error);
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to fetch featured courses.",
+      });
     }
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| GET SINGLE COURSE
-|--------------------------------------------------------------------------
-| GET /api/courses/:id
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+   GET RECENT COURSES
+========================================================= */
 
 router.get(
-  "/:id",
-  async (req, res, next) => {
+  "/recent",
+  async (req, res) => {
     try {
-      const { id } = req.params;
+      let limit =
+        Number(req.query.limit) || 12;
 
-      const result =
-        await pool.query(
-          `
-            SELECT *
-            FROM courses
-            WHERE id = $1
-            LIMIT 1
-          `,
-          [id]
-        );
+      limit = Math.max(
+        1,
+        Math.min(limit, 100)
+      );
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: "Course not found.",
-        });
-      }
+      const result = await pool.query(
+        `
+        SELECT
+          c.*,
+          cc.name AS category_name
+        FROM courses c
+        LEFT JOIN course_categories cc
+          ON cc.id = c.category_id
+        ORDER BY c.created_at DESC NULLS LAST
+        LIMIT $1
+        `,
+        [limit]
+      );
 
-      const course =
-        result.rows[0];
+      return res.json({
+        success: true,
+        courses: result.rows,
+        count: result.rows.length,
+      });
+    } catch (error) {
+      console.error(
+        "Recent courses error:",
+        error
+      );
 
-      res.json({
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to fetch recent courses.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   COURSE PAGE STATS
+=========================================================
+
+   IMPORTANT:
+
+   Published Courses
+   -----------------
+   This now counts ALL uploaded documents.
+
+   Course Categories
+   -----------------
+   This counts ALL subject categories.
+
+   Learning Materials
+   ------------------
+   This counts ALL uploaded documents.
+
+========================================================= */
+
+router.get(
+  "/stats",
+  async (req, res) => {
+    try {
+      const [
+        documentsResult,
+        categoriesResult,
+      ] = await Promise.all([
+        pool.query(`
+          SELECT COUNT(*)::int AS count
+          FROM documents
+          WHERE file_url IS NOT NULL
+            AND TRIM(file_url) <> ''
+        `),
+
+        pool.query(`
+          SELECT COUNT(*)::int AS count
+          FROM course_categories
+        `),
+      ]);
+
+      const documentCount =
+        Number(
+          documentsResult.rows[0]?.count
+        ) || 0;
+
+      const categoryCount =
+        Number(
+          categoriesResult.rows[0]?.count
+        ) || 0;
+
+      return res.json({
         success: true,
 
-        course: {
-          ...course,
-
-          thumbnail:
-            course.thumbnail_url ||
-            course.thumbnail ||
-            "",
-
-          rating:
-            Number(course.rating) || 0,
-
-          students:
-            Number(course.students) || 0,
-
-          price:
-            Number(course.price) || 0,
+        stats: {
+          courses: documentCount,
+          categories: categoryCount,
+          materials: documentCount,
         },
       });
     } catch (error) {
       console.error(
-        "GET COURSE ERROR:",
+        "Course stats error:",
         error
       );
 
-      next(error);
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to fetch course statistics.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   SUBJECT CATEGORIES
+=========================================================
+
+   Every category comes from course_categories.
+
+   document_count tells the frontend how many
+   uploaded documents belong to that subject.
+
+========================================================= */
+
+router.get(
+  "/categories",
+  async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          cc.id,
+          cc.name,
+          cc.slug,
+          COUNT(d.id)::int AS document_count
+        FROM course_categories cc
+
+        LEFT JOIN documents d
+          ON d.category_id = cc.id
+          AND d.file_url IS NOT NULL
+          AND TRIM(d.file_url) <> ''
+
+        GROUP BY
+          cc.id,
+          cc.name,
+          cc.slug
+
+        ORDER BY
+          cc.name ASC
+      `);
+
+      return res.json({
+        success: true,
+        categories: result.rows,
+        count: result.rows.length,
+      });
+    } catch (error) {
+      console.error(
+        "Course categories error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to fetch subject categories.",
+      });
+    }
+  }
+);
+
+/* =========================================================
+   GET DOCUMENTS FOR A SUBJECT CATEGORY
+========================================================= */
+
+router.get(
+  "/categories/:categoryId/documents",
+  async (req, res) => {
+    try {
+      const {
+        categoryId,
+      } = req.params;
+
+      const result = await pool.query(
+        `
+        SELECT
+          d.id,
+          d.title,
+          d.description,
+          d.category_id,
+          d.category,
+          d.file_url,
+          d.thumbnail_url,
+          d.file_type,
+          d.file_size,
+          d.created_at,
+          cc.name AS category_name
+        FROM documents d
+
+        LEFT JOIN course_categories cc
+          ON cc.id = d.category_id
+
+        WHERE d.category_id = $1
+          AND d.file_url IS NOT NULL
+          AND TRIM(d.file_url) <> ''
+
+        ORDER BY
+          d.created_at DESC NULLS LAST
+        `,
+        [categoryId]
+      );
+
+      return res.json({
+        success: true,
+        documents: result.rows,
+        count: result.rows.length,
+      });
+    } catch (error) {
+      console.error(
+        "Category documents error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to fetch category documents.",
+      });
     }
   }
 );

@@ -16,7 +16,7 @@ import {
 } from "framer-motion";
 
 /* ===========================
-   CONDITIONS
+   GENERAL PAGES
 =========================== */
 
 import Terms from "./pages/Terms";
@@ -28,19 +28,34 @@ import EditProfile from "./pages/EditProfile";
 import LearningStats from "./pages/LearningStats";
 import ResetPassword from "./pages/ResetPassword";
 
-/* =========================== CONTEXTS =========================== */
+/* ===========================
+   CONTEXTS
+=========================== */
 
 import { CourseProvider } from "./context/LMSContext/CourseContext";
 import { SearchProvider } from "./context/SearchContext";
 import { DocumentProvider } from "./context/DocumentContext";
 
-/* ===========================  LANGUAGE  =========================== */
+/* ===========================
+   ACADEMY
+=========================== */
+
+import StudentEnrollmentLogin from "./pages/academy/StudentEnrollmentLogin";
+import StudentEnrollment from "./pages/academy/StudentEnrollment";
+import StudentPortal from "./pages/academy/StudentPortal";
+import TutorEnrollment from "./pages/academy/TutorEnrollment";
+import Teachers from "./pages/admin/users/Teachers";
+/* ===========================
+   LANGUAGE
+=========================== */
 
 import GrammarReader from "./pages/languages/GrammarReader";
 import LanguagesHome from "./pages/languages/LanguagesHome";
 import LanguageDetails from "./pages/languages/LanguageDetails";
 
-/* =========================== SCHOOLS =========================== */
+/* ===========================
+   SCHOOLS
+=========================== */
 
 import Polytechnics from "./pages/Polytechnics/Polytechnics";
 import PolytechnicDetails from "./pages/Polytechnics/PolytechnicDetails";
@@ -51,21 +66,28 @@ import CollegeDetails from "./pages/colleges/CollegeDetails";
 import Universities from "./pages/universities/Universities";
 import UniversityDetails from "./pages/universities/UniversityDetails";
 
-/* =========================== ADMIN =========================== */
+/* ===========================
+   ADMIN
+=========================== */
 
 import AdminRoutes from "./admin/AdminRoutes";
 import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 
-/* =========================== COMPONENTS =========================== */
+/* ===========================
+   COMPONENTS
+=========================== */
 
 import Navbar from "./components/Navbar";
 import Login from "./components/Login";
 import Contact from "./components/Contact";
 
-/* =========================== GENERAL PAGES =========================== */
+/* ===========================
+   GENERAL
+=========================== */
 
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
+import Academy from "./pages/Academy";
 import Libraries from "./pages/Libraries";
 import Downloads from "./pages/Downloads";
 import History from "./pages/History";
@@ -89,12 +111,6 @@ import GenrePayment from "./pages/Payment";
 =========================== */
 
 import LMSPortal from "./pages/lms/LMSPortal";
-
-/*
-  IMPORTANT:
-  Courses is located here:
-  src/pages/courses/Courses.jsx
-*/
 import Courses from "./pages/lms/Courses";
 import CourseDetails from "./pages/lms/CourseDetails";
 import Lesson from "./pages/lms/Lesson";
@@ -107,7 +123,7 @@ import SubjectCourses from "./pages/courses/SubjectCourses";
 import CategorySubjectPayment from "./pages/courses/CategorySubjectPayment";
 
 /* ===========================
-   PDF READER
+   PDF / VIDEO
 =========================== */
 
 import PDFReader from "./pages/courses/PDFReader";
@@ -134,11 +150,6 @@ import CBT from "./pages/cbt/CBT";
 import SubjectSelect from "./pages/cbt/SubjectSelect";
 import CBTExam from "./pages/cbt/CBTExam";
 import CBTInstruction from "./pages/cbt/CBTInstruction";
-
-/* ============================================================
-   CBT PAYMENT
-============================================================ */
-
 import CBTPayment from "./pages/cbt/CBTPayment";
 
 /* ===========================
@@ -152,11 +163,6 @@ import BiologyLab from "./pages/BiologyLab";
 import MathematicsLab from "./pages/MathematicsLab";
 import WorkEnergySimulation from "./pages/WorkEnergySimulation";
 import About from "./pages/VirtualLab/About";
-
-/* ===========================
-   VIRTUAL LAB PAYMENT
-=========================== */
-
 import LabPayment from "./pages/VirtualLab/LabPayment";
 
 /* ===========================
@@ -182,25 +188,82 @@ const API_URL = (
   "http://localhost:5000"
 ).replace(/\/$/, "");
 
+/* ============================================================
+   NORMAL AUTH KEYS
+============================================================ */
+
 const AUTH_TOKEN_KEY = "scholiqen_auth_token";
 const AUTH_USER_KEY = "scholiqen_current_user";
 
 /* ============================================================
-   PROTECTED ROUTE
+   ACADEMY AUTH KEYS
+============================================================ */
+
+const ACADEMY_TOKEN_KEY =
+  "scholiqen_academy_token";
+
+const ACADEMY_USER_KEY =
+  "scholiqen_academy_user";
+
+/* ============================================================
+   NORMAL PROTECTED ROUTE
 ============================================================ */
 
 const ProtectedRoute = ({ children }) => {
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] =
+    useState(true);
+
+  const [authenticated, setAuthenticated] =
+    useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     const checkAuthentication = async () => {
       try {
-        const token = localStorage.getItem(
-          AUTH_TOKEN_KEY
-        );
+        /*
+         * IMPORTANT:
+         *
+         * Academy students must NOT use the
+         * normal /api/auth/me authentication.
+         */
+
+        const academyUser =
+          localStorage.getItem(
+            ACADEMY_USER_KEY
+          );
+
+        if (academyUser) {
+          try {
+            const parsedAcademyUser =
+              JSON.parse(academyUser);
+
+            if (
+              parsedAcademyUser?.userType ===
+                "student" ||
+              parsedAcademyUser?.user_type ===
+                "student"
+            ) {
+              if (mounted) {
+                setAuthenticated(false);
+                setCheckingAuth(false);
+              }
+
+              return;
+            }
+          } catch {
+            // Ignore invalid Academy user
+          }
+        }
+
+        /* ============================================
+           NORMAL TOKEN
+        ============================================ */
+
+        const token =
+          localStorage.getItem(
+            AUTH_TOKEN_KEY
+          );
 
         if (!token) {
           if (mounted) {
@@ -211,14 +274,18 @@ const ProtectedRoute = ({ children }) => {
           return;
         }
 
+        /* ============================================
+           VERIFY NORMAL TOKEN
+        ============================================ */
+
         const response = await fetch(
           `${API_URL}/api/auth/me`,
           {
             method: "GET",
-
             headers: {
               Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
+              "Content-Type":
+                "application/json",
             },
           }
         );
@@ -231,9 +298,13 @@ const ProtectedRoute = ({ children }) => {
           data = {};
         }
 
+        /* ============================================
+           INVALID NORMAL SESSION
+        ============================================ */
+
         if (!response.ok) {
           console.warn(
-            "Authentication session is invalid or expired."
+            "Normal authentication session is invalid or expired."
           );
 
           localStorage.removeItem(
@@ -252,6 +323,10 @@ const ProtectedRoute = ({ children }) => {
           return;
         }
 
+        /* ============================================
+           VALID NORMAL SESSION
+        ============================================ */
+
         if (data?.user) {
           localStorage.setItem(
             AUTH_USER_KEY,
@@ -265,6 +340,10 @@ const ProtectedRoute = ({ children }) => {
 
           return;
         }
+
+        /* ============================================
+           INVALID USER RESPONSE
+        ============================================ */
 
         localStorage.removeItem(
           AUTH_TOKEN_KEY
@@ -284,15 +363,36 @@ const ProtectedRoute = ({ children }) => {
           error
         );
 
+        /* ============================================
+           FALLBACK TO NORMAL CACHED USER
+        ============================================ */
+
         const cachedUser =
-          localStorage.getItem(AUTH_USER_KEY);
+          localStorage.getItem(
+            AUTH_USER_KEY
+          );
 
         if (cachedUser) {
           try {
             const parsedUser =
               JSON.parse(cachedUser);
 
-            if (parsedUser?.id && mounted) {
+            /*
+             * Never treat an Academy student as
+             * a normal authenticated user.
+             */
+
+            const isAcademyStudent =
+              parsedUser?.userType ===
+                "student" ||
+              parsedUser?.user_type ===
+                "student";
+
+            if (
+              !isAcademyStudent &&
+              parsedUser?.id &&
+              mounted
+            ) {
               setAuthenticated(true);
               setCheckingAuth(false);
 
@@ -317,21 +417,27 @@ const ProtectedRoute = ({ children }) => {
     };
   }, []);
 
+  /* ============================================
+     LOADING
+  ============================================ */
+
   if (checkingAuth) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
         <div className="text-center">
-
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-700 border-t-cyan-400" />
 
           <p className="mt-4 text-sm font-semibold text-slate-400">
             Loading...
           </p>
-
         </div>
       </div>
     );
   }
+
+  /* ============================================
+     NOT AUTHENTICATED
+  ============================================ */
 
   if (!authenticated) {
     return (
@@ -346,10 +452,158 @@ const ProtectedRoute = ({ children }) => {
 };
 
 /* ============================================================
+   ACADEMY PROTECTED ROUTE
+============================================================ */
+
+const AcademyProtectedRoute = ({
+  children,
+}) => {
+  const [checkingAuth, setCheckingAuth] =
+    useState(true);
+
+  const [authenticated, setAuthenticated] =
+    useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkAcademyAuthentication =
+      () => {
+        try {
+          const token =
+            localStorage.getItem(
+              ACADEMY_TOKEN_KEY
+            );
+
+          const userData =
+            localStorage.getItem(
+              ACADEMY_USER_KEY
+            );
+
+          /* ==========================================
+             NO ACADEMY TOKEN
+          ========================================== */
+
+          if (!token || !userData) {
+            if (mounted) {
+              setAuthenticated(false);
+              setCheckingAuth(false);
+            }
+
+            return;
+          }
+
+          /* ==========================================
+             PARSE USER
+          ========================================== */
+
+          const user =
+            JSON.parse(userData);
+
+          const userType =
+            user?.userType ||
+            user?.user_type;
+
+          /* ==========================================
+             MUST BE STUDENT
+          ========================================== */
+
+          if (
+            userType !== "student"
+          ) {
+            localStorage.removeItem(
+              ACADEMY_TOKEN_KEY
+            );
+
+            localStorage.removeItem(
+              ACADEMY_USER_KEY
+            );
+
+            if (mounted) {
+              setAuthenticated(false);
+              setCheckingAuth(false);
+            }
+
+            return;
+          }
+
+          /* ==========================================
+             VALID ACADEMY SESSION
+          ========================================== */
+
+          if (mounted) {
+            setAuthenticated(true);
+            setCheckingAuth(false);
+          }
+        } catch (error) {
+          console.error(
+            "Academy Authentication Error:",
+            error
+          );
+
+          localStorage.removeItem(
+            ACADEMY_TOKEN_KEY
+          );
+
+          localStorage.removeItem(
+            ACADEMY_USER_KEY
+          );
+
+          if (mounted) {
+            setAuthenticated(false);
+            setCheckingAuth(false);
+          }
+        }
+      };
+
+    checkAcademyAuthentication();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /* ============================================
+     ACADEMY LOADING
+  ============================================ */
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-[#050816] text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-cyan-400" />
+
+          <p className="mt-4 text-sm text-slate-400">
+            Loading Academy Portal...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ============================================
+     NOT ACADEMY STUDENT
+  ============================================ */
+
+  if (!authenticated) {
+    return (
+      <Navigate
+        to="/academy/student-enrollment-login"
+        replace
+      />
+    );
+  }
+
+  return children;
+};
+
+/* ============================================================
    PAGE WRAPPER
 ============================================================ */
 
-const PageWrapper = ({ children }) => {
+const PageWrapper = ({
+  children,
+}) => {
   return (
     <motion.div
       className="w-full"
@@ -382,15 +636,13 @@ const AnimatedRoutes = () => {
 
   return (
     <AnimatePresence mode="wait">
-
       <Routes
         location={location}
         key={location.pathname}
       >
-
-        {/* =========================
+        {/* =====================================================
             HOME
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/"
@@ -405,18 +657,18 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
-            LOGIN
-        ========================= */}
+        {/* =====================================================
+            NORMAL LOGIN
+        ===================================================== */}
 
         <Route
           path="/login"
           element={<Login />}
         />
 
-        {/* =========================
-            PROFILE
-        ========================= */}
+        {/* =====================================================
+            NORMAL PROFILE
+        ===================================================== */}
 
         <Route
           path="/profile"
@@ -440,9 +692,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             GENERAL
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/contact"
@@ -464,7 +716,9 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/reset-password"
-          element={<ResetPassword />}
+          element={
+            <ResetPassword />
+          }
         />
 
         <Route
@@ -505,13 +759,105 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
+            SCHOLIQEN ACADEMY
+        ===================================================== */}
+
+        {/*
+          IMPORTANT:
+
+          Student login is PUBLIC.
+          It must NOT be wrapped in ProtectedRoute.
+        */}
+
+        <Route
+          path="/academy/student-enrollment-login"
+          element={
+            <PageWrapper>
+              <StudentEnrollmentLogin />
+            </PageWrapper>
+          }
+        />
+
+        {/*
+          Student enrollment is PUBLIC.
+          A student must be able to enroll before
+          having an Academy account.
+        */}
+
+        <Route
+          path="/academy/student-enrollment"
+          element={
+            <PageWrapper>
+              <StudentEnrollment />
+            </PageWrapper>
+          }
+        />
+
+        {/*
+          Tutor registration is PUBLIC.
+        */}
+
+        <Route
+          path="/academy/tutor-register"
+          element={
+            <PageWrapper>
+              <TutorEnrollment />
+            </PageWrapper>
+          }
+        />
+
+        {/*
+          Academy landing page can remain protected
+          by the normal Scholiqen account if that is
+          how your existing Academy page works.
+        */}
+
+        <Route
+          path="/academy"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <Academy />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+<Route
+  path="/admin/users/teachers"
+  element={
+    <ProtectedRoute>
+      <Teachers />
+    </ProtectedRoute>
+  }
+/>
+        {/*
+          STUDENT PORTAL
+
+          Uses AcademyProtectedRoute instead of
+          normal ProtectedRoute.
+        */}
+
+        <Route
+          path="/academy/student-portal"
+          element={
+            <AcademyProtectedRoute>
+              <PageWrapper>
+                <StudentPortal />
+              </PageWrapper>
+            </AcademyProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
             LANGUAGE
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/languages"
-          element={<LanguagesHome />}
+          element={
+            <LanguagesHome />
+          }
         />
 
         <Route
@@ -534,28 +880,34 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             SUPPORT
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/support"
-          element={<SupportHome />}
+          element={
+            <SupportHome />
+          }
         />
 
         <Route
           path="/support/chat"
-          element={<ChatSupport />}
+          element={
+            <ChatSupport />
+          }
         />
 
         <Route
           path="/support/faq"
-          element={<FAQ />}
+          element={
+            <FAQ />
+          }
         />
 
-        {/* =========================
+        {/* =====================================================
             AI TUTOR
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/ai-tutor"
@@ -575,9 +927,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             NOVELS
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/novels"
@@ -615,9 +967,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             INSTRUCTOR
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/become-instructor"
@@ -626,9 +978,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             CERTIFICATE
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/verify/:certificate_number"
@@ -637,9 +989,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             CONTACT INBOX
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/contact-inbox"
@@ -652,9 +1004,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             ADMIN
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/admin/*"
@@ -676,42 +1028,54 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         >
-
           <Route
             path="/dashboard"
-            element={<Dashboard />}
+            element={
+              <Dashboard />
+            }
           />
 
           <Route
             path="/libraries"
-            element={<Libraries />}
+            element={
+              <Libraries />
+            }
           />
 
           <Route
             path="/downloads"
-            element={<Downloads />}
+            element={
+              <Downloads />
+            }
           />
 
           <Route
             path="/history"
-            element={<History />}
+            element={
+              <History />
+            }
           />
 
           <Route
             path="/connects"
-            element={<Connects />}
+            element={
+              <Connects />
+            }
           />
 
           <Route
             path="/requests"
-            element={<Requests />}
+            element={
+              <Requests />
+            }
           />
 
           <Route
             path="/connections"
-            element={<Connections />}
+            element={
+              <Connections />
+            }
           />
-
         </Route>
 
         {/* =====================================================
@@ -795,9 +1159,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             PDF READER
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/pdf/:id"
@@ -810,9 +1174,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             VIDEO READER
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/video/:id"
@@ -899,7 +1263,6 @@ const AnimatedRoutes = () => {
 
         {/* =====================================================
             COURSES
-            STANDALONE PAGE
         ===================================================== */}
 
         <Route
@@ -912,10 +1275,6 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-
-        {/* =====================================================
-            COURSE CATEGORIES
-        ===================================================== */}
 
         <Route
           path="/subjects"
@@ -961,10 +1320,6 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            COURSE DETAILS
-        ===================================================== */}
-
         <Route
           path="/courses/:id"
           element={
@@ -1009,51 +1364,63 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =========================
+        {/* =====================================================
             UNIVERSITIES
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/universities"
-          element={<Universities />}
+          element={
+            <Universities />
+          }
         />
 
         <Route
           path="/universities/:id"
-          element={<UniversityDetails />}
+          element={
+            <UniversityDetails />
+          }
         />
 
-        {/* =========================
+        {/* =====================================================
             COLLEGES
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/colleges"
-          element={<Colleges />}
+          element={
+            <Colleges />
+          }
         />
 
         <Route
           path="/colleges/:id"
-          element={<CollegeDetails />}
+          element={
+            <CollegeDetails />
+          }
         />
 
-        {/* =========================
+        {/* =====================================================
             POLYTECHNICS
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="/polytechnics"
-          element={<Polytechnics />}
+          element={
+            <Polytechnics />
+          }
         />
 
         <Route
           path="/polytechnics/:id"
-          element={<PolytechnicDetails />}
+          element={
+            <PolytechnicDetails />
+          }
         />
 
-        {/* =========================
+        {/* =====================================================
             404
-        ========================= */}
+        ===================================================== */}
 
         <Route
           path="*"
@@ -1064,9 +1431,7 @@ const AnimatedRoutes = () => {
             />
           }
         />
-
       </Routes>
-
     </AnimatePresence>
   );
 };
@@ -1080,11 +1445,9 @@ function App() {
     <SearchProvider>
       <CourseProvider>
         <DocumentProvider>
-
           <Router>
             <AnimatedRoutes />
           </Router>
-
         </DocumentProvider>
       </CourseProvider>
     </SearchProvider>

@@ -1,97 +1,186 @@
 import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+
 import {
   ArrowLeft,
   ArrowRight,
   Award,
   BookOpen,
-  BriefcaseBusiness,
   CalendarDays,
   Check,
   CheckCircle2,
   ChevronLeft,
   GraduationCap,
   Mail,
-  MapPin,
-  Phone,
   ShieldCheck,
   Sparkles,
   User,
-  Users,
   Clock3,
   FileText,
   AlertCircle,
   Send,
-  School,
-  X,
+  LogIn,
 } from "lucide-react";
+
+/* =========================================================
+   API
+========================================================= */
 
 const API_URL = (
   import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).replace(/\/$/, "");
 
+const TUTOR_APPLICATION_URL =
+  `${API_URL}/api/academy/tutor-application`;
+
+/* =========================================================
+   CONSTANTS
+========================================================= */
+
 const STEPS = [
   {
     id: 1,
-    title: "Personal Information",
-    short: "Personal",
+    title: "Personal",
     icon: User,
   },
   {
     id: 2,
-    title: "Teaching Information",
-    short: "Teaching",
+    title: "Teaching",
     icon: BookOpen,
   },
   {
     id: 3,
     title: "Qualifications",
-    short: "Qualifications",
-    icon: Award,
+    icon: GraduationCap,
   },
   {
     id: 4,
     title: "Availability",
-    short: "Availability",
     icon: CalendarDays,
   },
   {
     id: 5,
     title: "Review",
-    short: "Review",
-    icon: FileText,
+    icon: CheckCircle2,
   },
 ];
 
-const SUBJECT_OPTIONS = [
+/* =========================================================
+   SUBJECTS
+========================================================= */
+
+const PRIMARY_SUBJECTS = [
+  "English Studies",
   "Mathematics",
-  "English Language",
-  "English Literature",
   "Basic Science",
   "Basic Technology",
+  "Computer Studies",
+  "Social Studies",
+  "Civic Education",
+  "PHE",
+  "Agricultural Science",
+  "CCA",
+  "CRS",
+  "IRS",
+  "French",
+  "Yoruba",
+  "Igbo",
+  "Hausa",
+  "Home Economics",
+  "Music",
+  "Handwriting",
+  "Verbal Reasoning",
+  "Quantitative Reasoning",
+  "Health Education",
+  "Moral Instruction",
+  "Environmental Studies",
+  "Literacy",
+  "Numeracy",
+];
+
+const JSS_SUBJECTS = [
+  "English Studies",
+  "Mathematics",
+  "Basic Science",
+  "Basic Technology",
+  "Computer Studies",
+  "Business Studies",
+  "Social Studies",
+  "Civic Education",
+  "Agricultural Science",
+  "Home Economics",
+  "CCA",
+  "CRS",
+  "IRS",
+  "French",
+  "Yoruba",
+  "Igbo",
+  "Hausa",
+  "PHE",
+  "Music",
+  "Fine Art",
+  "History",
+  "Geography",
+  "Security Education",
+  "Entrepreneurship",
+  "Arabic",
+];
+
+const SSS_SUBJECTS = [
+  "English Language",
+  "Literature in English",
+  "Mathematics",
+  "Further Mathematics",
   "Biology",
   "Chemistry",
   "Physics",
   "Agricultural Science",
   "Economics",
   "Government",
-  "Civic Education",
   "Geography",
-  "History",
   "Commerce",
   "Financial Accounting",
-  "Computer Studies",
+  "Marketing",
+  "Insurance",
+  "Office Practice",
+  "Computer Science",
   "Data Processing",
+  "Information Technology",
+  "Civic Education",
+  "CRS",
+  "IRS",
   "French",
   "Yoruba",
   "Igbo",
   "Hausa",
-  "Christian Religious Studies",
-  "Islamic Religious Studies",
+  "Arabic",
+  "Visual Arts",
+  "Music",
+  "Home Management",
+  "Food & Nutrition",
+  "Technical Drawing",
+  "Building Construction",
+  "Auto Mechanics",
+  "Electrical Installation",
+  "Electronics",
+  "Woodwork",
+  "Metalwork",
+  "Clothing & Textiles",
+  "Animal Husbandry",
+  "Fishery",
+  "Health Education",
+  "Physical Education",
+  "Photography",
+  "Tourism",
+  "Data Analysis",
 ];
 
-const LEVEL_OPTIONS = [
+/* =========================================================
+   LEVELS
+========================================================= */
+
+const LEVELS = [
   "Primary 1",
   "Primary 2",
   "Primary 3",
@@ -106,7 +195,11 @@ const LEVEL_OPTIONS = [
   "SS 3",
 ];
 
-const QUALIFICATION_OPTIONS = [
+/* =========================================================
+   QUALIFICATIONS
+========================================================= */
+
+const QUALIFICATIONS = [
   "NCE",
   "OND",
   "HND",
@@ -122,7 +215,25 @@ const QUALIFICATION_OPTIONS = [
   "Other",
 ];
 
-const initialForm = {
+/* =========================================================
+   DAYS
+========================================================= */
+
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+/* =========================================================
+   INITIAL FORM
+========================================================= */
+
+const INITIAL_FORM = {
   firstName: "",
   middleName: "",
   lastName: "",
@@ -130,66 +241,78 @@ const initialForm = {
   phone: "",
   gender: "",
   dateOfBirth: "",
-  state: "",
-  city: "",
 
+  address: "",
+  city: "",
+  state: "",
+
+  teachingLevel: "",
   subjects: [],
-  levels: [],
-  teachingExperience: "",
+  yearsExperience: "",
   currentOccupation: "",
-  schoolName: "",
-  teachingApproach: "",
 
   highestQualification: "",
   institution: "",
-  fieldOfStudy: "",
+  courseOfStudy: "",
   graduationYear: "",
   professionalCertification: "",
-  additionalQualification: "",
 
-  availabilityType: "",
   availableDays: [],
-  startTime: "",
-  endTime: "",
+  availableFrom: "",
+  availableTo: "",
   preferredMode: "",
-  weeklyHours: "",
 
   motivation: "",
+  teachingExperience: "",
+
   agreement: false,
 };
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function clean(value) {
+  return String(value ?? "").trim();
+}
+
+/* =========================================================
+   INPUT
+========================================================= */
 
 function Input({
   label,
   name,
   value,
   onChange,
-  type = "text",
   placeholder,
+  type = "text",
   required = false,
 }) {
   return (
     <div>
-      <label
-        htmlFor={name}
-        className="mb-2 block text-sm font-bold text-slate-200"
-      >
+      <label className="mb-2 block text-sm font-medium text-slate-300">
         {label}
-        {required && <span className="ml-1 text-cyan-400">*</span>}
+        {required && (
+          <span className="ml-1 text-cyan-400">*</span>
+        )}
       </label>
 
       <input
-        id={name}
-        name={name}
         type={type}
+        name={name}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        required={required}
-        className="h-13 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
+        className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/10"
       />
     </div>
   );
 }
+
+/* =========================================================
+   SELECT
+========================================================= */
 
 function Select({
   label,
@@ -197,28 +320,25 @@ function Select({
   value,
   onChange,
   options,
-  placeholder = "Select an option",
+  placeholder,
   required = false,
 }) {
   return (
     <div>
-      <label
-        htmlFor={name}
-        className="mb-2 block text-sm font-bold text-slate-200"
-      >
+      <label className="mb-2 block text-sm font-medium text-slate-300">
         {label}
-        {required && <span className="ml-1 text-cyan-400">*</span>}
+        {required && (
+          <span className="ml-1 text-cyan-400">*</span>
+        )}
       </label>
 
       <select
-        id={name}
         name={name}
         value={value}
         onChange={onChange}
-        required={required}
-        className="h-13 w-full rounded-2xl border border-white/10 bg-[#090d20] px-4 text-sm text-white outline-none transition focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
+        className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/10"
       >
-        <option value="" className="bg-[#090d20]">
+        <option value="" className="bg-slate-950">
           {placeholder}
         </option>
 
@@ -226,7 +346,7 @@ function Select({
           <option
             key={option}
             value={option}
-            className="bg-[#090d20]"
+            className="bg-slate-950"
           >
             {option}
           </option>
@@ -236,86 +356,142 @@ function Select({
   );
 }
 
+/* =========================================================
+   TEXTAREA
+========================================================= */
+
 function Textarea({
   label,
   name,
   value,
   onChange,
   placeholder,
-  rows = 5,
   required = false,
 }) {
   return (
     <div>
-      <label
-        htmlFor={name}
-        className="mb-2 block text-sm font-bold text-slate-200"
-      >
+      <label className="mb-2 block text-sm font-medium text-slate-300">
         {label}
-        {required && <span className="ml-1 text-cyan-400">*</span>}
+        {required && (
+          <span className="ml-1 text-cyan-400">*</span>
+        )}
       </label>
 
       <textarea
-        id={name}
         name={name}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        rows={rows}
-        required={required}
-        className="w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
+        rows={5}
+        className="w-full resize-none rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/10"
       />
     </div>
   );
 }
 
-function MultiSelect({
-  label,
-  options,
-  selected,
-  onToggle,
+/* =========================================================
+   ERROR
+========================================================= */
+
+function ErrorText({ children }) {
+  if (!children) return null;
+
+  return (
+    <p className="mt-2 flex items-center gap-1.5 text-xs text-red-400">
+      <AlertCircle size={13} />
+      {children}
+    </p>
+  );
+}
+
+/* =========================================================
+   SECTION TITLE
+========================================================= */
+
+function SectionTitle({
+  icon: Icon,
+  title,
   description,
 }) {
   return (
-    <div>
-      <div className="mb-2">
-        <p className="text-sm font-bold text-slate-200">
-          {label}
-        </p>
-
-        {description && (
-          <p className="mt-1 text-xs text-slate-600">
-            {description}
-          </p>
-        )}
+    <div className="mb-7 flex items-start gap-4">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300">
+        <Icon size={20} />
       </div>
 
-      <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-        {options.map((option) => {
-          const active = selected.includes(option);
+      <div>
+        <h2 className="text-xl font-bold text-white">
+          {title}
+        </h2>
+
+        <p className="mt-1 text-sm leading-6 text-slate-500">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   REVIEW ITEM
+========================================================= */
+
+function ReviewItem({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-white/5 bg-white/[0.025] p-4">
+      <p className="text-xs uppercase tracking-wider text-slate-600">
+        {label}
+      </p>
+
+      <p className="mt-1 text-sm font-medium text-slate-200">
+        {value || "Not provided"}
+      </p>
+    </div>
+  );
+}
+
+/* =========================================================
+   SUBJECT GROUP
+========================================================= */
+
+function SubjectGroup({
+  title,
+  subjects,
+  selected,
+  onToggle,
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+      <h3 className="mb-4 text-sm font-semibold text-white">
+        {title}
+      </h3>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {subjects.map((subject) => {
+          const active = selected.includes(subject);
 
           return (
             <button
+              key={subject}
               type="button"
-              key={option}
-              onClick={() => onToggle(option)}
-              className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left text-xs font-bold transition ${
+              onClick={() => onToggle(subject)}
+              className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition ${
                 active
-                  ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
-                  : "border-white/10 bg-white/[0.02] text-slate-500 hover:border-white/20 hover:text-slate-300"
+                  ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
+                  : "border-white/5 bg-white/[0.02] text-slate-400 hover:border-white/10 hover:bg-white/[0.04]"
               }`}
             >
               <span
                 className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
                   active
-                    ? "border-cyan-400 bg-cyan-400 text-[#050816]"
-                    : "border-white/15"
+                    ? "border-cyan-400 bg-cyan-400 text-slate-950"
+                    : "border-slate-700"
                 }`}
               >
-                {active && <Check className="h-3.5 w-3.5" />}
+                {active && <Check size={13} strokeWidth={3} />}
               </span>
 
-              {option}
+              {subject}
             </button>
           );
         })}
@@ -324,200 +500,293 @@ function MultiSelect({
   );
 }
 
-function SectionTitle({ icon: Icon, title, description }) {
+/* =========================================================
+   LEVEL GROUP
+========================================================= */
+
+function LevelGroup({
+  selected,
+  onToggle,
+}) {
   return (
-    <div className="mb-6 flex items-start gap-4">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/10">
-        <Icon className="h-5 w-5 text-cyan-400" />
-      </div>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {LEVELS.map((level) => {
+        const active = selected.includes(level);
 
-      <div>
-        <h2 className="text-xl font-black text-white">
-          {title}
-        </h2>
-
-        <p className="mt-1 text-xs leading-5 text-slate-600">
-          {description}
-        </p>
-      </div>
+        return (
+          <button
+            key={level}
+            type="button"
+            onClick={() => onToggle(level)}
+            className={`rounded-2xl border px-4 py-3 text-sm font-medium transition ${
+              active
+                ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
+                : "border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]"
+            }`}
+          >
+            {level}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function ReviewItem({ label, value }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
-      <p className="text-[10px] font-black uppercase tracking-wider text-slate-700">
-        {label}
-      </p>
-
-      <p className="mt-2 break-words text-sm font-bold text-slate-300">
-        {value || "Not provided"}
-      </p>
-    </div>
-  );
-}
+/* =========================================================
+   COMPONENT
+========================================================= */
 
 export default function TutorEnrollment() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState(INITIAL_FORM);
+
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+  const [alreadyRegistered, setAlreadyRegistered] =
+    useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
   const [applicationReference, setApplicationReference] =
     useState("");
 
-  const progress = ((step - 1) / (STEPS.length - 1)) * 100;
+  /* =========================================================
+     SUBJECTS
+  ========================================================= */
 
-  const handleChange = (event) => {
-    const { name, value, type, checked } = event.target;
+  const selectedSubjects = useMemo(
+    () => form.subjects || [],
+    [form.subjects]
+  );
 
-    setForm((previous) => ({
-      ...previous,
-      [name]: type === "checkbox" ? checked : value,
+  /* =========================================================
+     UPDATE FIELD
+  ========================================================= */
+
+  const updateField = (name, value) => {
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
     }));
 
-    setErrors((previous) => ({
-      ...previous,
+    setErrors((prev) => ({
+      ...prev,
       [name]: "",
     }));
 
     setSubmitError("");
+    setAlreadyRegistered(false);
   };
 
-  const toggleArrayValue = (field, value) => {
-    setForm((previous) => {
-      const current = previous[field] || [];
+  /* =========================================================
+     TOGGLE SUBJECT
+  ========================================================= */
 
-      const exists = current.includes(value);
+  const toggleSubject = (subject) => {
+    setForm((prev) => {
+      const exists = prev.subjects.includes(subject);
 
       return {
-        ...previous,
-        [field]: exists
-          ? current.filter((item) => item !== value)
-          : [...current, value],
+        ...prev,
+        subjects: exists
+          ? prev.subjects.filter(
+              (item) => item !== subject
+            )
+          : [...prev.subjects, subject],
       };
     });
 
-    setErrors((previous) => ({
-      ...previous,
-      [field]: "",
+    setErrors((prev) => ({
+      ...prev,
+      subjects: "",
     }));
   };
+
+  /* =========================================================
+     TOGGLE LEVEL
+  ========================================================= */
+
+  const toggleLevel = (level) => {
+    setForm((prev) => {
+      const exists = prev.teachingLevel.includes(level);
+
+      return {
+        ...prev,
+        teachingLevel: exists
+          ? prev.teachingLevel.filter(
+              (item) => item !== level
+            )
+          : [...prev.teachingLevel, level],
+      };
+    });
+
+    setErrors((prev) => ({
+      ...prev,
+      teachingLevel: "",
+    }));
+  };
+
+  /* =========================================================
+     TOGGLE DAY
+  ========================================================= */
+
+  const toggleDay = (day) => {
+    setForm((prev) => {
+      const exists = prev.availableDays.includes(day);
+
+      return {
+        ...prev,
+        availableDays: exists
+          ? prev.availableDays.filter(
+              (item) => item !== day
+            )
+          : [...prev.availableDays, day],
+      };
+    });
+
+    setErrors((prev) => ({
+      ...prev,
+      availableDays: "",
+    }));
+  };
+
+  /* =========================================================
+     INPUT HANDLER
+  ========================================================= */
+
+  const handleChange = (event) => {
+    const { name, value, type, checked } =
+      event.target;
+
+    updateField(
+      name,
+      type === "checkbox" ? checked : value
+    );
+  };
+
+  /* =========================================================
+     VALIDATION
+  ========================================================= */
 
   const validateStep = (currentStep) => {
     const nextErrors = {};
 
     if (currentStep === 1) {
-      if (!form.firstName.trim()) {
+      if (!clean(form.firstName)) {
         nextErrors.firstName = "First name is required.";
       }
 
-      if (!form.lastName.trim()) {
+      if (!clean(form.lastName)) {
         nextErrors.lastName = "Last name is required.";
       }
 
-      if (!form.email.trim()) {
+      if (!clean(form.email)) {
         nextErrors.email = "Email address is required.";
-      }
-
-      if (
-        form.email &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)
+      } else if (
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          clean(form.email)
+        )
       ) {
-        nextErrors.email = "Enter a valid email address.";
+        nextErrors.email =
+          "Enter a valid email address.";
       }
 
-      if (!form.phone.trim()) {
+      if (!clean(form.phone)) {
         nextErrors.phone = "Phone number is required.";
       }
 
-      if (!form.gender) {
+      if (!clean(form.gender)) {
         nextErrors.gender = "Please select your gender.";
-      }
-
-      if (!form.state.trim()) {
-        nextErrors.state = "State is required.";
-      }
-
-      if (!form.city.trim()) {
-        nextErrors.city = "City is required.";
       }
     }
 
     if (currentStep === 2) {
-      if (form.subjects.length === 0) {
+      if (
+        !Array.isArray(form.teachingLevel) ||
+        form.teachingLevel.length === 0
+      ) {
+        nextErrors.teachingLevel =
+          "Select at least one teaching level.";
+      }
+
+      if (
+        !Array.isArray(form.subjects) ||
+        form.subjects.length === 0
+      ) {
         nextErrors.subjects =
-          "Select at least one subject you can teach.";
+          "Select at least one subject.";
       }
 
-      if (form.levels.length === 0) {
-        nextErrors.levels =
-          "Select at least one class level.";
+      if (!clean(form.yearsExperience)) {
+        nextErrors.yearsExperience =
+          "Enter your years of teaching experience.";
       }
 
-      if (!form.teachingExperience) {
-        nextErrors.teachingExperience =
-          "Select your teaching experience.";
-      }
-
-      if (!form.teachingApproach.trim()) {
-        nextErrors.teachingApproach =
-          "Please describe your teaching approach.";
+      if (!clean(form.currentOccupation)) {
+        nextErrors.currentOccupation =
+          "Enter your current occupation.";
       }
     }
 
     if (currentStep === 3) {
-      if (!form.highestQualification) {
+      if (!clean(form.highestQualification)) {
         nextErrors.highestQualification =
           "Select your highest qualification.";
       }
 
-      if (!form.institution.trim()) {
+      if (!clean(form.institution)) {
         nextErrors.institution =
-          "Institution name is required.";
+          "Enter your institution.";
       }
 
-      if (!form.fieldOfStudy.trim()) {
-        nextErrors.fieldOfStudy =
-          "Field of study is required.";
+      if (!clean(form.courseOfStudy)) {
+        nextErrors.courseOfStudy =
+          "Enter your course of study.";
       }
     }
 
     if (currentStep === 4) {
-      if (!form.availabilityType) {
-        nextErrors.availabilityType =
-          "Select your availability.";
-      }
-
-      if (form.availableDays.length === 0) {
+      if (
+        !Array.isArray(form.availableDays) ||
+        form.availableDays.length === 0
+      ) {
         nextErrors.availableDays =
           "Select at least one available day.";
       }
 
-      if (!form.preferredMode) {
-        nextErrors.preferredMode =
-          "Select your preferred teaching mode.";
+      if (!clean(form.availableFrom)) {
+        nextErrors.availableFrom =
+          "Select your starting time.";
       }
 
-      if (!form.weeklyHours) {
-        nextErrors.weeklyHours =
-          "Select your expected weekly hours.";
+      if (!clean(form.availableTo)) {
+        nextErrors.availableTo =
+          "Select your ending time.";
+      }
+
+      if (!clean(form.preferredMode)) {
+        nextErrors.preferredMode =
+          "Select your preferred teaching mode.";
       }
     }
 
     if (currentStep === 5) {
-      if (!form.motivation.trim()) {
+      if (!clean(form.motivation)) {
         nextErrors.motivation =
-          "Please tell us why you want to teach at Scholiqen Academy.";
+          "Tell us why you want to become a tutor.";
+      }
+
+      if (!clean(form.teachingExperience)) {
+        nextErrors.teachingExperience =
+          "Tell us about your teaching experience.";
       }
 
       if (!form.agreement) {
         nextErrors.agreement =
-          "You must agree to the tutor application terms.";
+          "You must agree to the tutor terms.";
       }
     }
 
@@ -526,73 +795,161 @@ export default function TutorEnrollment() {
     return Object.keys(nextErrors).length === 0;
   };
 
+  /* =========================================================
+     NEXT
+  ========================================================= */
+
   const nextStep = () => {
+    setSubmitError("");
+
     if (!validateStep(step)) {
+      return;
+    }
+
+    if (step < STEPS.length) {
+      setStep((prev) => prev + 1);
+
       window.scrollTo({
         top: 0,
         behavior: "smooth",
       });
-
-      return;
     }
-
-    setStep((previous) =>
-      Math.min(previous + 1, STEPS.length)
-    );
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
   };
+
+  /* =========================================================
+     PREVIOUS
+  ========================================================= */
 
   const previousStep = () => {
-    setStep((previous) => Math.max(previous - 1, 1));
+    setSubmitError("");
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    if (step > 1) {
+      setStep((prev) => prev - 1);
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }
   };
 
-  const submitApplication = async () => {
+  /* =========================================================
+     SUBMIT
+  ========================================================= */
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    setSubmitError("");
+    setAlreadyRegistered(false);
+
     if (!validateStep(5)) {
       return;
     }
 
     setSubmitting(true);
-    setSubmitError("");
 
     try {
+      const payload = {
+        ...form,
+
+        applicationType: "tutor",
+        status: "pending",
+
+        first_name: form.firstName,
+        middle_name: form.middleName,
+        last_name: form.lastName,
+
+        teaching_level: form.teachingLevel,
+        subjects_taught: form.subjects,
+
+        years_experience: form.yearsExperience,
+        current_occupation: form.currentOccupation,
+
+        highest_qualification:
+          form.highestQualification,
+
+        institution_name: form.institution,
+        course_of_study: form.courseOfStudy,
+
+        graduation_year: form.graduationYear,
+
+        professional_certification:
+          form.professionalCertification,
+
+        available_days: form.availableDays,
+        available_from: form.availableFrom,
+        available_to: form.availableTo,
+
+        preferred_mode: form.preferredMode,
+
+        teaching_experience:
+          form.teachingExperience,
+
+        motivation: form.motivation,
+
+        email: clean(form.email).toLowerCase(),
+      };
+
       const response = await fetch(
-        `${API_URL}/api/academy/tutor-application`,
+        TUTOR_APPLICATION_URL,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            ...form,
-            applicationType: "tutor",
-            status: "pending",
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
-      const data = await response.json().catch(() => ({}));
+      const rawText = await response.text();
 
-      if (!response.ok) {
+      let data = {};
+
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
         throw new Error(
-          data?.message ||
-            data?.error ||
-            "Unable to submit your tutor application."
+          "The server returned an invalid response."
         );
       }
 
+      /* =====================================================
+         ALREADY REGISTERED
+      ===================================================== */
+
+      if (
+        response.status === 409 ||
+        data.code === "ALREADY_REGISTERED"
+      ) {
+        setAlreadyRegistered(true);
+
+        setSubmitError(
+          data.message ||
+            "You are already registered as a tutor. Please sign in to your account."
+        );
+
+        setSubmitting(false);
+
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message ||
+            "Unable to submit your application."
+        );
+      }
+
+      /* =====================================================
+         SUCCESS
+      ===================================================== */
+
       const reference =
-        data?.applicationReference ||
-        data?.reference ||
-        data?.applicationId ||
+        data.applicationReference ||
+        data.reference ||
+        data.applicationId ||
+        data.id ||
         "";
 
       setApplicationReference(reference);
@@ -603,14 +960,11 @@ export default function TutorEnrollment() {
         behavior: "smooth",
       });
     } catch (error) {
-      console.error("Tutor application error:", error);
+      console.error(
+        "TUTOR APPLICATION ERROR:",
+        error
+      );
 
-      /*
-       * The backend endpoint will be created in the next
-       * Academy backend stage. We deliberately show the
-       * backend response here rather than pretending the
-       * application was successfully submitted.
-       */
       setSubmitError(
         error?.message ||
           "Something went wrong while submitting your application."
@@ -620,392 +974,404 @@ export default function TutorEnrollment() {
     }
   };
 
-  const selectedSubjectText = useMemo(
-    () =>
-      form.subjects.length
-        ? form.subjects.join(", ")
-        : "None selected",
-    [form.subjects]
-  );
-
-  const selectedLevelsText = useMemo(
-    () =>
-      form.levels.length
-        ? form.levels.join(", ")
-        : "None selected",
-    [form.levels]
-  );
+  /* =========================================================
+     SUCCESS SCREEN
+  ========================================================= */
 
   if (submitted) {
     return (
-      <div className="min-h-screen overflow-hidden bg-[#050816] text-white">
-        <div className="pointer-events-none fixed inset-0">
-          <div
-            className="absolute inset-0 opacity-[0.055]"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 1px 1px, rgba(56,189,248,0.9) 1px, transparent 0)",
-              backgroundSize: "32px 32px",
-            }}
-          />
-
-          <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[140px]" />
-
-          <div className="absolute -right-40 top-1/3 h-[550px] w-[550px] rounded-full bg-violet-600/10 blur-[150px]" />
+      <div className="min-h-screen bg-[#020617] text-white">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute left-1/2 top-0 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-cyan-500/10 blur-[140px]" />
+          <div className="absolute bottom-0 right-0 h-[400px] w-[500px] rounded-full bg-violet-500/10 blur-[140px]" />
         </div>
 
-        <header className="relative z-10 border-b border-white/10 bg-[#050816]/80 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-            <button
-              onClick={() => navigate("/academy")}
-              className="flex items-center gap-3"
-            >
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-lg shadow-cyan-500/20">
-                <GraduationCap className="h-6 w-6" />
-              </div>
-
-              <div className="text-left">
-                <p className="font-black tracking-tight">
-                  SCHOLIQEN
-                </p>
-
-                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-400">
-                  Academy
-                </p>
-              </div>
-            </button>
-          </div>
-        </header>
-
-        <main className="relative z-10 flex min-h-[calc(100vh-82px)] items-center justify-center px-6 py-16">
+        <div className="relative mx-auto flex min-h-screen max-w-3xl items-center justify-center px-5 py-16">
           <motion.div
-            initial={{ opacity: 0, y: 25, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="w-full max-w-xl rounded-3xl border border-white/10 bg-white/[0.035] p-7 text-center shadow-2xl shadow-black/30 sm:p-10"
+            initial={{
+              opacity: 0,
+              y: 30,
+              scale: 0.97,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              scale: 1,
+            }}
+            className="w-full rounded-[32px] border border-white/10 bg-slate-950/80 p-8 text-center shadow-2xl backdrop-blur-xl sm:p-12"
           >
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-400/10">
-              <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+            <div className="mx-auto mb-7 flex h-20 w-20 items-center justify-center rounded-3xl border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
+              <CheckCircle2 size={40} />
             </div>
 
-            <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/5 px-3 py-1.5 text-xs font-black text-emerald-300">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              APPLICATION RECEIVED
-            </div>
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-cyan-400">
+              Application Received
+            </p>
 
-            <h1 className="mt-5 text-3xl font-black tracking-tight sm:text-4xl">
+            <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
               Thank You, {form.firstName}
             </h1>
 
-            <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-slate-500">
-              Your tutor application has been submitted and is
-              now awaiting review by the Scholiqen Academy
-              administration team.
+            <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-slate-400">
+              Your tutor registration has been received
+              successfully. Our Academy team will review
+              your application.
             </p>
 
             {applicationReference && (
-              <div className="mt-7 rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.03] p-4">
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-600">
+              <div className="mx-auto mt-8 max-w-md rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-5">
+                <p className="text-xs uppercase tracking-wider text-slate-500">
                   Application Reference
                 </p>
 
-                <p className="mt-2 break-all text-sm font-black text-cyan-300">
+                <p className="mt-2 break-all font-mono text-lg font-bold text-cyan-300">
                   {applicationReference}
                 </p>
               </div>
             )}
 
-            <div className="mt-7 space-y-3 text-left">
-              <div className="flex gap-3 rounded-2xl border border-white/10 bg-black/10 p-4">
-                <Mail className="mt-0.5 h-5 w-5 shrink-0 text-cyan-400" />
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/5 bg-white/[0.025] p-5 text-left">
+                <Mail
+                  size={20}
+                  className="text-cyan-300"
+                />
 
-                <div>
-                  <p className="text-sm font-bold">
-                    Watch your email
-                  </p>
+                <h3 className="mt-3 font-semibold text-white">
+                  Watch Your Email
+                </h3>
 
-                  <p className="mt-1 text-xs leading-5 text-slate-600">
-                    We will contact you using the email address
-                    provided in your application.
-                  </p>
-                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Keep an eye on your email for important
+                  Academy updates.
+                </p>
               </div>
 
-              <div className="flex gap-3 rounded-2xl border border-white/10 bg-black/10 p-4">
-                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-violet-400" />
+              <div className="rounded-2xl border border-white/5 bg-white/[0.025] p-5 text-left">
+                <ShieldCheck
+                  size={20}
+                  className="text-emerald-300"
+                />
 
-                <div>
-                  <p className="text-sm font-bold">
-                    Approval is required
-                  </p>
+                <h3 className="mt-3 font-semibold text-white">
+                  Approval Required
+                </h3>
 
-                  <p className="mt-1 text-xs leading-5 text-slate-600">
-                    Tutor access is only granted after the Academy
-                    reviews and approves your application.
-                  </p>
-                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Your application must be approved before
+                  you can begin tutoring.
+                </p>
               </div>
             </div>
 
-            <button
-              onClick={() => navigate("/academy")}
-              className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-600 px-6 py-3 text-sm font-black shadow-lg shadow-blue-500/20 transition hover:scale-[1.02]"
-            >
-              Return to Academy
-              <ArrowRight className="h-4 w-4" />
-            </button>
+            <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() =>
+                  navigate("/academy/login")
+                }
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-6 py-3.5 text-sm font-bold text-cyan-300 transition hover:bg-cyan-400/15"
+              >
+                <LogIn size={17} />
+                Go to Academy Login
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  navigate("/academy")
+                }
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-3.5 text-sm font-bold text-slate-300 transition hover:bg-white/[0.06]"
+              >
+                Return to Academy
+                <ArrowRight size={17} />
+              </button>
+            </div>
           </motion.div>
-        </main>
+        </div>
       </div>
     );
   }
 
+  /* =========================================================
+     MAIN
+  ========================================================= */
+
   return (
-    <div className="min-h-screen overflow-hidden bg-[#050816] text-white">
-      {/* Background */}
+    <div className="min-h-screen overflow-hidden bg-[#020617] text-white">
+      {/* BACKGROUND */}
       <div className="pointer-events-none fixed inset-0">
         <div
-          className="absolute inset-0 opacity-[0.055]"
+          className="absolute inset-0 opacity-[0.035]"
           style={{
             backgroundImage:
-              "radial-gradient(circle at 1px 1px, rgba(56,189,248,0.9) 1px, transparent 0)",
-            backgroundSize: "32px 32px",
+              "radial-gradient(circle, white 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
           }}
         />
 
-        <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[140px]" />
+        <div className="absolute left-[-200px] top-[-200px] h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[150px]" />
 
-        <div className="absolute -right-40 top-1/3 h-[550px] w-[550px] rounded-full bg-violet-600/10 blur-[150px]" />
-
-        <div className="absolute bottom-[-250px] left-1/3 h-[500px] w-[500px] rounded-full bg-blue-600/10 blur-[150px]" />
+        <div className="absolute right-[-200px] top-[300px] h-[500px] w-[500px] rounded-full bg-violet-500/10 blur-[150px]" />
       </div>
 
-      {/* Header */}
-      <header className="relative z-20 border-b border-white/10 bg-[#050816]/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-6">
+      <div className="relative mx-auto max-w-6xl px-5 py-8 sm:px-8 lg:px-10">
+        {/* =====================================================
+            HEADER
+        ===================================================== */}
+
+        <div className="mb-10 flex items-center justify-between gap-4">
           <button
-            onClick={() => navigate("/academy")}
-            className="group flex items-center gap-3"
+            type="button"
+            onClick={() =>
+              navigate("/academy")
+            }
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-lg shadow-cyan-500/20 transition group-hover:scale-105">
-              <GraduationCap className="h-6 w-6" />
-            </div>
-
-            <div className="text-left">
-              <p className="font-black tracking-tight">
-                SCHOLIQEN
-              </p>
-
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-400">
-                Academy
-              </p>
-            </div>
+            <ArrowLeft size={16} />
+            Back to Academy
           </button>
 
-          <button
-            onClick={() => navigate("/academy")}
-            className="flex items-center gap-2 text-xs font-bold text-slate-500 transition hover:text-white sm:text-sm"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">
-              Back to Academy
+          <div className="hidden items-center gap-2 sm:flex">
+            <Sparkles
+              size={16}
+              className="text-cyan-300"
+            />
+
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Scholiqen Academy
             </span>
-            <span className="sm:hidden">Back</span>
-          </button>
+          </div>
         </div>
-      </header>
 
-      <main className="relative z-10 px-4 py-8 sm:px-6 sm:py-12">
-        <div className="mx-auto max-w-5xl">
-          {/* Intro */}
-          <div className="mb-8 text-center">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/5 px-3 py-1.5 text-xs font-black text-violet-300">
-              <Sparkles className="h-3.5 w-3.5" />
-              BECOME AN ACADEMY TUTOR
-            </div>
+        {/* =====================================================
+            HERO
+        ===================================================== */}
 
-            <h1 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">
-              Share Your Knowledge.
-              <span className="block bg-gradient-to-r from-cyan-300 via-blue-400 to-violet-400 bg-clip-text text-transparent">
-                Inspire Students.
-              </span>
-            </h1>
-
-            <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-500">
-              Apply to teach primary and secondary students through
-              Scholiqen Academy. Applications are reviewed before
-              tutor access is granted.
-            </p>
+        <div className="mb-10 max-w-4xl">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1.5 text-xs font-semibold text-cyan-300">
+            <Award size={14} />
+            Tutor Registration
           </div>
 
-          {/* Progress */}
-          <div className="mb-7 rounded-3xl border border-white/10 bg-white/[0.025] p-4 sm:p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
-                  Application Progress
-                </p>
+          <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
+            Become a Scholiqen Tutor
+          </h1>
 
-                <p className="mt-1 text-sm font-black">
-                  Step {step} of {STEPS.length}
-                </p>
-              </div>
+          <p className="mt-5 max-w-2xl text-base leading-8 text-slate-400">
+            Share your knowledge, inspire learners, and
+            become part of the Scholiqen Academy teaching
+            community.
+          </p>
 
-              <p className="text-xs font-black text-cyan-400">
-                {Math.round(progress)}%
-              </p>
-            </div>
+          {/* =================================================
+              ALREADY REGISTERED
+          ================================================= */}
 
-            <div className="mb-5 h-2 overflow-hidden rounded-full bg-white/5">
-              <motion.div
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.4 }}
-                className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-500"
-              />
-            </div>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <span className="text-sm text-slate-500">
+              Already registered as a tutor?
+            </span>
 
-            <div className="grid grid-cols-5 gap-2">
-              {STEPS.map((item) => {
-                const Icon = item.icon;
-                const active = step === item.id;
-                const complete = step > item.id;
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/academy/login")
+              }
+              className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-4 py-2.5 text-sm font-semibold text-cyan-300 transition hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-cyan-200"
+            >
+              <LogIn size={15} />
+              Sign in to your account
+              <ArrowRight size={15} />
+            </button>
+          </div>
+        </div>
 
-                return (
-                  <div
-                    key={item.id}
-                    className={`flex flex-col items-center gap-2 text-center ${
-                      active || complete
-                        ? "text-cyan-300"
-                        : "text-slate-700"
-                    }`}
+        {/* =====================================================
+            PROGRESS
+        ===================================================== */}
+
+        <div className="mb-8 rounded-3xl border border-white/10 bg-slate-950/60 p-4 backdrop-blur-xl sm:p-6">
+          <div className="flex items-center justify-between gap-2">
+            {STEPS.map((item, index) => {
+              const Icon = item.icon;
+              const active = step === item.id;
+              const completed = step > item.id;
+
+              return (
+                <React.Fragment key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (item.id < step) {
+                        setStep(item.id);
+                      }
+                    }}
+                    className="flex min-w-0 items-center gap-2"
                   >
-                    <div
-                      className={`flex h-9 w-9 items-center justify-center rounded-xl border ${
-                        complete
-                          ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"
+                    <span
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${
+                        completed
+                          ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
                           : active
-                            ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-400"
-                            : "border-white/10 bg-white/[0.02]"
+                          ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300"
+                          : "border-white/10 bg-white/[0.02] text-slate-600"
                       }`}
                     >
-                      {complete ? (
-                        <Check className="h-4 w-4" />
+                      {completed ? (
+                        <Check size={16} />
                       ) : (
-                        <Icon className="h-4 w-4" />
+                        <Icon size={16} />
                       )}
+                    </span>
+
+                    <span
+                      className={`hidden text-xs font-semibold sm:block ${
+                        active || completed
+                          ? "text-slate-200"
+                          : "text-slate-600"
+                      }`}
+                    >
+                      {item.title}
+                    </span>
+                  </button>
+
+                  {index < STEPS.length - 1 && (
+                    <div
+                      className={`h-px flex-1 ${
+                        step > item.id
+                          ? "bg-emerald-400/30"
+                          : "bg-white/10"
+                      }`}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* =====================================================
+            FORM
+        ===================================================== */}
+
+        <form onSubmit={handleSubmit}>
+          <div className="rounded-[32px] border border-white/10 bg-slate-950/70 p-5 shadow-2xl backdrop-blur-xl sm:p-8 lg:p-10">
+            <AnimatePresence mode="wait">
+              {/* =================================================
+                  STEP 1
+              ================================================= */}
+
+              {step === 1 && (
+                <motion.div
+                  key="step-1"
+                  initial={{
+                    opacity: 0,
+                    x: 20,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    x: 0,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    x: -20,
+                  }}
+                >
+                  <SectionTitle
+                    icon={User}
+                    title="Personal Information"
+                    description="Tell us a little about yourself."
+                  />
+
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div>
+                      <Input
+                        label="First Name"
+                        name="firstName"
+                        value={form.firstName}
+                        onChange={handleChange}
+                        placeholder="Enter your first name"
+                        required
+                      />
+                      <ErrorText>
+                        {errors.firstName}
+                      </ErrorText>
                     </div>
 
-                    <span className="hidden text-[9px] font-black uppercase tracking-wider sm:block">
-                      {item.short}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Form */}
-          <div className="rounded-3xl border border-white/10 bg-white/[0.025] shadow-2xl shadow-black/30">
-            <div className="p-5 sm:p-8 lg:p-10">
-              <AnimatePresence mode="wait">
-                {/* STEP 1 */}
-                {step === 1 && (
-                  <motion.div
-                    key="step-1"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                  >
-                    <SectionTitle
-                      icon={User}
-                      title="Personal Information"
-                      description="Tell us who you are and how the Academy can contact you."
-                    />
-
-                    <div className="grid gap-5 sm:grid-cols-2">
-                      <div>
-                        <Input
-                          label="First Name"
-                          name="firstName"
-                          value={form.firstName}
-                          onChange={handleChange}
-                          placeholder="Enter your first name"
-                          required
-                        />
-                        {errors.firstName && (
-                          <ErrorText text={errors.firstName} />
-                        )}
-                      </div>
-
+                    <div>
                       <Input
                         label="Middle Name"
                         name="middleName"
                         value={form.middleName}
                         onChange={handleChange}
-                        placeholder="Optional"
+                        placeholder="Enter your middle name"
                       />
+                    </div>
 
-                      <div>
-                        <Input
-                          label="Last Name"
-                          name="lastName"
-                          value={form.lastName}
-                          onChange={handleChange}
-                          placeholder="Enter your last name"
-                          required
-                        />
-                        {errors.lastName && (
-                          <ErrorText text={errors.lastName} />
-                        )}
-                      </div>
+                    <div>
+                      <Input
+                        label="Last Name"
+                        name="lastName"
+                        value={form.lastName}
+                        onChange={handleChange}
+                        placeholder="Enter your last name"
+                        required
+                      />
+                      <ErrorText>
+                        {errors.lastName}
+                      </ErrorText>
+                    </div>
 
-                      <div>
-                        <Input
-                          label="Email Address"
-                          name="email"
-                          type="email"
-                          value={form.email}
-                          onChange={handleChange}
-                          placeholder="you@example.com"
-                          required
-                        />
-                        {errors.email && (
-                          <ErrorText text={errors.email} />
-                        )}
-                      </div>
+                    <div>
+                      <Input
+                        label="Email Address"
+                        name="email"
+                        type="email"
+                        value={form.email}
+                        onChange={handleChange}
+                        placeholder="you@example.com"
+                        required
+                      />
+                      <ErrorText>
+                        {errors.email}
+                      </ErrorText>
+                    </div>
 
-                      <div>
-                        <Input
-                          label="Phone Number"
-                          name="phone"
-                          type="tel"
-                          value={form.phone}
-                          onChange={handleChange}
-                          placeholder="080..."
-                          required
-                        />
-                        {errors.phone && (
-                          <ErrorText text={errors.phone} />
-                        )}
-                      </div>
+                    <div>
+                      <Input
+                        label="Phone Number"
+                        name="phone"
+                        value={form.phone}
+                        onChange={handleChange}
+                        placeholder="080..."
+                        required
+                      />
+                      <ErrorText>
+                        {errors.phone}
+                      </ErrorText>
+                    </div>
 
-                      <div>
-                        <Select
-                          label="Gender"
-                          name="gender"
-                          value={form.gender}
-                          onChange={handleChange}
-                          options={[
-                            "Male",
-                            "Female",
-                            "Prefer not to say",
-                          ]}
-                          required
-                        />
-                        {errors.gender && (
-                          <ErrorText text={errors.gender} />
-                        )}
-                      </div>
+                    <div>
+                      <Select
+                        label="Gender"
+                        name="gender"
+                        value={form.gender}
+                        onChange={handleChange}
+                        placeholder="Select gender"
+                        options={[
+                          "Male",
+                          "Female",
+                          "Prefer not to say",
+                        ]}
+                        required
+                      />
+                      <ErrorText>
+                        {errors.gender}
+                      </ErrorText>
+                    </div>
 
+                    <div>
                       <Input
                         label="Date of Birth"
                         name="dateOfBirth"
@@ -1013,213 +1379,233 @@ export default function TutorEnrollment() {
                         value={form.dateOfBirth}
                         onChange={handleChange}
                       />
-
-                      <div>
-                        <Input
-                          label="State"
-                          name="state"
-                          value={form.state}
-                          onChange={handleChange}
-                          placeholder="e.g. Lagos"
-                          required
-                        />
-                        {errors.state && (
-                          <ErrorText text={errors.state} />
-                        )}
-                      </div>
-
-                      <div>
-                        <Input
-                          label="City"
-                          name="city"
-                          value={form.city}
-                          onChange={handleChange}
-                          placeholder="e.g. Ikeja"
-                          required
-                        />
-                        {errors.city && (
-                          <ErrorText text={errors.city} />
-                        )}
-                      </div>
                     </div>
-                  </motion.div>
-                )}
 
-                {/* STEP 2 */}
-                {step === 2 && (
-                  <motion.div
-                    key="step-2"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                  >
-                    <SectionTitle
-                      icon={BookOpen}
-                      title="Teaching Information"
-                      description="Tell us what you teach and the students you are comfortable teaching."
+                    <div>
+                      <Input
+                        label="City"
+                        name="city"
+                        value={form.city}
+                        onChange={handleChange}
+                        placeholder="Your city"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Address"
+                        name="address"
+                        value={form.address}
+                        onChange={handleChange}
+                        placeholder="Enter your residential address"
+                      />
+                    </div>
+
+                    <div>
+                      <Input
+                        label="State"
+                        name="state"
+                        value={form.state}
+                        onChange={handleChange}
+                        placeholder="Your state"
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* =================================================
+                  STEP 2
+              ================================================= */}
+
+              {step === 2 && (
+                <motion.div
+                  key="step-2"
+                  initial={{
+                    opacity: 0,
+                    x: 20,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    x: 0,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    x: -20,
+                  }}
+                >
+                  <SectionTitle
+                    icon={BookOpen}
+                    title="Teaching Information"
+                    description="Select the levels and subjects you are qualified to teach."
+                  />
+
+                  <div>
+                    <p className="mb-3 text-sm font-medium text-slate-300">
+                      Teaching Levels
+                      <span className="ml-1 text-cyan-400">
+                        *
+                      </span>
+                    </p>
+
+                    <LevelGroup
+                      selected={form.teachingLevel}
+                      onToggle={toggleLevel}
                     />
 
-                    <div className="space-y-7">
-                      <div>
-                        <MultiSelect
-                          label="Subjects You Can Teach"
-                          description="Select every subject you are qualified and confident to teach."
-                          options={SUBJECT_OPTIONS}
-                          selected={form.subjects}
-                          onToggle={(value) =>
-                            toggleArrayValue("subjects", value)
-                          }
-                        />
+                    <ErrorText>
+                      {errors.teachingLevel}
+                    </ErrorText>
+                  </div>
 
-                        {errors.subjects && (
-                          <ErrorText text={errors.subjects} />
-                        )}
-                      </div>
+                  <div className="mt-8">
+                    <p className="mb-4 text-sm font-medium text-slate-300">
+                      Subjects
+                      <span className="ml-1 text-cyan-400">
+                        *
+                      </span>
+                    </p>
 
-                      <div>
-                        <MultiSelect
-                          label="Class Levels"
-                          description="Select the primary and/or secondary levels you can teach."
-                          options={LEVEL_OPTIONS}
-                          selected={form.levels}
-                          onToggle={(value) =>
-                            toggleArrayValue("levels", value)
-                          }
-                        />
+                    <div className="space-y-4">
+                      <SubjectGroup
+                        title="Primary School"
+                        subjects={PRIMARY_SUBJECTS}
+                        selected={selectedSubjects}
+                        onToggle={toggleSubject}
+                      />
 
-                        {errors.levels && (
-                          <ErrorText text={errors.levels} />
-                        )}
-                      </div>
+                      <SubjectGroup
+                        title="Junior Secondary School"
+                        subjects={JSS_SUBJECTS}
+                        selected={selectedSubjects}
+                        onToggle={toggleSubject}
+                      />
 
-                      <div className="grid gap-5 sm:grid-cols-2">
-                        <div>
-                          <Select
-                            label="Teaching Experience"
-                            name="teachingExperience"
-                            value={form.teachingExperience}
-                            onChange={handleChange}
-                            options={[
-                              "Less than 1 year",
-                              "1 - 2 years",
-                              "3 - 5 years",
-                              "6 - 10 years",
-                              "More than 10 years",
-                            ]}
-                            required
-                          />
-
-                          {errors.teachingExperience && (
-                            <ErrorText
-                              text={errors.teachingExperience}
-                            />
-                          )}
-                        </div>
-
-                        <Input
-                          label="Current Occupation"
-                          name="currentOccupation"
-                          value={form.currentOccupation}
-                          onChange={handleChange}
-                          placeholder="e.g. Teacher, Lecturer, Student"
-                        />
-
-                        <Input
-                          label="Current / Previous School"
-                          name="schoolName"
-                          value={form.schoolName}
-                          onChange={handleChange}
-                          placeholder="School or organization"
-                        />
-                      </div>
-
-                      <div>
-                        <Textarea
-                          label="Teaching Approach"
-                          name="teachingApproach"
-                          value={form.teachingApproach}
-                          onChange={handleChange}
-                          placeholder="Briefly explain how you teach students, explain difficult topics and keep learners engaged."
-                          rows={6}
-                          required
-                        />
-
-                        {errors.teachingApproach && (
-                          <ErrorText
-                            text={errors.teachingApproach}
-                          />
-                        )}
-                      </div>
+                      <SubjectGroup
+                        title="Senior Secondary School"
+                        subjects={SSS_SUBJECTS}
+                        selected={selectedSubjects}
+                        onToggle={toggleSubject}
+                      />
                     </div>
-                  </motion.div>
-                )}
 
-                {/* STEP 3 */}
-                {step === 3 && (
-                  <motion.div
-                    key="step-3"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                  >
-                    <SectionTitle
-                      icon={Award}
-                      title="Qualifications"
-                      description="Provide your academic and professional background."
-                    />
+                    <ErrorText>
+                      {errors.subjects}
+                    </ErrorText>
+                  </div>
 
-                    <div className="grid gap-5 sm:grid-cols-2">
-                      <div>
-                        <Select
-                          label="Highest Qualification"
-                          name="highestQualification"
-                          value={form.highestQualification}
-                          onChange={handleChange}
-                          options={QUALIFICATION_OPTIONS}
-                          required
-                        />
+                  <div className="mt-8 grid gap-5 md:grid-cols-2">
+                    <div>
+                      <Input
+                        label="Years of Teaching Experience"
+                        name="yearsExperience"
+                        type="number"
+                        min="0"
+                        value={form.yearsExperience}
+                        onChange={handleChange}
+                        placeholder="e.g. 5"
+                        required
+                      />
 
-                        {errors.highestQualification && (
-                          <ErrorText
-                            text={errors.highestQualification}
-                          />
-                        )}
-                      </div>
+                      <ErrorText>
+                        {errors.yearsExperience}
+                      </ErrorText>
+                    </div>
 
-                      <div>
-                        <Input
-                          label="Institution"
-                          name="institution"
-                          value={form.institution}
-                          onChange={handleChange}
-                          placeholder="University / College / Institution"
-                          required
-                        />
+                    <div>
+                      <Input
+                        label="Current Occupation"
+                        name="currentOccupation"
+                        value={form.currentOccupation}
+                        onChange={handleChange}
+                        placeholder="e.g. Teacher"
+                        required
+                      />
 
-                        {errors.institution && (
-                          <ErrorText
-                            text={errors.institution}
-                          />
-                        )}
-                      </div>
+                      <ErrorText>
+                        {errors.currentOccupation}
+                      </ErrorText>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
-                      <div>
-                        <Input
-                          label="Field of Study"
-                          name="fieldOfStudy"
-                          value={form.fieldOfStudy}
-                          onChange={handleChange}
-                          placeholder="e.g. Mathematics Education"
-                          required
-                        />
+              {/* =================================================
+                  STEP 3
+              ================================================= */}
 
-                        {errors.fieldOfStudy && (
-                          <ErrorText
-                            text={errors.fieldOfStudy}
-                          />
-                        )}
-                      </div>
+              {step === 3 && (
+                <motion.div
+                  key="step-3"
+                  initial={{
+                    opacity: 0,
+                    x: 20,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    x: 0,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    x: -20,
+                  }}
+                >
+                  <SectionTitle
+                    icon={GraduationCap}
+                    title="Qualifications"
+                    description="Provide your academic and professional background."
+                  />
 
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div>
+                      <Select
+                        label="Highest Qualification"
+                        name="highestQualification"
+                        value={
+                          form.highestQualification
+                        }
+                        onChange={handleChange}
+                        options={QUALIFICATIONS}
+                        placeholder="Select qualification"
+                        required
+                      />
+
+                      <ErrorText>
+                        {errors.highestQualification}
+                      </ErrorText>
+                    </div>
+
+                    <div>
+                      <Input
+                        label="Institution"
+                        name="institution"
+                        value={form.institution}
+                        onChange={handleChange}
+                        placeholder="University / College / Institution"
+                        required
+                      />
+
+                      <ErrorText>
+                        {errors.institution}
+                      </ErrorText>
+                    </div>
+
+                    <div>
+                      <Input
+                        label="Course of Study"
+                        name="courseOfStudy"
+                        value={form.courseOfStudy}
+                        onChange={handleChange}
+                        placeholder="e.g. Mathematics Education"
+                        required
+                      />
+
+                      <ErrorText>
+                        {errors.courseOfStudy}
+                      </ErrorText>
+                    </div>
+
+                    <div>
                       <Input
                         label="Graduation Year"
                         name="graduationYear"
@@ -1228,422 +1614,369 @@ export default function TutorEnrollment() {
                         onChange={handleChange}
                         placeholder="e.g. 2022"
                       />
-
-                      <div className="sm:col-span-2">
-                        <Input
-                          label="Professional Certification"
-                          name="professionalCertification"
-                          value={form.professionalCertification}
-                          onChange={handleChange}
-                          placeholder="e.g. TRCN, Cambridge, Microsoft, Google..."
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2">
-                        <Textarea
-                          label="Additional Qualifications"
-                          name="additionalQualification"
-                          value={form.additionalQualification}
-                          onChange={handleChange}
-                          placeholder="Mention additional training, certifications, awards, workshops or relevant professional development."
-                          rows={5}
-                        />
-                      </div>
                     </div>
-                  </motion.div>
-                )}
 
-                {/* STEP 4 */}
-                {step === 4 && (
-                  <motion.div
-                    key="step-4"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                  >
-                    <SectionTitle
-                      icon={CalendarDays}
-                      title="Availability"
-                      description="Help us understand when and how you prefer to teach."
-                    />
-
-                    <div className="space-y-7">
-                      <div>
-                        <p className="mb-3 text-sm font-bold text-slate-200">
-                          Availability Type
-                        </p>
-
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          {[
-                            {
-                              value: "Weekdays",
-                              label: "Weekdays",
-                              icon: BriefcaseBusiness,
-                            },
-                            {
-                              value: "Weekends",
-                              label: "Weekends",
-                              icon: CalendarDays,
-                            },
-                            {
-                              value: "Both",
-                              label: "Weekdays & Weekends",
-                              icon: Clock3,
-                            },
-                          ].map((item) => {
-                            const Icon = item.icon;
-                            const active =
-                              form.availabilityType ===
-                              item.value;
-
-                            return (
-                              <button
-                                type="button"
-                                key={item.value}
-                                onClick={() =>
-                                  setForm((previous) => ({
-                                    ...previous,
-                                    availabilityType:
-                                      item.value,
-                                  }))
-                                }
-                                className={`rounded-2xl border p-4 text-left transition ${
-                                  active
-                                    ? "border-cyan-400/30 bg-cyan-400/10"
-                                    : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]"
-                                }`}
-                              >
-                                <Icon
-                                  className={`h-5 w-5 ${
-                                    active
-                                      ? "text-cyan-400"
-                                      : "text-slate-600"
-                                  }`}
-                                />
-
-                                <p
-                                  className={`mt-3 text-xs font-black ${
-                                    active
-                                      ? "text-cyan-300"
-                                      : "text-slate-400"
-                                  }`}
-                                >
-                                  {item.label}
-                                </p>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {errors.availabilityType && (
-                          <ErrorText
-                            text={errors.availabilityType}
-                          />
-                        )}
-                      </div>
-
-                      <div>
-                        <MultiSelect
-                          label="Available Days"
-                          options={[
-                            "Monday",
-                            "Tuesday",
-                            "Wednesday",
-                            "Thursday",
-                            "Friday",
-                            "Saturday",
-                            "Sunday",
-                          ]}
-                          selected={form.availableDays}
-                          onToggle={(value) =>
-                            toggleArrayValue(
-                              "availableDays",
-                              value
-                            )
-                          }
-                        />
-
-                        {errors.availableDays && (
-                          <ErrorText
-                            text={errors.availableDays}
-                          />
-                        )}
-                      </div>
-
-                      <div className="grid gap-5 sm:grid-cols-2">
-                        <Input
-                          label="Available From"
-                          name="startTime"
-                          type="time"
-                          value={form.startTime}
-                          onChange={handleChange}
-                        />
-
-                        <Input
-                          label="Available Until"
-                          name="endTime"
-                          type="time"
-                          value={form.endTime}
-                          onChange={handleChange}
-                        />
-                      </div>
-
-                      <div className="grid gap-5 sm:grid-cols-2">
-                        <div>
-                          <Select
-                            label="Preferred Teaching Mode"
-                            name="preferredMode"
-                            value={form.preferredMode}
-                            onChange={handleChange}
-                            options={[
-                              "Online",
-                              "Physical",
-                              "Both Online and Physical",
-                            ]}
-                            required
-                          />
-
-                          {errors.preferredMode && (
-                            <ErrorText
-                              text={errors.preferredMode}
-                            />
-                          )}
-                        </div>
-
-                        <div>
-                          <Select
-                            label="Expected Weekly Hours"
-                            name="weeklyHours"
-                            value={form.weeklyHours}
-                            onChange={handleChange}
-                            options={[
-                              "1 - 3 hours",
-                              "4 - 6 hours",
-                              "7 - 10 hours",
-                              "11 - 15 hours",
-                              "16+ hours",
-                            ]}
-                            required
-                          />
-
-                          {errors.weeklyHours && (
-                            <ErrorText
-                              text={errors.weeklyHours}
-                            />
-                          )}
-                        </div>
-                      </div>
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Professional Certification"
+                        name="professionalCertification"
+                        value={
+                          form.professionalCertification
+                        }
+                        onChange={handleChange}
+                        placeholder="e.g. TRCN, Google Certified Educator, etc."
+                      />
                     </div>
-                  </motion.div>
-                )}
+                  </div>
+                </motion.div>
+              )}
 
-                {/* STEP 5 */}
-                {step === 5 && (
-                  <motion.div
-                    key="step-5"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                  >
-                    <SectionTitle
-                      icon={FileText}
-                      title="Review Your Application"
-                      description="Check your information carefully before submitting your tutor application."
-                    />
+              {/* =================================================
+                  STEP 4
+              ================================================= */}
 
-                    <div className="space-y-6">
-                      {/* Personal */}
-                      <div>
-                        <p className="mb-3 text-xs font-black uppercase tracking-wider text-cyan-400">
-                          Personal Information
-                        </p>
+              {step === 4 && (
+                <motion.div
+                  key="step-4"
+                  initial={{
+                    opacity: 0,
+                    x: 20,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    x: 0,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    x: -20,
+                  }}
+                >
+                  <SectionTitle
+                    icon={Clock3}
+                    title="Availability"
+                    description="Tell us when you are available to teach."
+                  />
 
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <ReviewItem
-                            label="Full Name"
-                            value={[
-                              form.firstName,
-                              form.middleName,
-                              form.lastName,
-                            ]
-                              .filter(Boolean)
-                              .join(" ")}
-                          />
+                  <div>
+                    <p className="mb-4 text-sm font-medium text-slate-300">
+                      Available Days
+                      <span className="ml-1 text-cyan-400">
+                        *
+                      </span>
+                    </p>
 
-                          <ReviewItem
-                            label="Email"
-                            value={form.email}
-                          />
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+                      {DAYS.map((day) => {
+                        const active =
+                          form.availableDays.includes(
+                            day
+                          );
 
-                          <ReviewItem
-                            label="Phone"
-                            value={form.phone}
-                          />
-
-                          <ReviewItem
-                            label="Location"
-                            value={`${form.city}, ${form.state}`}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Teaching */}
-                      <div>
-                        <p className="mb-3 text-xs font-black uppercase tracking-wider text-cyan-400">
-                          Teaching Information
-                        </p>
-
-                        <div className="grid gap-3">
-                          <ReviewItem
-                            label="Subjects"
-                            value={selectedSubjectText}
-                          />
-
-                          <ReviewItem
-                            label="Class Levels"
-                            value={selectedLevelsText}
-                          />
-
-                          <ReviewItem
-                            label="Teaching Experience"
-                            value={form.teachingExperience}
-                          />
-
-                          <ReviewItem
-                            label="Teaching Approach"
-                            value={form.teachingApproach}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Qualification */}
-                      <div>
-                        <p className="mb-3 text-xs font-black uppercase tracking-wider text-cyan-400">
-                          Qualification
-                        </p>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <ReviewItem
-                            label="Highest Qualification"
-                            value={form.highestQualification}
-                          />
-
-                          <ReviewItem
-                            label="Institution"
-                            value={form.institution}
-                          />
-
-                          <ReviewItem
-                            label="Field of Study"
-                            value={form.fieldOfStudy}
-                          />
-
-                          <ReviewItem
-                            label="Graduation Year"
-                            value={form.graduationYear}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Availability */}
-                      <div>
-                        <p className="mb-3 text-xs font-black uppercase tracking-wider text-cyan-400">
-                          Availability
-                        </p>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <ReviewItem
-                            label="Availability"
-                            value={form.availabilityType}
-                          />
-
-                          <ReviewItem
-                            label="Teaching Mode"
-                            value={form.preferredMode}
-                          />
-
-                          <ReviewItem
-                            label="Available Days"
-                            value={
-                              form.availableDays.join(", ") ||
-                              "None selected"
+                        return (
+                          <button
+                            type="button"
+                            key={day}
+                            onClick={() =>
+                              toggleDay(day)
                             }
-                          />
+                            className={`rounded-2xl border px-3 py-3 text-sm font-medium transition ${
+                              active
+                                ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
+                                : "border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.05]"
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                          <ReviewItem
-                            label="Weekly Hours"
-                            value={form.weeklyHours}
-                          />
-                        </div>
-                      </div>
+                    <ErrorText>
+                      {errors.availableDays}
+                    </ErrorText>
+                  </div>
 
-                      {/* Motivation */}
-                      <div>
-                        <Textarea
-                          label="Why do you want to teach at Scholiqen Academy?"
-                          name="motivation"
-                          value={form.motivation}
-                          onChange={handleChange}
-                          placeholder="Tell us about your motivation, teaching goals and how you would contribute to the Academy."
-                          rows={6}
-                          required
+                  <div className="mt-8 grid gap-5 md:grid-cols-2">
+                    <div>
+                      <Input
+                        label="Available From"
+                        name="availableFrom"
+                        type="time"
+                        value={form.availableFrom}
+                        onChange={handleChange}
+                        required
+                      />
+
+                      <ErrorText>
+                        {errors.availableFrom}
+                      </ErrorText>
+                    </div>
+
+                    <div>
+                      <Input
+                        label="Available To"
+                        name="availableTo"
+                        type="time"
+                        value={form.availableTo}
+                        onChange={handleChange}
+                        required
+                      />
+
+                      <ErrorText>
+                        {errors.availableTo}
+                      </ErrorText>
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <Select
+                      label="Preferred Teaching Mode"
+                      name="preferredMode"
+                      value={form.preferredMode}
+                      onChange={handleChange}
+                      placeholder="Select teaching mode"
+                      options={[
+                        "Online",
+                        "Physical",
+                        "Hybrid",
+                      ]}
+                      required
+                    />
+
+                    <ErrorText>
+                      {errors.preferredMode}
+                    </ErrorText>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* =================================================
+                  STEP 5
+              ================================================= */}
+
+              {step === 5 && (
+                <motion.div
+                  key="step-5"
+                  initial={{
+                    opacity: 0,
+                    x: 20,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    x: 0,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    x: -20,
+                  }}
+                >
+                  <SectionTitle
+                    icon={FileText}
+                    title="Review Application"
+                    description="Review your information before submitting your tutor application."
+                  />
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <ReviewItem
+                      label="Name"
+                      value={`${form.firstName} ${form.middleName} ${form.lastName}`}
+                    />
+
+                    <ReviewItem
+                      label="Email"
+                      value={form.email}
+                    />
+
+                    <ReviewItem
+                      label="Phone"
+                      value={form.phone}
+                    />
+
+                    <ReviewItem
+                      label="Gender"
+                      value={form.gender}
+                    />
+
+                    <ReviewItem
+                      label="Levels"
+                      value={
+                        form.teachingLevel.join(", ")
+                      }
+                    />
+
+                    <ReviewItem
+                      label="Subjects"
+                      value={
+                        form.subjects.join(", ")
+                      }
+                    />
+
+                    <ReviewItem
+                      label="Experience"
+                      value={`${form.yearsExperience} year(s)`}
+                    />
+
+                    <ReviewItem
+                      label="Qualification"
+                      value={
+                        form.highestQualification
+                      }
+                    />
+
+                    <ReviewItem
+                      label="Institution"
+                      value={form.institution}
+                    />
+
+                    <ReviewItem
+                      label="Course"
+                      value={form.courseOfStudy}
+                    />
+
+                    <ReviewItem
+                      label="Available Days"
+                      value={
+                        form.availableDays.join(", ")
+                      }
+                    />
+
+                    <ReviewItem
+                      label="Teaching Mode"
+                      value={form.preferredMode}
+                    />
+                  </div>
+
+                  <div className="mt-7 space-y-5">
+                    <Textarea
+                      label="Why do you want to become a Scholiqen tutor?"
+                      name="motivation"
+                      value={form.motivation}
+                      onChange={handleChange}
+                      placeholder="Tell us why you want to teach on Scholiqen..."
+                      required
+                    />
+
+                    <ErrorText>
+                      {errors.motivation}
+                    </ErrorText>
+
+                    <Textarea
+                      label="Teaching Experience"
+                      name="teachingExperience"
+                      value={
+                        form.teachingExperience
+                      }
+                      onChange={handleChange}
+                      placeholder="Describe your previous teaching experience..."
+                      required
+                    />
+
+                    <ErrorText>
+                      {errors.teachingExperience}
+                    </ErrorText>
+
+                    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+                      <input
+                        type="checkbox"
+                        name="agreement"
+                        checked={form.agreement}
+                        onChange={handleChange}
+                        className="mt-1 h-4 w-4 accent-cyan-400"
+                      />
+
+                      <span className="text-sm leading-6 text-slate-400">
+                        I confirm that the information I
+                        have provided is accurate and I agree
+                        to follow Scholiqen Academy's tutor
+                        policies and guidelines.
+                      </span>
+                    </label>
+
+                    <ErrorText>
+                      {errors.agreement}
+                    </ErrorText>
+                  </div>
+
+                  {/* =================================================
+                      DUPLICATE ACCOUNT ERROR
+                  ================================================= */}
+
+                  {alreadyRegistered && (
+                    <motion.div
+                      initial={{
+                        opacity: 0,
+                        y: 10,
+                      }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                      }}
+                      className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-5"
+                    >
+                      <div className="flex items-start gap-3">
+                        <AlertCircle
+                          size={21}
+                          className="mt-0.5 shrink-0 text-amber-300"
                         />
 
-                        {errors.motivation && (
-                          <ErrorText
-                            text={errors.motivation}
-                          />
-                        )}
-                      </div>
+                        <div className="flex-1">
+                          <h3 className="font-bold text-amber-200">
+                            Already Registered
+                          </h3>
 
-                      {/* Agreement */}
-                      <div
-                        className={`rounded-2xl border p-4 ${
-                          errors.agreement
-                            ? "border-red-400/20 bg-red-500/5"
-                            : "border-cyan-400/10 bg-cyan-400/[0.025]"
-                        }`}
-                      >
-                        <label className="flex cursor-pointer items-start gap-3">
-                          <input
-                            type="checkbox"
-                            name="agreement"
-                            checked={form.agreement}
-                            onChange={handleChange}
-                            className="mt-1 h-4 w-4 accent-cyan-400"
-                          />
+                          <p className="mt-1 text-sm leading-6 text-slate-400">
+                            {submitError}
+                          </p>
 
-                          <span className="text-xs leading-5 text-slate-500">
-                            I confirm that the information provided
-                            in this application is accurate and
-                            complete. I understand that Scholiqen
-                            Academy may review my qualifications
-                            before approving my tutor application,
-                            and that submitting this application
-                            does not guarantee tutor approval.
-                          </span>
-                        </label>
-
-                        {errors.agreement && (
-                          <ErrorText text={errors.agreement} />
-                        )}
-                      </div>
-
-                      {/* Submit error */}
-                      {submitError && (
-                        <div className="flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-300">
-                          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-                          <span>{submitError}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(
+                                "/academy/login"
+                              )
+                            }
+                            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-amber-300"
+                          >
+                            <LogIn size={16} />
+                            Sign in to your account
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                      </div>
+                    </motion.div>
+                  )}
 
-            {/* Footer controls */}
-            <div className="flex flex-col gap-3 border-t border-white/10 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+                  {submitError &&
+                    !alreadyRegistered && (
+                      <motion.div
+                        initial={{
+                          opacity: 0,
+                          y: 10,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
+                        className="mt-6 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-400/5 p-5 text-sm text-red-300"
+                      >
+                        <AlertCircle
+                          size={19}
+                          className="mt-0.5 shrink-0"
+                        />
+
+                        <span>
+                          {submitError}
+                        </span>
+                      </motion.div>
+                    )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* =====================================================
+                BUTTONS
+            ===================================================== */}
+
+            <div className="mt-10 flex flex-col-reverse gap-3 border-t border-white/10 pt-7 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
                 onClick={
@@ -1651,76 +1984,56 @@ export default function TutorEnrollment() {
                     ? () => navigate("/academy")
                     : previousStep
                 }
-                disabled={submitting}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.025] px-5 text-sm font-bold text-slate-400 transition hover:bg-white/[0.05] hover:text-white disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3.5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
               >
-                <ChevronLeft className="h-4 w-4" />
-                {step === 1 ? "Cancel" : "Previous"}
+                <ChevronLeft size={17} />
+
+                {step === 1
+                  ? "Cancel"
+                  : "Previous"}
               </button>
 
               {step < STEPS.length ? (
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-600 px-6 text-sm font-black shadow-lg shadow-blue-500/20 transition hover:scale-[1.01]"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-6 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"
                 >
                   Continue
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight size={17} />
                 </button>
               ) : (
                 <button
-                  type="button"
-                  onClick={submitApplication}
+                  type="submit"
                   disabled={submitting}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-600 px-6 text-sm font-black shadow-lg shadow-blue-500/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-6 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? (
                     <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" />
                       Submitting...
                     </>
                   ) : (
                     <>
                       Submit Application
-                      <Send className="h-4 w-4" />
+                      <Send size={17} />
                     </>
                   )}
                 </button>
               )}
             </div>
           </div>
+        </form>
 
-          {/* Trust notice */}
-          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan-400" />
+        {/* =====================================================
+            SECURITY NOTE
+        ===================================================== */}
 
-            <div>
-              <p className="text-xs font-black text-slate-300">
-                Your information is handled securely
-              </p>
-
-              <p className="mt-1 text-[11px] leading-5 text-slate-700">
-                Your application details are used for tutor
-                verification and Academy administration. Tutor
-                access is only granted after approval.
-              </p>
-            </div>
-          </div>
-
-          <p className="mt-8 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-700">
-            © {new Date().getFullYear()} Scholiqen Academy
-          </p>
+        <div className="mt-6 flex items-center justify-center gap-2 text-center text-xs text-slate-600">
+          <ShieldCheck size={14} />
+          Your application information is handled securely.
         </div>
-      </main>
+      </div>
     </div>
-  );
-}
-
-function ErrorText({ text }) {
-  return (
-    <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-red-400">
-      <AlertCircle className="h-3.5 w-3.5" />
-      {text}
-    </p>
   );
 }

@@ -15,9 +15,9 @@ import {
   motion,
 } from "framer-motion";
 
-/* ===========================
+/* ============================================================
    GENERAL PAGES
-=========================== */
+============================================================ */
 
 import Terms from "./pages/Terms";
 import Help from "./pages/Help";
@@ -27,35 +27,41 @@ import Profile from "./pages/Profile";
 import EditProfile from "./pages/EditProfile";
 import LearningStats from "./pages/LearningStats";
 import ResetPassword from "./pages/ResetPassword";
+import TutorClasses from "./pages/tutor/TutorClasses";
+/* ============================================================
+   SCHOOLIQEN ACADEMY
+============================================================ */
 
-/* ===========================
-   CONTEXTS
-=========================== */
-
-import { CourseProvider } from "./context/LMSContext/CourseContext";
-import { SearchProvider } from "./context/SearchContext";
-import { DocumentProvider } from "./context/DocumentContext";
-
-/* ===========================
-   ACADEMY
-=========================== */
-
+import TutorEnrollmentLogin from "./pages/academy/TutorEnrollmentLogin";
 import StudentEnrollmentLogin from "./pages/academy/StudentEnrollmentLogin";
 import StudentEnrollment from "./pages/academy/StudentEnrollment";
 import StudentPortal from "./pages/academy/StudentPortal";
 import TutorEnrollment from "./pages/academy/TutorEnrollment";
+
+/* ============================================================
+   ADMIN
+============================================================ */
+
 import Teachers from "./pages/admin/users/Teachers";
-/* ===========================
+
+/* ============================================================
+   TUTOR
+============================================================ */
+import TutorClassDetails from "./pages/tutor/TutorClassDetails";
+import TutorDashboard from "./pages/tutor/TutorDashboard";
+import TutorLayout from "./components/tutor/TutorLayout";
+
+/* ============================================================
    LANGUAGE
-=========================== */
+============================================================ */
 
 import GrammarReader from "./pages/languages/GrammarReader";
 import LanguagesHome from "./pages/languages/LanguagesHome";
 import LanguageDetails from "./pages/languages/LanguageDetails";
 
-/* ===========================
+/* ============================================================
    SCHOOLS
-=========================== */
+============================================================ */
 
 import Polytechnics from "./pages/Polytechnics/Polytechnics";
 import PolytechnicDetails from "./pages/Polytechnics/PolytechnicDetails";
@@ -66,24 +72,24 @@ import CollegeDetails from "./pages/colleges/CollegeDetails";
 import Universities from "./pages/universities/Universities";
 import UniversityDetails from "./pages/universities/UniversityDetails";
 
-/* ===========================
-   ADMIN
-=========================== */
+/* ============================================================
+   ADMIN ROUTES
+============================================================ */
 
 import AdminRoutes from "./admin/AdminRoutes";
 import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 
-/* ===========================
+/* ============================================================
    COMPONENTS
-=========================== */
+============================================================ */
 
 import Navbar from "./components/Navbar";
 import Login from "./components/Login";
 import Contact from "./components/Contact";
 
-/* ===========================
+/* ============================================================
    GENERAL
-=========================== */
+============================================================ */
 
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
@@ -97,18 +103,18 @@ import Connections from "./pages/Connections";
 import Services from "./pages/Services";
 import ContactInbox from "./pages/ContactInbox";
 
-/* ===========================
+/* ============================================================
    NOVELS
-=========================== */
+============================================================ */
 
 import Novels from "./pages/Novels";
 import StoryReader from "./pages/StoryReader";
 import UploadNovel from "./pages/UploadNovel";
 import GenrePayment from "./pages/Payment";
 
-/* ===========================
+/* ============================================================
    LMS
-=========================== */
+============================================================ */
 
 import LMSPortal from "./pages/lms/LMSPortal";
 import Courses from "./pages/lms/Courses";
@@ -122,29 +128,29 @@ import CategorySubjects from "./pages/courses/CategorySubjects";
 import SubjectCourses from "./pages/courses/SubjectCourses";
 import CategorySubjectPayment from "./pages/courses/CategorySubjectPayment";
 
-/* ===========================
+/* ============================================================
    PDF / VIDEO
-=========================== */
+============================================================ */
 
 import PDFReader from "./pages/courses/PDFReader";
 import VideoReader from "./pages/VideoReader";
 
-/* ===========================
+/* ============================================================
    INSTRUCTOR
-=========================== */
+============================================================ */
 
 import BecomeInstructorForm from "./pages/instructor/BecomeInstructorForm";
 
-/* ===========================
+/* ============================================================
    AI
-=========================== */
+============================================================ */
 
 import AITutor from "./pages/AITutor";
 import AITutorSession from "./pages/AITutorSession";
 
-/* ===========================
+/* ============================================================
    CBT
-=========================== */
+============================================================ */
 
 import CBT from "./pages/cbt/CBT";
 import SubjectSelect from "./pages/cbt/SubjectSelect";
@@ -152,9 +158,9 @@ import CBTExam from "./pages/cbt/CBTExam";
 import CBTInstruction from "./pages/cbt/CBTInstruction";
 import CBTPayment from "./pages/cbt/CBTPayment";
 
-/* ===========================
+/* ============================================================
    VIRTUAL LAB
-=========================== */
+============================================================ */
 
 import VirtualLabLanding from "./pages/VirtualLab";
 import PhysicsLab from "./pages/PhysicsLab";
@@ -165,17 +171,17 @@ import WorkEnergySimulation from "./pages/WorkEnergySimulation";
 import About from "./pages/VirtualLab/About";
 import LabPayment from "./pages/VirtualLab/LabPayment";
 
-/* ===========================
+/* ============================================================
    SUPPORT
-=========================== */
+============================================================ */
 
 import SupportHome from "./pages/support/SupportHome";
 import FAQ from "./pages/support/FAQ";
 import ChatSupport from "./pages/support/ChatSupport";
 
-/* ===========================
-   LAYOUT
-=========================== */
+/* ============================================================
+   DASHBOARD LAYOUT
+============================================================ */
 
 import DashboardLayout from "./layout/DashboardLayout";
 
@@ -199,11 +205,33 @@ const AUTH_USER_KEY = "scholiqen_current_user";
    ACADEMY AUTH KEYS
 ============================================================ */
 
-const ACADEMY_TOKEN_KEY =
-  "scholiqen_academy_token";
+const ACADEMY_TOKEN_KEY = "scholiqen_academy_token";
+const ACADEMY_USER_KEY = "scholiqen_academy_user";
 
-const ACADEMY_USER_KEY =
-  "scholiqen_academy_user";
+/* ============================================================
+   HELPER
+============================================================ */
+
+const getAcademyUser = () => {
+  try {
+    const raw = localStorage.getItem(
+      ACADEMY_USER_KEY
+    );
+
+    if (!raw) {
+      return null;
+    }
+
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error(
+      "Unable to read Academy user:",
+      error
+    );
+
+    return null;
+  }
+};
 
 /* ============================================================
    NORMAL PROTECTED ROUTE
@@ -221,12 +249,9 @@ const ProtectedRoute = ({ children }) => {
 
     const checkAuthentication = async () => {
       try {
-        /*
-         * IMPORTANT:
-         *
-         * Academy students must NOT use the
-         * normal /api/auth/me authentication.
-         */
+        /* ======================================================
+           ACADEMY USERS MUST NOT USE NORMAL AUTH
+        ====================================================== */
 
         const academyUser =
           localStorage.getItem(
@@ -238,11 +263,15 @@ const ProtectedRoute = ({ children }) => {
             const parsedAcademyUser =
               JSON.parse(academyUser);
 
+            const academyUserType = String(
+              parsedAcademyUser?.userType ||
+                parsedAcademyUser?.user_type ||
+                ""
+            ).toLowerCase();
+
             if (
-              parsedAcademyUser?.userType ===
-                "student" ||
-              parsedAcademyUser?.user_type ===
-                "student"
+              academyUserType === "student" ||
+              academyUserType === "tutor"
             ) {
               if (mounted) {
                 setAuthenticated(false);
@@ -252,13 +281,13 @@ const ProtectedRoute = ({ children }) => {
               return;
             }
           } catch {
-            // Ignore invalid Academy user
+            // Ignore invalid Academy session.
           }
         }
 
-        /* ============================================
+        /* ======================================================
            NORMAL TOKEN
-        ============================================ */
+        ====================================================== */
 
         const token =
           localStorage.getItem(
@@ -274,9 +303,9 @@ const ProtectedRoute = ({ children }) => {
           return;
         }
 
-        /* ============================================
+        /* ======================================================
            VERIFY NORMAL TOKEN
-        ============================================ */
+        ====================================================== */
 
         const response = await fetch(
           `${API_URL}/api/auth/me`,
@@ -298,9 +327,9 @@ const ProtectedRoute = ({ children }) => {
           data = {};
         }
 
-        /* ============================================
+        /* ======================================================
            INVALID NORMAL SESSION
-        ============================================ */
+        ====================================================== */
 
         if (!response.ok) {
           console.warn(
@@ -323,9 +352,9 @@ const ProtectedRoute = ({ children }) => {
           return;
         }
 
-        /* ============================================
+        /* ======================================================
            VALID NORMAL SESSION
-        ============================================ */
+        ====================================================== */
 
         if (data?.user) {
           localStorage.setItem(
@@ -341,9 +370,9 @@ const ProtectedRoute = ({ children }) => {
           return;
         }
 
-        /* ============================================
+        /* ======================================================
            INVALID USER RESPONSE
-        ============================================ */
+        ====================================================== */
 
         localStorage.removeItem(
           AUTH_TOKEN_KEY
@@ -363,9 +392,9 @@ const ProtectedRoute = ({ children }) => {
           error
         );
 
-        /* ============================================
-           FALLBACK TO NORMAL CACHED USER
-        ============================================ */
+        /* ======================================================
+           FALLBACK TO CACHED NORMAL USER
+        ====================================================== */
 
         const cachedUser =
           localStorage.getItem(
@@ -377,19 +406,20 @@ const ProtectedRoute = ({ children }) => {
             const parsedUser =
               JSON.parse(cachedUser);
 
-            /*
-             * Never treat an Academy student as
-             * a normal authenticated user.
-             */
+            const cachedUserType =
+              parsedUser?.userType ||
+              parsedUser?.user_type;
 
-            const isAcademyStudent =
-              parsedUser?.userType ===
-                "student" ||
-              parsedUser?.user_type ===
-                "student";
+            const isAcademyUser =
+              String(
+                cachedUserType || ""
+              ).toLowerCase() === "student" ||
+              String(
+                cachedUserType || ""
+              ).toLowerCase() === "tutor";
 
             if (
-              !isAcademyStudent &&
+              !isAcademyUser &&
               parsedUser?.id &&
               mounted
             ) {
@@ -399,7 +429,7 @@ const ProtectedRoute = ({ children }) => {
               return;
             }
           } catch {
-            // Ignore invalid cached user
+            // Ignore invalid cached user.
           }
         }
 
@@ -417,15 +447,15 @@ const ProtectedRoute = ({ children }) => {
     };
   }, []);
 
-  /* ============================================
+  /* ============================================================
      LOADING
-  ============================================ */
+  ============================================================ */
 
   if (checkingAuth) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-[#050816] text-white">
         <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-700 border-t-cyan-400" />
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-cyan-400" />
 
           <p className="mt-4 text-sm font-semibold text-slate-400">
             Loading...
@@ -435,9 +465,9 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  /* ============================================
+  /* ============================================================
      NOT AUTHENTICATED
-  ============================================ */
+  ============================================================ */
 
   if (!authenticated) {
     return (
@@ -452,7 +482,7 @@ const ProtectedRoute = ({ children }) => {
 };
 
 /* ============================================================
-   ACADEMY PROTECTED ROUTE
+   ACADEMY STUDENT PROTECTED ROUTE
 ============================================================ */
 
 const AcademyProtectedRoute = ({
@@ -467,94 +497,80 @@ const AcademyProtectedRoute = ({
   useEffect(() => {
     let mounted = true;
 
-    const checkAcademyAuthentication =
-      () => {
-        try {
-          const token =
-            localStorage.getItem(
-              ACADEMY_TOKEN_KEY
-            );
-
-          const userData =
-            localStorage.getItem(
-              ACADEMY_USER_KEY
-            );
-
-          /* ==========================================
-             NO ACADEMY TOKEN
-          ========================================== */
-
-          if (!token || !userData) {
-            if (mounted) {
-              setAuthenticated(false);
-              setCheckingAuth(false);
-            }
-
-            return;
-          }
-
-          /* ==========================================
-             PARSE USER
-          ========================================== */
-
-          const user =
-            JSON.parse(userData);
-
-          const userType =
-            user?.userType ||
-            user?.user_type;
-
-          /* ==========================================
-             MUST BE STUDENT
-          ========================================== */
-
-          if (
-            userType !== "student"
-          ) {
-            localStorage.removeItem(
-              ACADEMY_TOKEN_KEY
-            );
-
-            localStorage.removeItem(
-              ACADEMY_USER_KEY
-            );
-
-            if (mounted) {
-              setAuthenticated(false);
-              setCheckingAuth(false);
-            }
-
-            return;
-          }
-
-          /* ==========================================
-             VALID ACADEMY SESSION
-          ========================================== */
-
-          if (mounted) {
-            setAuthenticated(true);
-            setCheckingAuth(false);
-          }
-        } catch (error) {
-          console.error(
-            "Academy Authentication Error:",
-            error
-          );
-
-          localStorage.removeItem(
+    const checkAcademyAuthentication = () => {
+      try {
+        const token =
+          localStorage.getItem(
             ACADEMY_TOKEN_KEY
           );
 
-          localStorage.removeItem(
-            ACADEMY_USER_KEY
-          );
+        const user =
+          getAcademyUser();
 
+        /* ==================================================
+           NO ACADEMY SESSION
+        ================================================== */
+
+        if (!token || !user) {
           if (mounted) {
             setAuthenticated(false);
             setCheckingAuth(false);
           }
+
+          return;
         }
-      };
+
+        /* ==================================================
+           USER TYPE
+        ================================================== */
+
+        const userType = String(
+          user?.userType ||
+            user?.user_type ||
+            ""
+        ).toLowerCase();
+
+        /* ==================================================
+           MUST BE STUDENT
+        ================================================== */
+
+        if (userType !== "student") {
+          if (mounted) {
+            setAuthenticated(false);
+            setCheckingAuth(false);
+          }
+
+          return;
+        }
+
+        /* ==================================================
+           VALID STUDENT SESSION
+        ================================================== */
+
+        if (mounted) {
+          setAuthenticated(true);
+          setCheckingAuth(false);
+        }
+      } catch (error) {
+        console.error(
+          "Academy Student Authentication Error:",
+          error
+        );
+
+        localStorage.removeItem(
+          ACADEMY_TOKEN_KEY
+        );
+
+        localStorage.removeItem(
+          ACADEMY_USER_KEY
+        );
+
+        if (mounted) {
+          setAuthenticated(false);
+          setCheckingAuth(false);
+        }
+      }
+    };
 
     checkAcademyAuthentication();
 
@@ -563,13 +579,13 @@ const AcademyProtectedRoute = ({
     };
   }, []);
 
-  /* ============================================
-     ACADEMY LOADING
-  ============================================ */
+  /* ============================================================
+     LOADING
+  ============================================================ */
 
   if (checkingAuth) {
     return (
-      <div className="min-h-screen bg-[#050816] text-white flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#050816] text-white">
         <div className="text-center">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-cyan-400" />
 
@@ -581,14 +597,180 @@ const AcademyProtectedRoute = ({
     );
   }
 
-  /* ============================================
-     NOT ACADEMY STUDENT
-  ============================================ */
+  /* ============================================================
+     NOT STUDENT
+  ============================================================ */
 
   if (!authenticated) {
     return (
       <Navigate
         to="/academy/student-enrollment-login"
+        replace
+      />
+    );
+  }
+
+  return children;
+};
+
+/* ============================================================
+   ACADEMY TUTOR PROTECTED ROUTE
+============================================================ */
+
+const TutorProtectedRoute = ({
+  children,
+}) => {
+  const [checkingAuth, setCheckingAuth] =
+    useState(true);
+
+  const [authenticated, setAuthenticated] =
+    useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkTutorAuthentication = () => {
+      try {
+        const token =
+          localStorage.getItem(
+            ACADEMY_TOKEN_KEY
+          );
+
+        const user =
+          getAcademyUser();
+
+        /* ==================================================
+           NO ACADEMY SESSION
+        ================================================== */
+
+        if (!token || !user) {
+          console.warn(
+            "Tutor route: Academy session not found."
+          );
+
+          if (mounted) {
+            setAuthenticated(false);
+            setCheckingAuth(false);
+          }
+
+          return;
+        }
+
+        /* ==================================================
+           USER TYPE
+        ================================================== */
+
+        const userType = String(
+          user?.userType ||
+            user?.user_type ||
+            ""
+        ).toLowerCase();
+
+        /* ==================================================
+           MUST BE TUTOR
+        ================================================== */
+
+        if (userType !== "tutor") {
+          console.warn(
+            "Tutor route: Current Academy user is not a tutor.",
+            userType
+          );
+
+          if (mounted) {
+            setAuthenticated(false);
+            setCheckingAuth(false);
+          }
+
+          return;
+        }
+
+        /* ==================================================
+           REFERENCE IS REQUIRED
+        ================================================== */
+
+        if (!user?.reference) {
+          console.warn(
+            "Tutor route: Tutor reference is missing."
+          );
+
+          if (mounted) {
+            setAuthenticated(false);
+            setCheckingAuth(false);
+          }
+
+          return;
+        }
+
+        /* ==================================================
+           VALID TUTOR SESSION
+        ================================================== */
+
+        if (mounted) {
+          setAuthenticated(true);
+          setCheckingAuth(false);
+        }
+      } catch (error) {
+        console.error(
+          "Tutor Authentication Error:",
+          error
+        );
+
+        localStorage.removeItem(
+          ACADEMY_TOKEN_KEY
+        );
+
+        localStorage.removeItem(
+          ACADEMY_USER_KEY
+        );
+
+        if (mounted) {
+          setAuthenticated(false);
+          setCheckingAuth(false);
+        }
+      }
+    };
+
+    checkTutorAuthentication();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
+
+  if (checkingAuth) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#030712] text-white">
+        <div className="text-center">
+          <div className="relative mx-auto h-12 w-12">
+            <div className="absolute inset-0 animate-ping rounded-full bg-cyan-500/20" />
+
+            <div className="relative h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-cyan-400" />
+          </div>
+
+          <p className="mt-5 text-sm font-semibold text-slate-300">
+            Loading Tutor Workspace...
+          </p>
+
+          <p className="mt-1 text-xs text-slate-500">
+            Preparing your teaching environment
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ============================================================
+     NOT TUTOR
+  ============================================================ */
+
+  if (!authenticated) {
+    return (
+      <Navigate
+        to="/academy/login"
         replace
       />
     );
@@ -628,6 +810,43 @@ const PageWrapper = ({
 };
 
 /* ============================================================
+   TUTOR ERROR FALLBACK
+============================================================ */
+
+const TutorFallback = () => {
+  return (
+    <div className="min-h-screen bg-[#030712] px-6 py-20 text-white">
+      <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center shadow-2xl">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-2xl">
+          🎓
+        </div>
+
+        <h1 className="mt-6 text-2xl font-bold">
+          Tutor Workspace
+        </h1>
+
+        <p className="mt-3 text-sm leading-6 text-slate-400">
+          Your tutor account is authenticated,
+          but this tutor feature has not been
+          connected yet.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href =
+              "/academy/tutor";
+          }}
+          className="mt-6 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
+        >
+          Open Tutor Dashboard
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
    ANIMATED ROUTES
 ============================================================ */
 
@@ -640,6 +859,7 @@ const AnimatedRoutes = () => {
         location={location}
         key={location.pathname}
       >
+
         {/* =====================================================
             HOME
         ===================================================== */}
@@ -763,13 +983,6 @@ const AnimatedRoutes = () => {
             SCHOLIQEN ACADEMY
         ===================================================== */}
 
-        {/*
-          IMPORTANT:
-
-          Student login is PUBLIC.
-          It must NOT be wrapped in ProtectedRoute.
-        */}
-
         <Route
           path="/academy/student-enrollment-login"
           element={
@@ -778,12 +991,6 @@ const AnimatedRoutes = () => {
             </PageWrapper>
           }
         />
-
-        {/*
-          Student enrollment is PUBLIC.
-          A student must be able to enroll before
-          having an Academy account.
-        */}
 
         <Route
           path="/academy/student-enrollment"
@@ -794,9 +1001,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/*
-          Tutor registration is PUBLIC.
-        */}
+        {/* =====================================================
+            TUTOR REGISTRATION
+        ===================================================== */}
 
         <Route
           path="/academy/tutor-register"
@@ -807,11 +1014,22 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/*
-          Academy landing page can remain protected
-          by the normal Scholiqen account if that is
-          how your existing Academy page works.
-        */}
+        {/* =====================================================
+            TUTOR LOGIN
+        ===================================================== */}
+
+        <Route
+          path="/academy/login"
+          element={
+            <PageWrapper>
+              <TutorEnrollmentLogin />
+            </PageWrapper>
+          }
+        />
+
+        {/* =====================================================
+            ACADEMY LANDING
+        ===================================================== */}
 
         <Route
           path="/academy"
@@ -823,20 +1041,10 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
-<Route
-  path="/admin/users/teachers"
-  element={
-    <ProtectedRoute>
-      <Teachers />
-    </ProtectedRoute>
-  }
-/>
-        {/*
-          STUDENT PORTAL
 
-          Uses AcademyProtectedRoute instead of
-          normal ProtectedRoute.
-        */}
+        {/* =====================================================
+            STUDENT PORTAL
+        ===================================================== */}
 
         <Route
           path="/academy/student-portal"
@@ -846,6 +1054,49 @@ const AnimatedRoutes = () => {
                 <StudentPortal />
               </PageWrapper>
             </AcademyProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            TUTOR DASHBOARD
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout>
+                <TutorDashboard />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            FUTURE TUTOR ROUTES
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/*"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout>
+                <TutorFallback />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            ADMIN TEACHERS
+        ===================================================== */}
+
+        <Route
+          path="/admin/users/teachers"
+          element={
+            <ProtectedRoute>
+              <Teachers />
+            </ProtectedRoute>
           }
         />
 
@@ -1028,6 +1279,7 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         >
+
           <Route
             path="/dashboard"
             element={
@@ -1076,6 +1328,7 @@ const AnimatedRoutes = () => {
               <Connections />
             }
           />
+
         </Route>
 
         {/* =====================================================
@@ -1383,6 +1636,55 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
+    TUTOR DASHBOARD
+===================================================== */}
+
+<Route 
+  path="/academy/tutor" 
+  element={ 
+    <TutorProtectedRoute> 
+      <TutorLayout> 
+        <TutorDashboard /> 
+      </TutorLayout> 
+    </TutorProtectedRoute> 
+  } 
+/>
+
+{/* =====================================================
+    TUTOR CLASSES
+===================================================== */}
+
+<Route 
+  path="/academy/tutor/classes" 
+  element={ 
+    <TutorProtectedRoute> 
+      <TutorLayout title="My Classes"> 
+        <TutorClasses /> 
+      </TutorLayout> 
+    </TutorProtectedRoute> 
+  } 
+/>
+
+{/* =====================================================
+    FUTURE TUTOR ROUTES
+===================================================== */}
+
+<Route 
+  path="/academy/tutor/*" 
+  element={ 
+    <TutorProtectedRoute> 
+      <TutorLayout> 
+        <TutorFallback /> 
+      </TutorLayout> 
+    </TutorProtectedRoute> 
+  } 
+/>
+<Route
+  path="/academy/tutor/classes/:grade"
+  element={<TutorClassDetails />}
+/>
+
+        {/* =====================================================
             COLLEGES
         ===================================================== */}
 
@@ -1431,6 +1733,7 @@ const AnimatedRoutes = () => {
             />
           }
         />
+
       </Routes>
     </AnimatePresence>
   );
@@ -1442,15 +1745,9 @@ const AnimatedRoutes = () => {
 
 function App() {
   return (
-    <SearchProvider>
-      <CourseProvider>
-        <DocumentProvider>
-          <Router>
-            <AnimatedRoutes />
-          </Router>
-        </DocumentProvider>
-      </CourseProvider>
-    </SearchProvider>
+    <Router>
+      <AnimatedRoutes />
+    </Router>
   );
 }
 

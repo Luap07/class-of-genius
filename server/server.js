@@ -28,6 +28,7 @@ import taskRoutes from "./routes/taskRoutes.js";
 // ============================================================
 
 import academyRoutes from "./routes/academyRoutes.js";
+import academyTeachingRoutes from "./routes/academyTeaching.js";
 
 // ============================================================
 // PATH CONFIGURATION
@@ -566,6 +567,76 @@ app.get(
           "GET /api/academy/tutor-application/:reference",
 
         // ======================================================
+        // ACADEMY TEACHING
+        // ======================================================
+
+        tutorClasses:
+          "GET /api/academy/tutor/classes",
+
+        tutorLiveClasses:
+          "GET /api/academy/tutor/live-classes",
+
+        createLiveClass:
+          "POST /api/academy/tutor/live-classes",
+
+        startLiveClass:
+          "PATCH /api/academy/tutor/live-classes/:id/start",
+
+        endLiveClass:
+          "PATCH /api/academy/tutor/live-classes/:id/end",
+
+        liveClassDetails:
+          "GET /api/academy/tutor/live-classes/:id",
+
+        joinLiveClass:
+          "POST /api/academy/tutor/live-classes/:id/join",
+
+        leaveLiveClass:
+          "POST /api/academy/tutor/live-classes/:id/leave",
+
+        liveParticipants:
+          "GET /api/academy/tutor/live-classes/:id/participants",
+
+        tutorTasks:
+          "GET /api/academy/tutor/tasks",
+
+        createTutorTask:
+          "POST /api/academy/tutor/tasks",
+
+        tutorLessons:
+          "GET /api/academy/tutor/lessons",
+
+        createTutorLesson:
+          "POST /api/academy/tutor/lessons",
+
+        tutorAttendance:
+          "GET /api/academy/tutor/attendance",
+
+        liveAttendance:
+          "GET /api/academy/tutor/live-classes/:id/attendance",
+
+        liveChat:
+          "GET /api/academy/tutor/live-classes/:id/chat",
+
+        sendLiveChat:
+          "POST /api/academy/tutor/live-classes/:id/chat",
+
+        tutorMaterials:
+          "GET /api/academy/tutor/materials",
+
+        uploadTutorMaterial:
+          "POST /api/academy/tutor/materials",
+
+        saveRecording:
+          "POST /api/academy/tutor/live-classes/:id/recording",
+
+        whiteboard:
+          "GET /api/academy/tutor/live-classes/:id/whiteboard",
+
+        saveWhiteboard:
+          "POST /api/academy/tutor/live-classes/:id/whiteboard",
+
+        // ======================================================
         // HEALTH
         // ======================================================
 
@@ -640,6 +711,9 @@ app.get(
           groqConfigured,
 
         academy:
+          databaseConfigured,
+
+        academyTeaching:
           databaseConfigured,
       },
     });
@@ -1186,18 +1260,6 @@ app.use(
 // ============================================================
 // WEEKLY / MONTHLY TASK ROUTES
 // ============================================================
-//
-// Frontend:
-// GET    /api/tasks
-//
-// Admin:
-// GET    /api/tasks/topic/:topicId
-// GET    /api/tasks/:id
-// POST   /api/tasks
-// PUT    /api/tasks/:id
-// DELETE /api/tasks/:id
-//
-// ============================================================
 
 app.use(
   "/api/tasks",
@@ -1235,20 +1297,18 @@ app.use(
 // SCHOLIQEN ACADEMY ROUTES
 // ============================================================
 //
-// Student:
+// Existing Academy routes:
 //
+// Student enrollment
 // POST /api/academy/student-enrollment
 //
-// Existing student:
-//
-// GET /api/academy/student/:userId
-//
-// Tutor:
-//
+// Tutor application
 // POST /api/academy/tutor-application
 //
-// Tutor application lookup:
+// Student data
+// GET /api/academy/student/:userId
 //
+// Tutor application
 // GET /api/academy/tutor-application/:reference
 //
 // ============================================================
@@ -1256,6 +1316,59 @@ app.use(
 app.use(
   "/api/academy",
   academyRoutes
+);
+
+// ============================================================
+// SCHOLIQEN ACADEMY TEACHING ROUTES
+// ============================================================
+//
+// Tutor Classes
+// GET /api/academy/tutor/classes
+//
+// Live Classes
+// GET    /api/academy/tutor/live-classes
+// POST   /api/academy/tutor/live-classes
+// PATCH  /api/academy/tutor/live-classes/:id/start
+// PATCH  /api/academy/tutor/live-classes/:id/end
+// GET    /api/academy/tutor/live-classes/:id
+//
+// Participants
+// POST   /api/academy/tutor/live-classes/:id/join
+// POST   /api/academy/tutor/live-classes/:id/leave
+// GET    /api/academy/tutor/live-classes/:id/participants
+//
+// Tasks
+// GET    /api/academy/tutor/tasks
+// POST   /api/academy/tutor/tasks
+//
+// Lessons
+// GET    /api/academy/tutor/lessons
+// POST   /api/academy/tutor/lessons
+//
+// Attendance
+// GET /api/academy/tutor/attendance
+// GET /api/academy/tutor/live-classes/:id/attendance
+//
+// Materials
+// GET  /api/academy/tutor/materials
+// POST /api/academy/tutor/materials
+//
+// Chat
+// GET  /api/academy/tutor/live-classes/:id/chat
+// POST /api/academy/tutor/live-classes/:id/chat
+//
+// Recording
+// POST /api/academy/tutor/live-classes/:id/recording
+//
+// Whiteboard
+// GET  /api/academy/tutor/live-classes/:id/whiteboard
+// POST /api/academy/tutor/live-classes/:id/whiteboard
+//
+// ============================================================
+
+app.use(
+  "/api/academy",
+  academyTeachingRoutes
 );
 
 // ============================================================
@@ -1452,6 +1565,38 @@ app.listen(
       `🔎 Tutor Lookup:  GET  http://localhost:${PORT}/api/academy/tutor-application/:reference`
     );
 
+    // ========================================================
+    // ACADEMY TEACHING LOGS
+    // ========================================================
+
+    console.log(
+      `🏫 Tutor Classes: GET http://localhost:${PORT}/api/academy/tutor/classes`
+    );
+
+    console.log(
+      `🎥 Live Classes:  GET http://localhost:${PORT}/api/academy/tutor/live-classes`
+    );
+
+    console.log(
+      `➕ Create Live:   POST http://localhost:${PORT}/api/academy/tutor/live-classes`
+    );
+
+    console.log(
+      `📝 Tutor Tasks:   GET http://localhost:${PORT}/api/academy/tutor/tasks`
+    );
+
+    console.log(
+      `📚 Tutor Lessons: GET http://localhost:${PORT}/api/academy/tutor/lessons`
+    );
+
+    console.log(
+      `📊 Attendance:    GET http://localhost:${PORT}/api/academy/tutor/attendance`
+    );
+
+    console.log(
+      `📦 Materials:     GET http://localhost:${PORT}/api/academy/tutor/materials`
+    );
+
     console.log(
       `❤️ Health:        http://localhost:${PORT}/api/health`
     );
@@ -1546,6 +1691,30 @@ app.listen(
       "   • Student Portal: READY"
     );
 
+    console.log(
+      "   • Tutor Teaching API: ENABLED"
+    );
+
+    console.log(
+      "   • Live Classroom API: ENABLED"
+    );
+
+    console.log(
+      "   • Live Attendance API: ENABLED"
+    );
+
+    console.log(
+      "   • Tutor Tasks API: ENABLED"
+    );
+
+    console.log(
+      "   • Tutor Lessons API: ENABLED"
+    );
+
+    console.log(
+      "   • Tutor Materials API: ENABLED"
+    );
+
     console.log("");
 
     console.log(
@@ -1569,6 +1738,12 @@ app.listen(
 
     console.log(
       "=================================================="
+    );
+
+    console.log("");
+
+    console.log(
+      "🎉 Scholiqen backend is ready."
     );
 
     console.log("");

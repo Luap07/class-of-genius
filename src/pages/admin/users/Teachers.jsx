@@ -3,9 +3,6 @@ import {
   Search,
   Eye,
   CheckCircle,
-  XCircle,
-  UserCheck,
-  UserX,
   RefreshCw,
   Users,
   Clock,
@@ -19,6 +16,7 @@ import {
   X,
   UserRound,
   GraduationCap,
+  Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -29,6 +27,8 @@ import { motion, AnimatePresence } from "framer-motion";
 const API_URL = (
   import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).replace(/\/$/, "");
+
+const TUTORS_URL = `${API_URL}/api/academy/admin/tutors`;
 
 /* =========================================================
    HELPERS
@@ -85,23 +85,96 @@ const getTutorPhone = (tutor) => {
   );
 };
 
-const getTutorSubject = (tutor) => {
-  return (
-    clean(tutor.subject) ||
-    clean(tutor.subjects) ||
-    clean(tutor.teaching_subject) ||
-    clean(tutor.specialization) ||
-    "Not specified"
-  );
+/* =========================================================
+   SUBJECT HELPER
+
+   Handles:
+   - subjects as array
+   - subjects as JSON string
+   - subjects as comma-separated string
+   - subject
+   - teaching_subject
+   - specialization
+========================================================= */
+
+const getTutorSubjects = (tutor) => {
+  let value =
+    tutor.subjects ??
+    tutor.subject ??
+    tutor.teaching_subject ??
+    tutor.specialization ??
+    "";
+
+  if (Array.isArray(value)) {
+    return value
+      .map(clean)
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    const text = value.trim();
+
+    if (!text) return [];
+
+    try {
+      const parsed = JSON.parse(text);
+
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(clean)
+          .filter(Boolean);
+      }
+
+      if (typeof parsed === "string") {
+        return [clean(parsed)].filter(Boolean);
+      }
+    } catch {
+      // Not JSON. Continue below.
+    }
+
+    return text
+      .split(",")
+      .map((item) => clean(item))
+      .filter(Boolean);
+  }
+
+  return value ? [clean(value)] : [];
 };
+
+const getTutorSubject = (tutor) => {
+  const subjects = getTutorSubjects(tutor);
+
+  return subjects.length
+    ? subjects.join(", ")
+    : "Not specified";
+};
+
+/* =========================================================
+   STATUS
+
+   IMPORTANT:
+   Backend only allows:
+
+   pending -> verified
+
+   No rejected/active/inactive logic here.
+========================================================= */
 
 const getTutorStatus = (tutor) => {
   return (
-    clean(tutor.status) ||
     clean(tutor.application_status) ||
+    clean(tutor.status) ||
     clean(tutor.verification_status) ||
-    "Pending"
+    "pending"
   );
+};
+
+const isTutorVerified = (tutor) => {
+  return normalize(getTutorStatus(tutor)) === "verified";
+};
+
+const isTutorPending = (tutor) => {
+  return normalize(getTutorStatus(tutor)) === "pending";
 };
 
 const formatDate = (value) => {
@@ -141,15 +214,21 @@ const formatDateTime = (value) => {
 const getInitials = (tutor) => {
   const name = getTutorName(tutor);
 
-  const parts = name.split(" ").filter(Boolean);
+  const parts = name
+    .split(" ")
+    .filter(Boolean);
 
   if (!parts.length) return "TU";
 
   if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
+    return parts[0]
+      .slice(0, 2)
+      .toUpperCase();
   }
 
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return `${parts[0][0]}${
+    parts[parts.length - 1][0]
+  }`.toUpperCase();
 };
 
 /* =========================================================
@@ -159,37 +238,20 @@ const getInitials = (tutor) => {
 const getStatusMeta = (status) => {
   const normalized = normalize(status);
 
-  if (
-    normalized === "verified" ||
-    normalized === "approved" ||
-    normalized === "accepted" ||
-    normalized === "active"
-  ) {
+  if (normalized === "verified") {
     return {
-      label: status || "Verified",
+      label: "Verified",
       icon: CheckCircle,
       className:
         "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
     };
   }
 
-  if (
-    normalized === "rejected" ||
-    normalized === "declined" ||
-    normalized === "inactive" ||
-    normalized === "suspended"
-  ) {
-    return {
-      label: status || "Rejected",
-      icon: XCircle,
-      className: "border-red-400/20 bg-red-400/10 text-red-300",
-    };
-  }
-
   return {
-    label: status || "Pending",
+    label: "Pending",
     icon: Clock,
-    className: "border-amber-400/20 bg-amber-400/10 text-amber-300",
+    className:
+      "border-amber-400/20 bg-amber-400/10 text-amber-300",
   };
 };
 
@@ -206,6 +268,7 @@ function StatusBadge({ status }) {
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${meta.className}`}
     >
       <Icon size={12} />
+
       {meta.label}
     </span>
   );
@@ -215,7 +278,11 @@ function StatusBadge({ status }) {
    INFO ITEM
 ========================================================= */
 
-function InfoItem({ icon: Icon, label, value }) {
+function InfoItem({
+  icon: Icon,
+  label,
+  value,
+}) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
       <div className="flex items-start gap-3">
@@ -241,11 +308,15 @@ function InfoItem({ icon: Icon, label, value }) {
    TUTOR DETAILS MODAL
 ========================================================= */
 
-function TutorDetailsModal({ tutor, onClose }) {
+function TutorDetailsModal({
+  tutor,
+  onClose,
+}) {
   if (!tutor) return null;
 
   const name = getTutorName(tutor);
   const reference = getTutorReference(tutor);
+  const subjects = getTutorSubjects(tutor);
 
   return (
     <AnimatePresence>
@@ -254,34 +325,51 @@ function TutorDetailsModal({ tutor, onClose }) {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget) {
+          if (
+            event.target === event.currentTarget
+          ) {
             onClose();
           }
         }}
         className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 20 }}
+          initial={{
+            opacity: 0,
+            scale: 0.96,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            scale: 1,
+            y: 0,
+          }}
+          exit={{
+            opacity: 0,
+            scale: 0.96,
+            y: 20,
+          }}
           className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-[#080d1a] shadow-2xl shadow-black/50"
         >
-          {/* Header */}
+          {/* =================================================
+              HEADER
+          ================================================= */}
+
           <div className="sticky top-0 z-10 border-b border-white/10 bg-[#080d1a]/95 px-6 py-5 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/20 to-blue-500/20 text-lg font-bold text-violet-300">
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/20 to-blue-500/20 text-lg font-bold text-violet-300">
                   {getInitials(tutor)}
                 </div>
 
-                <div>
-                  <h2 className="text-lg font-bold text-white">
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-bold text-white">
                     {name}
                   </h2>
 
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 truncate text-xs text-slate-500">
                     Application Reference:{" "}
-                    <span className="text-slate-300">
+                    <span className="font-mono text-slate-300">
                       {reference || "—"}
                     </span>
                   </p>
@@ -291,7 +379,7 @@ function TutorDetailsModal({ tutor, onClose }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
               >
                 <X size={18} />
               </button>
@@ -299,14 +387,19 @@ function TutorDetailsModal({ tutor, onClose }) {
           </div>
 
           <div className="space-y-6 p-6">
-            {/* Status */}
+            {/* =================================================
+                STATUS
+            ================================================= */}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
                 <p className="mb-2 text-[10px] uppercase tracking-wider text-slate-500">
                   Application Status
                 </p>
 
-                <StatusBadge status={getTutorStatus(tutor)} />
+                <StatusBadge
+                  status={getTutorStatus(tutor)}
+                />
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
@@ -314,16 +407,22 @@ function TutorDetailsModal({ tutor, onClose }) {
                   Application Reference
                 </p>
 
-                <p className="text-sm font-medium text-slate-200">
+                <p className="font-mono text-sm font-medium text-slate-200">
                   {reference || "—"}
                 </p>
               </div>
             </div>
 
-            {/* Tutor information */}
+            {/* =================================================
+                TUTOR INFORMATION
+            ================================================= */}
+
             <section>
               <div className="mb-3 flex items-center gap-2">
-                <UserRound size={16} className="text-violet-300" />
+                <UserRound
+                  size={16}
+                  className="text-violet-300"
+                />
 
                 <h3 className="text-sm font-semibold text-white">
                   Tutor Information
@@ -345,8 +444,12 @@ function TutorDetailsModal({ tutor, onClose }) {
 
                 <InfoItem
                   icon={BookOpen}
-                  label="Teaching Subject"
-                  value={getTutorSubject(tutor)}
+                  label="Teaching Subjects"
+                  value={
+                    subjects.length
+                      ? subjects.join(", ")
+                      : "Not specified"
+                  }
                 />
 
                 <InfoItem
@@ -362,21 +465,29 @@ function TutorDetailsModal({ tutor, onClose }) {
                 <InfoItem
                   icon={CalendarDays}
                   label="Applied"
-                  value={formatDateTime(tutor.created_at)}
+                  value={formatDateTime(
+                    tutor.created_at
+                  )}
                 />
 
                 <InfoItem
                   icon={ShieldCheck}
-                  label="Status"
+                  label="Application Status"
                   value={getTutorStatus(tutor)}
                 />
               </div>
             </section>
 
-            {/* Additional information */}
+            {/* =================================================
+                ADDITIONAL INFORMATION
+            ================================================= */}
+
             <section>
               <div className="mb-3 flex items-center gap-2">
-                <ShieldCheck size={16} className="text-cyan-300" />
+                <ShieldCheck
+                  size={16}
+                  className="text-cyan-300"
+                />
 
                 <h3 className="text-sm font-semibold text-white">
                   Application Details
@@ -392,8 +503,8 @@ function TutorDetailsModal({ tutor, onClose }) {
 
                 <InfoItem
                   icon={CalendarDays}
-                  label="Updated"
-                  value={formatDateTime(tutor.updated_at)}
+                  label="Date of Birth"
+                  value={tutor.date_of_birth}
                 />
 
                 <InfoItem
@@ -413,17 +524,74 @@ function TutorDetailsModal({ tutor, onClose }) {
                     tutor.specializations
                   }
                 />
+
+                <InfoItem
+                  icon={ShieldCheck}
+                  label="Account Status"
+                  value={tutor.account_status}
+                />
+
+                <InfoItem
+                  icon={CalendarDays}
+                  label="Updated"
+                  value={formatDateTime(
+                    tutor.updated_at
+                  )}
+                />
               </div>
             </section>
 
-            {/* Application message */}
+            {/* =================================================
+                CLASSES
+            ================================================= */}
+
+            {(tutor.classes ||
+              tutor.levels) && (
+              <section>
+                <div className="mb-3 flex items-center gap-2">
+                  <GraduationCap
+                    size={16}
+                    className="text-blue-300"
+                  />
+
+                  <h3 className="text-sm font-semibold text-white">
+                    Classes / Levels
+                  </h3>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+                  <p className="text-sm leading-6 text-slate-400">
+                    {Array.isArray(
+                      tutor.classes ||
+                        tutor.levels
+                    )
+                      ? (
+                          tutor.classes ||
+                          tutor.levels
+                        ).join(", ")
+                      : clean(
+                          tutor.classes ||
+                            tutor.levels
+                        )}
+                  </p>
+                </div>
+              </section>
+            )}
+
+            {/* =================================================
+                BIO / APPLICATION MESSAGE
+            ================================================= */}
+
             {(tutor.message ||
               tutor.bio ||
               tutor.about ||
               tutor.cover_letter) && (
               <section>
                 <div className="mb-3 flex items-center gap-2">
-                  <BookOpen size={16} className="text-blue-300" />
+                  <BookOpen
+                    size={16}
+                    className="text-blue-300"
+                  />
 
                   <h3 className="text-sm font-semibold text-white">
                     Application Message
@@ -451,11 +619,22 @@ function TutorDetailsModal({ tutor, onClose }) {
    STAT CARD
 ========================================================= */
 
-function StatCard({ icon: Icon, label, value, description }) {
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  description,
+}) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{
+        opacity: 0,
+        y: 12,
+      }}
+      animate={{
+        opacity: 1,
+        y: 0,
+      }}
       className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0a1020]/80 p-5 backdrop-blur-xl"
     >
       <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-violet-500/10 blur-2xl" />
@@ -488,93 +667,143 @@ function StatCard({ icon: Icon, label, value, description }) {
 ========================================================= */
 
 export default function Teachers() {
-  const [teachers, setTeachers] = useState([]);
+  const [teachers, setTeachers] =
+    useState([]);
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [error, setError] = useState("");
+  const [refreshing, setRefreshing] =
+    useState(false);
 
-  const [search, setSearch] = useState("");
-  const [subject, setSubject] = useState("All");
+  const [verifyingReference, setVerifyingReference] =
+    useState("");
 
-  const [selectedTutor, setSelectedTutor] = useState(null);
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const [search, setSearch] =
+    useState("");
+
+  const [subject, setSubject] =
+    useState("All");
+
+  const [selectedTutor, setSelectedTutor] =
+    useState(null);
 
   /* =======================================================
      FETCH LIVE TUTORS
   ======================================================= */
 
-  const fetchTeachers = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
-      setError("");
-
-      const response = await fetch(
-        `${API_URL}/api/academy/admin/tutors`
-      );
-
-      const contentType =
-        response.headers.get("content-type") || "";
-
-      if (!response.ok) {
-        let message = `Failed to load tutors (${response.status})`;
-
-        if (contentType.includes("application/json")) {
-          const data = await response.json();
-
-          message =
-            data?.message ||
-            data?.error ||
-            message;
+  const fetchTeachers = useCallback(
+    async (isRefresh = false) => {
+      try {
+        if (isRefresh) {
+          setRefreshing(true);
         } else {
-          const text = await response.text();
-
-          if (text) {
-            message = text.slice(0, 250);
-          }
+          setLoading(true);
         }
 
-        throw new Error(message);
-      }
+        setError("");
 
-      if (!contentType.includes("application/json")) {
-        throw new Error(
-          "The server returned an unexpected response. Make sure the Academy API is running."
+        const response = await fetch(
+          TUTORS_URL,
+          {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+            },
+          }
         );
+
+        const contentType =
+          response.headers.get(
+            "content-type"
+          ) || "";
+
+        if (!response.ok) {
+          let message = `Failed to load tutors (${response.status})`;
+
+          if (
+            contentType.includes(
+              "application/json"
+            )
+          ) {
+            const data =
+              await response.json();
+
+            message =
+              data?.message ||
+              data?.error ||
+              message;
+          } else {
+            const text =
+              await response.text();
+
+            if (text) {
+              message = text.slice(
+                0,
+                300
+              );
+            }
+          }
+
+          throw new Error(message);
+        }
+
+        if (
+          !contentType.includes(
+            "application/json"
+          )
+        ) {
+          throw new Error(
+            "The server returned a non-JSON response. Check that your Academy backend is running and that /api/academy/admin/tutors exists."
+          );
+        }
+
+        const data =
+          await response.json();
+
+        const tutorList =
+          Array.isArray(data)
+            ? data
+            : Array.isArray(
+                data?.tutors
+              )
+            ? data.tutors
+            : Array.isArray(
+                data?.applications
+              )
+            ? data.applications
+            : Array.isArray(
+                data?.data
+              )
+            ? data.data
+            : [];
+
+        setTeachers(tutorList);
+      } catch (err) {
+        console.error(
+          "Tutor fetch error:",
+          err
+        );
+
+        setError(
+          err?.message ||
+            "Unable to load tutor applications. Please try again."
+        );
+
+        setTeachers([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-
-      const data = await response.json();
-
-      const tutorList = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.tutors)
-        ? data.tutors
-        : Array.isArray(data?.applications)
-        ? data.applications
-        : Array.isArray(data?.data)
-        ? data.data
-        : [];
-
-      setTeachers(tutorList);
-    } catch (err) {
-      console.error("Tutor fetch error:", err);
-
-      setError(
-        err?.message ||
-          "Unable to load tutor applications. Please try again."
-      );
-
-      setTeachers([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   /* =======================================================
      LOAD WHEN PAGE OPENS
@@ -592,17 +821,27 @@ export default function Teachers() {
     const values = new Set();
 
     teachers.forEach((teacher) => {
-      const tutorSubject = getTutorSubject(teacher);
+      const tutorSubjects =
+        getTutorSubjects(teacher);
 
-      if (
-        tutorSubject &&
-        tutorSubject !== "Not specified"
-      ) {
-        values.add(tutorSubject);
-      }
+      tutorSubjects.forEach(
+        (item) => {
+          const value = clean(item);
+
+          if (value) {
+            values.add(value);
+          }
+        }
+      );
     });
 
-    return ["All", ...Array.from(values).sort()];
+    return [
+      "All",
+      ...Array.from(values).sort(
+        (a, b) =>
+          a.localeCompare(b)
+      ),
+    ];
   }, [teachers]);
 
   /* =======================================================
@@ -610,32 +849,87 @@ export default function Teachers() {
   ======================================================= */
 
   const filteredTeachers = useMemo(() => {
-    const query = normalize(search);
+    const query =
+      normalize(search);
 
-    return teachers.filter((teacher) => {
-      const name = normalize(getTutorName(teacher));
-      const email = normalize(getTutorEmail(teacher));
-      const phone = normalize(getTutorPhone(teacher));
-      const reference = normalize(getTutorReference(teacher));
-      const tutorSubject = normalize(getTutorSubject(teacher));
-      const tutorStatus = normalize(getTutorStatus(teacher));
+    return teachers.filter(
+      (teacher) => {
+        const name =
+          normalize(
+            getTutorName(
+              teacher
+            )
+          );
 
-      const searchMatch =
-        !query ||
-        name.includes(query) ||
-        email.includes(query) ||
-        phone.includes(query) ||
-        reference.includes(query) ||
-        tutorSubject.includes(query) ||
-        tutorStatus.includes(query);
+        const email =
+          normalize(
+            getTutorEmail(
+              teacher
+            )
+          );
 
-      const subjectMatch =
-        subject === "All" ||
-        tutorSubject === normalize(subject);
+        const phone =
+          normalize(
+            getTutorPhone(
+              teacher
+            )
+          );
 
-      return searchMatch && subjectMatch;
-    });
-  }, [teachers, search, subject]);
+        const reference =
+          normalize(
+            getTutorReference(
+              teacher
+            )
+          );
+
+        const tutorSubject =
+          normalize(
+            getTutorSubject(
+              teacher
+            )
+          );
+
+        const tutorStatus =
+          normalize(
+            getTutorStatus(
+              teacher
+            )
+          );
+
+        const searchMatch =
+          !query ||
+          name.includes(query) ||
+          email.includes(query) ||
+          phone.includes(query) ||
+          reference.includes(query) ||
+          tutorSubject.includes(query) ||
+          tutorStatus.includes(query);
+
+        const subjectMatch =
+          subject === "All" ||
+          getTutorSubjects(
+            teacher
+          ).some(
+            (item) =>
+              normalize(
+                item
+              ) ===
+              normalize(
+                subject
+              )
+          );
+
+        return (
+          searchMatch &&
+          subjectMatch
+        );
+      }
+    );
+  }, [
+    teachers,
+    search,
+    subject,
+  ]);
 
   /* =======================================================
      STATS
@@ -644,79 +938,141 @@ export default function Teachers() {
   const stats = useMemo(() => {
     let verified = 0;
     let pending = 0;
-    let rejected = 0;
 
-    teachers.forEach((teacher) => {
-      const status = normalize(getTutorStatus(teacher));
+    teachers.forEach(
+      (teacher) => {
+        const status =
+          normalize(
+            getTutorStatus(
+              teacher
+            )
+          );
 
-      if (
-        status === "verified" ||
-        status === "approved" ||
-        status === "accepted" ||
-        status === "active"
-      ) {
-        verified++;
-      } else if (
-        status === "rejected" ||
-        status === "declined" ||
-        status === "inactive" ||
-        status === "suspended"
-      ) {
-        rejected++;
-      } else {
-        pending++;
+        if (
+          status ===
+          "verified"
+        ) {
+          verified++;
+        } else {
+          pending++;
+        }
       }
-    });
+    );
 
     return {
       total: teachers.length,
       verified,
       pending,
-      rejected,
     };
   }, [teachers]);
 
   /* =======================================================
-     UPDATE TUTOR STATUS IN DATABASE
+     VERIFY TUTOR
+
+     IMPORTANT:
+
+     This is the ONLY status operation.
+
+     Backend:
+     PATCH
+     /api/academy/admin/tutor/:reference/status
+
+     Body:
+     {
+       status: "verified"
+     }
+
+     Backend only updates:
+     application_status
   ======================================================= */
 
-  const updateTutorStatus = async (tutor, status) => {
-    const reference = getTutorReference(tutor);
+  const verifyTutor = async (
+    tutor
+  ) => {
+    const reference =
+      getTutorReference(
+        tutor
+      );
 
     if (!reference) {
       setError(
         "This tutor does not have an application reference."
       );
+
+      return;
+    }
+
+    if (
+      isTutorVerified(
+        tutor
+      )
+    ) {
+      setSuccess(
+        "This tutor is already verified."
+      );
+
+      return;
+    }
+
+    if (
+      !isTutorPending(
+        tutor
+      )
+    ) {
+      setError(
+        "Only pending tutor applications can be verified."
+      );
+
       return;
     }
 
     try {
       setError("");
+      setSuccess("");
 
-      const response = await fetch(
-        `${API_URL}/api/academy/admin/tutor/${encodeURIComponent(
-          reference
-        )}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            status,
-          }),
-        }
+      setVerifyingReference(
+        reference
       );
 
+      const response =
+        await fetch(
+          `${API_URL}/api/academy/admin/tutor/${encodeURIComponent(
+            reference
+          )}/status`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type":
+                "application/json",
+              Accept:
+                "application/json",
+            },
+            body: JSON.stringify(
+              {
+                status:
+                  "verified",
+              }
+            ),
+          }
+        );
+
       const contentType =
-        response.headers.get("content-type") || "";
+        response.headers.get(
+          "content-type"
+        ) || "";
 
       let data = {};
 
-      if (contentType.includes("application/json")) {
-        data = await response.json();
+      if (
+        contentType.includes(
+          "application/json"
+        )
+      ) {
+        data =
+          await response.json();
       } else {
-        const text = await response.text();
+        const text =
+          await response.text();
 
         if (text) {
           data = {
@@ -729,61 +1085,90 @@ export default function Teachers() {
         throw new Error(
           data?.message ||
             data?.error ||
-            `Failed to update tutor status (${response.status})`
+            `Failed to verify tutor (${response.status})`
         );
       }
 
-      /* -----------------------------------------------
-         Update UI with the response
-      ------------------------------------------------ */
+      /*
+       * Update only the status in local UI.
+       *
+       * No account_status.
+       * No email_verified.
+       * No password.
+       * No other field.
+       */
 
-      const updatedTutor =
-        data?.tutor ||
-        data?.application ||
-        data?.data ||
-        null;
+      setTeachers(
+        (prev) =>
+          prev.map(
+            (item) => {
+              const itemReference =
+                getTutorReference(
+                  item
+                );
 
-      setTeachers((prev) =>
-        prev.map((item) => {
-          const itemReference = getTutorReference(item);
+              if (
+                itemReference !==
+                reference
+              ) {
+                return item;
+              }
 
-          if (itemReference !== reference) {
-            return item;
+              return {
+                ...item,
+                application_status:
+                  "verified",
+              };
+            }
+          )
+      );
+
+      /* Keep modal synchronized */
+      setSelectedTutor(
+        (current) => {
+          if (!current) {
+            return current;
+          }
+
+          if (
+            getTutorReference(
+              current
+            ) !== reference
+          ) {
+            return current;
           }
 
           return {
-            ...item,
-            ...(updatedTutor || {}),
-            status,
-            application_status: status,
-            verification_status: status,
+            ...current,
+            application_status:
+              "verified",
           };
-        })
+        }
       );
 
-      /* Keep selected modal in sync */
-      setSelectedTutor((current) => {
-        if (!current) return current;
+      setSuccess(
+        `${getTutorName(
+          tutor
+        )} has been verified successfully.`
+      );
 
-        if (getTutorReference(current) !== reference) {
-          return current;
-        }
-
-        return {
-          ...current,
-          ...(updatedTutor || {}),
-          status,
-          application_status: status,
-          verification_status: status,
-        };
-      });
+      /*
+       * Fetch the actual database state
+       * after a successful update.
+       */
+      await fetchTeachers(true);
     } catch (err) {
-      console.error("Tutor status update error:", err);
+      console.error(
+        "Tutor verification error:",
+        err
+      );
 
       setError(
         err?.message ||
-          "Unable to update tutor status."
+          "Unable to verify tutor."
       );
+    } finally {
+      setVerifyingReference("");
     }
   };
 
@@ -793,14 +1178,18 @@ export default function Teachers() {
 
   return (
     <div className="min-h-screen bg-[#050914] text-white">
-      {/* Background */}
+      {/* =================================================
+          BACKGROUND
+      ================================================= */}
+
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
           className="absolute inset-0 opacity-[0.025]"
           style={{
             backgroundImage:
               "radial-gradient(#94a3b8 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
+            backgroundSize:
+              "24px 24px",
           }}
         />
 
@@ -818,6 +1207,7 @@ export default function Teachers() {
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/5 px-3 py-1.5 text-[11px] font-medium text-violet-300">
               <Users size={13} />
+
               Academy Tutor Management
             </div>
 
@@ -826,14 +1216,17 @@ export default function Teachers() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              View and manage tutors who actually submitted
-              an Academy tutor application.
+              View Academy tutor
+              applications and verify
+              pending tutors.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() => fetchTeachers(true)}
+            onClick={() =>
+              fetchTeachers(true)
+            }
             disabled={refreshing}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -843,12 +1236,67 @@ export default function Teachers() {
                 className="animate-spin"
               />
             ) : (
-              <RefreshCw size={17} />
+              <RefreshCw
+                size={17}
+              />
             )}
 
-            {refreshing ? "Refreshing..." : "Refresh"}
+            {refreshing
+              ? "Refreshing..."
+              : "Refresh"}
           </button>
         </div>
+
+        {/* =================================================
+            SUCCESS
+        ================================================= */}
+
+        <AnimatePresence>
+          {success && (
+            <motion.div
+              initial={{
+                opacity: 0,
+                y: -8,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+              exit={{
+                opacity: 0,
+                y: -8,
+              }}
+              className="mb-6 flex items-start justify-between gap-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4"
+            >
+              <div className="flex items-start gap-3">
+                <CheckCircle
+                  size={19}
+                  className="mt-0.5 shrink-0 text-emerald-300"
+                />
+
+                <div>
+                  <p className="text-sm font-medium text-emerald-200">
+                    Tutor verified
+                  </p>
+
+                  <p className="mt-1 text-xs text-emerald-300/70">
+                    {success}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSuccess("")
+                }
+                className="text-emerald-300/60 transition hover:text-emerald-200"
+              >
+                <X size={17} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* =================================================
             ERROR
@@ -857,9 +1305,18 @@ export default function Teachers() {
         <AnimatePresence>
           {error && (
             <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
+              initial={{
+                opacity: 0,
+                y: -8,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+              exit={{
+                opacity: 0,
+                y: -8,
+              }}
               className="mb-6 flex flex-col gap-3 rounded-2xl border border-red-400/20 bg-red-400/5 p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex items-start gap-3">
@@ -881,7 +1338,9 @@ export default function Teachers() {
 
               <button
                 type="button"
-                onClick={() => fetchTeachers(true)}
+                onClick={() =>
+                  fetchTeachers(true)
+                }
                 className="rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-400/15"
               >
                 Try again
@@ -894,7 +1353,7 @@ export default function Teachers() {
             STATS
         ================================================= */}
 
-        <div className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-7 grid gap-4 sm:grid-cols-3">
           <StatCard
             icon={Users}
             label="Total Tutors"
@@ -903,7 +1362,7 @@ export default function Teachers() {
           />
 
           <StatCard
-            icon={UserCheck}
+            icon={CheckCircle}
             label="Verified"
             value={stats.verified}
             description="Approved tutors"
@@ -913,14 +1372,7 @@ export default function Teachers() {
             icon={Clock}
             label="Pending"
             value={stats.pending}
-            description="Awaiting review"
-          />
-
-          <StatCard
-            icon={UserX}
-            label="Rejected"
-            value={stats.rejected}
-            description="Rejected or inactive"
+            description="Awaiting verification"
           />
         </div>
 
@@ -931,6 +1383,7 @@ export default function Teachers() {
         <div className="mb-5 rounded-2xl border border-white/10 bg-[#0a1020]/80 p-4 backdrop-blur-xl">
           <div className="flex flex-col gap-3 lg:flex-row">
             {/* Search */}
+
             <div className="relative min-w-0 flex-1">
               <Search
                 size={17}
@@ -941,7 +1394,9 @@ export default function Teachers() {
                 type="text"
                 value={search}
                 onChange={(event) =>
-                  setSearch(event.target.value)
+                  setSearch(
+                    event.target.value
+                  )
                 }
                 placeholder="Search tutors by name, email, phone, subject or reference..."
                 className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-violet-400/40 focus:bg-white/[0.05]"
@@ -949,25 +1404,30 @@ export default function Teachers() {
             </div>
 
             {/* Subject */}
+
             <div className="relative">
               <select
                 value={subject}
                 onChange={(event) =>
-                  setSubject(event.target.value)
+                  setSubject(
+                    event.target.value
+                  )
                 }
                 className="h-11 min-w-[190px] appearance-none rounded-xl border border-white/10 bg-white/[0.035] px-4 pr-10 text-sm text-slate-300 outline-none focus:border-violet-400/40"
               >
-                {subjects.map((item) => (
-                  <option
-                    key={item}
-                    value={item}
-                    className="bg-[#080d1a]"
-                  >
-                    {item === "All"
-                      ? "All Subjects"
-                      : item}
-                  </option>
-                ))}
+                {subjects.map(
+                  (item) => (
+                    <option
+                      key={item}
+                      value={item}
+                      className="bg-[#080d1a]"
+                    >
+                      {item === "All"
+                        ? "All Subjects"
+                        : item}
+                    </option>
+                  )
+                )}
               </select>
 
               <svg
@@ -989,7 +1449,9 @@ export default function Teachers() {
               <p className="text-xs text-slate-500">
                 Showing{" "}
                 <span className="font-medium text-slate-300">
-                  {filteredTeachers.length}
+                  {
+                    filteredTeachers.length
+                  }
                 </span>{" "}
                 of{" "}
                 <span className="font-medium text-slate-300">
@@ -998,12 +1460,16 @@ export default function Teachers() {
                 tutor applications
               </p>
 
-              {(search || subject !== "All") && (
+              {(search ||
+                subject !==
+                  "All") && (
                 <button
                   type="button"
                   onClick={() => {
                     setSearch("");
-                    setSubject("All");
+                    setSubject(
+                      "All"
+                    );
                   }}
                   className="text-xs font-medium text-violet-300 hover:text-violet-200"
                 >
@@ -1019,7 +1485,10 @@ export default function Teachers() {
         ================================================= */}
 
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a1020]/80 shadow-2xl shadow-black/10 backdrop-blur-xl">
-          {/* Loading */}
+          {/* =================================================
+              LOADING
+          ================================================= */}
+
           {loading ? (
             <div className="flex min-h-[420px] flex-col items-center justify-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/5">
@@ -1030,50 +1499,74 @@ export default function Teachers() {
               </div>
 
               <p className="mt-4 text-sm font-medium text-slate-300">
-                Loading tutor applications...
+                Loading tutor
+                applications...
               </p>
 
               <p className="mt-1 text-xs text-slate-600">
-                Fetching the latest Academy tutor records
+                Fetching the latest
+                Academy tutor records
               </p>
             </div>
-          ) : filteredTeachers.length === 0 ? (
-            /* Empty */
+          ) : filteredTeachers.length ===
+            0 ? (
+            /* =================================================
+                EMPTY
+            ================================================= */
+
             <div className="flex min-h-[420px] flex-col items-center justify-center px-6 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-slate-600">
-                {teachers.length === 0 ? (
-                  <Users size={28} />
+                {teachers.length ===
+                0 ? (
+                  <Users
+                    size={28}
+                  />
                 ) : (
-                  <Search size={28} />
+                  <Search
+                    size={28}
+                  />
                 )}
               </div>
 
               <h3 className="mt-5 text-sm font-semibold text-white">
-                {teachers.length === 0
+                {teachers.length ===
+                0
                   ? "No tutor applications yet"
                   : "No tutors found"}
               </h3>
 
               <p className="mt-2 max-w-md text-xs leading-5 text-slate-500">
-                {teachers.length === 0
+                {teachers.length ===
+                0
                   ? "Tutors who submit the Academy tutor application will appear here automatically."
                   : "Try changing your search or subject filter."}
               </p>
 
-              {teachers.length === 0 && (
+              {teachers.length ===
+                0 && (
                 <button
                   type="button"
-                  onClick={() => fetchTeachers(true)}
+                  onClick={() =>
+                    fetchTeachers(
+                      true
+                    )
+                  }
                   className="mt-5 inline-flex items-center gap-2 rounded-xl border border-violet-400/20 bg-violet-400/10 px-4 py-2.5 text-xs font-medium text-violet-300 transition hover:bg-violet-400/15"
                 >
-                  <RefreshCw size={14} />
+                  <RefreshCw
+                    size={14}
+                  />
+
                   Check Again
                 </button>
               )}
             </div>
           ) : (
             <>
-              {/* Desktop */}
+              {/* =================================================
+                  DESKTOP
+              ================================================= */}
+
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[950px]">
                   <thead>
@@ -1105,108 +1598,300 @@ export default function Teachers() {
                   </thead>
 
                   <tbody>
-                    {filteredTeachers.map((teacher, index) => {
-                      const name = getTutorName(teacher);
-                      const reference =
-                        getTutorReference(teacher);
+                    {filteredTeachers.map(
+                      (
+                        teacher,
+                        index
+                      ) => {
+                        const name =
+                          getTutorName(
+                            teacher
+                          );
 
-                      return (
-                        <motion.tr
-                          key={
-                            reference ||
-                            teacher.id ||
-                            `${name}-${index}`
-                          }
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{
-                            delay: Math.min(
-                              index * 0.025,
-                              0.25
-                            ),
-                          }}
-                          className="border-b border-white/5 transition hover:bg-white/[0.025]"
-                        >
-                          {/* Tutor */}
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/10 bg-gradient-to-br from-violet-400/10 to-blue-500/10 text-xs font-bold text-violet-300">
-                                {getInitials(teacher)}
-                              </div>
+                        const reference =
+                          getTutorReference(
+                            teacher
+                          );
 
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-white">
-                                  {name}
-                                </p>
+                        const verified =
+                          isTutorVerified(
+                            teacher
+                          );
 
-                                <div className="mt-1 flex items-center gap-1.5">
-                                  <Mail
-                                    size={11}
-                                    className="text-slate-600"
-                                  />
+                        const pending =
+                          isTutorPending(
+                            teacher
+                          );
 
-                                  <p className="max-w-[230px] truncate text-xs text-slate-500">
-                                    {getTutorEmail(
-                                      teacher
-                                    )}
+                        const verifying =
+                          verifyingReference ===
+                          reference;
+
+                        return (
+                          <motion.tr
+                            key={
+                              reference ||
+                              teacher.id ||
+                              `${name}-${index}`
+                            }
+                            initial={{
+                              opacity: 0,
+                            }}
+                            animate={{
+                              opacity: 1,
+                            }}
+                            transition={{
+                              delay: Math.min(
+                                index *
+                                  0.025,
+                                0.25
+                              ),
+                            }}
+                            className="border-b border-white/5 transition hover:bg-white/[0.025]"
+                          >
+                            {/* Tutor */}
+
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/10 bg-gradient-to-br from-violet-400/10 to-blue-500/10 text-xs font-bold text-violet-300">
+                                  {getInitials(
+                                    teacher
+                                  )}
+                                </div>
+
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-white">
+                                    {name}
                                   </p>
+
+                                  <div className="mt-1 flex items-center gap-1.5">
+                                    <Mail
+                                      size={
+                                        11
+                                      }
+                                      className="text-slate-600"
+                                    />
+
+                                    <p className="max-w-[230px] truncate text-xs text-slate-500">
+                                      {getTutorEmail(
+                                        teacher
+                                      )}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Subject */}
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2">
-                              <BookOpen
-                                size={14}
-                                className="text-violet-400/70"
-                              />
+                            {/* Subject */}
 
-                              <span className="text-sm text-slate-300">
-                                {getTutorSubject(
+                            <td className="px-5 py-4">
+                              <div className="flex items-start gap-2">
+                                <BookOpen
+                                  size={
+                                    14
+                                  }
+                                  className="mt-0.5 shrink-0 text-violet-400/70"
+                                />
+
+                                <span className="max-w-[240px] text-sm text-slate-300">
+                                  {getTutorSubject(
+                                    teacher
+                                  )}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Reference */}
+
+                            <td className="px-5 py-4">
+                              <span className="font-mono text-xs text-slate-400">
+                                {reference ||
+                                  "—"}
+                              </span>
+                            </td>
+
+                            {/* Verification */}
+
+                            <td className="px-5 py-4">
+                              <StatusBadge
+                                status={getTutorStatus(
                                   teacher
                                 )}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Reference */}
-                          <td className="px-5 py-4">
-                            <span className="font-mono text-xs text-slate-400">
-                              {reference || "—"}
-                            </span>
-                          </td>
-
-                          {/* Verification */}
-                          <td className="px-5 py-4">
-                            <StatusBadge
-                              status={getTutorStatus(
-                                teacher
-                              )}
-                            />
-                          </td>
-
-                          {/* Applied */}
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2">
-                              <CalendarDays
-                                size={13}
-                                className="text-slate-600"
                               />
+                            </td>
 
-                              <span className="text-xs text-slate-400">
-                                {formatDate(
-                                  teacher.created_at
-                                )}
-                              </span>
-                            </div>
-                          </td>
+                            {/* Applied */}
 
-                          {/* Actions */}
-                          <td className="px-5 py-4">
-                            <div className="flex justify-end gap-2">
-                              {/* View */}
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-2">
+                                <CalendarDays
+                                  size={
+                                    13
+                                  }
+                                  className="text-slate-600"
+                                />
+
+                                <span className="text-xs text-slate-400">
+                                  {formatDate(
+                                    teacher.created_at
+                                  )}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Actions */}
+
+                            <td className="px-5 py-4">
+                              <div className="flex justify-end gap-2">
+                                {/* View */}
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedTutor(
+                                      teacher
+                                    )
+                                  }
+                                  title="View tutor"
+                                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-slate-400 transition hover:border-cyan-400/20 hover:bg-cyan-400/5 hover:text-cyan-300"
+                                >
+                                  <Eye
+                                    size={
+                                      15
+                                    }
+                                  />
+                                </button>
+
+                                {/* Verify */}
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    verifyTutor(
+                                      teacher
+                                    )
+                                  }
+                                  disabled={
+                                    verified ||
+                                    !pending ||
+                                    verifying
+                                  }
+                                  title={
+                                    verified
+                                      ? "Tutor already verified"
+                                      : pending
+                                      ? "Verify tutor"
+                                      : "Only pending tutors can be verified"
+                                  }
+                                  className={`flex h-9 w-9 items-center justify-center rounded-lg border transition ${
+                                    verified
+                                      ? "cursor-not-allowed border-emerald-400/10 bg-emerald-400/5 text-emerald-300/50"
+                                      : "border-emerald-400/10 bg-emerald-400/5 text-emerald-300 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                  }`}
+                                >
+                                  {verifying ? (
+                                    <Loader2
+                                      size={
+                                        15
+                                      }
+                                      className="animate-spin"
+                                    />
+                                  ) : verified ? (
+                                    <Check
+                                      size={
+                                        15
+                                      }
+                                    />
+                                  ) : (
+                                    <CheckCircle
+                                      size={
+                                        15
+                                      }
+                                    />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+                          </motion.tr>
+                        );
+                      }
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* =================================================
+                  MOBILE
+              ================================================= */}
+
+              <div className="divide-y divide-white/5 md:hidden">
+                {filteredTeachers.map(
+                  (
+                    teacher,
+                    index
+                  ) => {
+                    const name =
+                      getTutorName(
+                        teacher
+                      );
+
+                    const reference =
+                      getTutorReference(
+                        teacher
+                      );
+
+                    const verified =
+                      isTutorVerified(
+                        teacher
+                      );
+
+                    const pending =
+                      isTutorPending(
+                        teacher
+                      );
+
+                    const verifying =
+                      verifyingReference ===
+                      reference;
+
+                    return (
+                      <motion.div
+                        key={
+                          reference ||
+                          teacher.id ||
+                          `${name}-${index}`
+                        }
+                        initial={{
+                          opacity: 0,
+                          y: 8,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
+                        className="p-4"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-violet-400/10 bg-violet-400/5 text-xs font-bold text-violet-300">
+                            {getInitials(
+                              teacher
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h3 className="truncate text-sm font-semibold text-white">
+                                  {name}
+                                </h3>
+
+                                <p className="mt-1 truncate text-xs text-slate-500">
+                                  {getTutorEmail(
+                                    teacher
+                                  )}
+                                </p>
+                              </div>
+
                               <button
                                 type="button"
                                 onClick={() =>
@@ -1214,151 +1899,46 @@ export default function Teachers() {
                                     teacher
                                   )
                                 }
-                                title="View tutor"
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-slate-400 transition hover:border-cyan-400/20 hover:bg-cyan-400/5 hover:text-cyan-300"
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-cyan-300"
                               >
-                                <Eye size={15} />
-                              </button>
-
-                              {/* Verify */}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateTutorStatus(
-                                    teacher,
-                                    "Verified"
-                                  )
-                                }
-                                title="Verify tutor"
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-400/10 bg-emerald-400/5 text-emerald-300 transition hover:bg-emerald-400/10"
-                              >
-                                <CheckCircle
-                                  size={15}
+                                <Eye
+                                  size={
+                                    14
+                                  }
                                 />
                               </button>
-
-                              {/* Reject */}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateTutorStatus(
-                                    teacher,
-                                    "Rejected"
-                                  )
-                                }
-                                title="Reject tutor"
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-400/10 bg-red-400/5 text-red-300 transition hover:bg-red-400/10"
-                              >
-                                <XCircle size={15} />
-                              </button>
-
-                              {/* Activate / deactivate */}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateTutorStatus(
-                                    teacher,
-                                    normalize(
-                                      getTutorStatus(
-                                        teacher
-                                      )
-                                    ) === "active"
-                                      ? "Inactive"
-                                      : "Active"
-                                  )
-                                }
-                                title={
-                                  normalize(
-                                    getTutorStatus(
-                                      teacher
-                                    )
-                                  ) === "active"
-                                    ? "Deactivate tutor"
-                                    : "Activate tutor"
-                                }
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-slate-400 transition hover:bg-white/10 hover:text-white"
-                              >
-                                {normalize(
-                                  getTutorStatus(
-                                    teacher
-                                  )
-                                ) === "active" ? (
-                                  <UserX size={15} />
-                                ) : (
-                                  <UserCheck size={15} />
-                                )}
-                              </button>
-                            </div>
-                          </td>
-                        </motion.tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile */}
-              <div className="divide-y divide-white/5 md:hidden">
-                {filteredTeachers.map((teacher, index) => {
-                  const name = getTutorName(teacher);
-
-                  return (
-                    <motion.div
-                      key={
-                        getTutorReference(teacher) ||
-                        teacher.id ||
-                        `${name}-${index}`
-                      }
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-4"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-violet-400/10 bg-violet-400/5 text-xs font-bold text-violet-300">
-                          {getInitials(teacher)}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className="truncate text-sm font-semibold text-white">
-                                {name}
-                              </h3>
-
-                              <p className="mt-1 truncate text-xs text-slate-500">
-                                {getTutorEmail(
-                                  teacher
-                                )}
-                              </p>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedTutor(
-                                  teacher
-                                )
-                              }
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-cyan-300"
-                            >
-                              <Eye size={14} />
-                            </button>
-                          </div>
+                            {/* Subject */}
 
-                          <div className="mt-4 grid grid-cols-2 gap-2">
-                            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            <div className="mt-4 rounded-xl border border-white/5 bg-white/[0.02] p-3">
                               <p className="text-[9px] uppercase tracking-wider text-slate-600">
-                                Subject
+                                Subjects
                               </p>
 
-                              <p className="mt-1 truncate text-xs font-medium text-slate-300">
+                              <p className="mt-1 text-xs font-medium leading-5 text-slate-300">
                                 {getTutorSubject(
                                   teacher
                                 )}
                               </p>
                             </div>
 
-                            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                            {/* Reference */}
+
+                            <div className="mt-2 rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                              <p className="text-[9px] uppercase tracking-wider text-slate-600">
+                                Reference
+                              </p>
+
+                              <p className="mt-1 font-mono text-xs font-medium text-slate-300">
+                                {reference ||
+                                  "—"}
+                              </p>
+                            </div>
+
+                            {/* Applied */}
+
+                            <div className="mt-2 rounded-xl border border-white/5 bg-white/[0.02] p-3">
                               <p className="text-[9px] uppercase tracking-wider text-slate-600">
                                 Applied
                               </p>
@@ -1369,76 +1949,115 @@ export default function Teachers() {
                                 )}
                               </p>
                             </div>
-                          </div>
 
-                          <div className="mt-3">
-                            <StatusBadge
-                              status={getTutorStatus(
-                                teacher
-                              )}
-                            />
-                          </div>
+                            {/* Status */}
 
-                          <div className="mt-4 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateTutorStatus(
-                                  teacher,
-                                  "Verified"
-                                )
-                              }
-                              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-emerald-400/10 bg-emerald-400/5 px-3 py-2 text-xs font-medium text-emerald-300"
-                            >
-                              <CheckCircle size={14} />
-                              Verify
-                            </button>
+                            <div className="mt-3">
+                              <StatusBadge
+                                status={getTutorStatus(
+                                  teacher
+                                )}
+                              />
+                            </div>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateTutorStatus(
-                                  teacher,
-                                  "Rejected"
-                                )
-                              }
-                              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-400/10 bg-red-400/5 px-3 py-2 text-xs font-medium text-red-300"
-                            >
-                              <XCircle size={14} />
-                              Reject
-                            </button>
+                            {/* Verify */}
+
+                            <div className="mt-4">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  verifyTutor(
+                                    teacher
+                                  )
+                                }
+                                disabled={
+                                  verified ||
+                                  !pending ||
+                                  verifying
+                                }
+                                className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium transition ${
+                                  verified
+                                    ? "cursor-not-allowed border-emerald-400/10 bg-emerald-400/5 text-emerald-300/50"
+                                    : "border-emerald-400/10 bg-emerald-400/5 text-emerald-300 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                }`}
+                              >
+                                {verifying ? (
+                                  <>
+                                    <Loader2
+                                      size={
+                                        14
+                                      }
+                                      className="animate-spin"
+                                    />
+
+                                    Verifying...
+                                  </>
+                                ) : verified ? (
+                                  <>
+                                    <Check
+                                      size={
+                                        14
+                                      }
+                                    />
+
+                                    Verified
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle
+                                      size={
+                                        14
+                                      }
+                                    />
+
+                                    Verify Tutor
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                      </motion.div>
+                    );
+                  }
+                )}
               </div>
             </>
           )}
         </div>
 
-        {/* Bottom */}
-        {!loading && teachers.length > 0 && (
-          <div className="mt-4 flex flex-col gap-2 text-[11px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-            <p>Live Academy tutor applications</p>
+        {/* =================================================
+            BOTTOM
+        ================================================= */}
 
-            <p>
-              Last loaded:{" "}
-              {new Date().toLocaleTimeString("en-NG")}
-            </p>
-          </div>
-        )}
+        {!loading &&
+          teachers.length > 0 && (
+            <div className="mt-4 flex flex-col gap-2 text-[11px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Live Academy tutor
+                applications
+              </p>
+
+              <p>
+                Last loaded:{" "}
+                {new Date().toLocaleTimeString(
+                  "en-NG"
+                )}
+              </p>
+            </div>
+          )}
       </div>
 
       {/* =================================================
-          DETAILS
+          DETAILS MODAL
       ================================================= */}
 
       {selectedTutor && (
         <TutorDetailsModal
           tutor={selectedTutor}
-          onClose={() => setSelectedTutor(null)}
+          onClose={() =>
+            setSelectedTutor(null)
+          }
         />
       )}
     </div>

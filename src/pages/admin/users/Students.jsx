@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   Search,
   RefreshCw,
@@ -22,6 +28,7 @@ import {
   XCircle,
   Loader2,
 } from "lucide-react";
+
 import { motion, AnimatePresence } from "framer-motion";
 
 /* =========================================================
@@ -37,80 +44,141 @@ const API_URL = (
 ========================================================= */
 
 const clean = (value) => {
-  if (value === undefined || value === null) return "";
+  if (value === null || value === undefined) return "";
   return String(value).trim();
 };
 
+const normalize = (value) => clean(value).toLowerCase();
+
 const getStudentName = (student) => {
-  const fullName = [
-    student.first_name || student.firstName,
-    student.middle_name || student.middleName,
-    student.last_name || student.lastName,
-  ]
-    .map(clean)
+  const fullName =
+    clean(student?.full_name) ||
+    clean(student?.fullName) ||
+    clean(student?.name);
+
+  if (fullName) return fullName;
+
+  const firstName =
+    clean(student?.first_name) ||
+    clean(student?.firstName);
+
+  const middleName =
+    clean(student?.middle_name) ||
+    clean(student?.middleName);
+
+  const lastName =
+    clean(student?.last_name) ||
+    clean(student?.lastName);
+
+  const joined = [firstName, middleName, lastName]
     .filter(Boolean)
     .join(" ");
 
-  return (
-    fullName ||
-    clean(student.name) ||
-    clean(student.student_name) ||
-    "Unnamed Student"
-  );
+  return joined || "Unknown Student";
 };
 
 const getClassName = (student) => {
   return (
-    clean(student.grade) ||
-    clean(student.class) ||
-    clean(student.level) ||
-    "Not specified"
+    clean(student?.class_name) ||
+    clean(student?.className) ||
+    clean(student?.class) ||
+    clean(student?.grade) ||
+    clean(student?.level) ||
+    "Not assigned"
   );
 };
 
+/*
+  IMPORTANT:
+  The database is the source of truth.
+
+  If the backend saves:
+      enrollment_status = "verified"
+
+  this function returns "verified".
+
+  We do NOT force the UI to say verified when
+  the database says pending.
+*/
 const getEnrollmentStatus = (student) => {
   return (
-    clean(student.enrollment_status) ||
-    clean(student.enrollmentStatus) ||
+    clean(student?.enrollment_status) ||
+    clean(student?.enrollmentStatus) ||
     "pending"
   );
 };
 
 const getAccountStatus = (student) => {
   return (
-    clean(student.account_status) ||
-    clean(student.accountStatus) ||
+    clean(student?.account_status) ||
+    clean(student?.accountStatus) ||
     "pending"
   );
 };
 
-const formatDate = (dateValue) => {
-  if (!dateValue) return "—";
+const getPaymentStatus = (student) => {
+  return (
+    clean(student?.payment_status) ||
+    clean(student?.paymentStatus) ||
+    "pending"
+  );
+};
 
-  const date = new Date(dateValue);
+const getEmail = (student) => {
+  return (
+    clean(student?.email) ||
+    clean(student?.student_email) ||
+    clean(student?.studentEmail) ||
+    "—"
+  );
+};
+
+const getPhone = (student) => {
+  return (
+    clean(student?.phone) ||
+    clean(student?.phone_number) ||
+    clean(student?.phoneNumber) ||
+    clean(student?.student_phone) ||
+    "—"
+  );
+};
+
+const getEnrollmentId = (student) => {
+  return (
+    clean(student?.enrollment_id) ||
+    clean(student?.enrollmentId) ||
+    clean(student?.id) ||
+    "—"
+  );
+};
+
+const formatDate = (value) => {
+  if (!value) return "—";
+
+  const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return clean(dateValue) || "—";
+    return clean(value) || "—";
   }
 
   return date.toLocaleDateString("en-NG", {
-    day: "numeric",
+    day: "2-digit",
     month: "short",
     year: "numeric",
   });
 };
 
-const formatDateTime = (dateValue) => {
-  if (!dateValue) return "—";
+const formatDateTime = (value) => {
+  if (!value) return "—";
 
-  const date = new Date(dateValue);
+  const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return clean(dateValue) || "—";
+    return clean(value) || "—";
   }
 
   return date.toLocaleString("en-NG", {
-    day: "numeric",
+    day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
@@ -118,15 +186,10 @@ const formatDateTime = (dateValue) => {
   });
 };
 
-const normalize = (value) =>
-  clean(value)
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-
-const getInitials = (student) => {
-  const name = getStudentName(student);
-
-  const parts = name.split(" ").filter(Boolean);
+const getInitials = (name) => {
+  const parts = clean(name)
+    .split(/\s+/)
+    .filter(Boolean);
 
   if (!parts.length) return "ST";
 
@@ -138,21 +201,47 @@ const getInitials = (student) => {
 };
 
 const getSubjects = (student) => {
-  if (Array.isArray(student.subjects)) {
-    return student.subjects;
+  const raw =
+    student?.subjects ||
+    student?.selected_subjects ||
+    student?.selectedSubjects ||
+    student?.subject_list ||
+    [];
+
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => {
+        if (typeof item === "string") return item;
+
+        return (
+          clean(item?.name) ||
+          clean(item?.subject) ||
+          clean(item?.title) ||
+          ""
+        );
+      })
+      .filter(Boolean);
   }
 
-  if (typeof student.subjects === "string") {
+  if (typeof raw === "string") {
     try {
-      const parsed = JSON.parse(student.subjects);
+      const parsed = JSON.parse(raw);
 
       if (Array.isArray(parsed)) {
-        return parsed;
+        return parsed
+          .map((item) =>
+            typeof item === "string"
+              ? item
+              : clean(item?.name) ||
+                clean(item?.subject) ||
+                clean(item?.title)
+          )
+          .filter(Boolean);
       }
     } catch {
-      return student.subjects
+      return raw
         .split(",")
-        .map((subject) => subject.trim())
+        .map((item) => item.trim())
         .filter(Boolean);
     }
   }
@@ -161,144 +250,259 @@ const getSubjects = (student) => {
 };
 
 /* =========================================================
-   STATUS HELPERS
+   STATUS
 ========================================================= */
 
 const getStatusMeta = (status) => {
-  const normalized = normalize(status);
+  const value = normalize(status);
+
+  /*
+    VERIFIED IS A SUCCESS STATUS.
+  */
 
   if (
-    normalized === "active" ||
-    normalized === "approved" ||
-    normalized === "accepted" ||
-    normalized === "verified"
+    value === "verified" ||
+    value === "active" ||
+    value === "approved" ||
+    value === "accepted"
   ) {
     return {
-      label: status || "Active",
+      label:
+        value === "verified"
+          ? "Verified"
+          : value.charAt(0).toUpperCase() + value.slice(1),
       icon: CheckCircle2,
       className:
-        "text-emerald-300 bg-emerald-400/10 border-emerald-400/20",
+        "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
+      dotClassName: "bg-emerald-400",
     };
   }
 
   if (
-    normalized === "inactive" ||
-    normalized === "rejected" ||
-    normalized === "declined" ||
-    normalized === "suspended"
+    value === "inactive" ||
+    value === "rejected" ||
+    value === "declined" ||
+    value === "suspended"
   ) {
     return {
-      label: status || "Inactive",
+      label:
+        value.charAt(0).toUpperCase() + value.slice(1),
       icon: XCircle,
-      className: "text-red-300 bg-red-400/10 border-red-400/20",
+      className: "border-red-400/20 bg-red-400/10 text-red-300",
+      dotClassName: "bg-red-400",
     };
   }
 
   return {
-    label: status || "Pending",
+    label: "Pending",
     icon: Clock,
-    className: "text-amber-300 bg-amber-400/10 border-amber-400/20",
+    className: "border-amber-400/20 bg-amber-400/10 text-amber-300",
+    dotClassName: "bg-amber-400",
   };
 };
 
-/* =========================================================
-   STATUS BADGE
-========================================================= */
-
-function StatusBadge({ status }) {
+const StatusBadge = ({
+  status,
+  small = false,
+}) => {
   const meta = getStatusMeta(status);
   const Icon = meta.icon;
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${meta.className}`}
+      className={[
+        "inline-flex items-center gap-1.5 rounded-full border font-medium",
+        small
+          ? "px-2 py-1 text-[10px]"
+          : "px-2.5 py-1.5 text-xs",
+        meta.className,
+      ].join(" ")}
     >
-      <Icon size={12} />
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${meta.dotClassName}`}
+      />
+
+      <Icon
+        size={small ? 11 : 13}
+        strokeWidth={2.2}
+      />
+
       {meta.label}
     </span>
   );
-}
+};
 
 /* =========================================================
    STAT CARD
 ========================================================= */
 
-function StatCard({ icon: Icon, label, value, description }) {
+const StatCard = ({
+  icon: Icon,
+  label,
+  value,
+  description,
+  iconClassName,
+}) => {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0a1020]/80 p-5 backdrop-blur-xl"
+      whileHover={{ y: -3 }}
+      className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#080d1c]/80 p-5 shadow-xl shadow-black/10 backdrop-blur-xl"
     >
-      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-cyan-500/10 blur-2xl" />
+      <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-cyan-400/5 blur-3xl" />
 
-      <div className="relative flex items-start justify-between gap-4">
+      <div className="relative flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium text-slate-500">{label}</p>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+            {label}
+          </p>
 
-          <p className="mt-2 text-2xl font-bold tracking-tight text-white">
+          <p className="mt-2 text-3xl font-bold tracking-tight text-white">
             {value}
           </p>
 
           {description && (
-            <p className="mt-1 text-[11px] text-slate-500">{description}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {description}
+            </p>
           )}
         </div>
 
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300">
+        <div
+          className={[
+            "flex h-11 w-11 items-center justify-center rounded-xl border",
+            iconClassName ||
+              "border-cyan-400/20 bg-cyan-400/10 text-cyan-300",
+          ].join(" ")}
+        >
           <Icon size={20} />
         </div>
       </div>
     </motion.div>
   );
-}
+};
+
+/* =========================================================
+   INFO ITEM
+========================================================= */
+
+const InfoItem = ({
+  icon: Icon,
+  label,
+  value,
+}) => {
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-4">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] text-slate-400">
+          <Icon size={17} />
+        </div>
+
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {label}
+          </p>
+
+          <p className="mt-1 break-words text-sm font-medium text-slate-200">
+            {value || "—"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /* =========================================================
    STUDENT DETAILS MODAL
 ========================================================= */
 
-function StudentDetailsModal({ student, onClose }) {
+const StudentDetailsModal = ({
+  student,
+  onClose,
+}) => {
   if (!student) return null;
 
   const name = getStudentName(student);
+  const email = getEmail(student);
+  const phone = getPhone(student);
+  const className = getClassName(student);
+  const enrollmentStatus = getEnrollmentStatus(student);
+  const accountStatus = getAccountStatus(student);
+  const paymentStatus = getPaymentStatus(student);
   const subjects = getSubjects(student);
+
+  const registrationDate =
+    student?.created_at ||
+    student?.createdAt ||
+    student?.registration_date ||
+    student?.registrationDate;
+
+  const updatedDate =
+    student?.updated_at ||
+    student?.updatedAt;
+
+  const guardianName =
+    clean(student?.guardian_name) ||
+    clean(student?.guardianName) ||
+    clean(student?.parent_name) ||
+    clean(student?.parentName) ||
+    "—";
+
+  const guardianPhone =
+    clean(student?.guardian_phone) ||
+    clean(student?.guardianPhone) ||
+    clean(student?.parent_phone) ||
+    clean(student?.parentPhone) ||
+    "—";
 
   return (
     <AnimatePresence>
       <motion.div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) {
-            onClose();
-          }
-        }}
+        onMouseDown={onClose}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 20 }}
-          transition={{ duration: 0.2 }}
-          className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-[#080d1a] shadow-2xl shadow-black/50"
+          initial={{
+            opacity: 0,
+            scale: 0.96,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            scale: 1,
+            y: 0,
+          }}
+          exit={{
+            opacity: 0,
+            scale: 0.96,
+            y: 20,
+          }}
+          transition={{
+            duration: 0.2,
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          className="relative max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-white/[0.08] bg-[#070b18] shadow-2xl shadow-black/50"
         >
           {/* Header */}
-          <div className="sticky top-0 z-10 border-b border-white/10 bg-[#080d1a]/95 px-6 py-5 backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 text-lg font-bold text-cyan-300">
-                  {getInitials(student)}
+
+          <div className="relative border-b border-white/[0.07] px-6 py-5">
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/[0.05] via-transparent to-violet-500/[0.05]" />
+
+            <div className="relative flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-lg font-bold text-cyan-300">
+                  {getInitials(name)}
                 </div>
 
-                <div>
-                  <h2 className="text-lg font-bold text-white">{name}</h2>
+                <div className="min-w-0">
+                  <h2 className="truncate text-xl font-bold text-white">
+                    {name}
+                  </h2>
 
-                  <p className="mt-1 text-xs text-slate-500">
-                    Enrollment ID:{" "}
-                    <span className="text-slate-300">
-                      {student.enrollment_id || student.id || "—"}
-                    </span>
+                  <p className="mt-1 truncate text-sm text-slate-500">
+                    {email}
                   </p>
                 </div>
               </div>
@@ -306,94 +510,107 @@ function StudentDetailsModal({ student, onClose }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.03] text-slate-400 transition hover:bg-white/[0.07] hover:text-white"
               >
-                <X size={18} />
+                <X size={19} />
               </button>
             </div>
           </div>
 
-          <div className="space-y-6 p-6">
-            {/* Status */}
+          {/* Content */}
+
+          <div className="max-h-[calc(90vh-100px)] overflow-y-auto p-6">
+            {/* Statuses */}
+
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-                <p className="mb-2 text-[11px] uppercase tracking-wider text-slate-500">
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Enrollment
                 </p>
 
-                <StatusBadge status={getEnrollmentStatus(student)} />
+                <StatusBadge status={enrollmentStatus} />
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-                <p className="mb-2 text-[11px] uppercase tracking-wider text-slate-500">
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Account
                 </p>
 
-                <StatusBadge status={getAccountStatus(student)} />
+                <StatusBadge status={accountStatus} />
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-                <p className="mb-2 text-[11px] uppercase tracking-wider text-slate-500">
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Payment
                 </p>
 
-                <StatusBadge status={student.payment_status || "Pending"} />
+                <StatusBadge status={paymentStatus} />
               </div>
             </div>
 
             {/* Student information */}
-            <section>
+
+            <div className="mt-6">
               <div className="mb-3 flex items-center gap-2">
-                <UserRound size={16} className="text-cyan-300" />
-                <h3 className="text-sm font-semibold text-white">
+                <UserRound
+                  size={17}
+                  className="text-cyan-300"
+                />
+
+                <h3 className="font-semibold text-white">
                   Student Information
                 </h3>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <InfoItem
-                  icon={Mail}
-                  label="Email"
-                  value={student.email}
-                />
-
-                <InfoItem
-                  icon={Phone}
-                  label="Phone"
-                  value={student.student_phone}
+                  icon={UserRound}
+                  label="Full Name"
+                  value={name}
                 />
 
                 <InfoItem
                   icon={GraduationCap}
                   label="Class"
-                  value={getClassName(student)}
+                  value={className}
                 />
 
                 <InfoItem
-                  icon={BookOpen}
-                  label="Academic Session"
-                  value={student.academic_session}
+                  icon={Mail}
+                  label="Email"
+                  value={email}
                 />
 
                 <InfoItem
-                  icon={UserRound}
-                  label="Gender"
-                  value={student.gender}
+                  icon={Phone}
+                  label="Phone"
+                  value={phone}
+                />
+
+                <InfoItem
+                  icon={ShieldCheck}
+                  label="Enrollment ID"
+                  value={getEnrollmentId(student)}
                 />
 
                 <InfoItem
                   icon={CalendarDays}
                   label="Registered"
-                  value={formatDateTime(student.created_at)}
+                  value={formatDate(registrationDate)}
                 />
               </div>
-            </section>
+            </div>
 
             {/* Guardian */}
-            <section>
+
+            <div className="mt-6">
               <div className="mb-3 flex items-center gap-2">
-                <ShieldCheck size={16} className="text-violet-300" />
-                <h3 className="text-sm font-semibold text-white">
+                <Users
+                  size={17}
+                  className="text-violet-300"
+                />
+
+                <h3 className="font-semibold text-white">
                   Guardian Information
                 </h3>
               </div>
@@ -401,120 +618,84 @@ function StudentDetailsModal({ student, onClose }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <InfoItem
                   icon={UserRound}
-                  label="Guardian"
-                  value={[
-                    student.guardian_first_name,
-                    student.guardian_last_name,
-                  ]
-                    .map(clean)
-                    .filter(Boolean)
-                    .join(" ")}
-                />
-
-                <InfoItem
-                  icon={UserRound}
-                  label="Relationship"
-                  value={student.guardian_relationship}
+                  label="Guardian Name"
+                  value={guardianName}
                 />
 
                 <InfoItem
                   icon={Phone}
                   label="Guardian Phone"
-                  value={student.guardian_phone}
-                />
-
-                <InfoItem
-                  icon={Mail}
-                  label="Guardian Email"
-                  value={student.guardian_email}
+                  value={guardianPhone}
                 />
               </div>
-            </section>
+            </div>
 
             {/* Subjects */}
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <BookOpen size={16} className="text-blue-300" />
 
-                <h3 className="text-sm font-semibold text-white">
+            <div className="mt-6">
+              <div className="mb-3 flex items-center gap-2">
+                <BookOpen
+                  size={17}
+                  className="text-cyan-300"
+                />
+
+                <h3 className="font-semibold text-white">
                   Selected Subjects
                 </h3>
               </div>
 
               {subjects.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="flex flex-wrap gap-2">
                   {subjects.map((subject, index) => (
-                    <div
+                    <span
                       key={`${subject}-${index}`}
-                      className="rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2.5 text-xs text-slate-300"
+                      className="rounded-lg border border-cyan-400/10 bg-cyan-400/[0.06] px-3 py-2 text-xs font-medium text-cyan-200"
                     >
                       {subject}
-                    </div>
+                    </span>
                   ))}
                 </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-center text-xs text-slate-500">
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-sm text-slate-500">
                   No subjects recorded.
                 </div>
               )}
-            </section>
+            </div>
 
-            {/* IDs */}
-            <section>
+            {/* Dates */}
+
+            <div className="mt-6">
               <div className="mb-3 flex items-center gap-2">
-                <CreditCard size={16} className="text-emerald-300" />
+                <CalendarDays
+                  size={17}
+                  className="text-emerald-300"
+                />
 
-                <h3 className="text-sm font-semibold text-white">
+                <h3 className="font-semibold text-white">
                   Registration Details
                 </h3>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <InfoItem
-                  icon={CreditCard}
-                  label="Enrollment Reference"
-                  value={student.enrollment_id}
+                  icon={CalendarDays}
+                  label="Created At"
+                  value={formatDateTime(registrationDate)}
                 />
 
                 <InfoItem
-                  icon={CalendarDays}
-                  label="Created"
-                  value={formatDateTime(student.created_at)}
+                  icon={RefreshCw}
+                  label="Last Updated"
+                  value={formatDateTime(updatedDate)}
                 />
               </div>
-            </section>
+            </div>
           </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
   );
-}
-
-/* =========================================================
-   INFO ITEM
-========================================================= */
-
-function InfoItem({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-slate-400">
-          <Icon size={15} />
-        </div>
-
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500">
-            {label}
-          </p>
-
-          <p className="mt-1 break-words text-sm font-medium text-slate-200">
-            {clean(value) || "—"}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
+};
 
 /* =========================================================
    MAIN COMPONENT
@@ -525,6 +706,7 @@ export default function Students() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
@@ -534,207 +716,241 @@ export default function Students() {
   const [selectedStudent, setSelectedStudent] = useState(null);
 
   /* =======================================================
-     FETCH REAL STUDENTS
+     FETCH STUDENTS
   ======================================================= */
 
-  const fetchStudents = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
-      setError("");
-
-      const response = await fetch(
-        `${API_URL}/api/academy/admin/enrollments`
-      );
-
-      const contentType = response.headers.get("content-type") || "";
-
-      if (!response.ok) {
-        let message = `Failed to load students (${response.status})`;
-
-        if (contentType.includes("application/json")) {
-          const data = await response.json();
-
-          message =
-            data?.message ||
-            data?.error ||
-            message;
+  const fetchStudents = useCallback(
+    async (isRefresh = false) => {
+      try {
+        if (isRefresh) {
+          setRefreshing(true);
         } else {
-          const text = await response.text();
-
-          if (text) {
-            message = text.slice(0, 250);
-          }
+          setLoading(true);
         }
 
-        throw new Error(message);
-      }
+        setError("");
 
-      if (!contentType.includes("application/json")) {
-        throw new Error(
-          "The server returned an unexpected response. Make sure the Academy API is running."
+        const response = await fetch(
+          `${API_URL}/api/academy/admin/enrollments`
         );
+
+        const contentType =
+          response.headers.get("content-type") || "";
+
+        if (!response.ok) {
+          let message = `Request failed with status ${response.status}`;
+
+          if (contentType.includes("application/json")) {
+            try {
+              const data = await response.json();
+
+              message =
+                data?.message ||
+                data?.error ||
+                message;
+            } catch {
+              // Ignore JSON parsing errors.
+            }
+          }
+
+          throw new Error(message);
+        }
+
+        if (!contentType.includes("application/json")) {
+          const text = await response.text();
+
+          throw new Error(
+            `Server returned non-JSON response.${
+              text
+                ? ` ${text.slice(0, 120)}`
+                : ""
+            }`
+          );
+        }
+
+        const data = await response.json();
+
+        let enrollmentList = [];
+
+        if (Array.isArray(data)) {
+          enrollmentList = data;
+        } else if (Array.isArray(data?.enrollments)) {
+          enrollmentList = data.enrollments;
+        } else if (Array.isArray(data?.data)) {
+          enrollmentList = data.data;
+        } else if (
+          Array.isArray(data?.students)
+        ) {
+          enrollmentList = data.students;
+        }
+
+        setStudents(enrollmentList);
+      } catch (err) {
+        console.error(
+          "Academy Students Error:",
+          err
+        );
+
+        setError(
+          err?.message ||
+            "Unable to load students."
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-
-      const data = await response.json();
-
-      const enrollmentList = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.enrollments)
-        ? data.enrollments
-        : Array.isArray(data?.data)
-        ? data.data
-        : [];
-
-      setStudents(enrollmentList);
-    } catch (err) {
-      console.error("Students fetch error:", err);
-
-      setError(
-        err?.message ||
-          "Unable to load enrolled students. Please try again."
-      );
-
-      setStudents([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   /* =======================================================
-     LOAD ON PAGE OPEN
+     INITIAL LOAD
   ======================================================= */
 
   useEffect(() => {
-    fetchStudents(false);
+    fetchStudents();
   }, [fetchStudents]);
 
   /* =======================================================
-     FILTER OPTIONS
+     CLASSES
   ======================================================= */
 
   const classes = useMemo(() => {
-    const uniqueClasses = new Set();
+    const values = students
+      .map((student) =>
+        getClassName(student)
+      )
+      .filter(
+        (value) =>
+          value &&
+          value !== "Not assigned"
+      );
 
-    students.forEach((student) => {
-      const className = getClassName(student);
-
-      if (className && className !== "Not specified") {
-        uniqueClasses.add(className);
-      }
-    });
-
-    return [...uniqueClasses].sort((a, b) =>
-      a.localeCompare(b, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      })
+    return [...new Set(values)].sort(
+      (a, b) =>
+        a.localeCompare(b)
     );
   }, [students]);
 
   /* =======================================================
-     FILTER STUDENTS
+     FILTERED STUDENTS
   ======================================================= */
 
   const filteredStudents = useMemo(() => {
     const query = normalize(search);
 
     return students.filter((student) => {
-      const name = normalize(getStudentName(student));
-      const email = normalize(student.email);
-      const enrollmentId = normalize(student.enrollment_id);
-      const studentPhone = normalize(student.student_phone);
-      const className = normalize(getClassName(student));
-
-      const enrollmentStatus = normalize(
-        getEnrollmentStatus(student)
+      const name = normalize(
+        getStudentName(student)
       );
 
-      const accountStatus = normalize(
-        getAccountStatus(student)
+      const email = normalize(
+        getEmail(student)
       );
+
+      const phone = normalize(
+        getPhone(student)
+      );
+
+      const enrollmentId = normalize(
+        getEnrollmentId(student)
+      );
+
+      const className = normalize(
+        getClassName(student)
+      );
+
+      const enrollmentStatus =
+        normalize(
+          getEnrollmentStatus(student)
+        );
+
+      const accountStatus =
+        normalize(
+          getAccountStatus(student)
+        );
 
       const matchesSearch =
         !query ||
         name.includes(query) ||
         email.includes(query) ||
+        phone.includes(query) ||
         enrollmentId.includes(query) ||
-        studentPhone.includes(query) ||
         className.includes(query);
 
       const matchesClass =
         classFilter === "all" ||
-        normalize(getClassName(student)) === normalize(classFilter);
+        className === normalize(classFilter);
 
       const matchesStatus =
         statusFilter === "all" ||
-        enrollmentStatus === normalize(statusFilter) ||
-        accountStatus === normalize(statusFilter);
+        enrollmentStatus ===
+          normalize(statusFilter) ||
+        accountStatus ===
+          normalize(statusFilter);
 
-      return matchesSearch && matchesClass && matchesStatus;
+      return (
+        matchesSearch &&
+        matchesClass &&
+        matchesStatus
+      );
     });
-  }, [students, search, classFilter, statusFilter]);
+  }, [
+    students,
+    search,
+    classFilter,
+    statusFilter,
+  ]);
 
   /* =======================================================
      STATS
   ======================================================= */
 
   const stats = useMemo(() => {
-    const active = students.filter((student) => {
-      const enrollmentStatus = normalize(
-        getEnrollmentStatus(student)
-      );
+    let active = 0;
+    let pending = 0;
+    let inactive = 0;
 
-      const accountStatus = normalize(
-        getAccountStatus(student)
-      );
+    students.forEach((student) => {
+      const enrollmentStatus =
+        normalize(
+          getEnrollmentStatus(student)
+        );
 
-      return (
+      const accountStatus =
+        normalize(
+          getAccountStatus(student)
+        );
+
+      /*
+        VERIFIED COUNTS AS ACTIVE.
+      */
+
+      const isActive =
         enrollmentStatus === "active" ||
         enrollmentStatus === "approved" ||
         enrollmentStatus === "accepted" ||
-        accountStatus === "active"
-      );
-    }).length;
+        enrollmentStatus === "verified" ||
+        accountStatus === "active" ||
+        accountStatus === "verified";
 
-    const pending = students.filter((student) => {
-      const enrollmentStatus = normalize(
-        getEnrollmentStatus(student)
-      );
-
-      const accountStatus = normalize(
-        getAccountStatus(student)
-      );
-
-      return (
-        enrollmentStatus === "pending" ||
-        accountStatus === "pending"
-      );
-    }).length;
-
-    const inactive = students.filter((student) => {
-      const enrollmentStatus = normalize(
-        getEnrollmentStatus(student)
-      );
-
-      const accountStatus = normalize(
-        getAccountStatus(student)
-      );
-
-      return (
+      const isInactive =
         enrollmentStatus === "inactive" ||
         enrollmentStatus === "rejected" ||
         enrollmentStatus === "declined" ||
         enrollmentStatus === "suspended" ||
         accountStatus === "inactive" ||
-        accountStatus === "suspended"
-      );
-    }).length;
+        accountStatus === "rejected" ||
+        accountStatus === "suspended";
+
+      if (isActive) {
+        active += 1;
+      } else if (isInactive) {
+        inactive += 1;
+      } else {
+        pending += 1;
+      }
+    });
 
     return {
       total: students.length,
@@ -745,62 +961,112 @@ export default function Students() {
   }, [students]);
 
   /* =======================================================
+     CLEAR FILTERS
+  ======================================================= */
+
+  const clearFilters = () => {
+    setSearch("");
+    setClassFilter("all");
+    setStatusFilter("all");
+  };
+
+  /* =======================================================
+     LOADING
+  ======================================================= */
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#050914] text-white">
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden">
+          <div
+            className="absolute inset-0 opacity-30"
+            style={{
+              backgroundImage:
+                "radial-gradient(rgba(34,211,238,0.14) 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
+            }}
+          />
+
+          <div className="relative flex flex-col items-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
+              <Loader2
+                className="animate-spin text-cyan-300"
+                size={28}
+              />
+            </div>
+
+            <p className="mt-4 text-sm text-slate-400">
+              Loading students...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* =======================================================
      RENDER
   ======================================================= */
 
   return (
     <div className="min-h-screen bg-[#050914] text-white">
       {/* Background */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-[0.025]"
-          style={{
-            backgroundImage:
-              "radial-gradient(#94a3b8 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
-          }}
-        />
 
-        <div className="absolute left-[15%] top-[-10%] h-[400px] w-[400px] rounded-full bg-cyan-500/10 blur-[120px]" />
+      <div
+        className="pointer-events-none fixed inset-0 opacity-30"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgba(34,211,238,0.10) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
 
-        <div className="absolute bottom-[-10%] right-[10%] h-[450px] w-[450px] rounded-full bg-violet-600/10 blur-[130px]" />
-      </div>
+      <div className="pointer-events-none fixed left-[-120px] top-[-120px] h-[350px] w-[350px] rounded-full bg-cyan-500/10 blur-[120px]" />
 
-      <div className="relative z-10 mx-auto max-w-[1600px] p-5 sm:p-7 lg:p-8">
+      <div className="pointer-events-none fixed bottom-[-150px] right-[-100px] h-[400px] w-[400px] rounded-full bg-violet-500/10 blur-[140px]" />
+
+      <div className="relative mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
         {/* =================================================
             HEADER
         ================================================= */}
 
-        <div className="mb-7 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+        <div className="mb-6 flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
           <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1.5 text-[11px] font-medium text-cyan-300">
-              <Users size={13} />
-              Academy Management
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300">
+                <Users size={21} />
+              </div>
+
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  Students
+                </h1>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Manage and monitor academy student enrollments.
+                </p>
+              </div>
             </div>
-
-            <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Manage Students
-            </h1>
-
-            <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              View students who have actually submitted the Academy
-              enrollment form.
-            </p>
           </div>
 
           <button
             type="button"
             onClick={() => fetchStudents(true)}
             disabled={refreshing}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {refreshing ? (
-              <Loader2 size={17} className="animate-spin" />
-            ) : (
-              <RefreshCw size={17} />
-            )}
+            <RefreshCw
+              size={16}
+              className={
+                refreshing
+                  ? "animate-spin"
+                  : ""
+              }
+            />
 
-            {refreshing ? "Refreshing..." : "Refresh"}
+            {refreshing
+              ? "Refreshing..."
+              : "Refresh"}
           </button>
         </div>
 
@@ -808,65 +1074,72 @@ export default function Students() {
             ERROR
         ================================================= */}
 
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="mb-6 flex flex-col gap-3 rounded-2xl border border-red-400/20 bg-red-400/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+        {error && (
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: -10,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            className="mb-6 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.06] p-4"
+          >
+            <AlertCircle
+              size={19}
+              className="mt-0.5 shrink-0 text-red-300"
+            />
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-red-200">
+                Unable to load students
+              </p>
+
+              <p className="mt-1 text-xs text-red-300/70">
+                {error}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                fetchStudents()
+              }
+              className="rounded-lg border border-red-300/10 px-3 py-1.5 text-xs font-medium text-red-200 hover:bg-red-400/10"
             >
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 text-red-300">
-                  <AlertCircle size={19} />
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-red-200">
-                    Unable to load students
-                  </p>
-
-                  <p className="mt-1 text-xs text-red-300/70">
-                    {error}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => fetchStudents(true)}
-                className="rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-400/15"
-              >
-                Try again
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              Retry
+            </button>
+          </motion.div>
+        )}
 
         {/* =================================================
             STATS
         ================================================= */}
 
-        <div className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             icon={Users}
-            label="Total Enrolled"
+            label="Total Students"
             value={stats.total}
-            description="Students in Academy"
+            description="All registered students"
+            iconClassName="border-cyan-400/20 bg-cyan-400/10 text-cyan-300"
           />
 
           <StatCard
             icon={UserCheck}
-            label="Active"
+            label="Verified"
             value={stats.active}
-            description="Approved or active"
+            description="Verified / active students"
+            iconClassName="border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
           />
 
           <StatCard
             icon={Clock}
             label="Pending"
             value={stats.pending}
-            description="Awaiting processing"
+            description="Awaiting verification"
+            iconClassName="border-amber-400/20 bg-amber-400/10 text-amber-300"
           />
 
           <StatCard
@@ -874,17 +1147,19 @@ export default function Students() {
             label="Inactive"
             value={stats.inactive}
             description="Inactive or rejected"
+            iconClassName="border-red-400/20 bg-red-400/10 text-red-300"
           />
         </div>
 
         {/* =================================================
-            FILTER BAR
+            FILTERS
         ================================================= */}
 
-        <div className="mb-5 rounded-2xl border border-white/10 bg-[#0a1020]/80 p-4 backdrop-blur-xl">
-          <div className="flex flex-col gap-3 lg:flex-row">
+        <div className="mt-6 rounded-2xl border border-white/[0.07] bg-[#080d1c]/80 p-4 shadow-xl shadow-black/10 backdrop-blur-xl">
+          <div className="flex flex-col gap-3 xl:flex-row">
             {/* Search */}
-            <div className="relative min-w-0 flex-1">
+
+            <div className="relative flex-1">
               <Search
                 size={17}
                 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
@@ -893,20 +1168,29 @@ export default function Students() {
               <input
                 type="text"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by name, email, phone, class or enrollment ID..."
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/40 focus:bg-white/[0.05]"
+                onChange={(event) =>
+                  setSearch(
+                    event.target.value
+                  )
+                }
+                placeholder="Search by name, email, phone, ID or class..."
+                className="h-11 w-full rounded-xl border border-white/[0.07] bg-white/[0.03] pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-400/30 focus:bg-white/[0.045]"
               />
             </div>
 
             {/* Class filter */}
+
             <div className="relative">
               <select
                 value={classFilter}
-                onChange={(event) => setClassFilter(event.target.value)}
-                className="h-11 min-w-[170px] appearance-none rounded-xl border border-white/10 bg-white/[0.035] px-4 pr-10 text-sm text-slate-300 outline-none focus:border-cyan-400/40"
+                onChange={(event) =>
+                  setClassFilter(
+                    event.target.value
+                  )
+                }
+                className="h-11 w-full min-w-[180px] appearance-none rounded-xl border border-white/[0.07] bg-[#0a1020] px-4 pr-10 text-sm text-slate-300 outline-none transition focus:border-cyan-400/30"
               >
-                <option value="all" className="bg-[#080d1a]">
+                <option value="all">
                   All Classes
                 </option>
 
@@ -914,7 +1198,6 @@ export default function Students() {
                   <option
                     key={className}
                     value={className}
-                    className="bg-[#080d1a]"
                   >
                     {className}
                   </option>
@@ -928,50 +1211,46 @@ export default function Students() {
             </div>
 
             {/* Status filter */}
+
             <div className="relative">
               <select
                 value={statusFilter}
                 onChange={(event) =>
-                  setStatusFilter(event.target.value)
+                  setStatusFilter(
+                    event.target.value
+                  )
                 }
-                className="h-11 min-w-[170px] appearance-none rounded-xl border border-white/10 bg-white/[0.035] px-4 pr-10 text-sm text-slate-300 outline-none focus:border-cyan-400/40"
+                className="h-11 w-full min-w-[180px] appearance-none rounded-xl border border-white/[0.07] bg-[#0a1020] px-4 pr-10 text-sm text-slate-300 outline-none transition focus:border-cyan-400/30"
               >
-                <option value="all" className="bg-[#080d1a]">
+                <option value="all">
                   All Statuses
                 </option>
 
-                <option
-                  value="active"
-                  className="bg-[#080d1a]"
-                >
+                <option value="verified">
+                  Verified
+                </option>
+
+                <option value="active">
                   Active
                 </option>
 
-                <option
-                  value="pending"
-                  className="bg-[#080d1a]"
-                >
-                  Pending
-                </option>
-
-                <option
-                  value="inactive"
-                  className="bg-[#080d1a]"
-                >
-                  Inactive
-                </option>
-
-                <option
-                  value="approved"
-                  className="bg-[#080d1a]"
-                >
+                <option value="approved">
                   Approved
                 </option>
 
-                <option
-                  value="rejected"
-                  className="bg-[#080d1a]"
-                >
+                <option value="accepted">
+                  Accepted
+                </option>
+
+                <option value="pending">
+                  Pending
+                </option>
+
+                <option value="inactive">
+                  Inactive
+                </option>
+
+                <option value="rejected">
                   Rejected
                 </option>
               </select>
@@ -981,368 +1260,470 @@ export default function Students() {
                 className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
               />
             </div>
+
+            {/* Clear */}
+
+            {(search ||
+              classFilter !== "all" ||
+              statusFilter !== "all") && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="h-11 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 text-sm font-medium text-slate-400 transition hover:bg-white/[0.07] hover:text-white"
+              >
+                Clear
+              </button>
+            )}
           </div>
 
-          {!loading && (
-            <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3">
-              <p className="text-xs text-slate-500">
-                Showing{" "}
-                <span className="font-medium text-slate-300">
-                  {filteredStudents.length}
-                </span>{" "}
-                of{" "}
-                <span className="font-medium text-slate-300">
-                  {students.length}
-                </span>{" "}
-                enrolled students
-              </p>
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-600">
+            <span>
+              Showing{" "}
+              <span className="font-semibold text-slate-400">
+                {filteredStudents.length}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-slate-400">
+                {students.length}
+              </span>{" "}
+              students
+            </span>
 
-              {(search ||
-                classFilter !== "all" ||
-                statusFilter !== "all") && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearch("");
-                    setClassFilter("all");
-                    setStatusFilter("all");
-                  }}
-                  className="text-xs font-medium text-cyan-300 hover:text-cyan-200"
-                >
-                  Clear filters
-                </button>
-              )}
-            </div>
-          )}
+            {(search ||
+              classFilter !== "all" ||
+              statusFilter !== "all") && (
+              <span>
+                Filters active
+              </span>
+            )}
+          </div>
         </div>
 
         {/* =================================================
-            TABLE
+            EMPTY STATE
         ================================================= */}
 
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a1020]/80 shadow-2xl shadow-black/10 backdrop-blur-xl">
-          {/* Loading */}
-          {loading ? (
-            <div className="flex min-h-[420px] flex-col items-center justify-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/5">
-                <Loader2
-                  size={24}
-                  className="animate-spin text-cyan-300"
-                />
-              </div>
-
-              <p className="mt-4 text-sm font-medium text-slate-300">
-                Loading enrolled students...
-              </p>
-
-              <p className="mt-1 text-xs text-slate-600">
-                Fetching the latest Academy registrations
-              </p>
+        {filteredStudents.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-white/[0.07] bg-[#080d1c]/80 px-6 py-16 text-center backdrop-blur-xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.03] text-slate-500">
+              <Users size={24} />
             </div>
-          ) : filteredStudents.length === 0 ? (
-            /* Empty */
-            <div className="flex min-h-[420px] flex-col items-center justify-center px-6 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-slate-600">
-                {students.length === 0 ? (
-                  <Users size={28} />
-                ) : (
-                  <Search size={28} />
-                )}
-              </div>
 
-              <h3 className="mt-5 text-sm font-semibold text-white">
-                {students.length === 0
-                  ? "No enrolled students yet"
-                  : "No students found"}
-              </h3>
+            <h3 className="mt-4 text-base font-semibold text-white">
+              No students found
+            </h3>
 
-              <p className="mt-2 max-w-md text-xs leading-5 text-slate-500">
-                {students.length === 0
-                  ? "Students who submit the Academy enrollment form will appear here automatically."
-                  : "Try changing your search or filters to find a student."}
-              </p>
+            <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+              No students match the current search or filters.
+            </p>
 
-              {students.length === 0 && (
-                <button
-                  type="button"
-                  onClick={() => fetchStudents(true)}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2.5 text-xs font-medium text-cyan-300 transition hover:bg-cyan-400/15"
-                >
-                  <RefreshCw size={14} />
-                  Check Again
-                </button>
-              )}
-            </div>
-          ) : (
-            <>
-              {/* Desktop table */}
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[900px]">
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="mt-5 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2.5 text-sm font-medium text-cyan-300 transition hover:bg-cyan-400/15"
+            >
+              Clear Filters
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* =================================================
+                DESKTOP TABLE
+            ================================================= */}
+
+            <div className="mt-6 hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-[#080d1c]/80 shadow-xl shadow-black/10 backdrop-blur-xl lg:block">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1000px]">
                   <thead>
-                    <tr className="border-b border-white/10 bg-white/[0.02]">
-                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    <tr className="border-b border-white/[0.07] bg-white/[0.02]">
+                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Student
                       </th>
 
-                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Class
                       </th>
 
-                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                        Session
-                      </th>
-
-                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Enrollment
                       </th>
 
-                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Account
                       </th>
 
-                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Payment
+                      </th>
+
+                      <th className="px-5 py-4 text-left text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Registered
                       </th>
 
-                      <th className="px-5 py-4 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      <th className="px-5 py-4 text-right text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Action
                       </th>
                     </tr>
                   </thead>
 
-                  <tbody>
-                    {filteredStudents.map((student, index) => {
-                      const name = getStudentName(student);
+                  <tbody className="divide-y divide-white/[0.05]">
+                    {filteredStudents.map(
+                      (student, index) => {
+                        const name =
+                          getStudentName(
+                            student
+                          );
 
-                      return (
-                        <motion.tr
-                          key={
-                            student.enrollment_id ||
-                            student.id ||
-                            `${name}-${index}`
-                          }
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{
-                            delay: Math.min(index * 0.025, 0.25),
-                          }}
-                          className="border-b border-white/5 transition hover:bg-white/[0.025]"
-                        >
-                          {/* Student */}
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-400/10 bg-gradient-to-br from-cyan-400/10 to-blue-500/10 text-xs font-bold text-cyan-300">
-                                {getInitials(student)}
-                              </div>
+                        const email =
+                          getEmail(student);
 
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-white">
-                                  {name}
-                                </p>
+                        const className =
+                          getClassName(
+                            student
+                          );
 
-                                <div className="mt-1 flex items-center gap-1.5">
-                                  <Mail
-                                    size={11}
-                                    className="text-slate-600"
-                                  />
+                        const enrollmentStatus =
+                          getEnrollmentStatus(
+                            student
+                          );
 
-                                  <p className="max-w-[220px] truncate text-xs text-slate-500">
-                                    {student.email || "No email"}
+                        const accountStatus =
+                          getAccountStatus(
+                            student
+                          );
+
+                        const paymentStatus =
+                          getPaymentStatus(
+                            student
+                          );
+
+                        const registrationDate =
+                          student?.created_at ||
+                          student?.createdAt ||
+                          student?.registration_date ||
+                          student?.registrationDate;
+
+                        return (
+                          <motion.tr
+                            key={
+                              getEnrollmentId(
+                                student
+                              ) !== "—"
+                                ? getEnrollmentId(
+                                    student
+                                  )
+                                : index
+                            }
+                            initial={{
+                              opacity: 0,
+                            }}
+                            animate={{
+                              opacity: 1,
+                            }}
+                            transition={{
+                              delay:
+                                index *
+                                0.02,
+                            }}
+                            className="group transition hover:bg-white/[0.025]"
+                          >
+                            {/* Student */}
+
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-400/10 bg-cyan-400/[0.07] text-xs font-bold text-cyan-300">
+                                  {getInitials(
+                                    name
+                                  )}
+                                </div>
+
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-white">
+                                    {name}
+                                  </p>
+
+                                  <p className="mt-0.5 max-w-[220px] truncate text-xs text-slate-500">
+                                    {email}
                                   </p>
                                 </div>
                               </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Class */}
-                          <td className="px-5 py-4">
-                            <div className="inline-flex items-center gap-2">
-                              <BookOpen
-                                size={14}
-                                className="text-cyan-400/70"
-                              />
+                            {/* Class */}
 
-                              <span className="text-sm text-slate-300">
-                                {getClassName(student)}
+                            <td className="px-5 py-4">
+                              <span className="inline-flex items-center gap-2 text-sm text-slate-300">
+                                <GraduationCap
+                                  size={15}
+                                  className="text-slate-500"
+                                />
+
+                                {className}
                               </span>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Session */}
-                          <td className="px-5 py-4">
-                            <span className="text-xs text-slate-400">
-                              {student.academic_session || "—"}
-                            </span>
-                          </td>
+                            {/* Enrollment */}
 
-                          {/* Enrollment */}
-                          <td className="px-5 py-4">
-                            <StatusBadge
-                              status={getEnrollmentStatus(student)}
-                            />
-                          </td>
-
-                          {/* Account */}
-                          <td className="px-5 py-4">
-                            <StatusBadge
-                              status={getAccountStatus(student)}
-                            />
-                          </td>
-
-                          {/* Registered */}
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2">
-                              <CalendarDays
-                                size={13}
-                                className="text-slate-600"
+                            <td className="px-5 py-4">
+                              <StatusBadge
+                                status={
+                                  enrollmentStatus
+                                }
                               />
+                            </td>
 
-                              <span className="text-xs text-slate-400">
-                                {formatDate(student.created_at)}
+                            {/* Account */}
+
+                            <td className="px-5 py-4">
+                              <StatusBadge
+                                status={
+                                  accountStatus
+                                }
+                              />
+                            </td>
+
+                            {/* Payment */}
+
+                            <td className="px-5 py-4">
+                              <StatusBadge
+                                status={
+                                  paymentStatus
+                                }
+                              />
+                            </td>
+
+                            {/* Registered */}
+
+                            <td className="px-5 py-4">
+                              <span className="text-xs text-slate-500">
+                                {formatDate(
+                                  registrationDate
+                                )}
                               </span>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Action */}
-                          <td className="px-5 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedStudent(student)
-                              }
-                              className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.035] px-3 text-xs font-medium text-slate-300 transition hover:border-cyan-400/20 hover:bg-cyan-400/5 hover:text-cyan-300"
-                            >
-                              <Eye size={14} />
-                              View
-                            </button>
-                          </td>
-                        </motion.tr>
-                      );
-                    })}
+                            {/* Action */}
+
+                            <td className="px-5 py-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedStudent(
+                                    student
+                                  )
+                                }
+                                className="inline-flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] hover:text-cyan-200"
+                              >
+                                <Eye
+                                  size={14}
+                                />
+
+                                View
+                              </button>
+                            </td>
+                          </motion.tr>
+                        );
+                      }
+                    )}
                   </tbody>
                 </table>
               </div>
+            </div>
 
-              {/* Mobile cards */}
-              <div className="divide-y divide-white/5 md:hidden">
-                {filteredStudents.map((student, index) => {
-                  const name = getStudentName(student);
+            {/* =================================================
+                MOBILE / TABLET CARDS
+            ================================================= */}
+
+            <div className="mt-6 grid gap-4 lg:hidden">
+              {filteredStudents.map(
+                (student, index) => {
+                  const name =
+                    getStudentName(student);
+
+                  const email =
+                    getEmail(student);
+
+                  const phone =
+                    getPhone(student);
+
+                  const className =
+                    getClassName(student);
+
+                  const enrollmentStatus =
+                    getEnrollmentStatus(
+                      student
+                    );
+
+                  const accountStatus =
+                    getAccountStatus(
+                      student
+                    );
+
+                  const paymentStatus =
+                    getPaymentStatus(
+                      student
+                    );
+
+                  const registrationDate =
+                    student?.created_at ||
+                    student?.createdAt ||
+                    student?.registration_date ||
+                    student?.registrationDate;
 
                   return (
                     <motion.div
                       key={
-                        student.enrollment_id ||
-                        student.id ||
-                        `${name}-${index}`
+                        getEnrollmentId(
+                          student
+                        ) !== "—"
+                          ? getEnrollmentId(
+                              student
+                            )
+                          : index
                       }
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        delay: Math.min(index * 0.025, 0.25),
+                      initial={{
+                        opacity: 0,
+                        y: 10,
                       }}
-                      className="p-4"
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                      }}
+                      transition={{
+                        delay:
+                          index * 0.02,
+                      }}
+                      className="rounded-2xl border border-white/[0.07] bg-[#080d1c]/80 p-4 shadow-xl shadow-black/10 backdrop-blur-xl"
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-400/10 bg-cyan-400/5 text-xs font-bold text-cyan-300">
-                          {getInitials(student)}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-400/10 bg-cyan-400/[0.07] text-xs font-bold text-cyan-300">
+                            {getInitials(
+                              name
+                            )}
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-white">
+                              {name}
+                            </p>
+
+                            <p className="mt-1 truncate text-xs text-slate-500">
+                              {email}
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className="truncate text-sm font-semibold text-white">
-                                {name}
-                              </h3>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedStudent(
+                              student
+                            )
+                          }
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.03] text-slate-400 transition hover:bg-cyan-400/[0.06] hover:text-cyan-200"
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </div>
 
-                              <p className="mt-1 truncate text-xs text-slate-500">
-                                {student.email || "No email"}
-                              </p>
-                            </div>
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-600">
+                            Class
+                          </p>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedStudent(student)
-                              }
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-cyan-300"
-                            >
-                              <Eye size={14} />
-                            </button>
-                          </div>
+                          <p className="mt-1 text-xs font-medium text-slate-300">
+                            {className}
+                          </p>
+                        </div>
 
-                          <div className="mt-4 grid grid-cols-2 gap-2">
-                            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                              <p className="text-[9px] uppercase tracking-wider text-slate-600">
-                                Class
-                              </p>
+                        <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-600">
+                            Registered
+                          </p>
 
-                              <p className="mt-1 text-xs font-medium text-slate-300">
-                                {getClassName(student)}
-                              </p>
-                            </div>
-
-                            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                              <p className="text-[9px] uppercase tracking-wider text-slate-600">
-                                Session
-                              </p>
-
-                              <p className="mt-1 text-xs font-medium text-slate-300">
-                                {student.academic_session || "—"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <StatusBadge
-                              status={getEnrollmentStatus(student)}
-                            />
-
-                            <StatusBadge
-                              status={getAccountStatus(student)}
-                            />
-                          </div>
-
-                          <p className="mt-3 text-[11px] text-slate-600">
-                            Registered{" "}
-                            {formatDate(student.created_at)}
+                          <p className="mt-1 text-xs font-medium text-slate-300">
+                            {formatDate(
+                              registrationDate
+                            )}
                           </p>
                         </div>
                       </div>
+
+                      <div className="mt-4 space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs text-slate-500">
+                            Enrollment
+                          </span>
+
+                          <StatusBadge
+                            status={
+                              enrollmentStatus
+                            }
+                            small
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs text-slate-500">
+                            Account
+                          </span>
+
+                          <StatusBadge
+                            status={
+                              accountStatus
+                            }
+                            small
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs text-slate-500">
+                            Payment
+                          </span>
+
+                          <StatusBadge
+                            status={
+                              paymentStatus
+                            }
+                            small
+                          />
+                        </div>
+                      </div>
+
+                      {phone !== "—" && (
+                        <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                          <Phone size={13} />
+
+                          <span className="truncate">
+                            {phone}
+                          </span>
+                        </div>
+                      )}
                     </motion.div>
                   );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* =================================================
-            FOOTER INFO
-        ================================================= */}
-
-        {!loading && students.length > 0 && (
-          <div className="mt-4 flex flex-col gap-2 text-[11px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-            <p>
-              Live Academy enrollment records
-            </p>
-
-            <p>
-              Last loaded: {new Date().toLocaleTimeString("en-NG")}
-            </p>
-          </div>
+                }
+              )}
+            </div>
+          </>
         )}
       </div>
 
-      {/* =================================================
+      {/* =====================================================
           DETAILS MODAL
-      ================================================= */}
+      ===================================================== */}
 
-      {selectedStudent && (
-        <StudentDetailsModal
-          student={selectedStudent}
-          onClose={() => setSelectedStudent(null)}
-        />
-      )}
+      <AnimatePresence>
+        {selectedStudent && (
+          <StudentDetailsModal
+            student={selectedStudent}
+            onClose={() =>
+              setSelectedStudent(null)
+            }
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

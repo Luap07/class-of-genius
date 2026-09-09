@@ -24,9 +24,11 @@ import {
 
 const API_URL = (
   import.meta.env.VITE_API_URL || "http://localhost:5000"
-).replace(/\/$/, "");
+).replace(/\/+$/, "");
 
 const TUTOR_LOGIN_URL = `${API_URL}/api/academy/tutor-login`;
+
+const REQUEST_TIMEOUT = 15000;
 
 /* =========================================================
    STORAGE KEYS
@@ -35,8 +37,341 @@ const TUTOR_LOGIN_URL = `${API_URL}/api/academy/tutor-login`;
 const ACADEMY_TOKEN_KEY = "scholiqen_academy_token";
 const ACADEMY_USER_KEY = "scholiqen_academy_user";
 
+/*
+  These are also saved because some tutor pages/components
+  may still read one of the older tutor keys.
+*/
+const TUTOR_STORAGE_KEYS = [
+  "tutor",
+  "currentTutor",
+  "loggedInTutor",
+];
+
 /* =========================================================
-   SMALL COMPONENTS
+   HELPERS
+========================================================= */
+
+const clean = (value) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value).trim();
+};
+
+/* =========================================================
+   ARRAY HELPER
+========================================================= */
+
+const arrayFromValue = (value) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (value === null || value === undefined) {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    /*
+      JSON array
+    */
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Not JSON. Continue.
+    }
+
+    /*
+      Comma separated fallback
+    */
+    return trimmed
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+/* =========================================================
+   NORMALIZE ASSIGNMENTS
+========================================================= */
+
+const normalizeAssignmentClass = (value) => {
+  return clean(value)
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const normalizeAssignmentSubject = (value) => {
+  return clean(value)
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+/*
+  Converts all supported assignment formats into:
+
+  {
+    class: "JSS 1",
+    subject: "Mathematics"
+  }
+
+  The backend currently uses this format.
+*/
+
+const normalizeAssignments = (value) => {
+  const source = arrayFromValue(value);
+
+  const output = [];
+
+  source.forEach((item) => {
+    if (!item) {
+      return;
+    }
+
+    /*
+      Already an object
+    */
+    if (typeof item === "object" && !Array.isArray(item)) {
+      const className = normalizeAssignmentClass(
+        item.class ??
+          item.grade ??
+          item.level ??
+          item.className ??
+          item.class_name ??
+          ""
+      );
+
+      /*
+        Backend format:
+
+        {
+          class: "JSS 1",
+          subject: "Mathematics"
+        }
+      */
+
+      const directSubject = normalizeAssignmentSubject(
+        item.subject ??
+          item.subjectName ??
+          item.subject_name ??
+          ""
+      );
+
+      if (className && directSubject) {
+        output.push({
+          class: className,
+          subject: directSubject,
+        });
+      }
+
+      /*
+        Older format:
+
+        {
+          class: "JSS 1",
+          subjects: ["Mathematics", "English Language"]
+        }
+      */
+
+      const subjects = arrayFromValue(
+        item.subjects ??
+          item.subjectList ??
+          item.subject_list ??
+          []
+      );
+
+      subjects.forEach((subject) => {
+        const subjectName =
+          normalizeAssignmentSubject(subject);
+
+        if (className && subjectName) {
+          output.push({
+            class: className,
+            subject: subjectName,
+          });
+        }
+      });
+
+      return;
+    }
+
+    /*
+      String fallback:
+
+      "JSS 1 - Mathematics"
+      */
+
+    if (typeof item === "string") {
+      const value = item.trim();
+
+      if (!value) {
+        return;
+      }
+
+      const separators = [
+        " - ",
+        ":",
+        "|",
+        "/",
+      ];
+
+      for (const separator of separators) {
+        if (value.includes(separator)) {
+          const parts = value
+            .split(separator)
+            .map((part) => part.trim())
+            .filter(Boolean);
+
+          if (parts.length >= 2) {
+            const className =
+              normalizeAssignmentClass(parts[0]);
+
+            const subjectName =
+              normalizeAssignmentSubject(
+                parts.slice(1).join(" ")
+              );
+
+            if (className && subjectName) {
+              output.push({
+                class: className,
+                subject: subjectName,
+              });
+            }
+          }
+
+          break;
+        }
+      }
+    }
+  });
+
+  /*
+    Remove duplicates
+  */
+
+  const seen = new Set();
+
+  return output.filter((item) => {
+    const key =
+      `${item.class}::${item.subject}`.toLowerCase();
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+};
+
+/* =========================================================
+   GET TUTOR REFERENCE
+========================================================= */
+
+const getTutorReference = (tutor) => {
+  if (!tutor || typeof tutor !== "object") {
+    return "";
+  }
+
+  return clean(
+    tutor.reference ??
+      tutor.tutorReference ??
+      tutor.tutor_reference ??
+      tutor.referenceId ??
+      tutor.reference_id ??
+      ""
+  );
+};
+
+/* =========================================================
+   GET ALL ASSIGNMENTS FROM RESPONSE
+========================================================= */
+
+const getAssignmentsFromResponse = (data, tutorData) => {
+  const possibleSources = [
+    /*
+      Most important:
+      assignments inside tutor
+    */
+    tutorData?.assignments,
+    tutorData?.teaching_assignments,
+    tutorData?.teachingAssignments,
+    tutorData?.class_subject_assignments,
+    tutorData?.classSubjectAssignments,
+
+    /*
+      Backend may also return assignments at root
+    */
+    data?.assignments,
+    data?.teaching_assignments,
+    data?.teachingAssignments,
+    data?.class_subject_assignments,
+    data?.classSubjectAssignments,
+
+    /*
+      Nested data
+    */
+    data?.data?.assignments,
+    data?.data?.teaching_assignments,
+    data?.data?.teachingAssignments,
+    data?.data?.class_subject_assignments,
+    data?.data?.classSubjectAssignments,
+  ];
+
+  for (const source of possibleSources) {
+    const normalized = normalizeAssignments(source);
+
+    if (normalized.length > 0) {
+      return normalized;
+    }
+  }
+
+  return [];
+};
+
+/* =========================================================
+   BUILD CLASS / SUBJECT ARRAYS
+========================================================= */
+
+const uniqueArray = (values) => {
+  const seen = new Set();
+  const output = [];
+
+  arrayFromValue(values).forEach((value) => {
+    const cleaned = clean(value);
+
+    if (!cleaned) {
+      return;
+    }
+
+    const key = cleaned.toLowerCase();
+
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    output.push(cleaned);
+  });
+
+  return output;
+};
+
+/* =========================================================
+   SMALL INPUT COMPONENT
 ========================================================= */
 
 function InputField({
@@ -192,8 +527,8 @@ export default function TutorEnrollmentLogin() {
   const validate = () => {
     const nextErrors = {};
 
-    const name = form.name.trim();
-    const referenceId = form.referenceId.trim();
+    const name = clean(form.name);
+    const referenceId = clean(form.referenceId);
 
     if (!name) {
       nextErrors.name =
@@ -211,11 +546,56 @@ export default function TutorEnrollmentLogin() {
   };
 
   /* =======================================================
+     SAVE COMPLETE TUTOR SESSION
+  ======================================================= */
+
+  const saveTutorSession = (session) => {
+    const serialized = JSON.stringify(session);
+
+    /*
+      Main session
+    */
+    localStorage.setItem(
+      ACADEMY_USER_KEY,
+      serialized
+    );
+
+    /*
+      Compatibility keys for existing tutor pages.
+    */
+    TUTOR_STORAGE_KEYS.forEach((key) => {
+      localStorage.setItem(key, serialized);
+    });
+
+    /*
+      Useful aliases for older components.
+    */
+    localStorage.setItem(
+      "academyTutor",
+      serialized
+    );
+
+    localStorage.setItem(
+      "scholiqenTutor",
+      serialized
+    );
+
+    localStorage.setItem(
+      "tutorUser",
+      serialized
+    );
+  };
+
+  /* =======================================================
      LOGIN
   ======================================================= */
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (submitting) {
+      return;
+    }
 
     if (!validate()) {
       return;
@@ -224,24 +604,50 @@ export default function TutorEnrollmentLogin() {
     setSubmitting(true);
     setSubmitError("");
 
+    const controller = new AbortController();
+
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, REQUEST_TIMEOUT);
+
     try {
       const response = await fetch(TUTOR_LOGIN_URL, {
         method: "POST",
+
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
+
         body: JSON.stringify({
-          name: form.name.trim(),
-          referenceId: form.referenceId.trim(),
+          name: clean(form.name),
+          referenceId: clean(form.referenceId),
         }),
+
+        signal: controller.signal,
+
+        credentials: "same-origin",
       });
 
       let data = {};
 
-      try {
-        data = await response.json();
-      } catch {
-        data = {};
+      const contentType =
+        response.headers.get("content-type") || "";
+
+      if (contentType.includes("application/json")) {
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+      } else {
+        const text = await response.text();
+
+        data = {
+          message:
+            text ||
+            `Server returned HTTP ${response.status}.`,
+        };
       }
 
       /* ===================================================
@@ -250,76 +656,296 @@ export default function TutorEnrollmentLogin() {
 
       if (!response.ok || !data.success) {
         setSubmitError(
-          data.message ||
-            "Unable to sign in. Please check your name and reference ID."
+          clean(data.message) ||
+            clean(data.error) ||
+            `Unable to sign in. Server returned HTTP ${response.status}.`
         );
 
-        setSubmitting(false);
         return;
       }
 
       /* ===================================================
-         LOGIN SUCCESS
+         GET TUTOR DATA
       =================================================== */
 
-      const tutorData = data.tutor || {};
+      const tutorData = {
+        ...(data?.tutor || {}),
+        ...(data?.user || {}),
+        ...(data?.data?.tutor || {}),
+      };
 
       /*
-        IMPORTANT:
-
-        The TutorProtectedRoute in App.jsx expects:
-
-        scholiqen_academy_token
-        scholiqen_academy_user
-
-        So we save the tutor session using those exact keys.
+        If the backend put the tutor itself inside data.data,
+        preserve it too.
       */
+      if (
+        data?.data &&
+        typeof data.data === "object" &&
+        !Array.isArray(data.data)
+      ) {
+        Object.assign(tutorData, data.data);
+      }
+
+      /* ===================================================
+         GET REFERENCE
+      =================================================== */
+
+      const tutorReference =
+        getTutorReference(tutorData) ||
+        clean(data?.reference) ||
+        clean(data?.tutorReference) ||
+        clean(data?.tutor_reference) ||
+        clean(data?.data?.reference);
+
+      if (!tutorReference) {
+        console.error(
+          "Tutor login succeeded but backend did not return a tutor reference.",
+          {
+            response: data,
+            tutor: tutorData,
+          }
+        );
+
+        setSubmitError(
+          "Login succeeded, but your tutor reference was not returned by the server. Please contact the Academy administrator."
+        );
+
+        return;
+      }
+
+      /* ===================================================
+         GET ASSIGNMENTS
+      =================================================== */
+
+      const assignments =
+        getAssignmentsFromResponse(
+          data,
+          tutorData
+        );
+
+      /*
+        Build classes and subjects directly from assignments.
+
+        This is important because Create Task needs to know
+        exactly which class + subject belongs to the tutor.
+      */
+
+      const assignmentClasses = uniqueArray(
+        assignments.map((item) => item.class)
+      );
+
+      const assignmentSubjects = uniqueArray(
+        assignments.map((item) => item.subject)
+      );
+
+      /*
+        Preserve backend classes/subjects too, but assignments
+        remain the source of truth.
+      */
+
+      const backendClasses = uniqueArray(
+        tutorData?.classes ??
+          data?.classes ??
+          data?.data?.classes ??
+          []
+      );
+
+      const backendSubjects = uniqueArray(
+        tutorData?.subjects ??
+          data?.subjects ??
+          data?.data?.subjects ??
+          []
+      );
+
+      const classes = uniqueArray([
+        ...assignmentClasses,
+        ...backendClasses,
+      ]);
+
+      const subjects = uniqueArray([
+        ...assignmentSubjects,
+        ...backendSubjects,
+      ]);
+
+      /* ===================================================
+         BUILD COMPLETE TUTOR SESSION
+      =================================================== */
 
       const tutorSession = {
         ...tutorData,
+
+        /*
+          Identity
+        */
+        reference: tutorReference,
+        tutorReference,
+        tutor_reference: tutorReference,
+
+        /*
+          Account type
+        */
         userType: "tutor",
         user_type: "tutor",
+
+        /*
+          Teaching information
+        */
+        classes,
+        subjects,
+
+        /*
+          MOST IMPORTANT:
+          Exact class + subject assignments
+        */
+        assignments,
+
+        /*
+          Additional aliases for older components
+        */
+        teaching_assignments: assignments,
+        teachingAssignments: assignments,
+        class_subject_assignments: assignments,
+        classSubjectAssignments: assignments,
+
+        /*
+          Login timestamp
+        */
+        loggedInAt: new Date().toISOString(),
       };
 
-      localStorage.setItem(
-        ACADEMY_USER_KEY,
-        JSON.stringify(tutorSession)
+      /* ===================================================
+         DEBUG
+      =================================================== */
+
+      console.log(
+        "TUTOR LOGIN SUCCESS:",
+        {
+          reference: tutorReference,
+          classes,
+          subjects,
+          assignments,
+          tutorSession,
+        }
       );
 
-      if (data.token) {
+      /* ===================================================
+         SAVE TOKEN
+      =================================================== */
+
+      if (data?.token) {
         localStorage.setItem(
           ACADEMY_TOKEN_KEY,
-          data.token
+          String(data.token)
         );
       }
 
+      /* ===================================================
+         SAVE COMPLETE SESSION
+      =================================================== */
+
+      saveTutorSession(tutorSession);
+
+      /* ===================================================
+         VERIFY STORAGE
+      =================================================== */
+
+      const savedSession =
+        localStorage.getItem(
+          ACADEMY_USER_KEY
+        );
+
+      if (!savedSession) {
+        setSubmitError(
+          "Login succeeded, but your tutor session could not be saved. Please check your browser storage settings."
+        );
+
+        return;
+      }
+
       /*
-        Remove old tutor session keys if they exist.
-        This prevents an old session from causing conflicts.
+        Verify that assignments actually made it into storage.
       */
+      try {
+        const parsedSession =
+          JSON.parse(savedSession);
 
-      localStorage.removeItem("scholiqen-tutor");
-      localStorage.removeItem("scholiqen-tutor-token");
+        console.log(
+          "SAVED TUTOR SESSION:",
+          parsedSession
+        );
 
-      setTutor(tutorData);
+        console.log(
+          "SAVED TUTOR ASSIGNMENTS:",
+          parsedSession?.assignments || []
+        );
+      } catch (storageError) {
+        console.error(
+          "Could not verify saved tutor session:",
+          storageError
+        );
+      }
+
+      /* ===================================================
+         SUCCESS
+      =================================================== */
+
+      setTutor(tutorSession);
       setSuccess(true);
 
       /* ===================================================
-         REDIRECT TO TUTOR DASHBOARD
+         REDIRECT
       =================================================== */
 
-      setTimeout(() => {
+      window.setTimeout(() => {
         navigate("/academy/tutor", {
           replace: true,
+          state: {
+            tutor: tutorSession,
+            reference: tutorReference,
+            assignments,
+          },
         });
       }, 1200);
     } catch (error) {
-      console.error("TUTOR LOGIN ERROR:", error);
+      console.error(
+        "TUTOR LOGIN ERROR:",
+        error
+      );
+
+      if (error?.name === "AbortError") {
+        setSubmitError(
+          "The Academy server took too long to respond. Please make sure the backend server is running and try again."
+        );
+
+        return;
+      }
+
+      const errorMessage =
+        clean(error?.message);
+
+      if (
+        errorMessage
+          .toLowerCase()
+          .includes("failed to fetch") ||
+        errorMessage
+          .toLowerCase()
+          .includes("networkerror") ||
+        errorMessage
+          .toLowerCase()
+          .includes("network error")
+      ) {
+        setSubmitError(
+          `Cannot connect to the Academy server at ${API_URL}. Make sure your backend is running and that VITE_API_URL points to the correct server.`
+        );
+
+        return;
+      }
 
       setSubmitError(
         "Unable to connect to the Academy server. Please try again."
       );
-
+    } finally {
+      window.clearTimeout(timeoutId);
       setSubmitting(false);
     }
   };
@@ -333,6 +959,11 @@ export default function TutorEnrollmentLogin() {
       tutor?.first_name ||
       tutor?.firstName ||
       "";
+
+    const assignmentCount =
+      Array.isArray(tutor?.assignments)
+        ? tutor.assignments.length
+        : 0;
 
     return (
       <div
@@ -421,8 +1052,6 @@ export default function TutorEnrollmentLogin() {
             backdrop-blur-xl
           "
         >
-          {/* Success Icon */}
-
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -461,7 +1090,21 @@ export default function TutorEnrollmentLogin() {
               : "Tutor login successful."}
           </p>
 
-          {/* Loading */}
+          <div
+            className="
+              mt-4
+              text-xs
+              text-slate-500
+            "
+          >
+            {assignmentCount > 0
+              ? `${assignmentCount} teaching assignment${
+                  assignmentCount === 1
+                    ? ""
+                    : "s"
+                } loaded`
+              : "Loading your teaching assignments..."}
+          </div>
 
           <div
             className="
@@ -550,8 +1193,6 @@ export default function TutorEnrollmentLogin() {
           "
         />
 
-        {/* Dotted background */}
-
         <div
           className="
             absolute
@@ -584,8 +1225,6 @@ export default function TutorEnrollmentLogin() {
           lg:px-10
         "
       >
-        {/* Back */}
-
         <button
           type="button"
           onClick={() => navigate("/academy")}
@@ -610,8 +1249,6 @@ export default function TutorEnrollmentLogin() {
 
           Back to Academy
         </button>
-
-        {/* Logo */}
 
         <Link
           to="/"
@@ -680,8 +1317,6 @@ export default function TutorEnrollmentLogin() {
             }}
             className="hidden lg:block"
           >
-            {/* Badge */}
-
             <div
               className="
                 mb-6
@@ -703,8 +1338,6 @@ export default function TutorEnrollmentLogin() {
 
               SCHOLIQEN ACADEMY
             </div>
-
-            {/* Heading */}
 
             <h1
               className="
@@ -733,8 +1366,6 @@ export default function TutorEnrollmentLogin() {
               </span>
             </h1>
 
-            {/* Description */}
-
             <p
               className="
                 mt-6
@@ -749,11 +1380,7 @@ export default function TutorEnrollmentLogin() {
               your teaching activities.
             </p>
 
-            {/* Features */}
-
             <div className="mt-9 space-y-4">
-              {/* Feature 1 */}
-
               <div className="flex items-center gap-4">
                 <div
                   className="
@@ -785,8 +1412,6 @@ export default function TutorEnrollmentLogin() {
                   </p>
                 </div>
               </div>
-
-              {/* Feature 2 */}
 
               <div className="flex items-center gap-4">
                 <div
@@ -904,9 +1529,7 @@ export default function TutorEnrollmentLogin() {
                 </p>
               </div>
 
-              {/* =================================================
-                  ERROR
-              ================================================= */}
+              {/* ERROR */}
 
               <AnimatePresence>
                 {submitError && (
@@ -926,10 +1549,7 @@ export default function TutorEnrollmentLogin() {
                       height: 0,
                       y: -8,
                     }}
-                    className="
-                      mb-5
-                      overflow-hidden
-                    "
+                    className="mb-5 overflow-hidden"
                   >
                     <div
                       className="
@@ -952,7 +1572,7 @@ export default function TutorEnrollmentLogin() {
                         "
                       />
 
-                      <span>
+                      <span className="leading-6">
                         {submitError}
                       </span>
                     </div>
@@ -960,16 +1580,12 @@ export default function TutorEnrollmentLogin() {
                 )}
               </AnimatePresence>
 
-              {/* =================================================
-                  FORM
-              ================================================= */}
+              {/* FORM */}
 
               <form
                 onSubmit={handleSubmit}
                 className="space-y-5"
               >
-                {/* Full Name */}
-
                 <InputField
                   label="Registered Full Name"
                   icon={User}
@@ -985,8 +1601,6 @@ export default function TutorEnrollmentLogin() {
                   disabled={submitting}
                   autoComplete="name"
                 />
-
-                {/* Reference ID */}
 
                 <InputField
                   label="Reference ID"
@@ -1112,9 +1726,7 @@ export default function TutorEnrollmentLogin() {
                 </motion.button>
               </form>
 
-              {/* =================================================
-                  DIVIDER
-              ================================================= */}
+              {/* DIVIDER */}
 
               <div className="my-7 flex items-center gap-4">
                 <div className="h-px flex-1 bg-white/5" />
@@ -1126,9 +1738,7 @@ export default function TutorEnrollmentLogin() {
                 <div className="h-px flex-1 bg-white/5" />
               </div>
 
-              {/* =================================================
-                  REGISTER
-              ================================================= */}
+              {/* REGISTER */}
 
               <div className="text-center">
                 <p className="text-sm text-slate-500">
@@ -1160,9 +1770,7 @@ export default function TutorEnrollmentLogin() {
                 </button>
               </div>
 
-              {/* =================================================
-                  FOOTER
-              ================================================= */}
+              {/* FOOTER */}
 
               <div
                 className="

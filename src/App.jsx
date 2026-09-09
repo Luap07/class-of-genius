@@ -1,6 +1,6 @@
 // src/App.jsx
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 
 import {
   BrowserRouter as Router,
@@ -29,15 +29,22 @@ import LearningStats from "./pages/LearningStats";
 import ResetPassword from "./pages/ResetPassword";
 
 /* ============================================================
-   SCHOOLIQEN ACADEMY
+   SCHOLIQEN ACADEMY
 ============================================================ */
-import AcademyEnvironment from "./pages/academy/AcademyEnvironment";
 
+import AcademyEnvironment from "./pages/academy/AcademyEnvironment";
+import Academy from "./pages/Academy";
+import Academics from "./pages/academy/Academics";
 import TutorEnrollmentLogin from "./pages/academy/TutorEnrollmentLogin";
 import StudentEnrollmentLogin from "./pages/academy/StudentEnrollmentLogin";
 import StudentEnrollment from "./pages/academy/StudentEnrollment";
 import StudentPortal from "./pages/academy/StudentPortal";
 import TutorEnrollment from "./pages/academy/TutorEnrollment";
+import Resources from "./pages/academy/Resources";
+import Community from "./pages/academy/Community";
+import OurStory from "./pages/academy/OurStory";
+import TutorStudents from "./pages/academy/TutorStudents";
+import TutorCreateTask from "./pages/tutor/TutorCreateTask";
 
 /* ============================================================
    ADMIN
@@ -89,6 +96,15 @@ import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 import Navbar from "./components/Navbar";
 import Login from "./components/Login";
 import Contact from "./components/Contact";
+
+/*
+  IMPORTANT:
+
+  USE THE REAL AUTHENTICATION GUARD.
+
+  Do NOT define another ProtectedRoute inside this file.
+*/
+import ProtectedRoute from "./components/ProtectedRoute";
 
 /* ============================================================
    GENERAL
@@ -188,27 +204,14 @@ import ChatSupport from "./pages/support/ChatSupport";
 import DashboardLayout from "./layout/DashboardLayout";
 
 /* ============================================================
-   API CONFIG
-============================================================ */
-
-const API_URL = (
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000"
-).replace(/\/+$/, "");
-
-/* ============================================================
-   NORMAL AUTH KEYS
-============================================================ */
-
-const AUTH_TOKEN_KEY = "scholiqen_auth_token";
-const AUTH_USER_KEY = "scholiqen_current_user";
-
-/* ============================================================
    ACADEMY AUTH KEYS
 ============================================================ */
 
-const ACADEMY_TOKEN_KEY = "scholiqen_academy_token";
-const ACADEMY_USER_KEY = "scholiqen_academy_user";
+const ACADEMY_TOKEN_KEY =
+  "scholiqen_academy_token";
+
+const ACADEMY_USER_KEY =
+  "scholiqen_academy_user";
 
 /* ============================================================
    GET ACADEMY USER
@@ -216,7 +219,9 @@ const ACADEMY_USER_KEY = "scholiqen_academy_user";
 
 const getAcademyUser = () => {
   try {
-    const raw = localStorage.getItem(ACADEMY_USER_KEY);
+    const raw = localStorage.getItem(
+      ACADEMY_USER_KEY
+    );
 
     if (!raw) {
       return null;
@@ -234,253 +239,6 @@ const getAcademyUser = () => {
 };
 
 /* ============================================================
-   NORMAL PROTECTED ROUTE
-============================================================ */
-
-const ProtectedRoute = ({ children }) => {
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const checkAuthentication = async () => {
-      try {
-        /* ======================================================
-           ACADEMY USERS MUST NOT USE NORMAL AUTH
-        ====================================================== */
-
-        const academyUser = localStorage.getItem(
-          ACADEMY_USER_KEY
-        );
-
-        if (academyUser) {
-          try {
-            const parsedAcademyUser =
-              JSON.parse(academyUser);
-
-            const academyUserType = String(
-              parsedAcademyUser?.userType ||
-                parsedAcademyUser?.user_type ||
-                ""
-            )
-              .trim()
-              .toLowerCase();
-
-            if (
-              academyUserType === "student" ||
-              academyUserType === "tutor"
-            ) {
-              if (mounted) {
-                setAuthenticated(false);
-                setCheckingAuth(false);
-              }
-
-              return;
-            }
-          } catch {
-            // Ignore invalid Academy session.
-          }
-        }
-
-        /* ======================================================
-           NORMAL TOKEN
-        ====================================================== */
-
-        const token = localStorage.getItem(
-          AUTH_TOKEN_KEY
-        );
-
-        if (!token) {
-          if (mounted) {
-            setAuthenticated(false);
-            setCheckingAuth(false);
-          }
-
-          return;
-        }
-
-        /* ======================================================
-           VERIFY NORMAL TOKEN
-        ====================================================== */
-
-        const response = await fetch(
-          `${API_URL}/api/auth/me`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        let data = {};
-
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-
-        /* ======================================================
-           INVALID NORMAL SESSION
-        ====================================================== */
-
-        if (!response.ok) {
-          console.warn(
-            "Normal authentication session is invalid or expired."
-          );
-
-          localStorage.removeItem(
-            AUTH_TOKEN_KEY
-          );
-
-          localStorage.removeItem(
-            AUTH_USER_KEY
-          );
-
-          if (mounted) {
-            setAuthenticated(false);
-            setCheckingAuth(false);
-          }
-
-          return;
-        }
-
-        /* ======================================================
-           VALID NORMAL SESSION
-        ====================================================== */
-
-        if (data?.user) {
-          localStorage.setItem(
-            AUTH_USER_KEY,
-            JSON.stringify(data.user)
-          );
-
-          if (mounted) {
-            setAuthenticated(true);
-            setCheckingAuth(false);
-          }
-
-          return;
-        }
-
-        /* ======================================================
-           INVALID USER RESPONSE
-        ====================================================== */
-
-        localStorage.removeItem(
-          AUTH_TOKEN_KEY
-        );
-
-        localStorage.removeItem(
-          AUTH_USER_KEY
-        );
-
-        if (mounted) {
-          setAuthenticated(false);
-          setCheckingAuth(false);
-        }
-      } catch (error) {
-        console.error(
-          "Protected Route Authentication Error:",
-          error
-        );
-
-        /* ======================================================
-           FALLBACK TO CACHED NORMAL USER
-        ====================================================== */
-
-        const cachedUser = localStorage.getItem(
-          AUTH_USER_KEY
-        );
-
-        if (cachedUser) {
-          try {
-            const parsedUser = JSON.parse(
-              cachedUser
-            );
-
-            const cachedUserType =
-              parsedUser?.userType ||
-              parsedUser?.user_type;
-
-            const normalizedType = String(
-              cachedUserType || ""
-            )
-              .trim()
-              .toLowerCase();
-
-            const isAcademyUser =
-              normalizedType === "student" ||
-              normalizedType === "tutor";
-
-            if (
-              !isAcademyUser &&
-              parsedUser?.id &&
-              mounted
-            ) {
-              setAuthenticated(true);
-              setCheckingAuth(false);
-
-              return;
-            }
-          } catch {
-            // Ignore invalid cached user.
-          }
-        }
-
-        if (mounted) {
-          setAuthenticated(false);
-          setCheckingAuth(false);
-        }
-      }
-    };
-
-    checkAuthentication();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  /* ============================================================
-     LOADING
-  ============================================================ */
-
-  if (checkingAuth) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050816] text-white">
-        <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-cyan-400" />
-
-          <p className="mt-4 text-sm font-semibold text-slate-400">
-            Loading...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  /* ============================================================
-     NOT AUTHENTICATED
-  ============================================================ */
-
-  if (!authenticated) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
-  }
-
-  return children;
-};
-
-/* ============================================================
    ACADEMY STUDENT PROTECTED ROUTE
 ============================================================ */
 
@@ -488,12 +246,12 @@ const AcademyProtectedRoute = ({
   children,
 }) => {
   const [checkingAuth, setCheckingAuth] =
-    useState(true);
+    React.useState(true);
 
   const [authenticated, setAuthenticated] =
-    useState(false);
+    React.useState(false);
 
-  useEffect(() => {
+  React.useEffect(() => {
     let mounted = true;
 
     const checkAcademyAuthentication = () => {
@@ -620,12 +378,12 @@ const TutorProtectedRoute = ({
   children,
 }) => {
   const [checkingAuth, setCheckingAuth] =
-    useState(true);
+    React.useState(true);
 
   const [authenticated, setAuthenticated] =
-    useState(false);
+    React.useState(false);
 
-  useEffect(() => {
+  React.useEffect(() => {
     let mounted = true;
 
     const checkTutorAuthentication = () => {
@@ -684,7 +442,7 @@ const TutorProtectedRoute = ({
         }
 
         /* ==================================================
-           REFERENCE IS REQUIRED
+           REFERENCE
         ================================================== */
 
         if (!user?.reference) {
@@ -876,7 +634,7 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            NORMAL LOGIN
+            LOGIN
         ===================================================== */}
 
         <Route
@@ -885,7 +643,7 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            NORMAL PROFILE
+            PROFILE
         ===================================================== */}
 
         <Route
@@ -967,10 +725,10 @@ const AnimatedRoutes = () => {
         />
 
         <Route
-          path="/about"
+          path="/our-story"
           element={
             <PageWrapper>
-              <About />
+              <OurStory />
             </PageWrapper>
           }
         />
@@ -978,14 +736,6 @@ const AnimatedRoutes = () => {
         {/* =====================================================
             SCHOLIQEN ACADEMY
         ===================================================== */}
-
-        {/* -----------------------------------------------------
-            ACADEMY ENVIRONMENT
-
-            THIS IS THE IMPORTANT ROUTE.
-
-            /academy DOES NOT GO TO ENROLLMENT.
-        ----------------------------------------------------- */}
 
         <Route
           path="/academy"
@@ -998,9 +748,18 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* -----------------------------------------------------
+        <Route
+          path="/academy/sign-in"
+          element={
+            <PageWrapper>
+              <Academy />
+            </PageWrapper>
+          }
+        />
+
+        {/* =====================================================
             STUDENT LOGIN
-        ----------------------------------------------------- */}
+        ===================================================== */}
 
         <Route
           path="/academy/student-enrollment-login"
@@ -1011,9 +770,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* -----------------------------------------------------
+        {/* =====================================================
             STUDENT ENROLLMENT
-        ----------------------------------------------------- */}
+        ===================================================== */}
 
         <Route
           path="/academy/student-enrollment"
@@ -1024,9 +783,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* -----------------------------------------------------
+        {/* =====================================================
             STUDENT PORTAL
-        ----------------------------------------------------- */}
+        ===================================================== */}
 
         <Route
           path="/academy/student-portal"
@@ -1039,9 +798,39 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* -----------------------------------------------------
+        {/* =====================================================
+            TUTOR STUDENTS
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/students"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Students">
+                <TutorStudents />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            CREATE TASK
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/tasks/create"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Create Task">
+                <TutorCreateTask />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
             TUTOR REGISTRATION
-        ----------------------------------------------------- */}
+        ===================================================== */}
 
         <Route
           path="/academy/tutor-register"
@@ -1052,9 +841,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* -----------------------------------------------------
+        {/* =====================================================
             TUTOR LOGIN
-        ----------------------------------------------------- */}
+        ===================================================== */}
 
         <Route
           path="/academy/login"
@@ -1065,9 +854,61 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* -----------------------------------------------------
+        {/* =====================================================
+            ACADEMICS
+        ===================================================== */}
+
+        <Route
+          path="/academics"
+          element={
+            <PageWrapper>
+              <Academics />
+            </PageWrapper>
+          }
+        />
+
+        {/* =====================================================
+            COMMUNITY
+        ===================================================== */}
+
+        <Route
+          path="/community"
+          element={
+            <PageWrapper>
+              <Community />
+            </PageWrapper>
+          }
+        />
+
+        {/* =====================================================
+            RESOURCES
+        ===================================================== */}
+
+        <Route
+          path="/resources"
+          element={
+            <PageWrapper>
+              <Resources />
+            </PageWrapper>
+          }
+        />
+
+        {/* =====================================================
+            ABOUT
+        ===================================================== */}
+
+        <Route
+          path="/about"
+          element={
+            <PageWrapper>
+              <OurStory />
+            </PageWrapper>
+          }
+        />
+
+        {/* =====================================================
             TUTOR DASHBOARD
-        ----------------------------------------------------- */}
+        ===================================================== */}
 
         <Route
           path="/academy/tutor"
@@ -1080,9 +921,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* -----------------------------------------------------
+        {/* =====================================================
             TUTOR CLASSES
-        ----------------------------------------------------- */}
+        ===================================================== */}
 
         <Route
           path="/academy/tutor/classes"
@@ -1095,9 +936,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* -----------------------------------------------------
+        {/* =====================================================
             TUTOR CLASS DETAILS
-        ----------------------------------------------------- */}
+        ===================================================== */}
 
         <Route
           path="/academy/tutor/classes/:grade"
@@ -1110,11 +951,9 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* -----------------------------------------------------
+        {/* =====================================================
             FUTURE TUTOR ROUTES
-
-            This must come AFTER the specific tutor routes.
-        ----------------------------------------------------- */}
+        ===================================================== */}
 
         <Route
           path="/academy/tutor/*"
@@ -1146,9 +985,7 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/languages"
-          element={
-            <LanguagesHome />
-          }
+          element={<LanguagesHome />}
         />
 
         <Route
@@ -1177,23 +1014,17 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/support"
-          element={
-            <SupportHome />
-          }
+          element={<SupportHome />}
         />
 
         <Route
           path="/support/chat"
-          element={
-            <ChatSupport />
-          }
+          element={<ChatSupport />}
         />
 
         <Route
           path="/support/faq"
-          element={
-            <FAQ />
-          }
+          element={<FAQ />}
         />
 
         {/* =====================================================
@@ -1309,7 +1140,7 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            DASHBOARD LAYOUT
+            DASHBOARD
         ===================================================== */}
 
         <Route
@@ -1321,51 +1152,37 @@ const AnimatedRoutes = () => {
         >
           <Route
             path="/dashboard"
-            element={
-              <Dashboard />
-            }
+            element={<Dashboard />}
           />
 
           <Route
             path="/libraries"
-            element={
-              <Libraries />
-            }
+            element={<Libraries />}
           />
 
           <Route
             path="/downloads"
-            element={
-              <Downloads />
-            }
+            element={<Downloads />}
           />
 
           <Route
             path="/history"
-            element={
-              <History />
-            }
+            element={<History />}
           />
 
           <Route
             path="/connects"
-            element={
-              <Connects />
-            }
+            element={<Connects />}
           />
 
           <Route
             path="/requests"
-            element={
-              <Requests />
-            }
+            element={<Requests />}
           />
 
           <Route
             path="/connections"
-            element={
-              <Connections />
-            }
+            element={<Connections />}
           />
         </Route>
 
@@ -1451,7 +1268,7 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            PDF READER
+            PDF
         ===================================================== */}
 
         <Route
@@ -1466,7 +1283,7 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            VIDEO READER
+            VIDEO
         ===================================================== */}
 
         <Route
@@ -1661,16 +1478,12 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/universities"
-          element={
-            <Universities />
-          }
+          element={<Universities />}
         />
 
         <Route
           path="/universities/:id"
-          element={
-            <UniversityDetails />
-          }
+          element={<UniversityDetails />}
         />
 
         {/* =====================================================
@@ -1679,16 +1492,12 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/colleges"
-          element={
-            <Colleges />
-          }
+          element={<Colleges />}
         />
 
         <Route
           path="/colleges/:id"
-          element={
-            <CollegeDetails />
-          }
+          element={<CollegeDetails />}
         />
 
         {/* =====================================================
@@ -1697,16 +1506,12 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/polytechnics"
-          element={
-            <Polytechnics />
-          }
+          element={<Polytechnics />}
         />
 
         <Route
           path="/polytechnics/:id"
-          element={
-            <PolytechnicDetails />
-          }
+          element={<PolytechnicDetails />}
         />
 
         {/* =====================================================

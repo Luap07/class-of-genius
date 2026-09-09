@@ -6,10 +6,8 @@ import React, {
 } from "react";
 
 import {
-  Activity,
   ArrowRight,
   BookOpen,
-  CheckCircle2,
   ChevronDown,
   GraduationCap,
   Layers3,
@@ -18,9 +16,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
-  Users,
   XCircle,
-  Clock3,
 } from "lucide-react";
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -86,7 +82,8 @@ function arrayFromValue(value) {
 
   if (typeof value === "string") {
     try {
-      const parsed = JSON.parse(value);
+      const parsed =
+        JSON.parse(value);
 
       if (Array.isArray(parsed)) {
         return [
@@ -118,7 +115,10 @@ function arrayFromValue(value) {
    SUBJECT MATCHING
 ========================================================= */
 
-function subjectMatches(first, second) {
+function subjectMatches(
+  first,
+  second
+) {
   const a = normalize(first);
   const b = normalize(second);
 
@@ -278,7 +278,10 @@ function normalizeGrade(value) {
     );
 }
 
-function gradeMatches(first, second) {
+function gradeMatches(
+  first,
+  second
+) {
   return (
     normalizeGrade(first) ===
     normalizeGrade(second)
@@ -289,7 +292,9 @@ function gradeMatches(first, second) {
    SCHOOL LEVEL
 ========================================================= */
 
-function getSchoolLevel(grade) {
+function getSchoolLevel(
+  grade
+) {
   const value =
     normalizeGrade(grade);
 
@@ -312,28 +317,6 @@ function getSchoolLevel(grade) {
   }
 
   return "Other";
-}
-
-/* =========================================================
-   STATUS
-========================================================= */
-
-function normalizeStatus(value) {
-  return normalize(value).replace(
-    /[\s-]+/g,
-    "_"
-  );
-}
-
-function isVerifiedStatus(value) {
-  const status =
-    normalizeStatus(value);
-
-  return (
-    status === "verified" ||
-    status === "active" ||
-    status === "approved"
-  );
 }
 
 /* =========================================================
@@ -395,7 +378,9 @@ function extractTutor(value) {
   return null;
 }
 
-function findTutorInStorage(storage) {
+function findTutorInStorage(
+  storage
+) {
   if (!storage) {
     return null;
   }
@@ -532,6 +517,114 @@ async function fetchWithTimeout(
 }
 
 /* =========================================================
+   ACCENT PALETTES
+========================================================= */
+
+const CARD_ACCENTS = [
+  {
+    border:
+      "border-cyan-400/15",
+    glow:
+      "bg-cyan-400/10",
+    icon:
+      "border-cyan-400/15 bg-cyan-400/10",
+    iconText:
+      "text-cyan-300",
+    label:
+      "text-cyan-300/70",
+    badge:
+      "border-cyan-400/15 bg-cyan-400/5 text-cyan-200",
+    line:
+      "bg-cyan-400",
+  },
+
+  {
+    border:
+      "border-violet-400/15",
+    glow:
+      "bg-violet-400/10",
+    icon:
+      "border-violet-400/15 bg-violet-400/10",
+    iconText:
+      "text-violet-300",
+    label:
+      "text-violet-300/70",
+    badge:
+      "border-violet-400/15 bg-violet-400/5 text-violet-200",
+    line:
+      "bg-violet-400",
+  },
+
+  {
+    border:
+      "border-blue-400/15",
+    glow:
+      "bg-blue-400/10",
+    icon:
+      "border-blue-400/15 bg-blue-400/10",
+    iconText:
+      "text-blue-300",
+    label:
+      "text-blue-300/70",
+    badge:
+      "border-blue-400/15 bg-blue-400/5 text-blue-200",
+    line:
+      "bg-blue-400",
+  },
+
+  {
+    border:
+      "border-emerald-400/15",
+    glow:
+      "bg-emerald-400/10",
+    icon:
+      "border-emerald-400/15 bg-emerald-400/10",
+    iconText:
+      "text-emerald-300",
+    label:
+      "text-emerald-300/70",
+    badge:
+      "border-emerald-400/15 bg-emerald-400/5 text-emerald-200",
+    line:
+      "bg-emerald-400",
+  },
+
+  {
+    border:
+      "border-amber-400/15",
+    glow:
+      "bg-amber-400/10",
+    icon:
+      "border-amber-400/15 bg-amber-400/10",
+    iconText:
+      "text-amber-300",
+    label:
+      "text-amber-300/70",
+    badge:
+      "border-amber-400/15 bg-amber-400/5 text-amber-200",
+    line:
+      "bg-amber-400",
+  },
+
+  {
+    border:
+      "border-pink-400/15",
+    glow:
+      "bg-pink-400/10",
+    icon:
+      "border-pink-400/15 bg-pink-400/10",
+    iconText:
+      "text-pink-300",
+    label:
+      "text-pink-300/70",
+    badge:
+      "border-pink-400/15 bg-pink-400/5 text-pink-200",
+    line:
+      "bg-pink-400",
+  },
+];
+
+/* =========================================================
    STAT CARD
 ========================================================= */
 
@@ -592,8 +685,6 @@ function StatCard({
           >
             <Icon className="h-5 w-5 text-cyan-300" />
           </div>
-
-          <Activity className="h-4 w-4 text-white/20" />
         </div>
 
         <div className="mt-5">
@@ -623,8 +714,10 @@ function ClassCard({
   index,
   onOpen,
 }) {
-  const active =
-    Boolean(item.active);
+  const accent =
+    CARD_ACCENTS[
+      index % CARD_ACCENTS.length
+    ];
 
   return (
     <motion.div
@@ -638,213 +731,158 @@ function ClassCard({
       }}
       transition={{
         delay: index * 0.04,
+        duration: 0.35,
       }}
       whileHover={{
-        y: -4,
+        y: -5,
       }}
-      className="
+      className={`
         group relative overflow-hidden
         rounded-2xl
-        border border-white/10
+        border
+        ${accent.border}
         bg-white/[0.035]
         backdrop-blur-xl
-      "
+        transition-shadow
+        hover:shadow-2xl
+      `}
     >
+      {/* TOP ACCENT */}
+
+      <div
+        className={`
+          absolute left-0 right-0 top-0
+          h-[2px]
+          ${accent.line}
+          opacity-70
+        `}
+      />
+
+      {/* GLOW */}
+
       <div
         className={`
           pointer-events-none
-          absolute -right-16 -top-16
-          h-36 w-36
+          absolute -right-20 -top-20
+          h-44 w-44
           rounded-full
           blur-3xl
-          ${
-            active
-              ? "bg-emerald-400/10"
-              : "bg-white/5"
-          }
+          ${accent.glow}
+          opacity-70
         `}
       />
 
       <div className="relative p-5">
         {/* HEADER */}
 
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <div
-              className="
+              className={`
                 flex h-12 w-12
                 shrink-0 items-center
                 justify-center
                 rounded-xl
-                border border-cyan-400/10
-                bg-gradient-to-br
-                from-cyan-500/20
-                to-blue-500/10
-              "
+                border
+                ${accent.icon}
+              `}
             >
               <GraduationCap
-                className="h-6 w-6 text-cyan-300"
+                className={`
+                  h-6 w-6
+                  ${accent.iconText}
+                `}
               />
             </div>
 
             <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.15em] text-white/30">
+              <p
+                className={`
+                  text-[10px]
+                  font-bold
+                  uppercase
+                  tracking-[0.18em]
+                  ${accent.label}
+                `}
+              >
                 {item.schoolLevel}
               </p>
 
-              <h3 className="mt-1 truncate text-lg font-bold text-white">
+              <h3 className="mt-1 truncate text-lg font-black text-white">
                 {item.grade}
               </h3>
             </div>
           </div>
 
-          <span
-            className={`
-              inline-flex shrink-0
-              items-center gap-1.5
-              rounded-full
-              border
-              px-2.5 py-1
-              text-[11px] font-bold
-              ${
-                active
-                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
-                  : "border-white/10 bg-white/5 text-white/40"
-              }
-            `}
-          >
-            {active ? (
-              <CheckCircle2 className="h-3.5 w-3.5" />
-            ) : (
-              <Clock3 className="h-3.5 w-3.5" />
-            )}
+          {/* VISUAL INDICATOR ONLY */}
 
-            {active
-              ? "Active"
-              : "Awaiting Students"}
-          </span>
+          <div
+            className={`
+              h-2.5 w-2.5
+              shrink-0
+              rounded-full
+              ${accent.line}
+              shadow-lg
+            `}
+          />
+        </div>
+
+        {/* CLASS */}
+
+        <div className="mt-5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">
+            Teaching Class
+          </p>
+
+          <p className="mt-2 text-base font-bold text-white">
+            {item.grade}
+          </p>
         </div>
 
         {/* SUBJECT */}
 
         <div
           className="
-            mt-5 rounded-xl
+            mt-4 rounded-xl
             border border-white/8
             bg-black/20
             p-4
           "
         >
           <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-violet-300" />
+            <BookOpen
+              className={`
+                h-4 w-4
+                ${accent.iconText}
+              `}
+            />
 
-            <span className="text-xs uppercase tracking-[0.15em] text-white/30">
-              Subject
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/30">
+              Registered Subject
             </span>
           </div>
 
-          <p className="mt-2 text-base font-bold text-white">
+          <p className="mt-2 text-base font-black text-white">
             {item.subject}
           </p>
         </div>
 
-        {/* STUDENTS */}
+        {/* REGISTRATION INDICATOR */}
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 flex items-center gap-2">
           <div
-            className="
-              rounded-xl
-              border border-white/8
-              bg-white/[0.025]
-              p-3
-            "
-          >
-            <p className="text-[10px] uppercase tracking-wider text-white/30">
-              Applied
-            </p>
+            className={`
+              h-1.5 w-1.5
+              rounded-full
+              ${accent.line}
+            `}
+          />
 
-            <p className="mt-1 text-lg font-bold text-white">
-              {item.studentCount ??
-                0}
-            </p>
-          </div>
-
-          <div
-            className="
-              rounded-xl
-              border border-white/8
-              bg-white/[0.025]
-              p-3
-            "
-          >
-            <p className="text-[10px] uppercase tracking-wider text-white/30">
-              Verified
-            </p>
-
-            <p className="mt-1 text-lg font-bold text-emerald-300">
-              {item.verifiedStudentCount ??
-                0}
-            </p>
-          </div>
-
-          <div
-            className="
-              rounded-xl
-              border border-white/8
-              bg-white/[0.025]
-              p-3
-            "
-          >
-            <p className="text-[10px] uppercase tracking-wider text-white/30">
-              Pending
-            </p>
-
-            <p className="mt-1 text-lg font-bold text-amber-300">
-              {item.pendingStudentCount ??
-                0}
-            </p>
-          </div>
+          <span className="text-xs text-white/35">
+            Selected during registration
+          </span>
         </div>
 
-        {/* FOOTER */}
-
-        <div className="mt-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-white/35">
-            <Users className="h-4 w-4" />
-
-            {item.studentCount ??
-              0}{" "}
-            student
-            {Number(
-              item.studentCount
-            ) === 1
-              ? ""
-              : "s"}
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              onOpen(item)
-            }
-            className="
-              inline-flex items-center
-              gap-2 rounded-xl
-              border border-cyan-400/15
-              bg-cyan-400/10
-              px-3.5 py-2
-              text-xs font-bold
-              text-cyan-200
-              transition
-              hover:border-cyan-400/30
-              hover:bg-cyan-400/15
-            "
-          >
-            Open
-
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
       </div>
     </motion.div>
   );
@@ -882,14 +920,14 @@ function EmptyState({
       </div>
 
       <h3 className="mt-5 text-lg font-bold text-white">
-        No assigned classes found
+        No registered classes found
       </h3>
 
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/40">
         {search ||
         filter !== "all"
-          ? "Try changing your search or filters."
-          : "Your registered teaching classes and subjects will appear here."}
+          ? "Try changing your search or level filter."
+          : "The classes and subjects you selected during registration will appear here."}
       </p>
     </div>
   );
@@ -938,9 +976,6 @@ export default function TutorClasses() {
     useState("");
 
   const [levelFilter, setLevelFilter] =
-    useState("all");
-
-  const [statusFilter, setStatusFilter] =
     useState("all");
 
   /* =======================================================
@@ -1041,7 +1076,7 @@ export default function TutorClasses() {
           ) {
             throw new Error(
               result.message ||
-                `Unable to load tutor classes (${response.status}).`
+                `Unable to load tutor registration (${response.status}).`
             );
           }
 
@@ -1064,7 +1099,7 @@ export default function TutorClasses() {
           } else {
             setError(
               requestError?.message ||
-                "Unable to load your classes."
+                "Unable to load your registration."
             );
           }
         } finally {
@@ -1114,53 +1149,167 @@ export default function TutorClasses() {
   ]);
 
   /* =======================================================
-     REGISTERED COURSES
+     REGISTERED COURSES / CLASSES
      
-     IMPORTANT:
-     These are the ONLY courses/classes allowed to appear
-     inside Assigned Courses.
+     These are taken directly from tutor registration.
   ======================================================= */
 
   const selectedCourses =
     useMemo(() => {
-      return Array.isArray(
-        data?.selection?.courses
-      )
-        ? [
-            ...new Set(
-              data.selection.courses
-                .map(clean)
-                .filter(Boolean)
-            ),
-          ]
-        : [];
+      const direct =
+        data?.selection?.courses;
+
+      const fallback =
+        data?.tutor?.courses;
+
+      return [
+        ...new Set(
+          arrayFromValue(
+            direct ??
+              fallback
+          )
+        ),
+      ];
     }, [data]);
 
   /* =======================================================
      REGISTERED SUBJECTS
      
-     IMPORTANT:
-     These are the ONLY subjects allowed to appear in
-     teaching assignment combinations.
+     These are the EXACT subjects selected during registration.
   ======================================================= */
 
   const selectedSubjects =
     useMemo(() => {
-      return Array.isArray(
-        data?.selection?.subjects
-      )
-        ? [
-            ...new Set(
-              data.selection.subjects
-                .map(clean)
-                .filter(Boolean)
-            ),
-          ]
-        : [];
+      const direct =
+        data?.selection?.subjects;
+
+      const fallback =
+        data?.tutor?.subjects;
+
+      return [
+        ...new Set(
+          arrayFromValue(
+            direct ??
+              fallback
+          )
+        ),
+      ];
     }, [data]);
 
   /* =======================================================
-     RAW BACKEND CLASSES
+     CREATE REGISTERED CLASS + SUBJECT CARDS
+     
+     IMPORTANT:
+     
+     We do NOT depend on backend student records to decide
+     what the tutor teaches.
+
+     Every registered class is paired with every registered
+     subject.
+
+     Example:
+
+       Courses:
+       - Primary 5
+       - JSS 2
+
+       Subjects:
+       - Mathematics
+       - English Language
+
+     Result:
+
+       Primary 5 — Mathematics
+       Primary 5 — English Language
+       JSS 2 — Mathematics
+       JSS 2 — English Language
+  ======================================================= */
+
+  const registeredAssignments =
+    useMemo(() => {
+      if (
+        !selectedCourses.length ||
+        !selectedSubjects.length
+      ) {
+        return [];
+      }
+
+      const result = [];
+      const seen = new Set();
+
+      selectedCourses.forEach(
+        (course) => {
+          selectedSubjects.forEach(
+            (subject) => {
+              const grade =
+                clean(course);
+
+              const subjectName =
+                clean(subject);
+
+              if (
+                !grade ||
+                !subjectName
+              ) {
+                return;
+              }
+
+              const key =
+                `${normalizeGrade(
+                  grade
+                )}::${normalize(
+                  subjectName
+                )}`;
+
+              if (seen.has(key)) {
+                return;
+              }
+
+              seen.add(key);
+
+              result.push({
+                id: key,
+
+                grade,
+
+                subject:
+                  subjectName,
+
+                schoolLevel:
+                  getSchoolLevel(
+                    grade
+                  ),
+
+                /*
+                 * This is intentionally only an
+                 * assignment marker.
+                 *
+                 * It is NOT student status,
+                 * verification status,
+                 * payment status,
+                 * or class activity status.
+                 */
+                registered: true,
+              });
+            }
+          );
+        }
+      );
+
+      return result;
+    }, [
+      selectedCourses,
+      selectedSubjects,
+    ]);
+
+  /* =======================================================
+     OPTIONAL BACKEND DATA
+     
+     We only use backend class data for extra metadata when
+     it matches a registered class + subject.
+
+     Backend data NEVER creates an assignment outside
+     registration.
   ======================================================= */
 
   const backendClasses =
@@ -1172,139 +1321,52 @@ export default function TutorClasses() {
         : [];
     }, [data]);
 
-  /* =======================================================
-     ASSIGNED CLASSES
-     
-     HARD FILTER:
-     
-     A backend card is allowed ONLY IF:
-     
-     1. Its grade/class exists in tutor registration.
-     2. Its subject exists in tutor registration.
-     
-     This prevents any unrelated class from appearing even
-     if the backend/database happens to return it.
-  ======================================================= */
-
-  const classes = useMemo(() => {
-    if (
-      !selectedCourses.length ||
-      !selectedSubjects.length
-    ) {
-      return [];
-    }
-
-    return backendClasses.filter(
-      (item) => {
-        const registeredCourse =
-          selectedCourses.some(
-            (course) =>
-              gradeMatches(
-                course,
-                item.grade
-              )
-          );
-
-        if (!registeredCourse) {
-          return false;
-        }
-
-        const registeredSubject =
-          selectedSubjects.some(
-            (subject) =>
-              subjectMatches(
-                subject,
-                item.subject
-              )
-          );
-
-        if (!registeredSubject) {
-          return false;
-        }
-
-        return true;
-      }
-    );
-  }, [
-    backendClasses,
-    selectedCourses,
-    selectedSubjects,
-  ]);
-
-  /* =======================================================
-     EXTRA SAFETY
-     
-     Make sure every registered course can only produce
-     assignment cards using the tutor's registered subjects.
-     
-     If the backend did not return a card for a registered
-     combination, we DO NOT invent one here because student
-     counts belong to the backend.
-  ======================================================= */
-
-  const assignedClasses =
+  const enrichedAssignments =
     useMemo(() => {
-      const result = [];
-      const seen = new Set();
+      return registeredAssignments.map(
+        (registered) => {
+          const backendMatch =
+            backendClasses.find(
+              (item) =>
+                gradeMatches(
+                  item?.grade,
+                  registered.grade
+                ) &&
+                subjectMatches(
+                  item?.subject,
+                  registered.subject
+                )
+            );
 
-      classes.forEach((item) => {
-        const grade =
-          clean(item.grade);
+          return {
+            ...registered,
 
-        const subject =
-          clean(item.subject);
+            /*
+             * Keep the registered values as the
+             * source of truth.
+             */
+            grade:
+              registered.grade,
 
-        if (
-          !grade ||
-          !subject
-        ) {
-          return;
+            subject:
+              registered.subject,
+
+            schoolLevel:
+              registered.schoolLevel,
+
+            /*
+             * Only carry harmless metadata.
+             * No student/status fields are used.
+             */
+            backendId:
+              backendMatch?.id ||
+              null,
+          };
         }
-
-        const matchingCourse =
-          selectedCourses.some(
-            (course) =>
-              gradeMatches(
-                course,
-                grade
-              )
-          );
-
-        const matchingSubject =
-          selectedSubjects.some(
-            (registeredSubject) =>
-              subjectMatches(
-                registeredSubject,
-                subject
-              )
-          );
-
-        if (
-          !matchingCourse ||
-          !matchingSubject
-        ) {
-          return;
-        }
-
-        const key =
-          `${normalizeGrade(
-            grade
-          )}::${normalize(subject)}`;
-
-        if (seen.has(key)) {
-          return;
-        }
-
-        seen.add(key);
-
-        result.push(item);
-      });
-
-      return result;
+      );
     }, [
-      classes,
-      selectedCourses,
-      selectedSubjects,
+      registeredAssignments,
+      backendClasses,
     ]);
 
   /* =======================================================
@@ -1316,7 +1378,7 @@ export default function TutorClasses() {
       const searchValue =
         normalize(search);
 
-      return assignedClasses.filter(
+      return enrichedAssignments.filter(
         (item) => {
           const grade =
             clean(item.grade);
@@ -1358,111 +1420,73 @@ export default function TutorClasses() {
                 levelFilter
               );
 
-          const matchesStatus =
-            statusFilter ===
-              "all" ||
-            (
-              statusFilter ===
-                "active"
-                ? Boolean(
-                    item.active
-                  )
-                : !Boolean(
-                    item.active
-                  )
-            );
-
           return (
             matchesSearch &&
-            matchesLevel &&
-            matchesStatus
+            matchesLevel
           );
         }
       );
     }, [
-      assignedClasses,
+      enrichedAssignments,
       search,
       levelFilter,
-      statusFilter,
     ]);
 
   /* =======================================================
      STATS
      
-     Total Courses is ALWAYS the number of courses selected
-     during tutor registration.
+     Only registration information.
+     
+     NO:
+     - Applied
+     - Verified
+     - Pending
+     - Active
+     - Student count
   ======================================================= */
 
   const stats =
     useMemo(() => {
-      const backend =
-        data?.stats || {};
-
       return {
         totalCourses:
           selectedCourses.length,
 
-        totalStudents:
-          Number(
-            backend.totalStudents
-          ) || 0,
-
         totalSubjects:
           selectedSubjects.length,
 
-        activeClasses:
-          Number(
-            backend.activeClasses
-          ) || 0,
-
         totalAssignments:
-          assignedClasses.length,
+          enrichedAssignments.length,
+
+        primary:
+          selectedCourses.filter(
+            (course) =>
+              getSchoolLevel(
+                course
+              ) === "Primary"
+          ).length,
+
+        juniorSecondary:
+          selectedCourses.filter(
+            (course) =>
+              getSchoolLevel(
+                course
+              ) ===
+              "Junior Secondary"
+          ).length,
+
+        seniorSecondary:
+          selectedCourses.filter(
+            (course) =>
+              getSchoolLevel(
+                course
+              ) ===
+              "Senior Secondary"
+          ).length,
       };
     }, [
-      data,
       selectedCourses,
       selectedSubjects,
-      assignedClasses,
-    ]);
-
-  /* =======================================================
-     LEVEL SUMMARY
-     
-     Counts only registered courses.
-  ======================================================= */
-
-  const levelSummary =
-    useMemo(() => {
-      const result = {
-        Primary: 0,
-        "Junior Secondary": 0,
-        "Senior Secondary": 0,
-        Other: 0,
-      };
-
-      selectedCourses.forEach(
-        (course) => {
-          const level =
-            getSchoolLevel(
-              course
-            );
-
-          if (
-            Object.prototype.hasOwnProperty.call(
-              result,
-              level
-            )
-          ) {
-            result[level] += 1;
-          } else {
-            result.Other += 1;
-          }
-        }
-      );
-
-      return result;
-    }, [
-      selectedCourses,
+      enrichedAssignments,
     ]);
 
   /* =======================================================
@@ -1486,12 +1510,21 @@ export default function TutorClasses() {
                 data?.tutor ||
                 storedTutor,
 
-              /* Pass registration information forward */
               registeredCourses:
                 selectedCourses,
 
               registeredSubjects:
                 selectedSubjects,
+
+              /*
+               * Explicitly pass the selected
+               * registration combination.
+               */
+              selectedClass:
+                item.grade,
+
+              selectedSubject:
+                item.subject,
             },
           }
         );
@@ -1533,12 +1566,12 @@ export default function TutorClasses() {
             </div>
 
             <h2 className="mt-5 text-lg font-bold">
-              Loading your classes
+              Loading your registration
             </h2>
 
             <p className="mt-2 text-sm text-white/40">
-              Loading your real registration
-              and student enrollment data...
+              Loading your registered
+              classes and subjects...
             </p>
           </div>
         </div>
@@ -1648,11 +1681,10 @@ export default function TutorClasses() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/40">
-              Your classes, subjects and
-              students are connected
-              directly to your tutor
-              registration and student
-              enrollment records.
+              Your teaching classes and
+              subjects are displayed
+              directly from the choices
+              you made during registration.
             </p>
           </div>
 
@@ -1661,17 +1693,17 @@ export default function TutorClasses() {
               className="
                 hidden items-center gap-2
                 rounded-full
-                border border-emerald-400/10
-                bg-emerald-400/5
+                border border-cyan-400/10
+                bg-cyan-400/5
                 px-3 py-2
                 text-xs
-                text-emerald-300/70
+                text-cyan-300/70
                 sm:flex
               "
             >
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
 
-              Live data
+              Registration synced
             </div>
 
             <button
@@ -1740,7 +1772,7 @@ export default function TutorClasses() {
 
                 <div className="flex-1">
                   <p className="font-bold text-red-200">
-                    Unable to load classes
+                    Unable to load registration
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-red-200/60">
@@ -1771,34 +1803,24 @@ export default function TutorClasses() {
         </AnimatePresence>
 
         {/* ===================================================
-            STATS
+            REGISTRATION STATS
         =================================================== */}
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             index={0}
             icon={Layers3}
-            label="Total Courses"
+            label="Teaching Classes"
             value={
               stats.totalCourses
             }
-            description="Teaching levels selected during registration"
+            description="Classes selected during registration"
           />
 
           <StatCard
             index={1}
-            icon={Users}
-            label="Total Students"
-            value={
-              stats.totalStudents
-            }
-            description="Students who applied to your registered classes"
-          />
-
-          <StatCard
-            index={2}
             icon={BookOpen}
-            label="Subjects"
+            label="Registered Subjects"
             value={
               stats.totalSubjects
             }
@@ -1806,13 +1828,21 @@ export default function TutorClasses() {
           />
 
           <StatCard
-            index={3}
-            icon={Activity}
-            label="Active Classes"
+            index={2}
+            icon={GraduationCap}
+            label="Class Subjects"
             value={
-              stats.activeClasses
+              stats.totalAssignments
             }
-            description="Registered classes currently with verified students"
+            description="Registered class and subject combinations"
+          />
+
+          <StatCard
+            index={3}
+            icon={ShieldCheck}
+            label="Registration"
+            value="Synced"
+            description="Showing your actual selections"
           />
         </div>
 
@@ -1851,33 +1881,46 @@ export default function TutorClasses() {
               </div>
 
               <p className="mt-1 text-xs text-white/35">
-                These values come directly
-                from your tutor
-                application.
+                These are the exact
+                teaching classes and
+                subjects you selected
+                during registration.
               </p>
             </div>
 
-            {/* REGISTERED SUBJECTS ONLY */}
+            {/* SUBJECTS */}
 
             <div className="flex flex-wrap gap-2">
               {selectedSubjects.length >
               0 ? (
                 selectedSubjects.map(
-                  (subject) => (
-                    <span
-                      key={subject}
-                      className="
-                        rounded-full
-                        border border-violet-400/10
-                        bg-violet-400/5
-                        px-3 py-1.5
-                        text-xs
-                        text-violet-200/80
-                      "
-                    >
-                      {subject}
-                    </span>
-                  )
+                  (
+                    subject,
+                    index
+                  ) => {
+                    const accent =
+                      CARD_ACCENTS[
+                        index %
+                          CARD_ACCENTS.length
+                      ];
+
+                    return (
+                      <span
+                        key={subject}
+                        className={`
+                          rounded-full
+                          border
+                          ${accent.border}
+                          bg-white/[0.025]
+                          px-3 py-1.5
+                          text-xs
+                          ${accent.label}
+                        `}
+                      >
+                        {subject}
+                      </span>
+                    );
+                  }
                 )
               ) : (
                 <span className="text-xs text-white/30">
@@ -1887,37 +1930,49 @@ export default function TutorClasses() {
             </div>
           </div>
 
-          {/* REGISTERED COURSES ONLY */}
+          {/* COURSES */}
 
           <div className="mt-5">
             <p className="mb-3 text-xs uppercase tracking-[0.15em] text-white/30">
-              Registered Courses / Classes
+              Registered Classes
             </p>
 
             <div className="flex flex-wrap gap-2">
               {selectedCourses.length >
               0 ? (
                 selectedCourses.map(
-                  (course) => (
-                    <span
-                      key={course}
-                      className="
-                        rounded-xl
-                        border border-cyan-400/10
-                        bg-cyan-400/5
-                        px-3 py-2
-                        text-sm
-                        font-medium
-                        text-cyan-200/80
-                      "
-                    >
-                      {course}
-                    </span>
-                  )
+                  (
+                    course,
+                    index
+                  ) => {
+                    const accent =
+                      CARD_ACCENTS[
+                        index %
+                          CARD_ACCENTS.length
+                      ];
+
+                    return (
+                      <span
+                        key={course}
+                        className={`
+                          rounded-xl
+                          border
+                          ${accent.border}
+                          bg-white/[0.025]
+                          px-3 py-2
+                          text-sm
+                          font-medium
+                          text-white/75
+                        `}
+                      >
+                        {course}
+                      </span>
+                    );
+                  }
                 )
               ) : (
                 <span className="text-sm text-white/30">
-                  No teaching levels selected
+                  No teaching classes selected
                 </span>
               )}
             </div>
@@ -1929,73 +1984,77 @@ export default function TutorClasses() {
             {[
               [
                 "Primary",
-                levelSummary.Primary,
+                stats.primary,
               ],
               [
                 "Junior Secondary",
-                levelSummary[
-                  "Junior Secondary"
-                ],
+                stats.juniorSecondary,
               ],
               [
                 "Senior Secondary",
-                levelSummary[
-                  "Senior Secondary"
-                ],
+                stats.seniorSecondary,
               ],
             ].map(
-              ([label, value]) => (
-                <div
-                  key={label}
-                  className="
-                    rounded-xl
-                    border border-white/8
-                    bg-black/20
-                    px-4 py-3
-                  "
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-white/40">
-                      {label}
-                    </span>
+              ([label, value], index) => {
+                const accent =
+                  CARD_ACCENTS[
+                    index %
+                      CARD_ACCENTS.length
+                  ];
 
-                    <span className="text-sm font-black text-white">
-                      {value}
-                    </span>
+                return (
+                  <div
+                    key={label}
+                    className={`
+                      rounded-xl
+                      border
+                      ${accent.border}
+                      bg-black/20
+                      px-4 py-3
+                    `}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-white/40">
+                        {label}
+                      </span>
+
+                      <span className="text-sm font-black text-white">
+                        {value}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )
+                );
+              }
             )}
           </div>
         </motion.div>
 
         {/* ===================================================
-            ASSIGNED COURSES
+            ASSIGNED / REGISTERED CLASSES
         =================================================== */}
 
         <div className="mt-10">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300/60">
-                Teaching assignments
+                Your registration
               </p>
 
               <h2 className="mt-2 text-2xl font-black">
-                Assigned Courses
+                My Teaching Classes
               </h2>
 
-              <p className="mt-1 text-sm text-white/35">
-                Only courses and subjects
-                selected during your
-                tutor registration are
-                shown here.
+              <p className="mt-1 max-w-2xl text-sm text-white/35">
+                Every card below represents
+                a class and subject selected
+                during your tutor registration.
               </p>
             </div>
 
             <div className="text-xs text-white/35">
               {filteredClasses.length} of{" "}
-              {assignedClasses.length}{" "}
-              registered assignments
+              {enrichedAssignments.length}{" "}
+              registered combinations
             </div>
           </div>
 
@@ -2061,7 +2120,7 @@ export default function TutorClasses() {
                   )
                 }
                 className="
-                  h-11 min-w-[180px]
+                  h-11 min-w-[190px]
                   appearance-none
                   rounded-xl
                   border border-white/8
@@ -2098,63 +2157,6 @@ export default function TutorClasses() {
                   className="bg-[#080d19]"
                 >
                   Senior Secondary
-                </option>
-              </select>
-
-              <ChevronDown
-                className="
-                  pointer-events-none
-                  absolute right-3 top-1/2
-                  h-4 w-4
-                  -translate-y-1/2
-                  text-white/25
-                "
-              />
-            </div>
-
-            {/* STATUS */}
-
-            <div className="relative">
-              <select
-                value={
-                  statusFilter
-                }
-                onChange={(event) =>
-                  setStatusFilter(
-                    event.target.value
-                  )
-                }
-                className="
-                  h-11 min-w-[160px]
-                  appearance-none
-                  rounded-xl
-                  border border-white/8
-                  bg-black/20
-                  px-4 pr-10
-                  text-sm text-white/70
-                  outline-none
-                  focus:border-cyan-400/20
-                "
-              >
-                <option
-                  value="all"
-                  className="bg-[#080d19]"
-                >
-                  All Status
-                </option>
-
-                <option
-                  value="active"
-                  className="bg-[#080d19]"
-                >
-                  Active
-                </option>
-
-                <option
-                  value="inactive"
-                  className="bg-[#080d19]"
-                >
-                  Awaiting Students
                 </option>
               </select>
 
@@ -2209,10 +2211,21 @@ export default function TutorClasses() {
         </div>
 
         {/* ===================================================
-            REGISTRATION DEBUG / SUMMARY
+            REGISTRATION SUMMARY
         =================================================== */}
 
-        <div
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: 15,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            delay: 0.35,
+          }}
           className="
             mt-8 rounded-2xl
             border border-cyan-400/10
@@ -2224,21 +2237,23 @@ export default function TutorClasses() {
             <ShieldCheck className="h-4 w-4 text-cyan-300" />
 
             <h3 className="text-sm font-bold text-white">
-              Assignment Source
+              Registration Source
             </h3>
           </div>
 
           <p className="mt-2 text-xs leading-5 text-white/35">
-            Assigned Courses are restricted
-            to the teaching levels and
-            subjects stored in your tutor
-            registration. Student records
-            only provide the enrollment
-            and activity information for
-            those registered assignments.
+            Your teaching classes and
+            subjects shown on this page
+            come from the selections made
+            during tutor registration.
+            No student status or enrollment
+            status is used to determine
+            which classes you teach.
           </p>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {/* COURSES */}
+
             <div
               className="
                 rounded-xl
@@ -2248,7 +2263,7 @@ export default function TutorClasses() {
               "
             >
               <p className="text-[10px] uppercase tracking-[0.15em] text-white/30">
-                Registered Courses
+                Registered Classes
               </p>
 
               <p className="mt-2 text-xl font-black text-cyan-300">
@@ -2275,6 +2290,8 @@ export default function TutorClasses() {
                 )}
               </div>
             </div>
+
+            {/* SUBJECTS */}
 
             <div
               className="
@@ -2313,7 +2330,7 @@ export default function TutorClasses() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* ===================================================
             FOOTER INFO
@@ -2339,10 +2356,9 @@ export default function TutorClasses() {
           </span>
 
           <span className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
 
-            Live database updates every
-            10 seconds
+            Registration synced
           </span>
         </div>
       </main>

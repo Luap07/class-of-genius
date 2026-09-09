@@ -6,7 +6,7 @@ const router = express.Router();
 
 /* =========================================================
    HELPERS
-   ========================================================= */
+========================================================= */
 
 function clean(value) {
   if (value === undefined || value === null) return "";
@@ -96,7 +96,7 @@ function getDatabaseError(error) {
 
 /* =========================================================
    GET REGISTERED TUTOR CLASSES
-   ========================================================= */
+========================================================= */
 
 router.get("/classes", async (req, res) => {
   try {
@@ -149,18 +149,6 @@ router.get("/classes", async (req, res) => {
 
     const tutorClasses = arrayFromValue(tutor.classes);
     const tutorSubjects = arrayFromValue(tutor.subjects);
-
-    /*
-      IMPORTANT:
-
-      One registered class = ONE course card.
-
-      We do NOT multiply:
-      class × subject.
-
-      If tutor selected 7 classes,
-      the API returns exactly 7 class cards.
-    */
 
     const enrollmentsResult = await pool.query(
       `
@@ -273,10 +261,6 @@ router.get("/classes", async (req, res) => {
       };
     });
 
-    /*
-      Unique students across all registered classes.
-    */
-
     const uniqueStudents = new Map();
 
     classes.forEach((classItem) => {
@@ -340,7 +324,7 @@ router.get("/classes", async (req, res) => {
 
 /* =========================================================
    CREATE LIVE CLASS
-   ========================================================= */
+========================================================= */
 
 router.post("/live-classes", async (req, res) => {
   try {
@@ -495,7 +479,7 @@ router.post("/live-classes", async (req, res) => {
 
 /* =========================================================
    GET LIVE CLASSES
-   ========================================================= */
+========================================================= */
 
 router.get("/live-classes", async (req, res) => {
   try {
@@ -562,7 +546,7 @@ router.get("/live-classes", async (req, res) => {
 
 /* =========================================================
    START LIVE CLASS
-   ========================================================= */
+========================================================= */
 
 router.patch(
   "/live-classes/:id/start",
@@ -627,7 +611,7 @@ router.patch(
 
 /* =========================================================
    END LIVE CLASS
-   ========================================================= */
+========================================================= */
 
 router.patch(
   "/live-classes/:id/end",
@@ -692,10 +676,6 @@ router.patch(
         });
       }
 
-      /*
-        Finalize attendance records.
-      */
-
       await pool.query(
         `
         UPDATE academy_live_participants
@@ -751,7 +731,7 @@ router.patch(
 
 /* =========================================================
    GET ONE LIVE CLASS
-   ========================================================= */
+========================================================= */
 
 router.get(
   "/live-classes/:id",
@@ -865,7 +845,7 @@ router.get(
 
 /* =========================================================
    STUDENT JOINS LIVE CLASS
-   ========================================================= */
+========================================================= */
 
 router.post(
   "/live-classes/:id/join",
@@ -906,10 +886,6 @@ router.post(
       }
 
       const liveClass = classResult.rows[0];
-
-      /*
-        Prevent duplicate active attendance.
-      */
 
       const existing =
         await pool.query(
@@ -960,13 +936,6 @@ router.post(
             studentName,
           ]
         );
-
-      /*
-        Create attendance record immediately.
-
-        Attendance is therefore based on actual
-        live-class presence — NOT registration alone.
-      */
 
       await pool.query(
         `
@@ -1023,7 +992,7 @@ router.post(
 
 /* =========================================================
    STUDENT LEAVES LIVE CLASS
-   ========================================================= */
+========================================================= */
 
 router.post(
   "/live-classes/:id/leave",
@@ -1134,7 +1103,7 @@ router.post(
 
 /* =========================================================
    LIVE PARTICIPANTS
-   ========================================================= */
+========================================================= */
 
 router.get(
   "/live-classes/:id/participants",
@@ -1206,7 +1175,19 @@ router.get(
 
 /* =========================================================
    CREATE TASK
-   ========================================================= */
+   =========================================================
+   
+   Tutor Create Task endpoint.
+
+   IMPORTANT:
+   A tutor can only create a task for:
+   1. A class they registered for.
+   2. A subject they registered to teach.
+
+   Endpoint:
+   POST /api/academy/tutor/tasks
+
+========================================================= */
 
 router.post("/tasks", async (req, res) => {
   try {
@@ -1222,11 +1203,20 @@ router.post("/tasks", async (req, res) => {
       maxScore = 100,
     } = req.body;
 
+    /* -----------------------------------------------------
+       BASIC VALIDATION
+    ----------------------------------------------------- */
+
+    const tutorReference = clean(reference);
+    const tutorGrade = clean(grade);
+    const tutorSubject = clean(subject);
+    const taskTitle = clean(title);
+
     if (
-      !reference ||
-      !grade ||
-      !subject ||
-      !title
+      !tutorReference ||
+      !tutorGrade ||
+      !tutorSubject ||
+      !taskTitle
     ) {
       return res.status(400).json({
         success: false,
@@ -1234,6 +1224,185 @@ router.post("/tasks", async (req, res) => {
           "Reference, class, subject and title are required.",
       });
     }
+
+    /* -----------------------------------------------------
+       LOAD TUTOR
+    ----------------------------------------------------- */
+
+    const tutorResult = await pool.query(
+      `
+      SELECT
+        reference,
+        first_name,
+        middle_name,
+        last_name,
+        subjects,
+        classes,
+        application_status
+      FROM academy_tutor_applications
+      WHERE LOWER(TRIM(reference)) =
+            LOWER(TRIM($1))
+      LIMIT 1
+      `,
+      [tutorReference]
+    );
+
+    if (!tutorResult.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Tutor account was not found.",
+      });
+    }
+
+    const tutor = tutorResult.rows[0];
+
+    /* -----------------------------------------------------
+       VERIFY TUTOR
+    ----------------------------------------------------- */
+
+    if (
+      clean(tutor.application_status).toLowerCase() !==
+      "verified"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Your tutor account must be verified before you can create tasks.",
+      });
+    }
+
+    /* -----------------------------------------------------
+       GET REGISTERED CLASSES + SUBJECTS
+    ----------------------------------------------------- */
+
+    const registeredClasses =
+      arrayFromValue(tutor.classes);
+
+    const registeredSubjects =
+      arrayFromValue(tutor.subjects);
+
+    /* -----------------------------------------------------
+       VERIFY CLASS
+    ----------------------------------------------------- */
+
+    const registeredClass =
+      registeredClasses.some(
+        (registeredGrade) =>
+          clean(registeredGrade).toLowerCase() ===
+          tutorGrade.toLowerCase()
+      );
+
+    if (!registeredClass) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You cannot create a task for a class you did not register to teach.",
+      });
+    }
+
+    /* -----------------------------------------------------
+       VERIFY SUBJECT
+    ----------------------------------------------------- */
+
+    const registeredSubject =
+      registeredSubjects.some(
+        (registered) =>
+          subjectsMatch(
+            tutorSubject,
+            registered
+          )
+      );
+
+    if (!registeredSubject) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You cannot create a task for a subject you did not register to teach.",
+      });
+    }
+
+    /* -----------------------------------------------------
+       OPTIONAL LIVE CLASS VALIDATION
+    ----------------------------------------------------- */
+
+    if (liveClassId) {
+      const liveClassResult =
+        await pool.query(
+          `
+          SELECT
+            id,
+            tutor_reference,
+            grade,
+            subjects
+          FROM academy_live_classes
+          WHERE id = $1
+          AND LOWER(TRIM(tutor_reference)) =
+              LOWER(TRIM($2))
+          LIMIT 1
+          `,
+          [
+            liveClassId,
+            tutorReference,
+          ]
+        );
+
+      if (!liveClassResult.rows.length) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "The selected live class does not belong to this tutor.",
+        });
+      }
+
+      const liveClass =
+        liveClassResult.rows[0];
+
+      if (
+        clean(liveClass.grade).toLowerCase() !==
+        tutorGrade.toLowerCase()
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Task class does not match the selected live class.",
+        });
+      }
+
+      const liveSubjects =
+        arrayFromValue(liveClass.subjects);
+
+      const subjectBelongsToLiveClass =
+        liveSubjects.some((item) =>
+          subjectsMatch(
+            tutorSubject,
+            item
+          )
+        );
+
+      if (!subjectBelongsToLiveClass) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Task subject does not belong to the selected live class.",
+        });
+      }
+    }
+
+    /* -----------------------------------------------------
+       SCORE VALIDATION
+    ----------------------------------------------------- */
+
+    let score = Number(maxScore);
+
+    if (!Number.isFinite(score)) {
+      score = 100;
+    }
+
+    score = Math.max(1, Math.min(1000, score));
+
+    /* -----------------------------------------------------
+       CREATE TASK
+    ----------------------------------------------------- */
 
     const result = await pool.query(
       `
@@ -1262,15 +1431,15 @@ router.post("/tasks", async (req, res) => {
       RETURNING *
       `,
       [
-        reference,
+        tutorReference,
         liveClassId,
-        grade,
-        subject,
-        title,
-        description,
-        instructions,
-        dueAt,
-        maxScore,
+        tutorGrade,
+        tutorSubject,
+        taskTitle,
+        clean(description),
+        clean(instructions),
+        dueAt || null,
+        score,
       ]
     );
 
@@ -1288,6 +1457,10 @@ router.post("/tasks", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Unable to create task.",
+      error:
+        process.env.NODE_ENV === "development"
+          ? getDatabaseError(error)
+          : undefined,
     });
   }
 });
@@ -1295,13 +1468,20 @@ router.post("/tasks", async (req, res) => {
 
 /* =========================================================
    GET TUTOR TASKS
-   ========================================================= */
+========================================================= */
 
 router.get("/tasks", async (req, res) => {
   try {
     const reference = clean(
       req.query.reference
     );
+
+    if (!reference) {
+      return res.status(400).json({
+        success: false,
+        message: "Tutor reference is required.",
+      });
+    }
 
     const result = await pool.query(
       `
@@ -1351,7 +1531,7 @@ router.get("/tasks", async (req, res) => {
 
 /* =========================================================
    CREATE LESSON
-   ========================================================= */
+========================================================= */
 
 router.post("/lessons", async (req, res) => {
   try {
@@ -1444,7 +1624,7 @@ router.post("/lessons", async (req, res) => {
 
 /* =========================================================
    GET LESSON HISTORY
-   ========================================================= */
+========================================================= */
 
 router.get("/lessons", async (req, res) => {
   try {
@@ -1483,7 +1663,7 @@ router.get("/lessons", async (req, res) => {
 
 /* =========================================================
    GET ATTENDANCE
-   ========================================================= */
+========================================================= */
 
 router.get("/attendance", async (req, res) => {
   try {
@@ -1535,7 +1715,7 @@ router.get("/attendance", async (req, res) => {
 
 /* =========================================================
    GET LIVE CLASS ATTENDANCE
-   ========================================================= */
+========================================================= */
 
 router.get(
   "/live-classes/:id/attendance",
@@ -1614,7 +1794,7 @@ router.get(
 
 /* =========================================================
    CHAT
-   ========================================================= */
+========================================================= */
 
 router.get(
   "/live-classes/:id/chat",
@@ -1726,7 +1906,7 @@ router.post(
 
 /* =========================================================
    CREATE MATERIAL
-   ========================================================= */
+========================================================= */
 
 router.post(
   "/materials",
@@ -1825,7 +2005,7 @@ router.post(
 
 /* =========================================================
    GET MATERIALS
-   ========================================================= */
+========================================================= */
 
 router.get(
   "/materials",
@@ -1868,7 +2048,7 @@ router.get(
 
 /* =========================================================
    RECORDING
-   ========================================================= */
+========================================================= */
 
 router.post(
   "/live-classes/:id/recording",
@@ -1992,7 +2172,7 @@ router.post(
 
 /* =========================================================
    WHITEBOARD EVENTS
-   ========================================================= */
+========================================================= */
 
 router.get(
   "/live-classes/:id/whiteboard",

@@ -1,9 +1,8 @@
 // src/components/tutor/TutorSidebar.jsx
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard,
-  BookOpen,
   ClipboardList,
   FileText,
   Presentation,
@@ -23,6 +22,7 @@ import {
   CalendarDays,
   X,
   Sparkles,
+  Menu,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -203,11 +203,43 @@ const menuItems = [
 ============================================================ */
 
 export default function TutorSidebar({
-  mobileOpen = false,
+  mobileOpen,
   onClose,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+
+  /* ==========================================================
+     INTERNAL MOBILE SIDEBAR STATE
+
+     This makes the sidebar work even when the parent does not
+     correctly control mobileOpen.
+  ========================================================== */
+
+  const [internalMobileOpen, setInternalMobileOpen] =
+    useState(false);
+
+  /*
+   * If the parent provides mobileOpen, we still listen to it.
+   * The internal state remains available as a fallback.
+   */
+  useEffect(() => {
+    if (typeof mobileOpen === "boolean") {
+      setInternalMobileOpen(mobileOpen);
+    }
+  }, [mobileOpen]);
+
+  /*
+   * The actual state used by the sidebar.
+   */
+  const sidebarOpen =
+    typeof mobileOpen === "boolean"
+      ? internalMobileOpen
+      : internalMobileOpen;
+
+  /* ==========================================================
+     MENU STATE
+  ========================================================== */
 
   const [openMenus, setOpenMenus] = useState({
     "My Classes": true,
@@ -221,9 +253,8 @@ export default function TutorSidebar({
 
   const getTutor = () => {
     try {
-      const savedUser = localStorage.getItem(
-        ACADEMY_USER_KEY
-      );
+      const savedUser =
+        localStorage.getItem(ACADEMY_USER_KEY);
 
       if (!savedUser) {
         return null;
@@ -278,6 +309,10 @@ export default function TutorSidebar({
   ========================================================== */
 
   const isActive = (path) => {
+    if (!path) {
+      return false;
+    }
+
     if (path === "/academy/tutor") {
       return location.pathname === path;
     }
@@ -303,7 +338,7 @@ export default function TutorSidebar({
   };
 
   /* ==========================================================
-     TOGGLE MENU
+     TOGGLE PARENT MENU
   ========================================================== */
 
   const toggleMenu = (label) => {
@@ -314,13 +349,46 @@ export default function TutorSidebar({
   };
 
   /* ==========================================================
+     MOBILE SIDEBAR TOGGLE
+  ========================================================== */
+
+  const openMobileSidebar = () => {
+    setInternalMobileOpen(true);
+  };
+
+  const closeMobileSidebar = () => {
+    setInternalMobileOpen(false);
+
+    if (typeof onClose === "function") {
+      onClose();
+    }
+  };
+
+  const toggleMobileSidebar = () => {
+    if (sidebarOpen) {
+      closeMobileSidebar();
+    } else {
+      openMobileSidebar();
+    }
+  };
+
+  /* ==========================================================
      NAVIGATE
   ========================================================== */
 
   const handleNavigation = (path) => {
+    if (!path) {
+      return;
+    }
+
     navigate(path);
 
-    if (onClose) {
+    /*
+     * Always close the sidebar after navigation on mobile.
+     */
+    setInternalMobileOpen(false);
+
+    if (typeof onClose === "function") {
       onClose();
     }
   };
@@ -350,45 +418,166 @@ export default function TutorSidebar({
   };
 
   /* ==========================================================
+     LOCK BODY SCROLL WHEN MOBILE SIDEBAR IS OPEN
+  ========================================================== */
+
+  useEffect(() => {
+    if (!sidebarOpen) {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(
+      "(max-width: 1023px)"
+    );
+
+    if (!mediaQuery.matches) {
+      return;
+    }
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow =
+        previousOverflow;
+    };
+  }, [sidebarOpen]);
+
+  /* ==========================================================
+     CLOSE MOBILE SIDEBAR WHEN SCREEN BECOMES LARGE
+  ========================================================== */
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setInternalMobileOpen(false);
+      }
+    };
+
+    window.addEventListener(
+      "resize",
+      handleResize
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        handleResize
+      );
+    };
+  }, []);
+
+  /* ==========================================================
      RENDER
   ========================================================== */
 
   return (
     <>
       {/* ======================================================
+          MOBILE MENU TOGGLE
+
+          This is the important fix.
+
+          It stays fixed on small screens and is completely
+          independent of the parent component.
+      ====================================================== */}
+
+      <button
+        type="button"
+        aria-label={
+          sidebarOpen
+            ? "Close tutor menu"
+            : "Open tutor menu"
+        }
+        aria-expanded={sidebarOpen}
+        onClick={toggleMobileSidebar}
+        className="
+          fixed
+          left-4
+          top-4
+          z-[70]
+          flex
+          h-11
+          w-11
+          items-center
+          justify-center
+          rounded-xl
+          border
+          border-white/10
+          bg-[#050816]/95
+          text-slate-300
+          shadow-2xl
+          shadow-black/40
+          backdrop-blur-xl
+          transition-all
+          duration-200
+          hover:border-cyan-400/30
+          hover:bg-[#081126]
+          hover:text-cyan-300
+          active:scale-95
+          lg:hidden
+        "
+      >
+        {sidebarOpen ? (
+          <X size={21} />
+        ) : (
+          <Menu size={21} />
+        )}
+      </button>
+
+      {/* ======================================================
           MOBILE BACKDROP
       ====================================================== */}
 
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
-          onClick={onClose}
-        />
-      )}
+      <div
+        aria-hidden={!sidebarOpen}
+        onClick={closeMobileSidebar}
+        className={`
+          fixed
+          inset-0
+          z-[55]
+          bg-black/70
+          backdrop-blur-[3px]
+          transition-all
+          duration-300
+          lg:hidden
+          ${
+            sidebarOpen
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
+          }
+        `}
+      />
 
       {/* ======================================================
           SIDEBAR
       ====================================================== */}
 
       <aside
+        aria-label="Tutor navigation"
         className={`
           fixed
           left-0
           top-0
-          z-50
+          z-[60]
           flex
-          h-screen
+          h-[100dvh]
           w-[280px]
+          max-w-[88vw]
           flex-col
           border-r
           border-white/10
           bg-[#050816]
           shadow-2xl
+          shadow-black/50
           transition-transform
           duration-300
+          ease-out
           lg:translate-x-0
           ${
-            mobileOpen
+            sidebarOpen
               ? "translate-x-0"
               : "-translate-x-full"
           }
@@ -398,7 +587,19 @@ export default function TutorSidebar({
             BRAND
         ================================================== */}
 
-        <div className="flex h-[76px] shrink-0 items-center justify-between border-b border-white/10 px-5">
+        <div
+          className="
+            flex
+            h-[76px]
+            min-h-[76px]
+            shrink-0
+            items-center
+            justify-between
+            border-b
+            border-white/10
+            px-5
+          "
+        >
           <button
             type="button"
             onClick={() =>
@@ -406,34 +607,103 @@ export default function TutorSidebar({
                 "/academy/tutor"
               )
             }
-            className="flex items-center gap-3"
+            className="
+              flex
+              min-w-0
+              items-center
+              gap-3
+              text-left
+            "
           >
-            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600 shadow-lg shadow-cyan-500/20">
+            <div
+              className="
+                relative
+                flex
+                h-11
+                w-11
+                shrink-0
+                items-center
+                justify-center
+                rounded-2xl
+                bg-gradient-to-br
+                from-cyan-400
+                via-blue-500
+                to-violet-600
+                shadow-lg
+                shadow-cyan-500/20
+              "
+            >
               <GraduationCap
                 size={23}
                 className="text-white"
               />
 
-              <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-[#050816] bg-cyan-400" />
+              <div
+                className="
+                  absolute
+                  -right-1
+                  -top-1
+                  h-3
+                  w-3
+                  rounded-full
+                  border-2
+                  border-[#050816]
+                  bg-cyan-400
+                "
+              />
             </div>
 
-            <div className="text-left">
-              <div className="text-lg font-black tracking-tight text-white">
+            <div className="min-w-0">
+              <div
+                className="
+                  truncate
+                  text-lg
+                  font-black
+                  tracking-tight
+                  text-white
+                "
+              >
                 Scholiqen
               </div>
 
-              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-400">
+              <div
+                className="
+                  truncate
+                  text-[10px]
+                  font-semibold
+                  uppercase
+                  tracking-[0.2em]
+                  text-cyan-400
+                "
+              >
                 Tutor Academy
               </div>
             </div>
           </button>
 
-          {/* Mobile Close */}
+          {/* ==================================================
+              MOBILE CLOSE
+          ================================================== */}
 
           <button
             type="button"
-            onClick={onClose}
-            className="rounded-xl p-2 text-slate-400 transition hover:bg-white/5 hover:text-white lg:hidden"
+            aria-label="Close tutor menu"
+            onClick={closeMobileSidebar}
+            className="
+              ml-2
+              flex
+              h-9
+              w-9
+              shrink-0
+              items-center
+              justify-center
+              rounded-xl
+              text-slate-400
+              transition
+              hover:bg-white/5
+              hover:text-white
+              lg:hidden
+            "
           >
             <X size={20} />
           </button>
@@ -443,24 +713,76 @@ export default function TutorSidebar({
             TUTOR PROFILE
         ================================================== */}
 
-        <div className="border-b border-white/10 p-4">
-          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-3">
+        <div className="shrink-0 border-b border-white/10 p-4">
+          <div
+            className="
+              rounded-2xl
+              border
+              border-white/10
+              bg-gradient-to-br
+              from-white/[0.06]
+              to-white/[0.02]
+              p-3
+            "
+          >
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-sm font-black text-white shadow-lg shadow-cyan-500/10">
+              <div
+                className="
+                  flex
+                  h-11
+                  w-11
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-gradient-to-br
+                  from-cyan-400
+                  to-blue-600
+                  text-sm
+                  font-black
+                  text-white
+                  shadow-lg
+                  shadow-cyan-500/10
+                "
+              >
                 {initials || "T"}
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-white">
+                <p
+                  className="
+                    truncate
+                    text-sm
+                    font-bold
+                    text-white
+                  "
+                >
                   {tutorName}
                 </p>
 
-                <p className="mt-0.5 truncate text-xs text-slate-400">
+                <p
+                  className="
+                    mt-0.5
+                    truncate
+                    text-xs
+                    text-slate-400
+                  "
+                >
                   {specialization}
                 </p>
               </div>
 
-              <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/30" />
+              <div
+                className="
+                  h-2.5
+                  w-2.5
+                  shrink-0
+                  rounded-full
+                  bg-emerald-400
+                  shadow-lg
+                  shadow-emerald-400/30
+                "
+              />
             </div>
           </div>
         </div>
@@ -469,8 +791,29 @@ export default function TutorSidebar({
             NAVIGATION
         ================================================== */}
 
-        <nav className="scrollbar-thin flex-1 overflow-y-auto px-3 py-4">
-          <div className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">
+        <nav
+          className="
+            min-h-0
+            flex-1
+            overflow-x-hidden
+            overflow-y-auto
+            overscroll-contain
+            px-3
+            py-4
+            [scrollbar-width:thin]
+          "
+        >
+          <div
+            className="
+              mb-3
+              px-3
+              text-[10px]
+              font-bold
+              uppercase
+              tracking-[0.2em]
+              text-slate-600
+            "
+          >
             Teaching
           </div>
 
@@ -483,7 +826,7 @@ export default function TutorSidebar({
                 isParentActive(item);
 
               const expanded =
-                openMenus[item.label];
+                Boolean(openMenus[item.label]);
 
               /* ==============================================
                  SIMPLE ITEM
@@ -503,6 +846,7 @@ export default function TutorSidebar({
                       group
                       relative
                       flex
+                      min-h-[42px]
                       w-full
                       items-center
                       gap-3
@@ -520,13 +864,25 @@ export default function TutorSidebar({
                     `}
                   >
                     {active && (
-                      <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-cyan-400" />
+                      <span
+                        className="
+                          absolute
+                          left-0
+                          top-1/2
+                          h-6
+                          w-1
+                          -translate-y-1/2
+                          rounded-r-full
+                          bg-cyan-400
+                        "
+                      />
                     )}
 
                     <Icon
                       size={18}
                       className={`
-                        shrink-0 transition
+                        shrink-0
+                        transition
                         ${
                           active
                             ? "text-cyan-400"
@@ -535,7 +891,15 @@ export default function TutorSidebar({
                       `}
                     />
 
-                    <span className="flex-1 text-sm font-medium">
+                    <span
+                      className="
+                        min-w-0
+                        flex-1
+                        truncate
+                        text-sm
+                        font-medium
+                      "
+                    >
                       {item.label}
                     </span>
                   </button>
@@ -550,6 +914,7 @@ export default function TutorSidebar({
                 <div key={item.label}>
                   <button
                     type="button"
+                    aria-expanded={expanded}
                     onClick={() =>
                       toggleMenu(
                         item.label
@@ -558,6 +923,7 @@ export default function TutorSidebar({
                     className={`
                       group
                       flex
+                      min-h-[42px]
                       w-full
                       items-center
                       gap-3
@@ -585,19 +951,27 @@ export default function TutorSidebar({
                       `}
                     />
 
-                    <span className="flex-1 text-sm font-medium">
+                    <span
+                      className="
+                        min-w-0
+                        flex-1
+                        truncate
+                        text-sm
+                        font-medium
+                      "
+                    >
                       {item.label}
                     </span>
 
                     {expanded ? (
                       <ChevronDown
                         size={15}
-                        className="text-slate-600"
+                        className="shrink-0 text-slate-600"
                       />
                     ) : (
                       <ChevronRight
                         size={15}
-                        className="text-slate-600"
+                        className="shrink-0 text-slate-600"
                       />
                     )}
                   </button>
@@ -607,7 +981,16 @@ export default function TutorSidebar({
                   ========================================== */}
 
                   {expanded && (
-                    <div className="ml-5 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                    <div
+                      className="
+                        ml-5
+                        mt-1
+                        space-y-0.5
+                        border-l
+                        border-white/10
+                        pl-3
+                      "
+                    >
                       {item.children.map(
                         (child) => {
                           const childActive =
@@ -629,6 +1012,7 @@ export default function TutorSidebar({
                               className={`
                                 relative
                                 flex
+                                min-h-[36px]
                                 w-full
                                 items-center
                                 rounded-lg
@@ -645,10 +1029,23 @@ export default function TutorSidebar({
                               `}
                             >
                               {childActive && (
-                                <span className="absolute -left-[17px] top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-cyan-400" />
+                                <span
+                                  className="
+                                    absolute
+                                    -left-[17px]
+                                    top-1/2
+                                    h-5
+                                    w-0.5
+                                    -translate-y-1/2
+                                    rounded-full
+                                    bg-cyan-400
+                                  "
+                                />
                               )}
 
-                              {child.label}
+                              <span className="truncate">
+                                {child.label}
+                              </span>
                             </button>
                           );
                         }
@@ -664,7 +1061,17 @@ export default function TutorSidebar({
               SMART TEACHING
           ================================================== */}
 
-          <div className="mt-6 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">
+          <div
+            className="
+              mt-6
+              px-3
+              text-[10px]
+              font-bold
+              uppercase
+              tracking-[0.2em]
+              text-slate-600
+            "
+          >
             Smart Teaching
           </div>
 
@@ -675,9 +1082,39 @@ export default function TutorSidebar({
                 "/academy/tutor/ai-assistant"
               )
             }
-            className="group mt-2 flex w-full items-center gap-3 rounded-xl border border-violet-500/10 bg-gradient-to-r from-violet-500/10 to-cyan-500/5 px-3 py-3 text-left transition hover:border-violet-400/20 hover:bg-violet-500/15"
+            className="
+              group
+              mt-2
+              flex
+              w-full
+              items-center
+              gap-3
+              rounded-xl
+              border
+              border-violet-500/10
+              bg-gradient-to-r
+              from-violet-500/10
+              to-cyan-500/5
+              px-3
+              py-3
+              text-left
+              transition
+              hover:border-violet-400/20
+              hover:bg-violet-500/15
+            "
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15">
+            <div
+              className="
+                flex
+                h-9
+                w-9
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                bg-violet-500/15
+              "
+            >
               <Sparkles
                 size={17}
                 className="text-violet-400"
@@ -685,11 +1122,25 @@ export default function TutorSidebar({
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-white">
+              <p
+                className="
+                  truncate
+                  text-xs
+                  font-bold
+                  text-white
+                "
+              >
                 AI Teaching Assistant
               </p>
 
-              <p className="mt-0.5 truncate text-[10px] text-slate-500">
+              <p
+                className="
+                  mt-0.5
+                  truncate
+                  text-[10px]
+                  text-slate-500
+                "
+              >
                 Plan, grade & analyze
               </p>
             </div>
@@ -700,7 +1151,15 @@ export default function TutorSidebar({
             BOTTOM ACTIONS
         ================================================== */}
 
-        <div className="shrink-0 border-t border-white/10 p-3">
+        <div
+          className="
+            shrink-0
+            border-t
+            border-white/10
+            bg-[#050816]
+            p-3
+          "
+        >
           <button
             type="button"
             onClick={() =>
@@ -708,9 +1167,26 @@ export default function TutorSidebar({
                 "/academy/tutor/profile"
               )
             }
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-slate-400 transition hover:bg-white/[0.04] hover:text-white"
+            className="
+              flex
+              min-h-[42px]
+              w-full
+              items-center
+              gap-3
+              rounded-xl
+              px-3
+              py-2.5
+              text-left
+              text-slate-400
+              transition
+              hover:bg-white/[0.04]
+              hover:text-white
+            "
           >
-            <UserCircle size={18} />
+            <UserCircle
+              size={18}
+              className="shrink-0"
+            />
 
             <span className="text-sm font-medium">
               My Profile
@@ -724,9 +1200,26 @@ export default function TutorSidebar({
                 "/academy/tutor/settings"
               )
             }
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-slate-400 transition hover:bg-white/[0.04] hover:text-white"
+            className="
+              flex
+              min-h-[42px]
+              w-full
+              items-center
+              gap-3
+              rounded-xl
+              px-3
+              py-2.5
+              text-left
+              text-slate-400
+              transition
+              hover:bg-white/[0.04]
+              hover:text-white
+            "
           >
-            <Settings size={18} />
+            <Settings
+              size={18}
+              className="shrink-0"
+            />
 
             <span className="text-sm font-medium">
               Settings
@@ -737,9 +1230,29 @@ export default function TutorSidebar({
             type="button"
             onClick={handleLogout}
             disabled={loggingOut}
-            className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-red-400 transition hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+            className="
+              mt-1
+              flex
+              min-h-[42px]
+              w-full
+              items-center
+              gap-3
+              rounded-xl
+              px-3
+              py-2.5
+              text-left
+              text-red-400
+              transition
+              hover:bg-red-500/10
+              hover:text-red-300
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+            "
           >
-            <LogOut size={18} />
+            <LogOut
+              size={18}
+              className="shrink-0"
+            />
 
             <span className="text-sm font-medium">
               {loggingOut
@@ -748,7 +1261,15 @@ export default function TutorSidebar({
             </span>
           </button>
 
-          <div className="mt-3 px-3 text-center text-[9px] text-slate-700">
+          <div
+            className="
+              mt-3
+              px-3
+              text-center
+              text-[9px]
+              text-slate-700
+            "
+          >
             Scholiqen Tutor Academy
           </div>
         </div>

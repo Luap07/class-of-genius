@@ -8,10 +8,16 @@ import React, {
   useState,
 } from "react";
 
-import { supabase } from "../../lib/supabaseClient";
 import { AuthContext } from "../AuthContext";
 
 const ProfileContext = createContext(null);
+
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
+
+const AUTH_TOKEN_KEY = "scholiqen_auth_token";
 
 const EMPTY_STATS = {
   courses: 0,
@@ -21,435 +27,418 @@ const EMPTY_STATS = {
   submissions: 0,
 };
 
-export const ProfileProvider = ({ children }) => {
-  const { user } = useContext(AuthContext);
+/*
+=========================================================
+HELPERS
+=========================================================
+*/
 
-  const [profile, setProfile] = useState(null);
+const getSafeUserName = (user) => {
+  if (!user) {
+    return "Student";
+  }
 
-  const [stats, setStats] = useState(EMPTY_STATS);
+  return (
+    user.username ||
+    user.name ||
+    user.full_name ||
+    user.display_name ||
+    user.user_metadata?.username ||
+    user.user_metadata?.name ||
+    user.email?.split("@")[0] ||
+    "Student"
+  );
+};
 
-  const [activity, setActivity] = useState([]);
+const getSafeAvatar = (user) => {
+  if (!user) {
+    return "";
+  }
 
-  const [loading, setLoading] = useState(true);
+  return (
+    user.avatar ||
+    user.avatar_url ||
+    user.photoURL ||
+    user.photo_url ||
+    user.image ||
+    user.user_metadata?.avatar_url ||
+    user.user_metadata?.avatar ||
+    user.user_metadata?.photoURL ||
+    ""
+  );
+};
+
+const buildFallbackProfile = (user) => {
+  if (!user) {
+    return null;
+  }
+
+  const avatar = getSafeAvatar(user);
+
+  return {
+    ...user,
+
+    id:
+      user.id ||
+      user.userId ||
+      user.user_id ||
+      "",
+
+    email:
+      user.email ||
+      "",
+
+    username:
+      getSafeUserName(user),
+
+    name:
+      user.name ||
+      user.full_name ||
+      user.display_name ||
+      getSafeUserName(user),
+
+    avatar,
+
+    avatar_url:
+      avatar,
+
+    role:
+      String(user.role || "")
+        .trim()
+        .toLowerCase(),
+  };
+};
+
+/*
+=========================================================
+PROFILE PROVIDER
+=========================================================
+*/
+
+export const ProfileProvider = ({
+  children,
+}) => {
+  const {
+    user,
+    getToken,
+  } = useContext(AuthContext);
+
+  const [profile, setProfile] =
+    useState(null);
+
+  const [stats, setStats] =
+    useState(EMPTY_STATS);
+
+  const [activity, setActivity] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
 
   /*
   =========================================================
   FETCH PROFILE DATA
   =========================================================
+
+  IMPORTANT:
+
+  This context no longer uses Supabase.
+
+  Authentication is handled by:
+
+      Express
+        ↓
+      Neon PostgreSQL
+        ↓
+      AuthContext
+
+  ProfileContext uses the authenticated user already
+  supplied by AuthContext.
+
+  =========================================================
   */
 
-  const fetchProfileData = useCallback(async () => {
-    /*
-    ---------------------------------------------------------
-    NO USER
-    ---------------------------------------------------------
-    */
-
-    if (!user?.id) {
-      setProfile(null);
-      setStats(EMPTY_STATS);
-      setActivity([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-
-    try {
+  const fetchProfileData =
+    useCallback(async () => {
       /*
-      =======================================================
-      PROFILE
-      =======================================================
+      -------------------------------------------------------
+      NO USER
+      -------------------------------------------------------
       */
 
-      let profileData = null;
+      if (!user?.id) {
+        setProfile(null);
+        setStats(EMPTY_STATS);
+        setActivity([]);
+        setLoading(false);
 
-      const {
-        data,
-        error: profileError,
-      } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
+        return;
+      }
 
-      if (profileError) {
+      setLoading(true);
+
+      try {
         /*
-        IMPORTANT:
+        =====================================================
+        AUTHENTICATED USER
+        =====================================================
+        */
 
-        Do NOT throw here.
+        const safeProfile =
+          buildFallbackProfile(user);
 
-        A database outage should NOT destroy the user's
-        authentication session or cause the dashboard to
-        redirect back to /login.
+        setProfile(safeProfile);
+
+        /*
+        =====================================================
+        GET AUTH TOKEN
+        =====================================================
+        */
+
+        let token = null;
+
+        try {
+          if (
+            typeof getToken ===
+            "function"
+          ) {
+            token = getToken();
+          }
+        } catch (error) {
+          console.warn(
+            "Could not read authentication token:",
+            error
+          );
+        }
+
+        /*
+        =====================================================
+        CACHE USER
+        =====================================================
+        */
+
+        try {
+          localStorage.setItem(
+            "scholiqen_profile_cache",
+            JSON.stringify(
+              safeProfile
+            )
+          );
+        } catch (error) {
+          console.warn(
+            "Could not cache profile:",
+            error
+          );
+        }
+
+        /*
+        =====================================================
+        OPTIONAL SERVER PROFILE REFRESH
+        =====================================================
+
+        We intentionally use /api/auth/me because this
+        endpoint already exists in your backend.
+
+        We DO NOT call Supabase.
+
+        =====================================================
+        */
+
+        if (token) {
+          try {
+            const response =
+              await fetch(
+                `${API_URL}/api/auth/me`,
+                {
+                  method: "GET",
+
+                  headers: {
+                    Accept:
+                      "application/json",
+
+                    Authorization:
+                      `Bearer ${token}`,
+                  },
+                }
+              );
+
+            const data =
+              await response
+                .json()
+                .catch(
+                  () => null
+                );
+
+            /*
+            -------------------------------------------------
+            SERVER USER AVAILABLE
+            -------------------------------------------------
+            */
+
+            if (
+              response.ok &&
+              data?.success &&
+              data?.user
+            ) {
+              const serverUser = {
+                ...user,
+                ...data.user,
+              };
+
+              const refreshedProfile =
+                buildFallbackProfile(
+                  serverUser
+                );
+
+              setProfile(
+                refreshedProfile
+              );
+
+              try {
+                localStorage.setItem(
+                  "scholiqen_profile_cache",
+                  JSON.stringify(
+                    refreshedProfile
+                  )
+                );
+              } catch (error) {
+                console.warn(
+                  "Could not cache refreshed profile:",
+                  error
+                );
+              }
+            }
+
+            /*
+            -------------------------------------------------
+            IMPORTANT
+
+            A failed /me request must NOT destroy the
+            current authenticated session here.
+
+            AuthContext owns authentication.
+            -------------------------------------------------
+            */
+
+            if (!response.ok) {
+              console.warn(
+                "Profile /me request failed:",
+                {
+                  status:
+                    response.status,
+                  data,
+                }
+              );
+            }
+          } catch (error) {
+            /*
+            Backend temporarily unavailable.
+
+            Keep the authenticated user from AuthContext.
+            */
+
+            console.warn(
+              "Profile /me network error:",
+              error
+            );
+          }
+        }
+
+        /*
+        =====================================================
+        STATS
+        =====================================================
+
+        We intentionally do not query Supabase anymore.
+
+        Until the corresponding Neon/Express dashboard
+        endpoints are connected, preserve safe empty stats.
+        =====================================================
+        */
+
+        setStats(
+          EMPTY_STATS
+        );
+
+        /*
+        =====================================================
+        ACTIVITY
+        =====================================================
+
+        No Supabase activity request.
+
+        Keep this empty until the Neon activity endpoint
+        is connected.
+        =====================================================
+        */
+
+        setActivity([]);
+
+        /*
+        =====================================================
+        SUCCESS
+        =====================================================
+        */
+
+        console.log(
+          "✅ Profile context loaded from Express/Neon authentication"
+        );
+
+        console.log(
+          "Authenticated user:",
+          user.email
+        );
+
+        console.log(
+          "Supabase profile requests: DISABLED"
+        );
+
+        console.log(
+          "API:",
+          API_URL
+        );
+      } catch (error) {
+        /*
+        =====================================================
+        FALLBACK
+        =====================================================
         */
 
         console.error(
-          "Profile Fetch Error:",
-          profileError
-        );
-      } else {
-        profileData = data;
-      }
-
-      /*
-      =======================================================
-      FALLBACK PROFILE
-      =======================================================
-
-      Even if the profiles table cannot be reached, we create
-      a temporary profile from the authenticated user.
-
-      This means:
-
-      LOGIN
-        ↓
-      AuthContext has user
-        ↓
-      ProfileContext cannot reach database
-        ↓
-      User remains authenticated
-        ↓
-      Dashboard can continue
-      */
-
-      const fallbackUsername =
-        user?.user_metadata?.username ||
-        user?.user_metadata?.name ||
-        user?.email?.split("@")[0] ||
-        "Student";
-
-      const safeProfile = {
-        ...(profileData || {}),
-
-        id: user.id,
-
-        email:
-          profileData?.email ||
-          user.email ||
-          "",
-
-        username:
-          profileData?.username ||
-          fallbackUsername,
-
-        avatar:
-          profileData?.avatar ||
-          profileData?.avatar_url ||
-          user?.user_metadata?.avatar_url ||
-          "",
-
-        avatar_url:
-          profileData?.avatar_url ||
-          profileData?.avatar ||
-          user?.user_metadata?.avatar_url ||
-          "",
-      };
-
-      setProfile(safeProfile);
-
-      /*
-      =======================================================
-      COURSE ENROLLMENTS
-      =======================================================
-      */
-
-      let enrollments = [];
-
-      try {
-        const {
-          data,
-          error,
-        } = await supabase
-          .from("course_enrollments")
-          .select("*")
-          .eq("student_id", user.id);
-
-        if (error) {
-          console.error(
-            "Course Enrollments Error:",
-            error
-          );
-        } else {
-          enrollments = data || [];
-        }
-      } catch (error) {
-        console.error(
-          "Course Enrollments Exception:",
+          "Profile Context Error:",
           error
         );
-      }
 
-      /*
-      =======================================================
-      CERTIFICATES
-      =======================================================
-      */
+        /*
+        Never destroy authentication because of a profile
+        or database problem.
+        */
 
-      let certificates = [];
-
-      try {
-        const {
-          data,
-          error,
-        } = await supabase
-          .from("certificates")
-          .select("*")
-          .eq("student_id", user.id);
-
-        if (error) {
-          console.error(
-            "Certificates Error:",
-            error
+        const fallbackProfile =
+          buildFallbackProfile(
+            user
           );
-        } else {
-          certificates = data || [];
-        }
-      } catch (error) {
-        console.error(
-          "Certificates Exception:",
-          error
+
+        setProfile(
+          fallbackProfile
         );
-      }
 
-      /*
-      =======================================================
-      LESSON PROGRESS
-      =======================================================
-      */
+        /*
+        Keep safe values.
+        */
 
-      let lessons = [];
-
-      try {
-        const {
-          data,
-          error,
-        } = await supabase
-          .from("lesson_progress")
-          .select("*")
-          .eq("student_id", user.id)
-          .eq("completed", true);
-
-        if (error) {
-          console.error(
-            "Lesson Progress Error:",
-            error
-          );
-        } else {
-          lessons = data || [];
-        }
-      } catch (error) {
-        console.error(
-          "Lesson Progress Exception:",
-          error
+        setStats(
+          EMPTY_STATS
         );
+
+        setActivity([]);
+      } finally {
+        setLoading(false);
       }
-
-      /*
-      =======================================================
-      WEEKLY TASK SUBMISSIONS
-      =======================================================
-      */
-
-      let submissions = [];
-
-      try {
-        const {
-          data,
-          error,
-        } = await supabase
-          .from("weekly_task_submissions")
-          .select("*")
-          .eq("student_id", user.id);
-
-        if (error) {
-          console.error(
-            "Task Submissions Error:",
-            error
-          );
-        } else {
-          submissions = data || [];
-        }
-      } catch (error) {
-        console.error(
-          "Task Submissions Exception:",
-          error
-        );
-      }
-
-      /*
-      =======================================================
-      STATS
-      =======================================================
-      */
-
-      setStats({
-        courses: enrollments.length,
-
-        completedCourses:
-          enrollments.filter(
-            (item) =>
-              item?.completed === true
-          ).length,
-
-        certificates:
-          certificates.length,
-
-        lessonsCompleted:
-          lessons.length,
-
-        submissions:
-          submissions.length,
-      });
-
-      /*
-      =======================================================
-      RECENT ACTIVITY
-      =======================================================
-      */
-
-      const activities = [];
-
-      /*
-      COMPLETED LESSONS
-      */
-
-      lessons
-        .slice(0, 10)
-        .forEach((item) => {
-          activities.push({
-            id:
-              item.id ||
-              `lesson-${Math.random()}`,
-
-            title:
-              "Completed Lesson",
-
-            description:
-              "Lesson completed",
-
-            date:
-              item.completed_at ||
-              item.updated_at ||
-              item.created_at ||
-              new Date().toISOString(),
-          });
-        });
-
-      /*
-      WEEKLY TASKS
-      */
-
-      submissions
-        .slice(0, 10)
-        .forEach((item) => {
-          activities.push({
-            id:
-              item.id ||
-              `submission-${Math.random()}`,
-
-            title:
-              "Submitted Weekly Task",
-
-            description:
-              item.feedback ||
-              "Task submission received",
-
-            date:
-              item.submitted_at ||
-              item.updated_at ||
-              item.created_at ||
-              new Date().toISOString(),
-          });
-        });
-
-      /*
-      SORT ACTIVITY
-      */
-
-      activities.sort((a, b) => {
-        const dateA =
-          new Date(a.date).getTime() || 0;
-
-        const dateB =
-          new Date(b.date).getTime() || 0;
-
-        return dateB - dateA;
-      });
-
-      setActivity(
-        activities.slice(0, 10)
-      );
-
-      /*
-      =======================================================
-      SUCCESS
-      =======================================================
-      */
-
-      console.log(
-        "✅ Profile context loaded"
-      );
-
-      console.log(
-        "Authenticated user:",
-        user.email
-      );
-
-      console.log(
-        "Profile available:",
-        Boolean(profileData)
-      );
-    } catch (error) {
-      /*
-      =======================================================
-      IMPORTANT
-
-      NEVER CLEAR AUTHENTICATION HERE.
-
-      A database failure is NOT the same thing as an
-      authentication failure.
-      =======================================================
-      */
-
-      console.error(
-        "Profile Context Error:",
-        error
-      );
-
-      /*
-      Keep the authenticated user usable even when the
-      database is temporarily unavailable.
-      */
-
-      setProfile({
-        id: user.id,
-
-        email:
-          user.email || "",
-
-        username:
-          user?.user_metadata?.username ||
-          user?.email?.split("@")[0] ||
-          "Student",
-
-        avatar:
-          user?.user_metadata?.avatar_url ||
-          "",
-
-        avatar_url:
-          user?.user_metadata?.avatar_url ||
-          "",
-      });
-
-      /*
-      Do not wipe stats/activity because of a temporary
-      database failure.
-      */
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+    }, [
+      user,
+      getToken,
+    ]);
 
   /*
   =========================================================
@@ -459,28 +448,32 @@ export const ProfileProvider = ({ children }) => {
 
   useEffect(() => {
     fetchProfileData();
-  }, [fetchProfileData]);
+  }, [
+    fetchProfileData,
+  ]);
 
   /*
   =========================================================
-  CONTEXT
+  CONTEXT VALUE
   =========================================================
   */
 
+  const value = {
+    profile,
+
+    stats,
+
+    activity,
+
+    loading,
+
+    refreshProfile:
+      fetchProfileData,
+  };
+
   return (
     <ProfileContext.Provider
-      value={{
-        profile,
-
-        stats,
-
-        activity,
-
-        loading,
-
-        refreshProfile:
-          fetchProfileData,
-      }}
+      value={value}
     >
       {children}
     </ProfileContext.Provider>
@@ -488,9 +481,9 @@ export const ProfileProvider = ({ children }) => {
 };
 
 /*
-=========================================================
+===========================================================
 USE PROFILE
-=========================================================
+===========================================================
 */
 
 export const useProfile = () => {

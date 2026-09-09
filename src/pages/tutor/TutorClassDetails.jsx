@@ -1,453 +1,169 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
 import {
   ArrowLeft,
+  Award,
   BookOpen,
   CalendarDays,
   CheckCircle2,
-  ChevronRight,
+  ChevronDown,
   Clock3,
+  FileText,
   GraduationCap,
-  Loader2,
+  HelpCircle,
   Megaphone,
-  MoreHorizontal,
-  RefreshCw,
-  Search,
+  Play,
+  Plus,
+  Radio,
+  Sparkles,
+  Target,
   Users,
   Video,
-  ClipboardList,
-  FileText,
-  FolderOpen,
-  UserCheck,
-  UserRound,
-  XCircle,
-  AlertCircle,
-  Activity,
-  BookMarked,
+  X,
+  Zap,
 } from "lucide-react";
-
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-} from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 /* =========================================================
-   API
+   HARD-CODED DATA FOR NOW
 ========================================================= */
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
-
-const CLASS_DETAILS_URL =
-  `${API_URL}/api/academy/tutor/classes`;
+const HARD_CODED_ACTIVITIES = [
+  {
+    id: 1,
+    type: "live",
+    title: "Started a Live Class",
+    description:
+      "Started a live Mathematics lesson covering Quadratic Equations.",
+    date: "Today",
+    time: "10:30 AM",
+    status: "Completed",
+    duration: "1h 12m",
+  },
+  {
+    id: 2,
+    type: "assignment",
+    title: "Created an Assignment",
+    description:
+      "Created an Algebra assignment containing 15 questions for the class.",
+    date: "Today",
+    time: "9:15 AM",
+    status: "Published",
+    duration: null,
+  },
+  {
+    id: 3,
+    type: "lesson",
+    title: "Uploaded Lesson Material",
+    description:
+      "Uploaded a new learning resource for the current Mathematics topic.",
+    date: "Yesterday",
+    time: "4:20 PM",
+    status: "Published",
+    duration: null,
+  },
+  {
+    id: 4,
+    type: "quiz",
+    title: "Created a Quiz",
+    description:
+      "Created a 20-question quiz to test students' understanding of the lesson.",
+    date: "Yesterday",
+    time: "1:45 PM",
+    status: "Published",
+    duration: null,
+  },
+  {
+    id: 5,
+    type: "announcement",
+    title: "Posted a Class Announcement",
+    description:
+      "Reminded students about the upcoming Mathematics assessment.",
+    date: "Sep 5, 2026",
+    time: "11:00 AM",
+    status: "Published",
+    duration: null,
+  },
+  {
+    id: 6,
+    type: "live",
+    title: "Completed a Live Class",
+    description:
+      "Completed a live lesson focused on simultaneous equations.",
+    date: "Sep 4, 2026",
+    time: "12:12 PM",
+    status: "Completed",
+    duration: "1h 05m",
+  },
+  {
+    id: 7,
+    type: "assignment",
+    title: "Reviewed Student Assignment",
+    description:
+      "Reviewed submitted Mathematics assignments and provided feedback.",
+    date: "Sep 3, 2026",
+    time: "3:40 PM",
+    status: "Completed",
+    duration: null,
+  },
+  {
+    id: 8,
+    type: "lesson",
+    title: "Added a New Lesson",
+    description:
+      "Added a new lesson covering equations, expressions and mathematical reasoning.",
+    date: "Sep 2, 2026",
+    time: "8:30 AM",
+    status: "Published",
+    duration: null,
+  },
+];
 
 /* =========================================================
    HELPERS
 ========================================================= */
 
-function clean(value) {
-  if (value === undefined || value === null) {
-    return "";
-  }
+const clean = (value) =>
+  typeof value === "string" ? value.trim() : value ?? "";
 
-  return String(value).trim();
-}
-
-function normalize(value) {
-  return clean(value)
+const normalize = (value) =>
+  clean(value)
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
     .toLowerCase();
-}
 
-function arrayFromValue(value) {
-  if (Array.isArray(value)) {
-    return value
-      .map(clean)
-      .filter(Boolean);
-  }
-
-  if (!value) {
-    return [];
-  }
-
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-
-      if (Array.isArray(parsed)) {
-        return parsed
-          .map(clean)
-          .filter(Boolean);
-      }
-    } catch {
-      // Continue below.
-    }
-
-    return value
-      .split(",")
-      .map(clean)
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-/* =========================================================
-   TUTOR STORAGE
-========================================================= */
-
-function safelyParseStorage(key) {
-  try {
-    const raw = localStorage.getItem(key);
-
-    if (!raw) {
-      return null;
-    }
-
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return raw;
-    }
-  } catch {
-    return null;
+function getActivityIcon(type) {
+  switch (type) {
+    case "live":
+      return Video;
+    case "assignment":
+      return FileText;
+    case "lesson":
+      return BookOpen;
+    case "quiz":
+      return HelpCircle;
+    case "announcement":
+      return Megaphone;
+    default:
+      return Zap;
   }
 }
 
-function extractTutor(value) {
-  if (!value) {
-    return null;
+function getActivityLabel(type) {
+  switch (type) {
+    case "live":
+      return "Live Class";
+    case "assignment":
+      return "Assignment";
+    case "lesson":
+      return "Lesson";
+    case "quiz":
+      return "Quiz";
+    case "announcement":
+      return "Announcement";
+    default:
+      return "Activity";
   }
-
-  /*
-    Possible structures:
-
-    {
-      reference: "TUT-001",
-      fullName: "John Doe"
-    }
-
-    {
-      tutor: {
-        reference: "TUT-001"
-      }
-    }
-
-    {
-      user: {
-        tutor: {
-          reference: "TUT-001"
-        }
-      }
-    }
-
-    {
-      data: {
-        tutor: {
-          reference: "TUT-001"
-        }
-      }
-    }
-  */
-
-  if (value?.tutor) {
-    const nested = extractTutor(value.tutor);
-
-    if (nested) {
-      return nested;
-    }
-  }
-
-  if (value?.user) {
-    const nested = extractTutor(value.user);
-
-    if (nested) {
-      return nested;
-    }
-  }
-
-  if (value?.data) {
-    const nested = extractTutor(value.data);
-
-    if (nested) {
-      return nested;
-    }
-  }
-
-  if (
-    value?.reference ||
-    value?.tutorReference ||
-    value?.tutor_reference ||
-    value?.ref
-  ) {
-    return value;
-  }
-
-  return null;
-}
-
-function getStoredTutor() {
-  /*
-    Check the most likely keys first.
-  */
-
-  const possibleKeys = [
-    "scholiqen-tutor",
-    "scholiqen_tutor",
-    "scholiqenTutor",
-    "academy-tutor",
-    "academy_tutor",
-    "academyTutor",
-    "currentTutor",
-    "tutor",
-    "loggedInTutor",
-    "logged_in_tutor",
-    "user",
-    "currentUser",
-    "scholiqen-user",
-    "scholiqen_user",
-  ];
-
-  for (const key of possibleKeys) {
-    const stored = safelyParseStorage(key);
-
-    const tutor = extractTutor(stored);
-
-    if (tutor) {
-      return tutor;
-    }
-  }
-
-  /*
-    Last-resort scan.
-
-    This helps if the login page uses an unexpected
-    localStorage key.
-  */
-
-  try {
-    for (let index = 0; index < localStorage.length; index += 1) {
-      const key = localStorage.key(index);
-
-      if (!key) {
-        continue;
-      }
-
-      const stored = safelyParseStorage(key);
-
-      const tutor = extractTutor(stored);
-
-      if (tutor) {
-        return tutor;
-      }
-    }
-  } catch {
-    // Ignore storage errors.
-  }
-
-  return null;
-}
-
-/* =========================================================
-   TUTOR REFERENCE
-========================================================= */
-
-function getTutorReference(tutor) {
-  if (!tutor) {
-    return "";
-  }
-
-  return (
-    clean(tutor?.reference) ||
-    clean(tutor?.tutorReference) ||
-    clean(tutor?.tutor_reference) ||
-    clean(tutor?.ref) ||
-    clean(tutor?.referenceId) ||
-    clean(tutor?.reference_id) ||
-    ""
-  );
-}
-
-/* =========================================================
-   SCHOOL LEVEL
-========================================================= */
-
-function getSchoolLevel(grade) {
-  const value = normalize(grade);
-
-  if (value.startsWith("primary")) {
-    return "Primary School";
-  }
-
-  if (value.startsWith("jss")) {
-    return "Junior Secondary";
-  }
-
-  if (value.startsWith("ss")) {
-    return "Senior Secondary";
-  }
-
-  return "School";
-}
-
-/* =========================================================
-   STUDENT STATUS
-========================================================= */
-
-function getStudentStatus(student) {
-  const status = normalize(
-    student?.enrollmentStatus ||
-      student?.enrollment_status ||
-      student?.status
-  );
-
-  if (status === "verified") {
-    return "verified";
-  }
-
-  if (
-    status === "pending" ||
-    status === "submitted" ||
-    status === "processing"
-  ) {
-    return "pending";
-  }
-
-  return status || "pending";
-}
-
-/* =========================================================
-   STUDENT NAME
-========================================================= */
-
-function getStudentName(student) {
-  const fullName = clean(
-    student?.fullName ||
-      student?.full_name ||
-      student?.name
-  );
-
-  if (fullName) {
-    return fullName;
-  }
-
-  const generatedName = [
-    student?.firstName ||
-      student?.first_name,
-
-    student?.middleName ||
-      student?.middle_name,
-
-    student?.lastName ||
-      student?.last_name,
-  ]
-    .map(clean)
-    .filter(Boolean)
-    .join(" ");
-
-  return generatedName || "Unnamed Student";
-}
-
-/* =========================================================
-   STUDENT ID
-========================================================= */
-
-function getStudentId(student) {
-  return (
-    clean(student?.enrollmentId) ||
-    clean(student?.enrollment_id) ||
-    clean(student?.id) ||
-    getStudentName(student)
-  );
-}
-
-/* =========================================================
-   FETCH
-========================================================= */
-
-async function fetchWithTimeout(
-  url,
-  options = {},
-  timeout = 15000
-) {
-  const controller = new AbortController();
-
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...(options.headers || {}),
-      },
-    });
-
-    const text = await response.text();
-
-    let data = null;
-
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      throw new Error(
-        `Server returned an invalid response (${response.status}).`
-      );
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        data?.message ||
-          data?.error ||
-          `Request failed with status ${response.status}.`
-      );
-    }
-
-    return data;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/* =========================================================
-   STATUS BADGE
-========================================================= */
-
-function StatusBadge({ status }) {
-  const verified = status === "verified";
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-        verified
-          ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
-          : "border-amber-400/20 bg-amber-400/10 text-amber-300"
-      }`}
-    >
-      {verified ? (
-        <CheckCircle2 size={12} />
-      ) : (
-        <Clock3 size={12} />
-      )}
-
-      {verified ? "Verified" : "Pending"}
-    </span>
-  );
 }
 
 /* =========================================================
@@ -459,25 +175,31 @@ function StatCard({
   label,
   value,
   description,
-  iconClass = "text-cyan-300",
+  delay = 0,
 }) {
   return (
     <motion.div
-      initial={{
-        opacity: 0,
-        y: 12,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl"
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay }}
+      className="
+        group relative overflow-hidden
+        rounded-2xl
+        border border-white/[0.08]
+        bg-white/[0.035]
+        p-5
+        backdrop-blur-xl
+        transition-all duration-300
+        hover:-translate-y-1
+        hover:border-white/[0.14]
+        hover:bg-white/[0.055]
+      "
     >
-      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-cyan-400/[0.06] blur-2xl" />
+      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl transition-all group-hover:bg-blue-500/20" />
 
-      <div className="relative flex items-start justify-between gap-4">
+      <div className="relative flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.15em] text-slate-500">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
             {label}
           </p>
 
@@ -485,159 +207,256 @@ function StatCard({
             {value}
           </p>
 
-          {description && (
-            <p className="mt-1 text-xs text-slate-500">
-              {description}
-            </p>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.04] p-3">
-          <Icon
-            size={20}
-            className={iconClass}
-          />
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-/* =========================================================
-   SUBJECT CHIP
-========================================================= */
-
-function SubjectChip({ subject }) {
-  return (
-    <div className="group flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.04]">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300">
-        <BookOpen size={17} />
-      </div>
-
-      <span className="text-sm font-medium text-slate-200">
-        {subject}
-      </span>
-    </div>
-  );
-}
-
-/* =========================================================
-   STUDENT ROW
-========================================================= */
-
-function StudentRow({ student }) {
-  const name = getStudentName(student);
-
-  const status = getStudentStatus(student);
-
-  const subjects = arrayFromValue(
-    student?.subjects ||
-      student?.subject
-  );
-
-  const initials = name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-
-  return (
-    <motion.div
-      initial={{
-        opacity: 0,
-      }}
-      animate={{
-        opacity: 1,
-      }}
-      className="flex items-center gap-4 border-b border-white/[0.06] px-4 py-4 last:border-b-0"
-    >
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/10 text-sm font-bold text-cyan-300">
-        {initials || "S"}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold text-white">
-            {name}
-          </p>
-
-          <StatusBadge
-            status={status}
-          />
-        </div>
-
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-          <span>
-            {clean(student?.grade) ||
-              "Class not specified"}
-          </span>
-
-          {subjects.length > 0 && (
-            <>
-              <span className="text-slate-700">
-                •
-              </span>
-
-              <span className="truncate">
-                {subjects.join(", ")}
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-
-      <button
-        type="button"
-        className="hidden rounded-lg border border-white/[0.07] bg-white/[0.03] p-2 text-slate-500 transition hover:border-cyan-400/20 hover:text-cyan-300 sm:block"
-        title="Student options"
-      >
-        <MoreHorizontal size={17} />
-      </button>
-    </motion.div>
-  );
-}
-
-/* =========================================================
-   ACTION CARD
-========================================================= */
-
-function ActionCard({
-  icon: Icon,
-  title,
-  description,
-  onClick,
-  disabled = false,
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="group w-full text-left disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      <div className="flex h-full items-center gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-cyan-400/20 group-hover:bg-cyan-400/[0.04]">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.035] text-cyan-300 transition group-hover:bg-cyan-400/10">
-          <Icon size={19} />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-white">
-            {title}
-          </p>
-
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-500">
             {description}
           </p>
         </div>
 
-        <ChevronRight
-          size={17}
-          className="shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-cyan-300"
-        />
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045]">
+          <Icon className="h-5 w-5 text-blue-400" />
+        </div>
       </div>
-    </button>
+    </motion.div>
+  );
+}
+
+/* =========================================================
+   ACTIVITY ITEM
+========================================================= */
+
+function ActivityItem({
+  activity,
+  index,
+  onOpen,
+}) {
+  const Icon = getActivityIcon(activity.type);
+
+  return (
+    <motion.button
+      type="button"
+      onClick={() => onOpen(activity)}
+      initial={{ opacity: 0, x: -15 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{
+        duration: 0.35,
+        delay: index * 0.055,
+      }}
+      className="
+        group relative flex w-full
+        gap-4 text-left
+        rounded-2xl
+        border border-white/[0.06]
+        bg-white/[0.025]
+        p-4
+        transition-all duration-300
+        hover:border-blue-400/20
+        hover:bg-white/[0.045]
+      "
+    >
+      {/* timeline */}
+      <div className="absolute left-[31px] top-[60px] bottom-[-22px] w-px bg-white/[0.06] group-last:hidden" />
+
+      <div
+        className="
+          relative z-10 flex h-11 w-11 shrink-0
+          items-center justify-center
+          rounded-xl
+          border border-blue-400/15
+          bg-blue-500/[0.08]
+        "
+      >
+        <Icon className="h-5 w-5 text-blue-400" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-semibold text-white">
+                {activity.title}
+              </h3>
+
+              <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                {getActivityLabel(activity.type)}
+              </span>
+            </div>
+
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+              {activity.description}
+            </p>
+          </div>
+
+          <div className="shrink-0 text-right">
+            <p className="text-xs font-medium text-slate-300">
+              {activity.date}
+            </p>
+
+            <p className="mt-1 text-[11px] text-slate-600">
+              {activity.time}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span
+            className={`
+              inline-flex items-center gap-1.5 rounded-full
+              border px-2.5 py-1 text-[11px] font-medium
+              ${
+                activity.status === "Completed"
+                  ? "border-emerald-400/15 bg-emerald-400/[0.07] text-emerald-400"
+                  : "border-blue-400/15 bg-blue-400/[0.07] text-blue-400"
+              }
+            `}
+          >
+            <CheckCircle2 className="h-3 w-3" />
+            {activity.status}
+          </span>
+
+          {activity.duration && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-[11px] text-slate-500">
+              <Clock3 className="h-3 w-3" />
+              {activity.duration}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <ChevronDown className="mt-3 h-4 w-4 shrink-0 -rotate-90 text-slate-700 transition-all group-hover:translate-x-1 group-hover:text-blue-400" />
+    </motion.button>
+  );
+}
+
+/* =========================================================
+   ACTIVITY MODAL
+========================================================= */
+
+function ActivityModal({ activity, onClose }) {
+  if (!activity) return null;
+
+  const Icon = getActivityIcon(activity.type);
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onMouseDown={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 25, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 15, scale: 0.98 }}
+          transition={{ duration: 0.25 }}
+          onMouseDown={(event) => event.stopPropagation()}
+          className="
+            w-full max-w-lg
+            overflow-hidden
+            rounded-3xl
+            border border-white/[0.09]
+            bg-[#0b1020]
+            shadow-2xl shadow-black/50
+          "
+        >
+          <div className="relative overflow-hidden border-b border-white/[0.07] p-6">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl" />
+
+            <div className="relative flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/15 bg-blue-500/10">
+                  <Icon className="h-6 w-6 text-blue-400" />
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-blue-400">
+                    {getActivityLabel(activity.type)}
+                  </p>
+
+                  <h2 className="mt-1 text-xl font-bold text-white">
+                    {activity.title}
+                  </h2>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl p-2 text-slate-500 transition hover:bg-white/[0.05] hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-5 p-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-600">
+                What happened
+              </p>
+
+              <p className="mt-2 text-sm leading-7 text-slate-300">
+                {activity.description}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="text-[11px] uppercase tracking-wider text-slate-600">
+                  Date
+                </p>
+                <p className="mt-1 text-sm font-medium text-white">
+                  {activity.date}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="text-[11px] uppercase tracking-wider text-slate-600">
+                  Time
+                </p>
+                <p className="mt-1 text-sm font-medium text-white">
+                  {activity.time}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="text-[11px] uppercase tracking-wider text-slate-600">
+                  Status
+                </p>
+                <p className="mt-1 text-sm font-medium text-emerald-400">
+                  {activity.status}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="text-[11px] uppercase tracking-wider text-slate-600">
+                  Activity
+                </p>
+                <p className="mt-1 text-sm font-medium text-white">
+                  {getActivityLabel(activity.type)}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="
+                flex w-full items-center justify-center
+                rounded-xl border border-white/[0.08]
+                bg-white/[0.04]
+                px-4 py-3
+                text-sm font-medium text-white
+                transition hover:bg-white/[0.07]
+              "
+            >
+              Close
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -647,840 +466,288 @@ function ActionCard({
 
 export default function TutorClassDetails() {
   const navigate = useNavigate();
-
   const location = useLocation();
-
   const params = useParams();
 
-  /* =======================================================
-     URL / NAVIGATION DATA
-  ======================================================= */
-
-  const gradeFromParams = clean(
-    params?.grade
-  );
-
-  const subjectFromParams = clean(
-    params?.subject
-  );
-
-  const locationState =
-    location.state || {};
-
-  const stateGrade = clean(
-    locationState?.grade ||
-      locationState?.className ||
-      locationState?.course
-  );
-
-  const stateReference = clean(
-    locationState?.reference ||
-      locationState?.tutorReference ||
-      locationState?.tutor_reference
-  );
-
-  const stateTutor =
-    locationState?.tutor ||
-    locationState?.user ||
-    null;
-
-  const selectedGrade =
-    stateGrade ||
-    gradeFromParams;
-
-  /* =======================================================
-     STATE
-  ======================================================= */
-
-  const [tutor, setTutor] =
-    useState(stateTutor || null);
-
-  const [classData, setClassData] =
+  const [selectedActivity, setSelectedActivity] =
     useState(null);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [activityFilter, setActivityFilter] =
+    useState("all");
 
-  const [refreshing, setRefreshing] =
-    useState(false);
+  /* -------------------------------------------------------
+     CLASS DATA
+  ------------------------------------------------------- */
 
-  const [error, setError] =
-    useState("");
+  const classData =
+    location.state?.classData ||
+    location.state?.class ||
+    {};
 
-  const [studentSearch, setStudentSearch] =
-    useState("");
+  const grade =
+    clean(
+      classData.grade ||
+        location.state?.selectedClass ||
+        params.grade ||
+        "Senior Secondary"
+    ) || "Senior Secondary";
 
-  const [
-    activeStudentFilter,
-    setActiveStudentFilter,
-  ] = useState("all");
+  const subject =
+    clean(
+      classData.subject ||
+        location.state?.selectedSubject ||
+        params.subject ||
+        "Mathematics"
+    ) || "Mathematics";
 
-  /* =======================================================
-     RESOLVE TUTOR
-  ======================================================= */
+  const tutor =
+    location.state?.tutor ||
+    {};
 
-  useEffect(() => {
-    const storedTutor =
-      getStoredTutor();
+  const tutorName =
+    clean(
+      tutor.name ||
+        tutor.fullName ||
+        tutor.displayName ||
+        tutor.tutorName
+    ) || "Tutor";
 
-    /*
-      Prefer navigation tutor,
-      then stored tutor.
-    */
+  const tutorEmail =
+    clean(tutor.email) || "tutor@scholiqen.com";
 
-    if (stateTutor) {
-      setTutor(
-        extractTutor(stateTutor) ||
-          stateTutor
+  /* -------------------------------------------------------
+     ACTIVITY FILTERING
+  ------------------------------------------------------- */
+
+  const filteredActivities = useMemo(() => {
+    if (activityFilter === "all") {
+      return HARD_CODED_ACTIVITIES;
+    }
+
+    return HARD_CODED_ACTIVITIES.filter(
+      (activity) =>
+        normalize(activity.type) ===
+        normalize(activityFilter)
+    );
+  }, [activityFilter]);
+
+  /* -------------------------------------------------------
+     STATS
+  ------------------------------------------------------- */
+
+  const stats = useMemo(() => {
+    return {
+      lessons: HARD_CODED_ACTIVITIES.filter(
+        (item) => item.type === "lesson"
+      ).length,
+
+      assignments: HARD_CODED_ACTIVITIES.filter(
+        (item) => item.type === "assignment"
+      ).length,
+
+      quizzes: HARD_CODED_ACTIVITIES.filter(
+        (item) => item.type === "quiz"
+      ).length,
+
+      liveClasses: HARD_CODED_ACTIVITIES.filter(
+        (item) => item.type === "live"
+      ).length,
+    };
+  }, []);
+
+  /* -------------------------------------------------------
+     QUICK ACTION
+  ------------------------------------------------------- */
+
+  const handleQuickAction = (action) => {
+    if (action === "live") {
+      alert(
+        "Live Class is ready to be connected to your backend."
       );
-
       return;
     }
 
-    if (storedTutor) {
-      setTutor(storedTutor);
+    if (action === "assignment") {
+      alert(
+        "Assignment creation is ready to be connected."
+      );
+      return;
     }
-  }, [stateTutor]);
 
-  /* =======================================================
-     LOAD CLASS DETAILS
-  ======================================================= */
-
-  const loadClassDetails =
-    useCallback(
-      async (isRefresh = false) => {
-        /*
-          Get tutor from:
-
-          1. current state
-          2. navigation state
-          3. localStorage
-        */
-
-        const currentTutor =
-          tutor ||
-          extractTutor(stateTutor) ||
-          getStoredTutor();
-
-        /*
-          Get reference from:
-
-          1. tutor object
-          2. navigation state
-        */
-
-        const reference =
-          getTutorReference(
-            currentTutor
-          ) ||
-          stateReference;
-
-        console.log(
-          "Tutor Class Details:",
-          {
-            tutor: currentTutor,
-            reference,
-            selectedGrade,
-          }
-        );
-
-        /* ===============================================
-           VALIDATION
-        =============================================== */
-
-        if (!reference) {
-          setLoading(false);
-
-          setError(
-            "Tutor information could not be found. Please log in again."
-          );
-
-          return;
-        }
-
-        if (!selectedGrade) {
-          setLoading(false);
-
-          setError(
-            "No class was selected. Please return to My Classes and open a class."
-          );
-
-          return;
-        }
-
-        /* ===============================================
-           REQUEST
-        =============================================== */
-
-        try {
-          if (isRefresh) {
-            setRefreshing(true);
-          } else {
-            setLoading(true);
-          }
-
-          setError("");
-
-          const query =
-            new URLSearchParams();
-
-          query.set(
-            "reference",
-            reference
-          );
-
-          query.set(
-            "grade",
-            selectedGrade
-          );
-
-          if (subjectFromParams) {
-            query.set(
-              "subject",
-              subjectFromParams
-            );
-          }
-
-          const requestUrl =
-            `${CLASS_DETAILS_URL}?${query.toString()}`;
-
-          console.log(
-            "Loading tutor class:",
-            requestUrl
-          );
-
-          const data =
-            await fetchWithTimeout(
-              requestUrl
-            );
-
-          console.log(
-            "Tutor class response:",
-            data
-          );
-
-          if (!data?.success) {
-            throw new Error(
-              data?.message ||
-                "Unable to load class details."
-            );
-          }
-
-          setClassData(data);
-        } catch (err) {
-          console.error(
-            "Tutor Class Details Error:",
-            err
-          );
-
-          if (
-            err?.name ===
-            "AbortError"
-          ) {
-            setError(
-              "The request took too long. Please check that the server is running and try again."
-            );
-          } else {
-            setError(
-              err?.message ||
-                "Unable to load this class right now."
-            );
-          }
-        } finally {
-          setLoading(false);
-
-          setRefreshing(false);
-        }
-      },
-      [
-        tutor,
-        stateTutor,
-        stateReference,
-        selectedGrade,
-        subjectFromParams,
-      ]
-    );
-
-  /* =======================================================
-     INITIAL LOAD
-  ======================================================= */
-
-  useEffect(() => {
-    loadClassDetails(false);
-  }, [loadClassDetails]);
-
-  /* =======================================================
-     LIVE REFRESH
-  ======================================================= */
-
-  useEffect(() => {
-    const interval =
-      setInterval(() => {
-        loadClassDetails(true);
-      }, 10000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [loadClassDetails]);
-
-  /* =======================================================
-     NORMALIZE RESPONSE
-  ======================================================= */
-
-  const selectedClass =
-    useMemo(() => {
-      if (!classData) {
-        return null;
-      }
-
-      return (
-        classData.class ||
-        classData.data?.class ||
-        classData.course ||
-        classData.data?.course ||
-        null
+    if (action === "lesson") {
+      alert(
+        "Lesson creation is ready to be connected."
       );
-    }, [classData]);
+      return;
+    }
 
-  /* =======================================================
-     REGISTERED SUBJECTS
-  ======================================================= */
-
-  const registeredSubjects =
-    useMemo(() => {
-      const subjects =
-        classData?.selection?.subjects ||
-        classData?.registeredSubjects ||
-        classData?.data?.selection?.subjects ||
-        selectedClass?.subjects ||
-        locationState?.subjects ||
-        tutor?.subjects ||
-        [];
-
-      return [
-        ...new Set(
-          arrayFromValue(
-            subjects
-          )
-        ),
-      ];
-    }, [
-      classData,
-      selectedClass,
-      locationState,
-      tutor,
-    ]);
-
-  /* =======================================================
-     STUDENTS
-  ======================================================= */
-
-  const students =
-    useMemo(() => {
-      const value =
-        classData?.students ||
-        selectedClass?.students ||
-        classData?.data?.students ||
-        [];
-
-      return Array.isArray(value)
-        ? value
-        : [];
-    }, [
-      classData,
-      selectedClass,
-    ]);
-
-  /* =======================================================
-     STATS
-  ======================================================= */
-
-  const stats =
-    useMemo(() => {
-      const verified =
-        students.filter(
-          (student) =>
-            getStudentStatus(
-              student
-            ) === "verified"
-        );
-
-      const pending =
-        students.filter(
-          (student) =>
-            getStudentStatus(
-              student
-            ) === "pending"
-        );
-
-      return {
-        total:
-          students.length,
-
-        verified:
-          verified.length,
-
-        pending:
-          pending.length,
-
-        subjects:
-          registeredSubjects.length,
-      };
-    }, [
-      students,
-      registeredSubjects,
-    ]);
-
-  /* =======================================================
-     FILTER STUDENTS
-  ======================================================= */
-
-  const filteredStudents =
-    useMemo(() => {
-      const search =
-        normalize(
-          studentSearch
-        );
-
-      return students.filter(
-        (student) => {
-          const status =
-            getStudentStatus(
-              student
-            );
-
-          if (
-            activeStudentFilter !==
-              "all" &&
-            status !==
-              activeStudentFilter
-          ) {
-            return false;
-          }
-
-          if (!search) {
-            return true;
-          }
-
-          const name =
-            normalize(
-              getStudentName(
-                student
-              )
-            );
-
-          const studentSubjects =
-            arrayFromValue(
-              student?.subjects ||
-                student?.subject
-            )
-              .map(normalize)
-              .join(" ");
-
-          const email =
-            normalize(
-              student?.email
-            );
-
-          const enrollmentId =
-            normalize(
-              student?.enrollmentId ||
-                student?.enrollment_id
-            );
-
-          return (
-            name.includes(
-              search
-            ) ||
-            studentSubjects.includes(
-              search
-            ) ||
-            email.includes(
-              search
-            ) ||
-            enrollmentId.includes(
-              search
-            )
-          );
-        }
+    if (action === "quiz") {
+      alert(
+        "Quiz creation is ready to be connected."
       );
-    }, [
-      students,
-      studentSearch,
-      activeStudentFilter,
-    ]);
-
-  /* =======================================================
-     DISPLAY DATA
-  ======================================================= */
-
-  const displayGrade =
-    clean(
-      selectedClass?.grade ||
-        selectedClass?.className ||
-        selectedClass?.course ||
-        selectedGrade
-    ) || "Class";
-
-  const schoolLevel =
-    clean(
-      selectedClass?.schoolLevel ||
-        selectedClass?.school_level
-    ) ||
-    getSchoolLevel(
-      displayGrade
-    );
-
-  /* =======================================================
-     NAVIGATION
-  ======================================================= */
-
-  const goBack = () => {
-    navigate(
-      "/academy/tutor/classes"
-    );
+    }
   };
-
-  const goToStudents = () => {
-    navigate(
-      "/academy/tutor/students",
-      {
-        state: {
-          grade: displayGrade,
-          subjects:
-            registeredSubjects,
-          students,
-          tutor,
-        },
-      }
-    );
-  };
-
-  const comingSoon = (
-    feature
-  ) => {
-    alert(
-      `${feature} will be connected next.`
-    );
-  };
-
-  /* =======================================================
-     ERROR SCREEN
-  ======================================================= */
-
-  if (!loading && error) {
-    return (
-      <div className="min-h-screen bg-[#050816] text-white">
-        <div className="pointer-events-none fixed inset-0 overflow-hidden">
-          <div className="absolute left-[10%] top-[-10%] h-80 w-80 rounded-full bg-cyan-500/[0.08] blur-[120px]" />
-
-          <div className="absolute bottom-[-10%] right-[10%] h-80 w-80 rounded-full bg-violet-500/[0.08] blur-[120px]" />
-        </div>
-
-        <main className="relative mx-auto flex min-h-screen max-w-5xl items-center justify-center px-5 py-10">
-          <motion.div
-            initial={{
-              opacity: 0,
-              y: 20,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            className="w-full max-w-lg rounded-3xl border border-white/[0.08] bg-white/[0.035] p-8 text-center backdrop-blur-xl"
-          >
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-red-400/20 bg-red-400/10 text-red-300">
-              <AlertCircle
-                size={30}
-              />
-            </div>
-
-            <h1 className="mt-6 text-2xl font-bold text-white">
-              Unable to Load Class
-            </h1>
-
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              {error}
-            </p>
-
-            {/* Debug information */}
-            <div className="mt-5 rounded-xl border border-white/[0.06] bg-black/20 p-4 text-left">
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-600">
-                Class
-              </p>
-
-              <p className="mt-1 text-sm text-slate-300">
-                {selectedGrade ||
-                  "Not detected"}
-              </p>
-
-              <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-600">
-                Tutor Reference
-              </p>
-
-              <p className="mt-1 break-all text-sm text-slate-300">
-                {getTutorReference(
-                  tutor
-                ) ||
-                  stateReference ||
-                  "Not detected"}
-              </p>
-            </div>
-
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <button
-                type="button"
-                onClick={goBack}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.07]"
-              >
-                <ArrowLeft
-                  size={17}
-                />
-
-                Back to My Classes
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  loadClassDetails(
-                    false
-                  )
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"
-              >
-                <RefreshCw
-                  size={17}
-                />
-
-                Try Again
-              </button>
-            </div>
-          </motion.div>
-        </main>
-      </div>
-    );
-  }
-
-  /* =======================================================
-     LOADING SCREEN
-  ======================================================= */
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#050816] text-white">
-        <div className="pointer-events-none fixed inset-0">
-          <div className="absolute left-[10%] top-[-10%] h-80 w-80 rounded-full bg-cyan-500/[0.08] blur-[120px]" />
-
-          <div className="absolute bottom-[-10%] right-[10%] h-80 w-80 rounded-full bg-violet-500/[0.08] blur-[120px]" />
-        </div>
-
-        <main className="relative mx-auto max-w-7xl px-5 py-8 lg:px-8">
-          <div className="flex animate-pulse items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/[0.06]" />
-
-            <div>
-              <div className="h-5 w-48 rounded bg-white/[0.06]" />
-
-              <div className="mt-2 h-3 w-28 rounded bg-white/[0.04]" />
-            </div>
-          </div>
-
-          <div className="mt-8 grid gap-4 md:grid-cols-4">
-            {[1, 2, 3, 4].map(
-              (item) => (
-                <div
-                  key={item}
-                  className="h-32 rounded-2xl border border-white/[0.06] bg-white/[0.03]"
-                />
-              )
-            )}
-          </div>
-
-          <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
-            <div className="h-96 rounded-2xl border border-white/[0.06] bg-white/[0.03]" />
-
-            <div className="h-96 rounded-2xl border border-white/[0.06] bg-white/[0.03]" />
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  /* =======================================================
-     MAIN UI
-  ======================================================= */
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#050816] text-white">
-      {/* Background */}
+    <div className="min-h-screen bg-[#050814] text-white">
+      {/* ===================================================
+          BACKGROUND
+      =================================================== */}
+
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute left-[-8%] top-[-12%] h-[420px] w-[420px] rounded-full bg-cyan-500/[0.07] blur-[140px]" />
+        <div className="absolute left-[10%] top-[-10%] h-[350px] w-[350px] rounded-full bg-blue-600/[0.07] blur-[120px]" />
 
-        <div className="absolute right-[-8%] top-[25%] h-[400px] w-[400px] rounded-full bg-violet-500/[0.06] blur-[140px]" />
-
-        <div className="absolute bottom-[-15%] left-[30%] h-[350px] w-[350px] rounded-full bg-blue-500/[0.05] blur-[130px]" />
+        <div className="absolute right-[5%] top-[30%] h-[300px] w-[300px] rounded-full bg-indigo-600/[0.05] blur-[120px]" />
 
         <div
-          className="absolute inset-0 opacity-[0.025]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
-            backgroundSize:
-              "24px 24px",
-          }}
+          className="
+            absolute inset-0 opacity-[0.035]
+            bg-[radial-gradient(circle_at_1px_1px,_white_1px,_transparent_0)]
+            [background-size:24px_24px]
+          "
         />
       </div>
 
+      {/* ===================================================
+          CONTENT
+      =================================================== */}
+
       <main className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {/* =================================================
-            TOP BAR
+            TOP NAV
         ================================================= */}
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={goBack}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-slate-300 transition hover:border-cyan-400/20 hover:bg-cyan-400/[0.05] hover:text-cyan-300"
-              title="Back to My Classes"
-            >
-              <ArrowLeft
-                size={19}
-              />
-            </button>
+        <motion.div
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 flex items-center justify-between gap-4"
+        >
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                "/academy/tutor/classes"
+              )
+            }
+            className="
+              group inline-flex items-center gap-2
+              rounded-xl
+              border border-white/[0.07]
+              bg-white/[0.025]
+              px-3.5 py-2.5
+              text-sm font-medium text-slate-400
+              transition-all
+              hover:border-white/[0.12]
+              hover:bg-white/[0.05]
+              hover:text-white
+            "
+          >
+            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+            Back to My Classes
+          </button>
 
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-cyan-400/80">
-                  My Classes
-                </p>
+          <div className="hidden items-center gap-2 sm:flex">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/30" />
 
-                <span className="text-slate-700">
-                  /
-                </span>
-
-                <p className="text-xs text-slate-500">
-                  Class Details
-                </p>
-              </div>
-
-              <h1 className="mt-1 text-xl font-bold tracking-tight text-white sm:text-2xl">
-                {displayGrade}
-              </h1>
-            </div>
+            <span className="text-xs text-slate-500">
+              Tutor workspace
+            </span>
           </div>
-
-          <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 rounded-xl border border-emerald-400/10 bg-emerald-400/[0.04] px-3 py-2 sm:flex">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-              </span>
-
-              <span className="text-xs font-medium text-emerald-300">
-                Live data
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                loadClassDetails(
-                  true
-                )
-              }
-              disabled={refreshing}
-              className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3.5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-cyan-400/20 hover:text-cyan-300 disabled:opacity-50"
-            >
-              <RefreshCw
-                size={16}
-                className={
-                  refreshing
-                    ? "animate-spin"
-                    : ""
-                }
-              />
-
-              <span className="hidden sm:inline">
-                Refresh
-              </span>
-            </button>
-          </div>
-        </div>
+        </motion.div>
 
         {/* =================================================
-            CLASS HERO
+            HERO
         ================================================= */}
 
         <motion.section
-          initial={{
-            opacity: 0,
-            y: 16,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          className="mt-6 overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.035] backdrop-blur-xl"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="
+            relative overflow-hidden
+            rounded-3xl
+            border border-white/[0.08]
+            bg-gradient-to-br
+            from-blue-500/[0.10]
+            via-white/[0.035]
+            to-indigo-500/[0.06]
+            p-6
+            shadow-2xl shadow-black/10
+            sm:p-8
+          "
         >
-          <div className="relative p-6 sm:p-8">
-            <div className="absolute right-0 top-0 h-48 w-48 rounded-full bg-cyan-400/[0.07] blur-[80px]" />
+          <div className="absolute right-[-80px] top-[-100px] h-72 w-72 rounded-full bg-blue-500/[0.08] blur-[80px]" />
 
-            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300 shadow-[0_0_40px_rgba(34,211,238,0.08)]">
-                  <GraduationCap
-                    size={30}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                      {displayGrade}
-                    </h2>
-
-                    {stats.verified >
-                      0 && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
-                        <Activity
-                          size={12}
-                        />
-
-                        Active
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="mt-2 text-sm text-slate-400">
-                    {schoolLevel}
-                  </p>
-
-                  <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-                    Manage your students,
-                    subjects and teaching
-                    activities for this
-                    registered class.
-                  </p>
-                </div>
+          <div className="relative flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div
+                className="
+                  flex h-16 w-16 shrink-0
+                  items-center justify-center
+                  rounded-2xl
+                  border border-blue-400/20
+                  bg-blue-500/10
+                  shadow-lg shadow-blue-950/20
+                "
+              >
+                <GraduationCap className="h-8 w-8 text-blue-400" />
               </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  comingSoon(
-                    "Live Class"
-                  )
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_10px_35px_rgba(34,211,238,0.12)] transition hover:bg-cyan-300"
-              >
-                <Video size={18} />
+              <div className="min-w-0">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-blue-400/15 bg-blue-400/[0.07] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-400">
+                    Tutor Class
+                  </span>
 
-                Start Live Class
-              </button>
+                  <span className="rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-400">
+                    Active
+                  </span>
+                </div>
+
+                <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  {subject}
+                </h1>
+
+                <p className="mt-2 text-sm text-slate-400">
+                  {grade} · Tutor activity workspace
+                </p>
+
+                <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5" />
+                    32 Students
+                  </span>
+
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    3 Classes / Week
+                  </span>
+
+                  <span className="inline-flex items-center gap-1.5">
+                    <Award className="h-3.5 w-3.5" />
+                    {tutorName}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/[0.07] bg-black/10 p-4 lg:min-w-[230px]">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
+                Tutor
+              </p>
+
+              <p className="mt-2 font-semibold text-white">
+                {tutorName}
+              </p>
+
+              <p className="mt-1 truncate text-xs text-slate-500">
+                {tutorEmail}
+              </p>
+
+              <div className="mt-3 flex items-center gap-2 text-xs text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Active tutor
+              </div>
             </div>
           </div>
         </motion.section>
@@ -1489,438 +756,417 @@ export default function TutorClassDetails() {
             STATS
         ================================================= */}
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            icon={Users}
-            label="Total Students"
-            value={stats.total}
-            description="Students who applied"
-            iconClass="text-cyan-300"
-          />
-
-          <StatCard
-            icon={UserCheck}
-            label="Active Students"
-            value={stats.verified}
-            description="Verified students"
-            iconClass="text-emerald-300"
-          />
-
-          <StatCard
-            icon={Clock3}
-            label="Pending Students"
-            value={stats.pending}
-            description="Awaiting verification"
-            iconClass="text-amber-300"
-          />
-
+        <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard
             icon={BookOpen}
-            label="Subjects"
-            value={stats.subjects}
-            description="Subjects selected during registration"
-            iconClass="text-violet-300"
+            label="Lessons"
+            value={stats.lessons}
+            description="Lessons added"
+            delay={0.05}
+          />
+
+          <StatCard
+            icon={FileText}
+            label="Assignments"
+            value={stats.assignments}
+            description="Assignments created"
+            delay={0.1}
+          />
+
+          <StatCard
+            icon={HelpCircle}
+            label="Quizzes"
+            value={stats.quizzes}
+            description="Quizzes created"
+            delay={0.15}
+          />
+
+          <StatCard
+            icon={Video}
+            label="Live Classes"
+            value={stats.liveClasses}
+            description="Live sessions"
+            delay={0.2}
           />
         </section>
 
         {/* =================================================
-            MAIN CONTENT
+            MAIN GRID
         ================================================= */}
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.45fr_0.55fr]">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* ===============================================
-              LEFT
+              ACTIVITY
           =============================================== */}
 
-          <div className="space-y-6">
-            {/* Subjects */}
-
-            <section className="rounded-2xl border border-white/[0.08] bg-white/[0.035] backdrop-blur-xl">
-              <div className="border-b border-white/[0.07] p-5 sm:p-6">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-base font-bold text-white">
-                      Subjects You Teach
-                    </h3>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      Subjects selected during
-                      your tutor registration.
-                    </p>
-                  </div>
-
-                  <div className="rounded-lg border border-cyan-400/10 bg-cyan-400/[0.05] px-2.5 py-1.5 text-xs font-semibold text-cyan-300">
-                    {
-                      registeredSubjects.length
-                    }
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-5 sm:p-6">
-                {registeredSubjects.length >
-                0 ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {registeredSubjects.map(
-                      (
-                        subject
-                      ) => (
-                        <SubjectChip
-                          key={
-                            subject
-                          }
-                          subject={
-                            subject
-                          }
-                        />
-                      )
-                    )}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-white/[0.08] p-8 text-center">
-                    <BookMarked
-                      size={24}
-                      className="mx-auto text-slate-600"
-                    />
-
-                    <p className="mt-3 text-sm font-medium text-slate-400">
-                      No subjects found
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            {/* Students */}
-
-            <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.035] backdrop-blur-xl">
-              <div className="border-b border-white/[0.07] p-5 sm:p-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h3 className="text-base font-bold text-white">
-                      Students
-                    </h3>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      Students who applied for
-                      this registered class.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={
-                      goToStudents
-                    }
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/20 hover:text-cyan-300"
-                  >
-                    View All
-
-                    <ChevronRight
-                      size={14}
-                    />
-                  </button>
-                </div>
-
-                {/* Search */}
-
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  <div className="relative flex-1">
-                    <Search
-                      size={16}
-                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600"
-                    />
-
-                    <input
-                      type="text"
-                      value={
-                        studentSearch
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setStudentSearch(
-                          event
-                            .target
-                            .value
-                        )
-                      }
-                      placeholder="Search students..."
-                      className="w-full rounded-xl border border-white/[0.08] bg-black/20 py-3 pl-10 pr-10 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/30"
-                    />
-
-                    {studentSearch && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setStudentSearch(
-                            ""
-                          )
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300"
-                      >
-                        <XCircle
-                          size={16}
-                        />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex rounded-xl border border-white/[0.08] bg-black/20 p-1">
-                    {[
-                      [
-                        "all",
-                        "All",
-                      ],
-                      [
-                        "verified",
-                        "Active",
-                      ],
-                      [
-                        "pending",
-                        "Pending",
-                      ],
-                    ].map(
-                      ([
-                        value,
-                        label,
-                      ]) => (
-                        <button
-                          key={
-                            value
-                          }
-                          type="button"
-                          onClick={() =>
-                            setActiveStudentFilter(
-                              value
-                            )
-                          }
-                          className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                            activeStudentFilter ===
-                            value
-                              ? "bg-cyan-400/10 text-cyan-300"
-                              : "text-slate-500 hover:text-slate-300"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              </div>
-
+          <section
+            className="
+              rounded-3xl
+              border border-white/[0.08]
+              bg-white/[0.025]
+              p-5
+              sm:p-6
+            "
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <AnimatePresence mode="popLayout">
-                  {filteredStudents.length >
-                  0 ? (
-                    filteredStudents.map(
-                      (
-                        student
-                      ) => (
-                        <StudentRow
-                          key={getStudentId(
-                            student
-                          )}
-                          student={
-                            student
-                          }
-                        />
-                      )
-                    )
-                  ) : (
-                    <motion.div
-                      initial={{
-                        opacity: 0,
-                      }}
-                      animate={{
-                        opacity: 1,
-                      }}
-                      className="p-10 text-center"
-                    >
-                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.04] text-slate-600">
-                        <UserRound
-                          size={22}
-                        />
-                      </div>
+                <div className="flex items-center gap-2">
+                  <ActivityPulse />
 
-                      <p className="mt-4 text-sm font-semibold text-slate-300">
-                        No students
-                        found
-                      </p>
-
-                      <p className="mt-1 text-xs text-slate-600">
-                        {students.length >
-                        0
-                          ? "Try changing your search or filter."
-                          : "No students have applied for this class yet."}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </section>
-          </div>
-
-          {/* ===============================================
-              RIGHT
-          =============================================== */}
-
-          <div className="space-y-6">
-            {/* Teaching */}
-
-            <section className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
-              <div className="mb-4">
-                <h3 className="text-base font-bold text-white">
-                  Teaching
-                </h3>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Manage teaching activities
-                  for this class.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <ActionCard
-                  icon={
-                    ClipboardList
-                  }
-                  title="Create Task"
-                  description="Give students work to complete"
-                  onClick={() =>
-                    comingSoon(
-                      "Create Task"
-                    )
-                  }
-                />
-
-                <ActionCard
-                  icon={FileText}
-                  title="Assignments"
-                  description="Create and manage assignments"
-                  onClick={() =>
-                    comingSoon(
-                      "Assignments"
-                    )
-                  }
-                />
-
-                <ActionCard
-                  icon={BookOpen}
-                  title="Lessons"
-                  description="Plan lessons for this class"
-                  onClick={() =>
-                    comingSoon(
-                      "Lessons"
-                    )
-                  }
-                />
-
-                <ActionCard
-                  icon={FolderOpen}
-                  title="Materials"
-                  description="Share learning resources"
-                  onClick={() =>
-                    comingSoon(
-                      "Materials"
-                    )
-                  }
-                />
-              </div>
-            </section>
-
-            {/* Class Management */}
-
-            <section className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
-              <div className="mb-4">
-                <h3 className="text-base font-bold text-white">
-                  Class Management
-                </h3>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Tools for managing your
-                  classroom.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <ActionCard
-                  icon={
-                    CalendarDays
-                  }
-                  title="Attendance"
-                  description="Record and monitor attendance"
-                  onClick={() =>
-                    comingSoon(
-                      "Attendance"
-                    )
-                  }
-                />
-
-                <ActionCard
-                  icon={Megaphone}
-                  title="Announcements"
-                  description="Send updates to the class"
-                  onClick={() =>
-                    comingSoon(
-                      "Announcements"
-                    )
-                  }
-                />
-
-                <ActionCard
-                  icon={Video}
-                  title="Live Classroom"
-                  description="Start a live teaching session"
-                  onClick={() =>
-                    comingSoon(
-                      "Live Classroom"
-                    )
-                  }
-                />
-              </div>
-            </section>
-
-            {/* Class status */}
-
-            <section className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-cyan-400/[0.06] to-violet-500/[0.04] p-5 backdrop-blur-xl sm:p-6">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-cyan-400/10 p-2.5 text-cyan-300">
-                  <Activity
-                    size={19}
-                  />
+                  <h2 className="text-lg font-bold text-white">
+                    Tutor Activity
+                  </h2>
                 </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-white">
-                    Live Class Status
-                  </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Everything the tutor has done in this class.
+                </p>
+              </div>
 
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    This page automatically
-                    checks for new student
-                    applications and
-                    verification changes.
+              <div className="relative">
+                <select
+                  value={activityFilter}
+                  onChange={(event) =>
+                    setActivityFilter(
+                      event.target.value
+                    )
+                  }
+                  className="
+                    appearance-none
+                    rounded-xl
+                    border border-white/[0.08]
+                    bg-white/[0.035]
+                    py-2.5 pl-3 pr-9
+                    text-xs font-medium
+                    text-slate-300
+                    outline-none
+                    transition
+                    focus:border-blue-400/30
+                  "
+                >
+                  <option
+                    value="all"
+                    className="bg-[#0b1020]"
+                  >
+                    All Activity
+                  </option>
+
+                  <option
+                    value="live"
+                    className="bg-[#0b1020]"
+                  >
+                    Live Classes
+                  </option>
+
+                  <option
+                    value="assignment"
+                    className="bg-[#0b1020]"
+                  >
+                    Assignments
+                  </option>
+
+                  <option
+                    value="lesson"
+                    className="bg-[#0b1020]"
+                  >
+                    Lessons
+                  </option>
+
+                  <option
+                    value="quiz"
+                    className="bg-[#0b1020]"
+                  >
+                    Quizzes
+                  </option>
+
+                  <option
+                    value="announcement"
+                    className="bg-[#0b1020]"
+                  >
+                    Announcements
+                  </option>
+                </select>
+
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-600" />
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <AnimatePresence mode="popLayout">
+                {filteredActivities.map(
+                  (activity, index) => (
+                    <ActivityItem
+                      key={activity.id}
+                      activity={activity}
+                      index={index}
+                      onOpen={setSelectedActivity}
+                    />
+                  )
+                )}
+              </AnimatePresence>
+
+              {filteredActivities.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-white/[0.08] p-10 text-center">
+                  <Sparkles className="mx-auto h-7 w-7 text-slate-700" />
+
+                  <p className="mt-3 text-sm font-medium text-slate-400">
+                    No activity found
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-600">
+                    Try another activity filter.
                   </p>
                 </div>
+              )}
+            </div>
+          </section>
+
+          {/* ===============================================
+              SIDEBAR
+          =============================================== */}
+
+          <aside className="space-y-6">
+            {/* Class Overview */}
+            <motion.div
+              initial={{ opacity: 0, x: 15 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="
+                rounded-3xl
+                border border-white/[0.08]
+                bg-white/[0.025]
+                p-5
+              "
+            >
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-blue-400" />
+
+                <h3 className="font-semibold text-white">
+                  Class Overview
+                </h3>
               </div>
 
-              <div className="mt-5 flex items-center justify-between border-t border-white/[0.07] pt-4">
-                <span className="text-xs text-slate-500">
-                  Auto refresh
-                </span>
+              <div className="mt-5 space-y-3">
+                <OverviewRow
+                  icon={GraduationCap}
+                  label="Grade"
+                  value={grade}
+                />
 
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <OverviewRow
+                  icon={BookOpen}
+                  label="Subject"
+                  value={subject}
+                />
 
-                  Every 10 seconds
-                </span>
+                <OverviewRow
+                  icon={Users}
+                  label="Students"
+                  value="32"
+                />
+
+                <OverviewRow
+                  icon={CalendarDays}
+                  label="Schedule"
+                  value="Mon · Wed · Fri"
+                />
+
+                <OverviewRow
+                  icon={Clock3}
+                  label="Duration"
+                  value="1 hour"
+                />
               </div>
-            </section>
-          </div>
+            </motion.div>
+
+            {/* Quick Actions */}
+            <motion.div
+              initial={{ opacity: 0, x: 15 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.28 }}
+              className="
+                rounded-3xl
+                border border-white/[0.08]
+                bg-white/[0.025]
+                p-5
+              "
+            >
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-blue-400" />
+
+                <h3 className="font-semibold text-white">
+                  Quick Actions
+                </h3>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <QuickAction
+                  icon={Radio}
+                  label="Start Live Class"
+                  onClick={() =>
+                    handleQuickAction("live")
+                  }
+                />
+
+                <QuickAction
+                  icon={FileText}
+                  label="Create Assignment"
+                  onClick={() =>
+                    handleQuickAction("assignment")
+                  }
+                />
+
+                <QuickAction
+                  icon={BookOpen}
+                  label="Add Lesson"
+                  onClick={() =>
+                    handleQuickAction("lesson")
+                  }
+                />
+
+                <QuickAction
+                  icon={HelpCircle}
+                  label="Create Quiz"
+                  onClick={() =>
+                    handleQuickAction("quiz")
+                  }
+                />
+              </div>
+            </motion.div>
+
+            {/* Activity summary */}
+            <motion.div
+              initial={{ opacity: 0, x: 15 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.34 }}
+              className="
+                relative overflow-hidden
+                rounded-3xl
+                border border-blue-400/10
+                bg-blue-500/[0.045]
+                p-5
+              "
+            >
+              <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-blue-500/10 blur-3xl" />
+
+              <div className="relative">
+                <Sparkles className="h-5 w-5 text-blue-400" />
+
+                <h3 className="mt-3 font-semibold text-white">
+                  Activity Overview
+                </h3>
+
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  This section will eventually show real-time
+                  activity coming directly from the tutor
+                  dashboard.
+                </p>
+
+                <div className="mt-4 flex items-center gap-2 text-xs text-blue-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+                  Tracking enabled
+                </div>
+              </div>
+            </motion.div>
+          </aside>
         </div>
+
+        {/* =================================================
+            FOOT NOTE
+        ================================================= */}
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-6 flex items-center justify-center gap-2 pb-8 text-[11px] text-slate-700"
+        >
+          <Sparkles className="h-3 w-3" />
+          Scholiqen Tutor Workspace
+        </motion.div>
       </main>
+
+      {/* ===================================================
+          MODAL
+      =================================================== */}
+
+      <ActivityModal
+        activity={selectedActivity}
+        onClose={() => setSelectedActivity(null)}
+      />
     </div>
+  );
+}
+
+/* =========================================================
+   SMALL COMPONENTS
+========================================================= */
+
+function ActivityPulse() {
+  return (
+    <span className="relative flex h-5 w-5 items-center justify-center">
+      <span className="absolute h-2.5 w-2.5 rounded-full bg-blue-400/30 animate-ping" />
+
+      <span className="relative h-2 w-2 rounded-full bg-blue-400" />
+    </span>
+  );
+}
+
+function OverviewRow({
+  icon: Icon,
+  label,
+  value,
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Icon className="h-4 w-4 shrink-0 text-slate-600" />
+
+        <span className="text-xs text-slate-500">
+          {label}
+        </span>
+      </div>
+
+      <span className="max-w-[150px] truncate text-right text-xs font-medium text-slate-300">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function QuickAction({
+  icon: Icon,
+  label,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="
+        group flex w-full items-center
+        justify-between
+        rounded-xl
+        border border-white/[0.06]
+        bg-white/[0.02]
+        px-3 py-3
+        text-left
+        transition-all
+        hover:border-blue-400/15
+        hover:bg-blue-500/[0.05]
+      "
+    >
+      <span className="flex items-center gap-3">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04]">
+          <Icon className="h-4 w-4 text-slate-400 transition group-hover:text-blue-400" />
+        </span>
+
+        <span className="text-xs font-medium text-slate-300">
+          {label}
+        </span>
+      </span>
+
+      <Plus className="h-4 w-4 text-slate-700 transition group-hover:text-blue-400" />
+    </button>
   );
 }

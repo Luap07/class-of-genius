@@ -5,20 +5,8 @@ import { fileURLToPath } from "url";
 
 const { Pool } = pg;
 
-/*
-|--------------------------------------------------------------------------
-| Resolve project root reliably
-|--------------------------------------------------------------------------
-*/
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// db.js:
-// C:\Users\DELL\cog\server\lib\db.js
-//
-// Project root:
-// C:\Users\DELL\cog
 
 const projectRoot = path.resolve(__dirname, "../..");
 

@@ -331,6 +331,13 @@ app.use(
         );
       }
 
+      app.use(
+  "/uploads",
+  express.static(
+    path.join(process.cwd(), "uploads")
+  )
+);
+
       // Development mode.
       // Restrict this in production.
       return callback(
@@ -350,12 +357,13 @@ app.use(
       "OPTIONS",
     ],
 
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-Requested-With",
-      "x-paystack-signature",
-    ],
+   allowedHeaders: [
+  "Content-Type",
+  "Authorization",
+  "X-Requested-With",
+  "x-paystack-signature",
+  "x-tutor-reference",
+],
   })
 );
 

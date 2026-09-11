@@ -15,6 +15,9 @@ import TutorTopbar from "./TutorTopbar";
 const ACADEMY_USER_KEY =
   "scholiqen_academy_user";
 
+const ACADEMY_TOKEN_KEY =
+  "scholiqen_academy_token";
+
 const TutorLayout = ({
   children,
   title,
@@ -32,59 +35,96 @@ const TutorLayout = ({
     useState(true);
 
   useEffect(() => {
-    try {
-      const storedUser =
-        localStorage.getItem(
+    let mounted = true;
+
+    const checkTutorSession = () => {
+      try {
+        const storedUser =
+          localStorage.getItem(
+            ACADEMY_USER_KEY
+          );
+
+        const storedToken =
+          localStorage.getItem(
+            ACADEMY_TOKEN_KEY
+          );
+
+        if (!storedUser || !storedToken) {
+          navigate(
+            "/academy/login",
+            { replace: true }
+          );
+
+          return;
+        }
+
+        const parsedUser =
+          JSON.parse(storedUser);
+
+        const userType =
+          parsedUser?.userType ||
+          parsedUser?.user_type;
+
+        const reference =
+          parsedUser?.reference ||
+          parsedUser?.referenceId ||
+          parsedUser?.reference_id;
+
+        if (
+          userType !== "tutor" ||
+          !reference
+        ) {
+          localStorage.removeItem(
+            ACADEMY_USER_KEY
+          );
+
+          localStorage.removeItem(
+            ACADEMY_TOKEN_KEY
+          );
+
+          navigate(
+            "/academy/login",
+            { replace: true }
+          );
+
+          return;
+        }
+
+        if (mounted) {
+          setTutor(parsedUser);
+        }
+      } catch (error) {
+        console.error(
+          "Tutor session error:",
+          error
+        );
+
+        localStorage.removeItem(
           ACADEMY_USER_KEY
         );
 
-      if (!storedUser) {
-        navigate(
-          "/academy/login",
-          { replace: true }
+        localStorage.removeItem(
+          ACADEMY_TOKEN_KEY
         );
 
-        return;
+        if (mounted) {
+          navigate(
+            "/academy/login",
+            { replace: true }
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
+    };
 
-      const parsedUser =
-        JSON.parse(storedUser);
+    checkTutorSession();
 
-      const userType =
-        parsedUser?.userType ||
-        parsedUser?.user_type;
-
-      if (userType !== "tutor") {
-        navigate(
-          "/academy/login",
-          { replace: true }
-        );
-
-        return;
-      }
-
-      setTutor(parsedUser);
-    } catch (error) {
-      console.error(
-        "Tutor session error:",
-        error
-      );
-
-      localStorage.removeItem(
-        ACADEMY_USER_KEY
-      );
-
-      localStorage.removeItem(
-        "scholiqen_academy_token"
-      );
-
-      navigate(
-        "/academy/login",
-        { replace: true }
-      );
-    } finally {
-      setLoading(false);
-    }
+    return () => {
+      mounted = false;
+    };
   }, [navigate]);
 
   useEffect(() => {
@@ -96,30 +136,51 @@ const TutorLayout = ({
       return title;
     }
 
-    const path = location.pathname;
+    const path =
+      location.pathname;
 
     if (
-      path === "/academy/tutor"
+      path ===
+      "/academy/tutor"
     ) {
       return "Tutor Dashboard";
+    }
+
+    if (
+      path.includes(
+        "/task-submissions"
+      )
+    ) {
+      return "Task Submissions";
+    }
+
+    if (
+      path.includes(
+        "/tasks/create"
+      )
+    ) {
+      return "Create Task";
+    }
+
+    if (
+      path.includes("/tasks")
+    ) {
+      return "My Tasks";
+    }
+
+    if (
+      path.includes(
+        "/classes/details"
+      ) ||
+      path.includes("/classes/")
+    ) {
+      return "Class Details";
     }
 
     if (
       path.includes("/classes")
     ) {
       return "My Classes";
-    }
-
-    if (
-      path.includes("/tasks")
-    ) {
-      return "Tasks";
-    }
-
-    if (
-      path.includes("/assignments")
-    ) {
-      return "Assignments";
     }
 
     if (
@@ -141,7 +202,9 @@ const TutorLayout = ({
     }
 
     if (
-      path.includes("/whiteboard")
+      path.includes(
+        "/whiteboard"
+      )
     ) {
       return "Whiteboard";
     }
@@ -165,7 +228,9 @@ const TutorLayout = ({
     }
 
     if (
-      path.includes("/announcements")
+      path.includes(
+        "/announcements"
+      )
     ) {
       return "Announcements";
     }
@@ -214,9 +279,15 @@ const TutorLayout = ({
     );
   }
 
+  if (!tutor) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-[#050816] text-white">
-      {/* Background */}
+      {/* =====================================================
+          BACKGROUND
+      ====================================================== */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-[20%] top-[-10%] h-[500px] w-[500px] rounded-full bg-cyan-500/[0.025] blur-[130px]" />
 
@@ -233,6 +304,9 @@ const TutorLayout = ({
         />
       </div>
 
+      {/* =====================================================
+          SIDEBAR
+      ====================================================== */}
       <TutorSidebar
         open={sidebarOpen}
         onClose={() =>
@@ -244,6 +318,9 @@ const TutorLayout = ({
         tutor={tutor}
       />
 
+      {/* =====================================================
+          MAIN AREA
+      ====================================================== */}
       <div className="relative min-h-screen lg:pl-[285px]">
         <TutorTopbar
           onMenuClick={() =>

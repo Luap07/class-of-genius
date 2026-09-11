@@ -1,7 +1,6 @@
 // src/App.jsx
 
 import React from "react";
-
 import {
   BrowserRouter as Router,
   Routes,
@@ -18,7 +17,6 @@ import {
 /* ============================================================
    GENERAL PAGES
 ============================================================ */
-
 import Terms from "./pages/Terms";
 import Help from "./pages/Help";
 import Privacy from "./pages/Privacy";
@@ -32,6 +30,7 @@ import ResetPassword from "./pages/ResetPassword";
    SCHOLIQEN ACADEMY
 ============================================================ */
 
+import StudentTaskSubmission from "./pages/academy/StudentTaskSubmission";
 import AcademyEnvironment from "./pages/academy/AcademyEnvironment";
 import Academy from "./pages/Academy";
 import Academics from "./pages/academy/Academics";
@@ -44,22 +43,34 @@ import Resources from "./pages/academy/Resources";
 import Community from "./pages/academy/Community";
 import OurStory from "./pages/academy/OurStory";
 import TutorStudents from "./pages/academy/TutorStudents";
+
+/* ============================================================
+   TUTOR
+============================================================ */
+
 import TutorCreateTask from "./pages/tutor/TutorCreateTask";
+import TutorMyTasks from "./pages/tutor/TutorMyTasks";
+import TutorTaskSubmissions from "./pages/tutor/TutorTaskSubmissions";
+
+import TutorCreateAssignment from "./pages/tutor/TutorCreateAssignment";
+import TutorAssignments from "./pages/tutor/TutorAssignments";
+import TutorAssignmentSubmissions from "./pages/tutor/TutorAssignmentSubmissions";
+import TutorLiveClasses from "./pages/tutor/TutorLiveClasses";
+import TutorCreateLesson from "./pages/tutor/TutorCreateLesson";
+import TutorLessonPlan from "./pages/tutor/TutorLessonPlan";
+
+import TutorClassDetails from "./pages/tutor/TutorClassDetails";
+import TutorDashboard from "./pages/tutor/TutorDashboard";
+import TutorClasses from "./pages/tutor/TutorClasses";
+
+import TutorLayout from "./components/tutor/TutorLayout";
+import TutorMaterials from "./pages/tutor/TutorMaterials";
 
 /* ============================================================
    ADMIN
 ============================================================ */
 
 import Teachers from "./pages/admin/users/Teachers";
-
-/* ============================================================
-   TUTOR
-============================================================ */
-
-import TutorClassDetails from "./pages/tutor/TutorClassDetails";
-import TutorDashboard from "./pages/tutor/TutorDashboard";
-import TutorClasses from "./pages/tutor/TutorClasses";
-import TutorLayout from "./components/tutor/TutorLayout";
 
 /* ============================================================
    LANGUAGE
@@ -104,6 +115,7 @@ import Contact from "./components/Contact";
 
   Do NOT define another ProtectedRoute inside this file.
 */
+
 import ProtectedRoute from "./components/ProtectedRoute";
 
 /* ============================================================
@@ -262,10 +274,6 @@ const AcademyProtectedRoute = ({
 
         const user = getAcademyUser();
 
-        /* ==================================================
-           NO ACADEMY SESSION
-        ================================================== */
-
         if (!token || !user) {
           if (mounted) {
             setAuthenticated(false);
@@ -275,10 +283,6 @@ const AcademyProtectedRoute = ({
           return;
         }
 
-        /* ==================================================
-           USER TYPE
-        ================================================== */
-
         const userType = String(
           user?.userType ||
             user?.user_type ||
@@ -286,10 +290,6 @@ const AcademyProtectedRoute = ({
         )
           .trim()
           .toLowerCase();
-
-        /* ==================================================
-           MUST BE STUDENT
-        ================================================== */
 
         if (userType !== "student") {
           if (mounted) {
@@ -299,10 +299,6 @@ const AcademyProtectedRoute = ({
 
           return;
         }
-
-        /* ==================================================
-           VALID STUDENT SESSION
-        ================================================== */
 
         if (mounted) {
           setAuthenticated(true);
@@ -336,10 +332,6 @@ const AcademyProtectedRoute = ({
     };
   }, []);
 
-  /* ============================================================
-     LOADING
-  ============================================================ */
-
   if (checkingAuth) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#050816] text-white">
@@ -353,10 +345,6 @@ const AcademyProtectedRoute = ({
       </div>
     );
   }
-
-  /* ============================================================
-     NOT STUDENT
-  ============================================================ */
 
   if (!authenticated) {
     return (
@@ -394,10 +382,6 @@ const TutorProtectedRoute = ({
 
         const user = getAcademyUser();
 
-        /* ==================================================
-           NO ACADEMY SESSION
-        ================================================== */
-
         if (!token || !user) {
           console.warn(
             "Tutor route: Academy session not found."
@@ -411,10 +395,6 @@ const TutorProtectedRoute = ({
           return;
         }
 
-        /* ==================================================
-           USER TYPE
-        ================================================== */
-
         const userType = String(
           user?.userType ||
             user?.user_type ||
@@ -422,10 +402,6 @@ const TutorProtectedRoute = ({
         )
           .trim()
           .toLowerCase();
-
-        /* ==================================================
-           MUST BE TUTOR
-        ================================================== */
 
         if (userType !== "tutor") {
           console.warn(
@@ -441,11 +417,15 @@ const TutorProtectedRoute = ({
           return;
         }
 
-        /* ==================================================
-           REFERENCE
-        ================================================== */
+        const tutorReference =
+          user?.reference ||
+          user?.tutorReference ||
+          user?.tutor?.reference ||
+          user?.tutor?.tutorReference ||
+          user?.user?.reference ||
+          "";
 
-        if (!user?.reference) {
+        if (!String(tutorReference).trim()) {
           console.warn(
             "Tutor route: Tutor reference is missing."
           );
@@ -457,10 +437,6 @@ const TutorProtectedRoute = ({
 
           return;
         }
-
-        /* ==================================================
-           VALID TUTOR SESSION
-        ================================================== */
 
         if (mounted) {
           setAuthenticated(true);
@@ -494,10 +470,6 @@ const TutorProtectedRoute = ({
     };
   }, []);
 
-  /* ============================================================
-     LOADING
-  ============================================================ */
-
   if (checkingAuth) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#030712] text-white">
@@ -519,10 +491,6 @@ const TutorProtectedRoute = ({
       </div>
     );
   }
-
-  /* ============================================================
-     NOT TUTOR
-  ============================================================ */
 
   if (!authenticated) {
     return (
@@ -616,6 +584,7 @@ const AnimatedRoutes = () => {
         location={location}
         key={location.pathname}
       >
+
         {/* =====================================================
             HOME
         ===================================================== */}
@@ -799,32 +768,15 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            TUTOR STUDENTS
+            STUDENT TASK SUBMISSION
         ===================================================== */}
 
         <Route
-          path="/academy/tutor/students"
+          path="/academy/student/task/:taskId"
           element={
-            <TutorProtectedRoute>
-              <TutorLayout title="Students">
-                <TutorStudents />
-              </TutorLayout>
-            </TutorProtectedRoute>
-          }
-        />
-
-        {/* =====================================================
-            CREATE TASK
-        ===================================================== */}
-
-        <Route
-          path="/academy/tutor/tasks/create"
-          element={
-            <TutorProtectedRoute>
-              <TutorLayout title="Create Task">
-                <TutorCreateTask />
-              </TutorLayout>
-            </TutorProtectedRoute>
+            <AcademyProtectedRoute>
+              <StudentTaskSubmission />
+            </AcademyProtectedRoute>
           }
         />
 
@@ -922,6 +874,49 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
+            TUTOR STUDENTS
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/students"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Students">
+                <TutorStudents />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+          <Route
+          path="/academy/tutor/live/start"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Live Classes">
+                <TutorLiveClasses />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            TUTOR MATERIALS
+            BookReader is opened from TutorMaterials.jsx.
+            NO separate App.jsx route is required.
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/materials"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="My Materials">
+                <TutorMaterials />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
             TUTOR CLASSES
         ===================================================== */}
 
@@ -952,7 +947,141 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            FUTURE TUTOR ROUTES
+            CREATE TASK
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/tasks/create"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Create Task">
+                <TutorCreateTask />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            MY TASKS
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/tasks"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="My Tasks">
+                <TutorMyTasks />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            TASK SUBMISSIONS
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/tasks/submissions"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Task Submissions">
+                <TutorTaskSubmissions />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            CREATE ASSIGNMENT
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/assignments/create"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Create Assignment">
+                <TutorCreateAssignment />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            ASSIGNMENT GRADING / SUBMISSIONS
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/assignments/grading"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Assignment Grading">
+                <TutorAssignmentSubmissions />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            CREATE LESSON
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/lessons/create"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Create Lesson">
+                <TutorCreateLesson />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            LESSON PLAN
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/lessons"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Lesson Plan">
+                <TutorLessonPlan />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            MY ASSIGNMENTS
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/assignments"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="My Assignments">
+                <TutorAssignments />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
+            LEGACY TASK SUBMISSIONS PATH
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/task/submissions"
+          element={
+            <Navigate
+              to="/academy/tutor/tasks/submissions"
+              replace
+            />
+          }
+        />
+
+        {/* =====================================================
+            FUTURE TUTOR ROUTES / FALLBACK
         ===================================================== */}
 
         <Route
@@ -1267,6 +1396,17 @@ const AnimatedRoutes = () => {
           }
         />
 
+        <Route
+          path="/lab/about"
+          element={
+            <ProtectedRoute>
+              <PageWrapper>
+                <About />
+              </PageWrapper>
+            </ProtectedRoute>
+          }
+        />
+
         {/* =====================================================
             PDF
         ===================================================== */}
@@ -1527,6 +1667,7 @@ const AnimatedRoutes = () => {
             />
           }
         />
+
       </Routes>
     </AnimatePresence>
   );

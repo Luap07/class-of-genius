@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
+
 import {
   ArrowLeft,
   BookOpen,
@@ -30,32 +31,62 @@ import {
    API
 ========================================================= */
 
-const RAW_API_URL = (
-  import.meta.env.VITE_API_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000"
-).replace(/\/+$/, "");
+function buildApiBaseUrl() {
+  const raw = String(
+    import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_API_BASE_URL ||
+      "http://localhost:5000"
+  )
+    .trim()
+    .replace(/\/+$/, "");
 
-const API_BASE_URL = RAW_API_URL.endsWith("/api/academy")
-  ? RAW_API_URL
-  : `${RAW_API_URL}/api/academy`;
+  if (raw.endsWith("/api/academy")) {
+    return raw;
+  }
 
-const TUTOR_CLASSES_URL = `${API_BASE_URL}/tutor/classes`;
-const CREATE_TASK_URL = `${API_BASE_URL}/tutor/class-activities`;
+  if (raw.endsWith("/api")) {
+    return `${raw}/academy`;
+  }
+
+  return `${raw}/api/academy`;
+}
+
+const API_BASE_URL = buildApiBaseUrl();
+
+const TUTOR_CLASSES_URL =
+  `${API_BASE_URL}/tutor/classes`;
+
+const CREATE_TASK_URL =
+  `${API_BASE_URL}/tutor/class-activities`;
 
 /* =========================================================
-   CONSTANTS
+   STORAGE
+========================================================= */
+
+const ACADEMY_USER_KEY =
+  "scholiqen_academy_user";
+
+const ACADEMY_TOKEN_KEY =
+  "scholiqen_academy_token";
+
+/* =========================================================
+   FILE LIMITS
 ========================================================= */
 
 const MAX_FILES = 10;
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+
+const MAX_FILE_SIZE =
+  250 * 1024 * 1024;
 
 /* =========================================================
    HELPERS
 ========================================================= */
 
 function clean(value) {
-  if (value === undefined || value === null) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
     return "";
   }
 
@@ -80,7 +111,9 @@ function unique(values = []) {
 
     if (
       !result.some(
-        (existing) => normalize(existing) === normalize(cleaned)
+        (item) =>
+          normalize(item) ===
+          normalize(cleaned)
       )
     ) {
       result.push(cleaned);
@@ -91,67 +124,245 @@ function unique(values = []) {
 }
 
 /* =========================================================
-   ARRAY PARSER
+   SUBJECT ALIASES
 ========================================================= */
 
-function arrayFromValue(value) {
-  if (Array.isArray(value)) {
-    return unique(value);
-  }
+const SUBJECT_ALIASES = {
+  mathematics: [
+    "math",
+    "maths",
+    "general mathematics",
+    "general maths",
+  ],
 
-  if (!value) {
-    return [];
-  }
+  maths: [
+    "mathematics",
+    "math",
+    "general mathematics",
+    "general maths",
+  ],
 
-  if (typeof value === "string") {
-    const trimmed = value.trim();
+  math: [
+    "mathematics",
+    "maths",
+    "general mathematics",
+    "general maths",
+  ],
 
-    if (!trimmed) {
-      return [];
-    }
+  "general mathematics": [
+    "mathematics",
+    "math",
+    "maths",
+    "general maths",
+  ],
 
-    try {
-      const parsed = JSON.parse(trimmed);
+  "general maths": [
+    "mathematics",
+    "math",
+    "maths",
+    "general mathematics",
+  ],
 
-      if (Array.isArray(parsed)) {
-        return unique(parsed);
-      }
+  english: [
+    "english language",
+    "english studies",
+    "use of english",
+  ],
 
-      if (
-        parsed &&
-        typeof parsed === "object"
-      ) {
-        return unique(
-          Object.values(parsed)
-        );
-      }
-    } catch {
-      // Not JSON. Continue below.
-    }
+  "english language": [
+    "english",
+    "english studies",
+    "use of english",
+  ],
 
-    return unique(
-      trimmed
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean)
-    );
-  }
+  "english studies": [
+    "english",
+    "english language",
+    "use of english",
+  ],
 
-  if (
-    typeof value === "object" &&
-    !Array.isArray(value)
-  ) {
-    return unique(
-      Object.values(value)
-    );
-  }
+  "use of english": [
+    "english",
+    "english language",
+    "english studies",
+  ],
 
-  return [];
-}
+  "computer studies": [
+    "computer science",
+    "computer",
+    "data processing",
+    "ict",
+    "information technology",
+  ],
 
-/* =========================================================
-   SUBJECT MATCHING
-========================================================= */
+  "computer science": [
+    "computer studies",
+    "computer",
+    "data processing",
+    "ict",
+    "information technology",
+  ],
+
+  "data processing": [
+    "computer studies",
+    "computer science",
+    "computer",
+    "ict",
+    "information technology",
+  ],
+
+  computer: [
+    "computer studies",
+    "computer science",
+    "data processing",
+    "ict",
+    "information technology",
+  ],
+
+  ict: [
+    "computer studies",
+    "computer science",
+    "computer",
+    "data processing",
+    "information technology",
+  ],
+
+  "information technology": [
+    "computer studies",
+    "computer science",
+    "computer",
+    "data processing",
+    "ict",
+  ],
+
+  "physical & health education": [
+    "physical and health education",
+    "physical health education",
+    "physical education",
+    "phe",
+  ],
+
+  "physical and health education": [
+    "physical & health education",
+    "physical health education",
+    "physical education",
+    "phe",
+  ],
+
+  "physical health education": [
+    "physical & health education",
+    "physical and health education",
+    "physical education",
+    "phe",
+  ],
+
+  "physical education": [
+    "physical & health education",
+    "physical and health education",
+    "physical health education",
+    "phe",
+  ],
+
+  phe: [
+    "physical & health education",
+    "physical and health education",
+    "physical health education",
+    "physical education",
+  ],
+
+  "christian religious studies": [
+    "crs",
+    "christian religious knowledge",
+    "crk",
+  ],
+
+  crs: [
+    "christian religious studies",
+    "christian religious knowledge",
+    "crk",
+  ],
+
+  "christian religious knowledge": [
+    "christian religious studies",
+    "crs",
+    "crk",
+  ],
+
+  crk: [
+    "christian religious studies",
+    "christian religious knowledge",
+    "crs",
+  ],
+
+  "islamic religious studies": [
+    "irs",
+    "islamic religious knowledge",
+    "irk",
+  ],
+
+  irs: [
+    "islamic religious studies",
+    "islamic religious knowledge",
+    "irk",
+  ],
+
+  "islamic religious knowledge": [
+    "islamic religious studies",
+    "irs",
+    "irk",
+  ],
+
+  irk: [
+    "islamic religious studies",
+    "islamic religious knowledge",
+    "irs",
+  ],
+
+  "further mathematics": [
+    "further maths",
+    "further math",
+  ],
+
+  "further maths": [
+    "further mathematics",
+    "further math",
+  ],
+
+  "further math": [
+    "further mathematics",
+    "further maths",
+  ],
+
+  "agricultural science": [
+    "agriculture",
+    "agric science",
+  ],
+
+  agriculture: [
+    "agricultural science",
+    "agric science",
+  ],
+
+  "agric science": [
+    "agricultural science",
+    "agriculture",
+  ],
+
+  "literature in english": [
+    "literature",
+    "english literature",
+  ],
+
+  literature: [
+    "literature in english",
+    "english literature",
+  ],
+
+  "english literature": [
+    "literature in english",
+    "literature",
+  ],
+};
 
 function subjectsMatch(first, second) {
   const a = normalize(first);
@@ -165,272 +376,38 @@ function subjectsMatch(first, second) {
     return true;
   }
 
-  const aliases = {
-    mathematics: [
-      "general mathematics",
-      "general maths",
-      "math",
-      "maths",
-    ],
-
-    maths: [
-      "mathematics",
-      "general mathematics",
-      "general maths",
-    ],
-
-    math: [
-      "mathematics",
-      "general mathematics",
-      "general maths",
-    ],
-
-    "general mathematics": [
-      "mathematics",
-      "math",
-      "maths",
-    ],
-
-    "general maths": [
-      "mathematics",
-      "math",
-      "maths",
-    ],
-
-    "english studies": [
-      "english language",
-      "use of english",
-      "english",
-    ],
-
-    "english language": [
-      "english studies",
-      "use of english",
-      "english",
-    ],
-
-    english: [
-      "english studies",
-      "english language",
-      "use of english",
-    ],
-
-    "use of english": [
-      "english studies",
-      "english language",
-      "english",
-    ],
-
-    "computer studies": [
-      "computer science",
-      "data processing",
-      "computer",
-      "ict",
-      "information technology",
-    ],
-
-    "computer science": [
-      "computer studies",
-      "data processing",
-      "computer",
-      "ict",
-      "information technology",
-    ],
-
-    "data processing": [
-      "computer studies",
-      "computer science",
-      "computer",
-      "ict",
-      "information technology",
-    ],
-
-    computer: [
-      "computer studies",
-      "computer science",
-      "data processing",
-      "ict",
-      "information technology",
-    ],
-
-    ict: [
-      "computer studies",
-      "computer science",
-      "data processing",
-      "computer",
-      "information technology",
-    ],
-
-    "information technology": [
-      "computer studies",
-      "computer science",
-      "data processing",
-      "computer",
-      "ict",
-    ],
-
-    "physical & health education": [
-      "physical and health education",
-      "physical health education",
-      "physical education",
-      "phe",
-    ],
-
-    "physical and health education": [
-      "physical & health education",
-      "physical health education",
-      "physical education",
-      "phe",
-    ],
-
-    "physical health education": [
-      "physical & health education",
-      "physical and health education",
-      "physical education",
-      "phe",
-    ],
-
-    "physical education": [
-      "physical & health education",
-      "physical and health education",
-      "physical health education",
-      "phe",
-    ],
-
-    phe: [
-      "physical & health education",
-      "physical and health education",
-      "physical health education",
-      "physical education",
-    ],
-
-    "christian religious studies": [
-      "crs",
-      "christian religious knowledge",
-      "crk",
-    ],
-
-    crs: [
-      "christian religious studies",
-      "christian religious knowledge",
-      "crk",
-    ],
-
-    "christian religious knowledge": [
-      "christian religious studies",
-      "crs",
-      "crk",
-    ],
-
-    crk: [
-      "christian religious studies",
-      "crs",
-      "christian religious knowledge",
-    ],
-
-    "islamic religious studies": [
-      "irs",
-      "islamic religious knowledge",
-      "irk",
-    ],
-
-    irs: [
-      "islamic religious studies",
-      "islamic religious knowledge",
-      "irk",
-    ],
-
-    "islamic religious knowledge": [
-      "islamic religious studies",
-      "irs",
-      "irk",
-    ],
-
-    irk: [
-      "islamic religious studies",
-      "irs",
-      "islamic religious knowledge",
-    ],
-
-    "further mathematics": [
-      "further maths",
-      "further math",
-    ],
-
-    "further maths": [
-      "further mathematics",
-      "further math",
-    ],
-
-    "further math": [
-      "further mathematics",
-      "further maths",
-    ],
-
-    "agricultural science": [
-      "agriculture",
-      "agric science",
-    ],
-
-    agriculture: [
-      "agricultural science",
-      "agric science",
-    ],
-
-    "agric science": [
-      "agricultural science",
-      "agriculture",
-    ],
-
-    "literature in english": [
-      "literature",
-      "english literature",
-    ],
-
-    literature: [
-      "literature in english",
-      "english literature",
-    ],
-
-    "english literature": [
-      "literature in english",
-      "literature",
-    ],
-  };
-
-  return (
-    aliases[a]?.some(
+  return Boolean(
+    SUBJECT_ALIASES[a]?.some(
       (item) => normalize(item) === b
     ) ||
-    aliases[b]?.some(
-      (item) => normalize(item) === a
-    ) ||
-    false
+      SUBJECT_ALIASES[b]?.some(
+        (item) => normalize(item) === a
+      )
   );
 }
 
 /* =========================================================
-   STORAGE
+   STORAGE HELPERS
 ========================================================= */
 
 function getStorageObject(key) {
   try {
-    const localValue =
+    const value =
       localStorage.getItem(key);
 
-    if (localValue) {
-      return JSON.parse(localValue);
+    if (value) {
+      return JSON.parse(value);
     }
   } catch {
     // Continue.
   }
 
   try {
-    const sessionValue =
+    const value =
       sessionStorage.getItem(key);
 
-    if (sessionValue) {
-      return JSON.parse(sessionValue);
+    if (value) {
+      return JSON.parse(value);
     }
   } catch {
     // Continue.
@@ -439,20 +416,97 @@ function getStorageObject(key) {
   return null;
 }
 
+function getStorageValue(key) {
+  try {
+    const value =
+      localStorage.getItem(key);
+
+    if (value) {
+      return clean(value);
+    }
+  } catch {
+    // Continue.
+  }
+
+  try {
+    const value =
+      sessionStorage.getItem(key);
+
+    if (value) {
+      return clean(value);
+    }
+  } catch {
+    // Continue.
+  }
+
+  return "";
+}
+
 /* =========================================================
-   FIND TUTOR OBJECT
+   TOKEN
+========================================================= */
+
+function getAcademyToken() {
+  const direct =
+    getStorageValue(
+      ACADEMY_TOKEN_KEY
+    );
+
+  if (direct) {
+    return direct;
+  }
+
+  const sources = [
+    getStorageObject(
+      ACADEMY_USER_KEY
+    ),
+    getStorageObject("academyUser"),
+    getStorageObject("tutor"),
+    getStorageObject("tutorData"),
+    getStorageObject("currentTutor"),
+    getStorageObject("loggedInTutor"),
+    getStorageObject("currentUser"),
+    getStorageObject("user"),
+    getStorageObject("profile"),
+  ];
+
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+
+    const token =
+      source.token ||
+      source.access_token ||
+      source.accessToken ||
+      source.academyToken ||
+      source.authToken ||
+      source?.data?.token ||
+      source?.data?.access_token ||
+      source?.data?.accessToken ||
+      source?.data?.academyToken ||
+      source?.data?.authToken;
+
+    if (clean(token)) {
+      return clean(token);
+    }
+  }
+
+  return "";
+}
+
+/* =========================================================
+   FIND TUTOR
 ========================================================= */
 
 function findTutorObject(
   source,
   depth = 0
 ) {
-  if (!source || depth > 8) {
-    return null;
-  }
-
   if (
-    typeof source !== "object"
+    !source ||
+    typeof source !== "object" ||
+    depth > 8
   ) {
     return null;
   }
@@ -464,7 +518,7 @@ function findTutorObject(
     source.referenceId ||
     source.tutor_reference_id;
 
-  const hasTutorFields =
+  if (
     reference ||
     source.first_name ||
     source.firstName ||
@@ -473,13 +527,12 @@ function findTutorObject(
     source.classes ||
     source.subjects ||
     source.tutorClasses ||
-    source.tutorSubjects;
-
-  if (hasTutorFields) {
+    source.tutorSubjects
+  ) {
     return source;
   }
 
-  const possibleKeys = [
+  const nestedKeys = [
     "tutor",
     "data",
     "user",
@@ -492,15 +545,16 @@ function findTutorObject(
     "result",
   ];
 
-  for (const key of possibleKeys) {
+  for (const key of nestedKeys) {
     if (
       source[key] &&
       typeof source[key] === "object"
     ) {
-      const found = findTutorObject(
-        source[key],
-        depth + 1
-      );
+      const found =
+        findTutorObject(
+          source[key],
+          depth + 1
+        );
 
       if (found) {
         return found;
@@ -512,26 +566,224 @@ function findTutorObject(
 }
 
 /* =========================================================
-   REFERENCE
+   TUTOR REFERENCE
 ========================================================= */
 
 function getTutorReference(source) {
-  if (!source) {
+  const tutor =
+    findTutorObject(source) ||
+    source;
+
+  if (!tutor) {
     return "";
   }
 
-  const tutor =
-    findTutorObject(source) || source;
-
   return clean(
-    tutor?.reference ||
-      tutor?.tutorReference ||
-      tutor?.tutor_reference ||
-      tutor?.referenceId ||
-      tutor?.tutor_reference_id ||
+    tutor.reference ||
+      tutor.tutorReference ||
+      tutor.tutor_reference ||
+      tutor.referenceId ||
+      tutor.tutor_reference_id ||
       tutor?.data?.reference ||
       tutor?.data?.tutorReference
   );
+}
+
+/* =========================================================
+   ARRAY HELPERS
+========================================================= */
+
+function extractStringValues(value) {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return unique(
+      value
+        .map((item) => {
+          if (
+            typeof item === "string"
+          ) {
+            return item;
+          }
+
+          if (
+            item &&
+            typeof item === "object"
+          ) {
+            return (
+              item.grade ||
+              item.class ||
+              item.class_name ||
+              item.className ||
+              item.subject ||
+              item.subject_name ||
+              item.subjectName ||
+              item.name ||
+              item.title ||
+              ""
+            );
+          }
+
+          return "";
+        })
+        .filter(Boolean)
+    );
+  }
+
+  if (
+    typeof value === "string"
+  ) {
+    const text = value.trim();
+
+    if (!text) {
+      return [];
+    }
+
+    try {
+      const parsed =
+        JSON.parse(text);
+
+      return extractStringValues(
+        parsed
+      );
+    } catch {
+      return unique(
+        text
+          .split(",")
+          .map((item) =>
+            item.trim()
+          )
+          .filter(Boolean)
+      );
+    }
+  }
+
+  if (
+    typeof value === "object"
+  ) {
+    return unique(
+      Object.values(value)
+        .flatMap((item) =>
+          extractStringValues(
+            item
+          )
+        )
+    );
+  }
+
+  return [];
+}
+
+/* =========================================================
+   EXTRACT CLASSES
+========================================================= */
+
+function extractClasses(data) {
+  const candidates = [
+    data?.tutor?.classes,
+    data?.tutor?.tutorClasses,
+    data?.tutor?.registeredClasses,
+
+    data?.data?.tutor?.classes,
+    data?.data?.tutor?.tutorClasses,
+    data?.data?.tutor?.registeredClasses,
+
+    data?.classes,
+    data?.tutorClasses,
+    data?.registeredClasses,
+
+    data?.data?.classes,
+    data?.data?.tutorClasses,
+    data?.data?.registeredClasses,
+
+    data?.classCards,
+    data?.data?.classCards,
+    data?.data?.data?.classCards,
+  ];
+
+  for (const candidate of candidates) {
+    if (
+      Array.isArray(candidate)
+    ) {
+      const values = unique(
+        candidate
+          .map((item) => {
+            if (
+              typeof item === "string"
+            ) {
+              return item;
+            }
+
+            return (
+              item?.grade ||
+              item?.class ||
+              item?.class_name ||
+              item?.className ||
+              item?.level ||
+              ""
+            );
+          })
+          .filter(Boolean)
+      );
+
+      if (values.length) {
+        return values;
+      }
+    }
+
+    const values =
+      extractStringValues(
+        candidate
+      );
+
+    if (values.length) {
+      return values;
+    }
+  }
+
+  return [];
+}
+
+/* =========================================================
+   EXTRACT SUBJECTS
+========================================================= */
+
+function extractSubjects(data) {
+  const candidates = [
+    data?.tutor?.subjects,
+    data?.tutor?.tutorSubjects,
+    data?.tutor?.registeredSubjects,
+
+    data?.data?.tutor?.subjects,
+    data?.data?.tutor?.tutorSubjects,
+    data?.data?.tutor?.registeredSubjects,
+
+    data?.subjects,
+    data?.tutorSubjects,
+    data?.registeredSubjects,
+
+    data?.data?.subjects,
+    data?.data?.tutorSubjects,
+    data?.data?.registeredSubjects,
+
+    data?.data?.data?.subjects,
+    data?.data?.data?.tutorSubjects,
+  ];
+
+  for (const candidate of candidates) {
+    const values =
+      extractStringValues(
+        candidate
+      );
+
+    if (values.length) {
+      return values;
+    }
+  }
+
+  return [];
 }
 
 /* =========================================================
@@ -546,7 +798,9 @@ function getResponseMessage(
     return fallback;
   }
 
-  if (typeof data === "string") {
+  if (
+    typeof data === "string"
+  ) {
     return clean(data) || fallback;
   }
 
@@ -554,102 +808,17 @@ function getResponseMessage(
     clean(data.message) ||
     clean(data.error) ||
     clean(data.details) ||
-    clean(data.data?.message) ||
-    clean(data.data?.error) ||
-    clean(data.tutor?.message) ||
+    clean(data.reason) ||
+    clean(data?.data?.message) ||
+    clean(data?.data?.error) ||
+    clean(data?.data?.details) ||
+    clean(data?.data?.reason) ||
     fallback
   );
 }
 
 /* =========================================================
-   EXTRACT CLASSES
-========================================================= */
-
-function extractClasses(data) {
-  const candidates = [
-    data?.classes,
-    data?.tutorClasses,
-    data?.registeredClasses,
-
-    data?.tutor?.classes,
-    data?.tutor?.tutorClasses,
-    data?.tutor?.registeredClasses,
-
-    data?.data?.classes,
-    data?.data?.tutorClasses,
-    data?.data?.registeredClasses,
-
-    data?.data?.tutor?.classes,
-    data?.data?.tutor?.tutorClasses,
-    data?.data?.tutor?.registeredClasses,
-
-    data?.data?.data?.classes,
-    data?.data?.data?.tutorClasses,
-  ];
-
-  for (const candidate of candidates) {
-    const parsed =
-      arrayFromValue(candidate);
-
-    if (parsed.length) {
-      return parsed;
-    }
-  }
-
-  return [];
-}
-
-/* =========================================================
-   EXTRACT SUBJECTS
-========================================================= */
-
-function extractSubjects(data) {
-  const candidates = [
-    data?.subjects,
-    data?.tutorSubjects,
-    data?.registeredSubjects,
-
-    data?.tutor?.subjects,
-    data?.tutor?.tutorSubjects,
-    data?.tutor?.registeredSubjects,
-
-    data?.data?.subjects,
-    data?.data?.tutorSubjects,
-    data?.data?.registeredSubjects,
-
-    data?.data?.tutor?.subjects,
-    data?.data?.tutor?.tutorSubjects,
-    data?.data?.tutor?.registeredSubjects,
-
-    data?.data?.data?.subjects,
-    data?.data?.data?.tutorSubjects,
-  ];
-
-  for (const candidate of candidates) {
-    const parsed =
-      arrayFromValue(candidate);
-
-    if (parsed.length) {
-      return parsed;
-    }
-  }
-
-  return [];
-}
-
-/* =========================================================
-   EXTRACT TUTOR DATA
-========================================================= */
-
-function extractTutorData(data) {
-  return {
-    classes: extractClasses(data),
-    subjects: extractSubjects(data),
-  };
-}
-
-/* =========================================================
-   FILE ICON
+   FILE HELPERS
 ========================================================= */
 
 function getFileIcon(file) {
@@ -683,7 +852,6 @@ function getFileIcon(file) {
     type.includes("pdf") ||
     type.includes("word") ||
     type.includes("document") ||
-    type.includes("text") ||
     /\.(pdf|doc|docx)$/.test(name)
   ) {
     return FileText;
@@ -692,16 +860,58 @@ function getFileIcon(file) {
   return File;
 }
 
-/* =========================================================
-   FILE SIZE
-========================================================= */
+function getFileTypeLabel(file) {
+  const type =
+    clean(file?.type).toLowerCase();
+
+  const name =
+    clean(file?.name).toLowerCase();
+
+  if (
+    type.includes("pdf") ||
+    name.endsWith(".pdf")
+  ) {
+    return "PDF";
+  }
+
+  if (
+    type.includes("word") ||
+    name.endsWith(".doc") ||
+    name.endsWith(".docx")
+  ) {
+    return "DOC";
+  }
+
+  if (
+    type.startsWith("image/") ||
+    /\.(jpg|jpeg|png|webp|gif|svg|avif)$/.test(
+      name
+    )
+  ) {
+    return "IMAGE";
+  }
+
+  if (
+    type.startsWith("video/") ||
+    /\.(mp4|webm|mov)$/.test(
+      name
+    )
+  ) {
+    return "VIDEO";
+  }
+
+  return "FILE";
+}
 
 function formatFileSize(bytes) {
   if (!bytes || bytes <= 0) {
     return "0 KB";
   }
 
-  if (bytes < 1024 * 1024) {
+  if (
+    bytes <
+    1024 * 1024
+  ) {
     return `${Math.ceil(
       bytes / 1024
     )} KB`;
@@ -721,13 +931,14 @@ export default function TutorCreateTask({
   tutor: tutorProp = null,
   tutorData: tutorDataProp = null,
 }) {
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
   const fileInputRef =
     useRef(null);
 
   /* =======================================================
-     TUTOR
+     TUTOR DATA
   ======================================================= */
 
   const [
@@ -819,7 +1030,7 @@ export default function TutorCreateTask({
   ] = useState(false);
 
   /* =======================================================
-     GET LOCAL TUTOR
+     LOCAL TUTOR
   ======================================================= */
 
   const getLocalTutor =
@@ -828,16 +1039,17 @@ export default function TutorCreateTask({
         tutorProp,
         tutorDataProp,
 
-        getStorageObject("tutorData"),
+        getStorageObject(
+          ACADEMY_USER_KEY
+        ),
+
+        getStorageObject("academyUser"),
         getStorageObject("tutor"),
+        getStorageObject("tutorData"),
         getStorageObject("currentTutor"),
         getStorageObject("loggedInTutor"),
-        getStorageObject("user"),
-        getStorageObject("tutorEnrollment"),
-        getStorageObject("enrollment"),
-        getStorageObject("academyTutor"),
-        getStorageObject("academyTutorData"),
         getStorageObject("currentUser"),
+        getStorageObject("user"),
         getStorageObject("profile"),
       ];
 
@@ -873,7 +1085,9 @@ export default function TutorCreateTask({
         getLocalTutor();
 
       const reference =
-        getTutorReference(localTutor);
+        getTutorReference(
+          localTutor
+        );
 
       if (!reference) {
         setTutorReference("");
@@ -890,75 +1104,19 @@ export default function TutorCreateTask({
         return;
       }
 
-      setTutorReference(reference);
-
-      /*
-       * First use the saved tutor information.
-       * This prevents the page from becoming unusable
-       * simply because the API is temporarily unavailable.
-       */
+      setTutorReference(
+        reference
+      );
 
       const localClasses =
-        arrayFromValue(
-          localTutor?.classes ||
-            localTutor?.tutorClasses ||
-            localTutor?.registeredClasses
+        extractClasses(
+          localTutor
         );
 
       const localSubjects =
-        arrayFromValue(
-          localTutor?.subjects ||
-            localTutor?.tutorSubjects ||
-            localTutor?.registeredSubjects
+        extractSubjects(
+          localTutor
         );
-
-      if (localClasses.length) {
-        setRegisteredClasses(
-          localClasses
-        );
-
-        setSelectedClass(
-          (current) => {
-            if (
-              current &&
-              localClasses.some(
-                (item) =>
-                  normalize(item) ===
-                  normalize(current)
-              )
-            ) {
-              return current;
-            }
-
-            return localClasses[0];
-          }
-        );
-      }
-
-      if (localSubjects.length) {
-        setRegisteredSubjects(
-          localSubjects
-        );
-
-        setSelectedSubject(
-          (current) => {
-            if (
-              current &&
-              localSubjects.some(
-                (item) =>
-                  subjectsMatch(
-                    item,
-                    current
-                  )
-              )
-            ) {
-              return current;
-            }
-
-            return localSubjects[0];
-          }
-        );
-      }
 
       try {
         const url =
@@ -966,44 +1124,40 @@ export default function TutorCreateTask({
             reference
           )}`;
 
+        const token =
+          getAcademyToken();
+
+        const headers = {
+          Accept:
+            "application/json",
+
+          "x-tutor-reference":
+            reference,
+        };
+
+        if (token) {
+          headers.Authorization =
+            `Bearer ${token}`;
+        }
+
         const response =
           await fetch(url, {
             method: "GET",
-            headers: {
-              Accept:
-                "application/json",
-              "x-tutor-reference":
-                reference,
-            },
+            headers,
             cache: "no-store",
           });
 
-        const contentType =
-          response.headers.get(
-            "content-type"
-          ) || "";
+        const text =
+          await response.text();
 
         let data = null;
 
-        if (
-          contentType.includes(
-            "application/json"
-          )
-        ) {
+        if (text) {
           try {
             data =
-              await response.json();
+              JSON.parse(text);
           } catch {
-            data = null;
-          }
-        } else {
-          try {
-            const text =
-              await response.text();
-
-            data = text || null;
-          } catch {
-            data = null;
+            data = text;
           }
         }
 
@@ -1011,30 +1165,26 @@ export default function TutorCreateTask({
           throw new Error(
             getResponseMessage(
               data,
-              `Unable to load your tutor information (${response.status}).`
+              `Unable to load tutor classes (${response.status}).`
             )
           );
         }
 
-        const serverTutorData =
-          extractTutorData(data);
+        const serverClasses =
+          extractClasses(data);
 
-        /*
-         * Merge database + saved data.
-         *
-         * Database data wins in the sense that it is loaded
-         * first, while local data remains as a fallback.
-         */
+        const serverSubjects =
+          extractSubjects(data);
 
         const classes =
           unique([
-            ...serverTutorData.classes,
+            ...serverClasses,
             ...localClasses,
           ]);
 
         const subjects =
           unique([
-            ...serverTutorData.subjects,
+            ...serverSubjects,
             ...localSubjects,
           ]);
 
@@ -1099,11 +1249,6 @@ export default function TutorCreateTask({
           error
         );
 
-        /*
-         * If local tutor data exists, keep using it.
-         * Do NOT replace working data with empty arrays.
-         */
-
         if (
           localClasses.length ||
           localSubjects.length
@@ -1117,49 +1262,13 @@ export default function TutorCreateTask({
           );
 
           setSelectedClass(
-            (current) => {
-              if (
-                current &&
-                localClasses.some(
-                  (item) =>
-                    normalize(item) ===
-                    normalize(current)
-                )
-              ) {
-                return current;
-              }
-
-              return (
-                localClasses[0] || ""
-              );
-            }
+            localClasses[0] || ""
           );
 
           setSelectedSubject(
-            (current) => {
-              if (
-                current &&
-                localSubjects.some(
-                  (item) =>
-                    subjectsMatch(
-                      item,
-                      current
-                    )
-                )
-              ) {
-                return current;
-              }
-
-              return (
-                localSubjects[0] || ""
-              );
-            }
+            localSubjects[0] || ""
           );
 
-          /*
-           * Do not show a scary database error when the
-           * saved tutor information is perfectly usable.
-           */
           setErrorMessage("");
         } else {
           setRegisteredClasses([]);
@@ -1177,10 +1286,6 @@ export default function TutorCreateTask({
       }
     }, [getLocalTutor]);
 
-  /* =======================================================
-     INITIAL LOAD
-  ======================================================= */
-
   useEffect(() => {
     loadTutorData();
   }, [loadTutorData]);
@@ -1191,22 +1296,23 @@ export default function TutorCreateTask({
 
   const acceptedFileTypes =
     useMemo(
-      () => [
-        "application/pdf",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      () =>
+        [
+          "application/pdf",
+          "application/msword",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/gif",
-        "image/svg+xml",
-        "image/avif",
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif",
+          "image/svg+xml",
+          "image/avif",
 
-        "video/mp4",
-        "video/webm",
-        "video/quicktime",
-      ],
+          "video/mp4",
+          "video/webm",
+          "video/quicktime",
+        ],
       []
     );
 
@@ -1252,13 +1358,15 @@ export default function TutorCreateTask({
           "mp4",
           "webm",
           "mov",
-        ].includes(extension);
+        ].includes(
+          extension
+        );
       },
       [acceptedFileTypes]
     );
 
   /* =======================================================
-     HANDLE FILES
+     FILE HANDLER
   ======================================================= */
 
   const handleFiles =
@@ -1286,22 +1394,20 @@ export default function TutorCreateTask({
           setErrorMessage(
             `${invalid.name} is not supported. Upload PDF, DOC, DOCX, image, or video files.`
           );
-
           return;
         }
 
-        const tooLarge =
+        const oversized =
           incoming.find(
             (file) =>
               file.size >
               MAX_FILE_SIZE
           );
 
-        if (tooLarge) {
+        if (oversized) {
           setErrorMessage(
-            `${tooLarge.name} is larger than 100 MB.`
+            `${oversized.name} is larger than 250 MB.`
           );
-
           return;
         }
 
@@ -1312,11 +1418,12 @@ export default function TutorCreateTask({
               ...incoming,
             ];
 
-            const uniqueFiles =
-              [];
+            const uniqueFiles = [];
 
-            for (const file of combined) {
-              const exists =
+            for (
+              const file of combined
+            ) {
+              const duplicate =
                 uniqueFiles.some(
                   (existing) =>
                     existing.name ===
@@ -1327,11 +1434,20 @@ export default function TutorCreateTask({
                       file.lastModified
                 );
 
-              if (!exists) {
+              if (!duplicate) {
                 uniqueFiles.push(
                   file
                 );
               }
+            }
+
+            if (
+              uniqueFiles.length >
+              MAX_FILES
+            ) {
+              setErrorMessage(
+                `You can upload a maximum of ${MAX_FILES} files.`
+              );
             }
 
             return uniqueFiles.slice(
@@ -1344,100 +1460,65 @@ export default function TutorCreateTask({
       [isAllowedFile]
     );
 
-  /* =======================================================
-     FILE INPUT
-  ======================================================= */
-
   const handleFileInputChange =
     (event) => {
       handleFiles(
         event.target.files
       );
 
-      if (
-        fileInputRef.current
-      ) {
+      if (fileInputRef.current) {
         fileInputRef.current.value =
           "";
       }
     };
 
-  /* =======================================================
-     REMOVE FILE
-  ======================================================= */
-
   const removeFile = (index) => {
     setFiles(
       (current) =>
         current.filter(
-          (_, fileIndex) =>
-            fileIndex !== index
+          (_, itemIndex) =>
+            itemIndex !== index
         )
     );
   };
 
   /* =======================================================
-     DRAG EVENTS
+     DRAG & DROP
   ======================================================= */
 
-  const handleDragOver =
-    (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+  const handleDragOver = (
+    event
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-      setDraggingFiles(true);
-    };
+    setDraggingFiles(true);
+  };
 
-  const handleDragLeave =
-    (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+  const handleDragLeave = (
+    event
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-      setDraggingFiles(false);
-    };
+    setDraggingFiles(false);
+  };
 
-  const handleDrop =
-    (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+  const handleDrop = (
+    event
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-      setDraggingFiles(false);
+    setDraggingFiles(false);
 
-      handleFiles(
-        event.dataTransfer.files
-      );
-    };
-
-  /* =======================================================
-     CLASS CHANGE
-  ======================================================= */
-
-  const handleClassChange =
-    (event) => {
-      setSelectedClass(
-        event.target.value
-      );
-
-      setErrorMessage("");
-      setSuccessMessage("");
-    };
+    handleFiles(
+      event.dataTransfer.files
+    );
+  };
 
   /* =======================================================
-     SUBJECT CHANGE
-  ======================================================= */
-
-  const handleSubjectChange =
-    (event) => {
-      setSelectedSubject(
-        event.target.value
-      );
-
-      setErrorMessage("");
-      setSuccessMessage("");
-    };
-
-  /* =======================================================
-     VALIDATION
+     FORM VALIDATION
   ======================================================= */
 
   const validateForm = () => {
@@ -1448,27 +1529,26 @@ export default function TutorCreateTask({
     if (
       !registeredClasses.length
     ) {
-      return "No registered classes were found in your tutor account.";
+      return "No registered classes were found.";
     }
 
     if (
       !registeredSubjects.length
     ) {
-      return "No registered subjects were found in your tutor account.";
+      return "No registered subjects were found.";
     }
 
     if (!selectedClass) {
       return "Please select a class.";
     }
 
-    const validClass =
-      registeredClasses.some(
+    if (
+      !registeredClasses.some(
         (item) =>
           normalize(item) ===
           normalize(selectedClass)
-      );
-
-    if (!validClass) {
+      )
+    ) {
       return "The selected class is not registered to your tutor account.";
     }
 
@@ -1476,16 +1556,15 @@ export default function TutorCreateTask({
       return "Please select a subject.";
     }
 
-    const validSubject =
-      registeredSubjects.some(
+    if (
+      !registeredSubjects.some(
         (item) =>
           subjectsMatch(
             item,
             selectedSubject
           )
-      );
-
-    if (!validSubject) {
+      )
+    ) {
       return "The selected subject is not registered to your tutor account.";
     }
 
@@ -1509,26 +1588,29 @@ export default function TutorCreateTask({
       return "Task description must contain at least 3 characters.";
     }
 
-    if (maxScore) {
-      const score =
-        Number(maxScore);
-
-      if (
-        !Number.isFinite(score) ||
-        score <= 0
-      ) {
-        return "Maximum score must be greater than 0.";
-      }
-
-      if (score > 10000) {
-        return "Maximum score cannot be greater than 10,000.";
-      }
-    }
+    const score =
+      Number(maxScore);
 
     if (
-      files.length > MAX_FILES
+      !Number.isFinite(score) ||
+      score <= 0
     ) {
-      return `You can upload a maximum of ${MAX_FILES} files.`;
+      return "Maximum score must be greater than 0.";
+    }
+
+    if (score > 10000) {
+      return "Maximum score cannot be greater than 10,000.";
+    }
+
+    const oversized =
+      files.find(
+        (file) =>
+          file.size >
+          MAX_FILE_SIZE
+      );
+
+    if (oversized) {
+      return `${oversized.name} is larger than 250 MB.`;
     }
 
     return "";
@@ -1556,194 +1638,238 @@ export default function TutorCreateTask({
         setErrorMessage(
           validationError
         );
-
         return;
       }
 
       setSubmitting(true);
 
       try {
+        const reference =
+          clean(tutorReference);
+
+        const grade =
+          clean(selectedClass);
+
+        const subject =
+          clean(selectedSubject);
+
+        const taskTitle =
+          clean(title);
+
+        const taskDescription =
+          clean(description);
+
+        const taskInstructions =
+          clean(instructions);
+
+        /*
+         * This is the exact multipart
+         * payload expected by
+         * academyRoutes.js.
+         */
+
         const formData =
           new FormData();
 
-        /*
-         * Tutor identity.
-         */
         formData.append(
           "reference",
-          tutorReference
-        );
-
-        formData.append(
-          "tutor_reference",
-          tutorReference
-        );
-
-        /*
-         * REQUIRED RECIPIENT INFORMATION.
-         *
-         * The task belongs to this class AND this subject.
-         */
-        formData.append(
-          "class",
-          selectedClass
+          reference
         );
 
         formData.append(
           "grade",
-          selectedClass
+          grade
         );
 
         formData.append(
           "subject",
-          selectedSubject
+          subject
         );
 
-        /*
-         * Task type.
-         */
         formData.append(
           "activityType",
           "task"
         );
 
         formData.append(
-          "type",
-          "task"
-        );
-
-        /*
-         * Main task information.
-         */
-        formData.append(
           "title",
-          clean(title)
+          taskTitle
         );
 
         formData.append(
           "description",
-          clean(description)
+          taskDescription
         );
 
-        if (clean(instructions)) {
+        if (taskInstructions) {
           formData.append(
             "instructions",
-            clean(instructions)
+            taskInstructions
           );
         }
 
         if (clean(dueDate)) {
           formData.append(
             "dueDate",
-            dueDate
+            clean(dueDate)
           );
         }
 
-        if (clean(maxScore)) {
-          formData.append(
-            "maxScore",
-            maxScore
-          );
-        }
+        formData.append(
+          "maxScore",
+          clean(maxScore) || "100"
+        );
 
-        /*
-         * Compatibility metadata.
-         *
-         * THIS IS NOT AN ASSIGNMENT.
-         */
+        const metadata = {
+          source: "TutorCreateTask",
+
+          activityType: "task",
+
+          tutor_reference:
+            reference,
+
+          reference,
+
+          grade,
+
+          class: grade,
+
+          subject,
+
+          instructions:
+            taskInstructions,
+
+          dueDate:
+            clean(dueDate),
+
+          maxScore:
+            Number(maxScore) || 100,
+
+          fileCount:
+            files.length,
+
+          hasFiles:
+            files.length > 0,
+        };
+
         formData.append(
           "metadata",
-          JSON.stringify({
-            source: "tutor",
-            activityType: "task",
-            class: selectedClass,
-            grade: selectedClass,
-            subject: selectedSubject,
-            hasFiles:
-              files.length > 0,
-          })
+          JSON.stringify(metadata)
         );
 
         /*
-         * Files.
+         * IMPORTANT:
+         * Backend uses:
+         *
+         * taskUpload.array("files", 10)
          */
-        files.forEach(
-          (file) => {
-            formData.append(
-              "files",
-              file,
-              file.name
-            );
-          }
+
+        files.forEach((file) => {
+          formData.append(
+            "files",
+            file,
+            file.name
+          );
+        });
+
+        const token =
+          getAcademyToken();
+
+        const headers = {
+          Accept:
+            "application/json",
+
+          "x-tutor-reference":
+            reference,
+        };
+
+        if (token) {
+          headers.Authorization =
+            `Bearer ${token}`;
+        }
+
+        console.log(
+          "========================================"
         );
 
         console.log(
-          "Creating tutor task:",
-          {
-            reference:
-              tutorReference,
-            class: selectedClass,
-            subject:
-              selectedSubject,
-            files:
-              files.length,
-          }
+          "SCHOLIQEN CREATE TASK"
         );
+
+        console.log({
+          url:
+            CREATE_TASK_URL,
+
+          method: "POST",
+
+          reference,
+
+          grade,
+
+          subject,
+
+          activityType:
+            "task",
+
+          title:
+            taskTitle,
+
+          fileCount:
+            files.length,
+
+          hasToken:
+            Boolean(token),
+        });
+
+        console.log(
+          "========================================"
+        );
+
+        /*
+         * DO NOT manually set
+         * Content-Type.
+         *
+         * Browser creates:
+         * multipart/form-data;
+         * boundary=...
+         */
 
         const response =
           await fetch(
             CREATE_TASK_URL,
             {
               method: "POST",
-
-              headers: {
-                Accept:
-                  "application/json",
-
-                "x-tutor-reference":
-                  tutorReference,
-              },
-
+              headers,
               body: formData,
             }
           );
 
-        const contentType =
-          response.headers.get(
-            "content-type"
-          ) || "";
+        const responseText =
+          await response.text();
 
         let data = null;
 
-        if (
-          contentType.includes(
-            "application/json"
-          )
-        ) {
+        if (responseText) {
           try {
             data =
-              await response.json();
+              JSON.parse(
+                responseText
+              );
           } catch {
-            data = null;
-          }
-        } else {
-          try {
-            const text =
-              await response.text();
-
-            data = text || null;
-          } catch {
-            data = null;
+            data =
+              responseText;
           }
         }
 
         console.log(
-          "Create task response:",
+          "CREATE TASK RESPONSE",
           {
             status:
               response.status,
+
             ok:
               response.ok,
+
             data,
           }
         );
@@ -1757,16 +1883,25 @@ export default function TutorCreateTask({
           );
         }
 
-        /*
-         * Success.
-         */
+        if (
+          data &&
+          typeof data === "object" &&
+          data.success === false
+        ) {
+          throw new Error(
+            getResponseMessage(
+              data,
+              "The server rejected the task."
+            )
+          );
+        }
+
         setSuccessMessage(
-          "Task created successfully. Students enrolled in the selected class and subject can receive this task."
+          "Task created successfully. Students in the selected class and subject can receive this task."
         );
 
-        /*
-         * Clear task fields.
-         */
+        setErrorMessage("");
+
         setTitle("");
         setDescription("");
         setInstructions("");
@@ -1774,9 +1909,7 @@ export default function TutorCreateTask({
         setMaxScore("100");
         setFiles([]);
 
-        if (
-          fileInputRef.current
-        ) {
+        if (fileInputRef.current) {
           fileInputRef.current.value =
             "";
         }
@@ -1791,10 +1924,17 @@ export default function TutorCreateTask({
           error
         );
 
+        setSuccessMessage("");
+
         setErrorMessage(
-          error?.message ||
+          clean(error?.message) ||
             "Something went wrong while creating the task."
         );
+
+        window.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        });
       } finally {
         setSubmitting(false);
       }
@@ -1813,70 +1953,16 @@ export default function TutorCreateTask({
   };
 
   /* =======================================================
-     FILE TYPE LABEL
-  ======================================================= */
-
-  const getFileTypeLabel =
-    (file) => {
-      const type =
-        clean(file?.type)
-          .toLowerCase();
-
-      const name =
-        clean(file?.name)
-          .toLowerCase();
-
-      if (
-        type.includes("pdf") ||
-        name.endsWith(".pdf")
-      ) {
-        return "PDF";
-      }
-
-      if (
-        type.includes("word") ||
-        name.endsWith(".doc") ||
-        name.endsWith(".docx")
-      ) {
-        return "DOC";
-      }
-
-      if (
-        type.startsWith(
-          "image/"
-        ) ||
-        /\.(jpg|jpeg|png|webp|gif|svg|avif)$/.test(
-          name
-        )
-      ) {
-        return "IMAGE";
-      }
-
-      if (
-        type.startsWith(
-          "video/"
-        ) ||
-        /\.(mp4|webm|mov)$/.test(
-          name
-        )
-      ) {
-        return "VIDEO";
-      }
-
-      return "FILE";
-    };
-
-  /* =======================================================
      RENDER
   ======================================================= */
 
   return (
     <div className="min-h-screen bg-[#020617] text-white">
-      {/* =================================================
+      {/* ===================================================
           HEADER
-      ================================================= */}
+      =================================================== */}
 
-      <div className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#020617]/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#020617]/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
@@ -1885,9 +1971,7 @@ export default function TutorCreateTask({
               disabled={submitting}
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 transition hover:border-cyan-400/30 hover:bg-cyan-400/10 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <ArrowLeft
-                size={19}
-              />
+              <ArrowLeft size={19} />
             </button>
 
             <div>
@@ -1903,8 +1987,8 @@ export default function TutorCreateTask({
               </div>
 
               <p className="mt-0.5 hidden text-xs text-slate-500 sm:block">
-                Create a task for one of
-                your registered classes
+                Create a task for your
+                registered students
               </p>
             </div>
           </div>
@@ -1920,16 +2004,14 @@ export default function TutorCreateTask({
             </span>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* =================================================
+      {/* ===================================================
           CONTENT
-      ================================================= */}
+      =================================================== */}
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-        {/* =================================================
-            ERROR
-        ================================================= */}
+        {/* ERROR */}
 
         {errorMessage && (
           <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.06] p-4">
@@ -1945,7 +2027,7 @@ export default function TutorCreateTask({
                 Unable to continue
               </p>
 
-              <p className="mt-1 text-sm leading-6 text-red-200/70">
+              <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-red-200/70">
                 {errorMessage}
               </p>
             </div>
@@ -1962,9 +2044,7 @@ export default function TutorCreateTask({
           </div>
         )}
 
-        {/* =================================================
-            SUCCESS
-        ================================================= */}
+        {/* SUCCESS */}
 
         {successMessage && (
           <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
@@ -2017,9 +2097,9 @@ export default function TutorCreateTask({
                 </div>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Only classes and subjects
-                  registered to your tutor
-                  account are available here.
+                  Only your registered
+                  classes and subjects
+                  can be selected.
                 </p>
               </div>
 
@@ -2047,7 +2127,9 @@ export default function TutorCreateTask({
                 </span>
 
                 <span className="rounded-lg bg-cyan-400/10 px-2 py-1 text-xs font-bold text-cyan-300">
-                  {registeredClasses.length}
+                  {
+                    registeredClasses.length
+                  }
                 </span>
               </div>
 
@@ -2057,7 +2139,6 @@ export default function TutorCreateTask({
                     size={15}
                     className="animate-spin text-cyan-400"
                   />
-
                   Loading classes...
                 </div>
               ) : registeredClasses.length ? (
@@ -2089,7 +2170,9 @@ export default function TutorCreateTask({
                 </span>
 
                 <span className="rounded-lg bg-blue-400/10 px-2 py-1 text-xs font-bold text-blue-300">
-                  {registeredSubjects.length}
+                  {
+                    registeredSubjects.length
+                  }
                 </span>
               </div>
 
@@ -2099,7 +2182,6 @@ export default function TutorCreateTask({
                     size={15}
                     className="animate-spin text-cyan-400"
                   />
-
                   Loading subjects...
                 </div>
               ) : registeredSubjects.length ? (
@@ -2133,23 +2215,20 @@ export default function TutorCreateTask({
           noValidate
         >
           <div className="overflow-hidden rounded-3xl border border-white/[0.07] bg-[#071426] shadow-2xl shadow-black/20">
-            {/* FORM HEADER */}
-
             <div className="border-b border-white/[0.06] px-5 py-5 sm:px-6">
               <h2 className="text-lg font-bold text-white">
                 Task information
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Select the class and subject
-                this task is intended for.
+                Create an academic task
+                for a specific class
+                and subject.
               </p>
             </div>
 
             <div className="space-y-7 p-5 sm:p-6">
-              {/* =================================================
-                  CLASS + SUBJECT
-              ================================================= */}
+              {/* CLASS + SUBJECT */}
 
               <div>
                 <div className="mb-4">
@@ -2158,7 +2237,8 @@ export default function TutorCreateTask({
                   </h3>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    Both fields are required.
+                    Both fields are
+                    required.
                   </p>
                 </div>
 
@@ -2183,9 +2263,19 @@ export default function TutorCreateTask({
                         value={
                           selectedClass
                         }
-                        onChange={
-                          handleClassChange
-                        }
+                        onChange={(event) => {
+                          setSelectedClass(
+                            event.target
+                              .value
+                          );
+
+                          setErrorMessage(
+                            ""
+                          );
+                          setSuccessMessage(
+                            ""
+                          );
+                        }}
                         disabled={
                           loadingTutorData ||
                           !registeredClasses.length ||
@@ -2238,9 +2328,19 @@ export default function TutorCreateTask({
                         value={
                           selectedSubject
                         }
-                        onChange={
-                          handleSubjectChange
-                        }
+                        onChange={(event) => {
+                          setSelectedSubject(
+                            event.target
+                              .value
+                          );
+
+                          setErrorMessage(
+                            ""
+                          );
+                          setSuccessMessage(
+                            ""
+                          );
+                        }}
                         disabled={
                           loadingTutorData ||
                           !registeredSubjects.length ||
@@ -2275,9 +2375,7 @@ export default function TutorCreateTask({
                 </div>
               </div>
 
-              {/* =================================================
-                  TITLE
-              ================================================= */}
+              {/* TITLE */}
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-300">
@@ -2308,9 +2406,7 @@ export default function TutorCreateTask({
                 </div>
               </div>
 
-              {/* =================================================
-                  DESCRIPTION
-              ================================================= */}
+              {/* DESCRIPTION */}
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-300">
@@ -2336,15 +2432,12 @@ export default function TutorCreateTask({
 
                 <div className="mt-1.5 flex justify-end">
                   <span className="text-[11px] text-slate-700">
-                    {description.length}
-                    /5000
+                    {description.length}/5000
                   </span>
                 </div>
               </div>
 
-              {/* =================================================
-                  INSTRUCTIONS
-              ================================================= */}
+              {/* INSTRUCTIONS */}
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-300">
@@ -2362,7 +2455,7 @@ export default function TutorCreateTask({
                       event.target.value
                     )
                   }
-                  placeholder="Add any instructions, submission requirements, or guidance..."
+                  placeholder="Add submission instructions or guidance..."
                   rows={4}
                   maxLength={5000}
                   disabled={submitting}
@@ -2370,17 +2463,12 @@ export default function TutorCreateTask({
                 />
               </div>
 
-              {/* =================================================
-                  DATE + SCORE
-              ================================================= */}
+              {/* DATE + SCORE */}
 
               <div className="grid gap-5 md:grid-cols-2">
-                {/* DUE DATE */}
-
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-300">
                     Due date
-
                     <span className="ml-2 text-xs font-normal text-slate-600">
                       Optional
                     </span>
@@ -2406,8 +2494,6 @@ export default function TutorCreateTask({
                   </div>
                 </div>
 
-                {/* SCORE */}
-
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-300">
                     Maximum score
@@ -2423,32 +2509,28 @@ export default function TutorCreateTask({
                         event.target.value
                       )
                     }
-                    placeholder="100"
                     disabled={submitting}
                     className="w-full rounded-xl border border-white/[0.08] bg-[#020617] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-700 transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/10 disabled:opacity-50"
                   />
                 </div>
               </div>
 
-              {/* =================================================
-                  FILE UPLOAD
-              ================================================= */}
+              {/* FILES */}
 
               <div>
                 <div className="mb-3">
                   <label className="block text-sm font-semibold text-slate-300">
                     Attach materials
-
                     <span className="ml-2 text-xs font-normal text-slate-600">
                       Optional
                     </span>
                   </label>
 
                   <p className="mt-1 text-xs leading-5 text-slate-600">
-                    Upload PDF, DOC, DOCX,
-                    image, or video files.
-                    Maximum 10 files, up to
-                    100 MB each.
+                    PDF, DOC, DOCX,
+                    images and videos.
+                    Maximum 10 files,
+                    250 MB per file.
                   </p>
                 </div>
 
@@ -2463,7 +2545,7 @@ export default function TutorCreateTask({
                   className={`rounded-2xl border border-dashed p-6 text-center transition ${
                     draggingFiles
                       ? "border-cyan-400/60 bg-cyan-400/[0.06]"
-                      : "border-white/[0.10] bg-[#020617]/60 hover:border-cyan-400/30 hover:bg-white/[0.02]"
+                      : "border-white/[0.10] bg-[#020617]/60 hover:border-cyan-400/30"
                   }`}
                 >
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.06]">
@@ -2474,12 +2556,12 @@ export default function TutorCreateTask({
                   </div>
 
                   <h4 className="mt-4 text-sm font-semibold text-slate-300">
-                    Drop your files here
+                    Drop files here
                   </h4>
 
                   <p className="mt-1 text-xs text-slate-600">
-                    or select files from your
-                    device
+                    or select files from
+                    your device
                   </p>
 
                   <button
@@ -2495,7 +2577,6 @@ export default function TutorCreateTask({
                     className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/30 hover:bg-cyan-400/10 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Plus size={15} />
-
                     Choose files
                   </button>
 
@@ -2519,14 +2600,15 @@ export default function TutorCreateTask({
                   )}
                 </div>
 
-                {/* =================================================
-                    FILE LIST
-                ================================================= */}
+                {/* FILE LIST */}
 
                 {files.length > 0 && (
                   <div className="mt-4 space-y-2">
                     {files.map(
-                      (file, index) => {
+                      (
+                        file,
+                        index
+                      ) => {
                         const Icon =
                           getFileIcon(
                             file
@@ -2578,11 +2660,9 @@ export default function TutorCreateTask({
                                   index
                                 )
                               }
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-600 transition hover:bg-red-400/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-30"
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-600 transition hover:bg-red-400/10 hover:text-red-400 disabled:opacity-30"
                             >
-                              <X
-                                size={16}
-                              />
+                              <X size={16} />
                             </button>
                           </div>
                         );
@@ -2592,9 +2672,7 @@ export default function TutorCreateTask({
                 )}
               </div>
 
-              {/* =================================================
-                  DELIVERY SUMMARY
-              ================================================= */}
+              {/* DELIVERY */}
 
               <div className="rounded-2xl border border-cyan-400/10 bg-cyan-400/[0.035] p-4">
                 <div className="flex gap-3">
@@ -2611,40 +2689,32 @@ export default function TutorCreateTask({
                     </p>
 
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      This task will be
-                      associated with{" "}
+                      This task belongs
+                      to{" "}
                       <span className="font-semibold text-slate-300">
                         {selectedClass ||
                           "the selected class"}
                       </span>{" "}
-                      and{" "}
+                      for{" "}
                       <span className="font-semibold text-slate-300">
                         {selectedSubject ||
                           "the selected subject"}
                       </span>
-                      . Students enrolled in
-                      that class and subject
-                      can receive the task.
+                      .
                     </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* =================================================
-                ACTIONS
-            ================================================= */}
+            {/* ACTIONS */}
 
             <div className="flex flex-col-reverse gap-3 border-t border-white/[0.06] bg-[#020617]/40 px-5 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-6">
               <button
                 type="button"
-                onClick={
-                  handleCancel
-                }
-                disabled={
-                  submitting
-                }
-                className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-5 py-3 text-sm font-semibold text-slate-400 transition hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={handleCancel}
+                disabled={submitting}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-5 py-3 text-sm font-semibold text-slate-400 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
               >
                 Cancel
               </button>
@@ -2667,13 +2737,11 @@ export default function TutorCreateTask({
                       size={17}
                       className="animate-spin"
                     />
-
                     Creating task...
                   </>
                 ) : (
                   <>
                     <Send size={17} />
-
                     Create task
                   </>
                 )}

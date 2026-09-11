@@ -27,8 +27,13 @@ import taskRoutes from "./routes/taskRoutes.js";
 // SCHOLIQEN ACADEMY ROUTES
 // ============================================================
 
+import academyTaskManagementRoutes from "./routes/academyTaskManagementRoutes.js";
+import academyTaskSubmissionRoutes from "./routes/academyTaskSubmissionRoutes.js";
 import academyRoutes from "./routes/academyRoutes.js";
 import academyTeachingRoutes from "./routes/academyTeaching.js";
+import academyAssignmentRoutes from "./routes/academyAssignmentRoutes.js";
+import academyLessonRoutes from "./routes/academyLessonRoutes.js";
+import materialRoutes from "./routes/materialRoutes.js";
 
 // ============================================================
 // PATH CONFIGURATION
@@ -97,15 +102,6 @@ const THUMBNAILS_DIR = path.join(
 const VIDEOS_DIR = path.join(
   UPLOADS_DIR,
   "videos"
-);
-
-// ============================================================
-// STATIC UPLOADS
-// ============================================================
-
-app.use(
-  "/uploads",
-  express.static(UPLOADS_DIR)
 );
 
 // ============================================================
@@ -299,7 +295,15 @@ console.log("");
 
 // ============================================================
 // CORS
+// IMPORTANT:
+// CORS MUST COME BEFORE /uploads STATIC FILES
 // ============================================================
+
+const allowedOrigins = [
+  FRONTEND_URL,
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+];
 
 app.use(
   cors({
@@ -314,12 +318,6 @@ app.use(
         );
       }
 
-      const allowedOrigins = [
-        FRONTEND_URL,
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-      ];
-
       if (
         allowedOrigins.includes(
           origin
@@ -330,13 +328,6 @@ app.use(
           true
         );
       }
-
-      app.use(
-  "/uploads",
-  express.static(
-    path.join(process.cwd(), "uploads")
-  )
-);
 
       // Development mode.
       // Restrict this in production.
@@ -357,14 +348,66 @@ app.use(
       "OPTIONS",
     ],
 
-   allowedHeaders: [
-  "Content-Type",
-  "Authorization",
-  "X-Requested-With",
-  "x-paystack-signature",
-  "x-tutor-reference",
-],
+    allowedHeaders: [
+      "Origin",
+      "Content-Type",
+      "Authorization",
+      "Accept",
+      "X-Requested-With",
+      "x-paystack-signature",
+      "x-tutor-reference",
+    ],
   })
+);
+
+// ============================================================
+// STATIC UPLOADS
+// IMPORTANT:
+// PDF FILES INSIDE /uploads RECEIVE CORS HEADERS
+// ============================================================
+
+app.use(
+  "/uploads",
+  express.static(
+    UPLOADS_DIR,
+    {
+      setHeaders: (
+        res,
+        filePath
+      ) => {
+        res.setHeader(
+          "Access-Control-Allow-Origin",
+          FRONTEND_URL
+        );
+
+        res.setHeader(
+          "Access-Control-Allow-Credentials",
+          "true"
+        );
+
+        res.setHeader(
+          "Access-Control-Allow-Methods",
+          "GET, OPTIONS"
+        );
+
+        res.setHeader(
+          "Access-Control-Allow-Headers",
+          "Origin, Content-Type, Authorization, Accept, X-Requested-With"
+        );
+
+        if (
+          filePath
+            .toLowerCase()
+            .endsWith(".pdf")
+        ) {
+          res.setHeader(
+            "Content-Type",
+            "application/pdf"
+          );
+        }
+      },
+    }
+  )
 );
 
 // ============================================================
@@ -435,10 +478,6 @@ app.get(
         "development",
 
       endpoints: {
-        // ======================================================
-        // AUTH
-        // ======================================================
-
         auth:
           "/api/auth",
 
@@ -451,19 +490,11 @@ app.get(
         currentUser:
           "GET /api/auth/me",
 
-        // ======================================================
-        // ADMIN
-        // ======================================================
-
         admin:
           "/api/admin",
 
         adminDashboard:
           "GET /api/admin/dashboard",
-
-        // ======================================================
-        // COURSES
-        // ======================================================
 
         courses:
           "/api/courses",
@@ -473,10 +504,6 @@ app.get(
 
         courseCategories:
           "/api/course-categories",
-
-        // ======================================================
-        // DOCUMENTS / RESOURCES
-        // ======================================================
 
         documents:
           "/api/documents",
@@ -492,10 +519,6 @@ app.get(
 
         singleResource:
           "GET /api/resources/:id",
-
-        // ======================================================
-        // TASKS
-        // ======================================================
 
         tasks:
           "/api/tasks",
@@ -521,19 +544,11 @@ app.get(
         deleteTask:
           "DELETE /api/tasks/:id",
 
-        // ======================================================
-        // NOVELS
-        // ======================================================
-
         novels:
           "/api/novels",
 
         singleNovel:
           "GET /api/novels/:id",
-
-        // ======================================================
-        // CBT
-        // ======================================================
 
         cbtQuestions:
           "GET /api/cbt/questions",
@@ -541,23 +556,11 @@ app.get(
         cbtQuestionCount:
           "GET /api/cbt/questions/count",
 
-        // ======================================================
-        // TUTOR / AI
-        // ======================================================
-
         tutor:
           "/api/tutor",
 
-        // ======================================================
-        // PAYMENTS
-        // ======================================================
-
         payments:
           "/api/payments",
-
-        // ======================================================
-        // SCHOLIQEN ACADEMY
-        // ======================================================
 
         academy:
           "/api/academy",
@@ -574,9 +577,26 @@ app.get(
         tutorApplicationByReference:
           "GET /api/academy/tutor-application/:reference",
 
-        // ======================================================
-        // ACADEMY TEACHING
-        // ======================================================
+        tutorTasks:
+          "GET /api/academy/tutor/tasks",
+
+        tutorTaskDetails:
+          "GET /api/academy/tutor/tasks/:taskId",
+
+        updateTutorTask:
+          "PATCH /api/academy/tutor/tasks/:taskId",
+
+        deleteTutorTask:
+          "DELETE /api/academy/tutor/tasks/:taskId",
+
+        createTutorTask:
+          "POST /api/academy/tutor/tasks",
+
+        tutorTaskSubmissions:
+          "GET /api/academy/tutor/tasks/submissions",
+
+        submitStudentTask:
+          "POST /api/academy/student/tasks/:taskId/submission",
 
         tutorClasses:
           "GET /api/academy/tutor/classes",
@@ -604,12 +624,6 @@ app.get(
 
         liveParticipants:
           "GET /api/academy/tutor/live-classes/:id/participants",
-
-        tutorTasks:
-          "GET /api/academy/tutor/tasks",
-
-        createTutorTask:
-          "POST /api/academy/tutor/tasks",
 
         tutorLessons:
           "GET /api/academy/tutor/lessons",
@@ -643,10 +657,6 @@ app.get(
 
         saveWhiteboard:
           "POST /api/academy/tutor/live-classes/:id/whiteboard",
-
-        // ======================================================
-        // HEALTH
-        // ======================================================
 
         health:
           "GET /api/health",
@@ -722,6 +732,12 @@ app.get(
           databaseConfigured,
 
         academyTeaching:
+          databaseConfigured,
+
+        academyTaskManagement:
+          databaseConfigured,
+
+        academyTaskSubmissions:
           databaseConfigured,
       },
     });
@@ -1229,6 +1245,11 @@ app.use(
   adminRoutes
 );
 
+app.use(
+  "/api/admin/lms/materials",
+  materialRoutes
+);
+
 // ============================================================
 // COURSE ROUTES
 // ============================================================
@@ -1302,23 +1323,25 @@ app.use(
 );
 
 // ============================================================
-// SCHOLIQEN ACADEMY ROUTES
+// ACADEMY TASK MANAGEMENT ROUTES
 // ============================================================
-//
-// Existing Academy routes:
-//
-// Student enrollment
-// POST /api/academy/student-enrollment
-//
-// Tutor application
-// POST /api/academy/tutor-application
-//
-// Student data
-// GET /api/academy/student/:userId
-//
-// Tutor application
-// GET /api/academy/tutor-application/:reference
-//
+
+app.use(
+  "/api/academy",
+  academyTaskManagementRoutes
+);
+
+// ============================================================
+// ACADEMY TASK SUBMISSION ROUTES
+// ============================================================
+
+app.use(
+  "/api/academy",
+  academyTaskSubmissionRoutes
+);
+
+// ============================================================
+// SCHOLIQEN ACADEMY MAIN ROUTES
 // ============================================================
 
 app.use(
@@ -1326,52 +1349,18 @@ app.use(
   academyRoutes
 );
 
+app.use(
+  "/api/academy",
+  academyAssignmentRoutes
+);
+
+app.use(
+  "/api/academy",
+  academyLessonRoutes
+);
+
 // ============================================================
 // SCHOLIQEN ACADEMY TEACHING ROUTES
-// ============================================================
-//
-// Tutor Classes
-// GET /api/academy/tutor/classes
-//
-// Live Classes
-// GET    /api/academy/tutor/live-classes
-// POST   /api/academy/tutor/live-classes
-// PATCH  /api/academy/tutor/live-classes/:id/start
-// PATCH  /api/academy/tutor/live-classes/:id/end
-// GET    /api/academy/tutor/live-classes/:id
-//
-// Participants
-// POST   /api/academy/tutor/live-classes/:id/join
-// POST   /api/academy/tutor/live-classes/:id/leave
-// GET    /api/academy/tutor/live-classes/:id/participants
-//
-// Tasks
-// GET    /api/academy/tutor/tasks
-// POST   /api/academy/tutor/tasks
-//
-// Lessons
-// GET    /api/academy/tutor/lessons
-// POST   /api/academy/tutor/lessons
-//
-// Attendance
-// GET /api/academy/tutor/attendance
-// GET /api/academy/tutor/live-classes/:id/attendance
-//
-// Materials
-// GET  /api/academy/tutor/materials
-// POST /api/academy/tutor/materials
-//
-// Chat
-// GET  /api/academy/tutor/live-classes/:id/chat
-// POST /api/academy/tutor/live-classes/:id/chat
-//
-// Recording
-// POST /api/academy/tutor/live-classes/:id/recording
-//
-// Whiteboard
-// GET  /api/academy/tutor/live-classes/:id/whiteboard
-// POST /api/academy/tutor/live-classes/:id/whiteboard
-//
 // ============================================================
 
 app.use(
@@ -1385,21 +1374,15 @@ app.use(
 
 app.use(
   (req, res) => {
-    console.log(
-      `❌ Route not found: ${req.method} ${req.originalUrl}`
+    console.warn(
+      `⚠️ Route not found: ${req.method} ${req.originalUrl}`
     );
 
     return res.status(404).json({
       success: false,
-
-      error:
-        "Route not found.",
-
-      path:
-        req.originalUrl,
-
-      method:
-        req.method,
+      error: "Route not found.",
+      path: req.originalUrl,
+      method: req.method,
     });
   }
 );
@@ -1409,12 +1392,7 @@ app.use(
 // ============================================================
 
 app.use(
-  (
-    error,
-    req,
-    res,
-    next
-  ) => {
+  (error, req, res, next) => {
     console.error("");
 
     console.error(
@@ -1422,7 +1400,7 @@ app.use(
     );
 
     console.error(
-      "❌ GLOBAL SERVER ERROR"
+      "❌ SCHOLIQEN SERVER ERROR"
     );
 
     console.error(
@@ -1430,7 +1408,23 @@ app.use(
     );
 
     console.error(
-      error
+      "Method:",
+      req.method
+    );
+
+    console.error(
+      "URL:",
+      req.originalUrl
+    );
+
+    console.error(
+      "Message:",
+      error?.message
+    );
+
+    console.error(
+      "Stack:",
+      error?.stack
     );
 
     console.error(
@@ -1439,20 +1433,19 @@ app.use(
 
     console.error("");
 
-    if (
-      res.headersSent
-    ) {
+    if (res.headersSent) {
       return next(error);
     }
 
-    return res
-      .status(500)
-      .json({
-        success: false,
+    return res.status(
+      error?.status || 500
+    ).json({
+      success: false,
 
-        error:
-          "Internal server error.",
-      });
+      error:
+        error?.message ||
+        "Internal server error.",
+    });
   }
 );
 
@@ -1460,7 +1453,7 @@ app.use(
 // START SERVER
 // ============================================================
 
-app.listen(
+const server = app.listen(
   PORT,
   () => {
     console.log("");
@@ -1470,7 +1463,7 @@ app.listen(
     );
 
     console.log(
-      "🚀 SCHOLIQEN BACKEND"
+      "🚀 SCHOLIQEN BACKEND SERVER"
     );
 
     console.log(
@@ -1478,282 +1471,160 @@ app.listen(
     );
 
     console.log(
-      `📡 Server:        http://localhost:${PORT}`
+      `🌐 Server: http://localhost:${PORT}`
     );
 
     console.log(
-      `🌐 Frontend:      ${FRONTEND_URL}`
+      `🌐 Frontend: ${FRONTEND_URL}`
     );
 
     console.log(
-      `🔐 Auth:          http://localhost:${PORT}/api/auth`
-    );
-
-    console.log(
-      `🛡️ Admin:         http://localhost:${PORT}/api/admin`
-    );
-
-    console.log(
-      `📊 Dashboard:     http://localhost:${PORT}/api/admin/dashboard`
-    );
-
-    console.log(
-      `📚 Courses:       http://localhost:${PORT}/api/courses`
-    );
-
-    console.log(
-      `🗂️ Categories:    http://localhost:${PORT}/api/course-categories`
-    );
-
-    console.log(
-      `📄 Documents:     http://localhost:${PORT}/api/documents`
-    );
-
-    console.log(
-      `🎥 Resources:     http://localhost:${PORT}/api/resources`
-    );
-
-    console.log(
-      `🎥 Resource Test: http://localhost:${PORT}/api/resources/test`
-    );
-
-    console.log(
-      `📋 Tasks:         http://localhost:${PORT}/api/tasks`
-    );
-
-    console.log(
-      `📋 Task Test:     http://localhost:${PORT}/api/tasks/test`
-    );
-
-    console.log(
-      `📋 Task Topic:    http://localhost:${PORT}/api/tasks/topic/:topicId`
-    );
-
-    console.log(
-      `📖 Novels:        http://localhost:${PORT}/api/novels`
-    );
-
-    console.log(
-      `📝 CBT Questions: http://localhost:${PORT}/api/cbt/questions`
-    );
-
-    console.log(
-      `📝 CBT Count:     http://localhost:${PORT}/api/cbt/questions/count`
-    );
-
-    console.log(
-      `🤖 Tutor:         http://localhost:${PORT}/api/tutor`
-    );
-
-    console.log(
-      `💳 Payments:      http://localhost:${PORT}/api/payments`
-    );
-
-    // ========================================================
-    // ACADEMY LOGS
-    // ========================================================
-
-    console.log(
-      `🎓 Academy:       http://localhost:${PORT}/api/academy`
-    );
-
-    console.log(
-      `📝 Student Enroll: POST http://localhost:${PORT}/api/academy/student-enrollment`
-    );
-
-    console.log(
-      `👨‍🏫 Tutor Apply:   POST http://localhost:${PORT}/api/academy/tutor-application`
-    );
-
-    console.log(
-      `👤 Student Data:  GET  http://localhost:${PORT}/api/academy/student/:userId`
-    );
-
-    console.log(
-      `🔎 Tutor Lookup:  GET  http://localhost:${PORT}/api/academy/tutor-application/:reference`
-    );
-
-    // ========================================================
-    // ACADEMY TEACHING LOGS
-    // ========================================================
-
-    console.log(
-      `🏫 Tutor Classes: GET http://localhost:${PORT}/api/academy/tutor/classes`
-    );
-
-    console.log(
-      `🎥 Live Classes:  GET http://localhost:${PORT}/api/academy/tutor/live-classes`
-    );
-
-    console.log(
-      `➕ Create Live:   POST http://localhost:${PORT}/api/academy/tutor/live-classes`
-    );
-
-    console.log(
-      `📝 Tutor Tasks:   GET http://localhost:${PORT}/api/academy/tutor/tasks`
-    );
-
-    console.log(
-      `📚 Tutor Lessons: GET http://localhost:${PORT}/api/academy/tutor/lessons`
-    );
-
-    console.log(
-      `📊 Attendance:    GET http://localhost:${PORT}/api/academy/tutor/attendance`
-    );
-
-    console.log(
-      `📦 Materials:     GET http://localhost:${PORT}/api/academy/tutor/materials`
-    );
-
-    console.log(
-      `❤️ Health:        http://localhost:${PORT}/api/health`
-    );
-
-    console.log("");
-
-    console.log(
-      `📁 Uploads:       ${UPLOADS_DIR}`
-    );
-
-    console.log(
-      `📕 Novel Covers:  ${NOVEL_COVERS_DIR}`
-    );
-
-    console.log(
-      `📄 Documents:     ${DOCUMENTS_DIR}`
-    );
-
-    console.log(
-      `🖼️ Thumbnails:    ${THUMBNAILS_DIR}`
-    );
-
-    console.log(
-      `🎥 Videos:        ${VIDEOS_DIR}`
-    );
-
-    console.log("");
-
-    console.log(
-      `🗄️ PostgreSQL:    ${
+      `🗄️ Database: ${
         databaseConfigured
-          ? "CONFIGURED ✅"
-          : "MISSING ❌"
+          ? "Connected / Configured ✅"
+          : "Not configured ❌"
       }`
     );
 
     console.log(
-      `🎫 JWT:           ${
+      `🎫 JWT: ${
         jwtConfigured
-          ? "CONFIGURED ✅"
-          : "MISSING ❌"
+          ? "Configured ✅"
+          : "Missing ❌"
       }`
     );
 
     console.log(
-      `🤖 Groq:          ${
+      `🤖 Groq: ${
         groqConfigured
-          ? "CONFIGURED ✅"
-          : "MISSING ❌"
+          ? "Configured ✅"
+          : "Missing ❌"
       }`
     );
 
     console.log(
-      `💳 Paystack:      ${
+      `💳 Paystack: ${
         paystackConfigured
-          ? "CONFIGURED ✅"
-          : "MISSING ❌"
+          ? "Configured"
+          : "Not configured"
       }`
     );
 
-    console.log(
-      `🔐 Paystack Mode: ${paystackMode}`
-    );
-
-    console.log(
-      `💰 Test Price:    ₦${PREMIUM_PRICE_NAIRA}`
-    );
-
-    console.log(
-      `🪙 Paystack:      ${PREMIUM_PRICE_KOBO} kobo`
-    );
-
     console.log("");
 
     console.log(
-      "🎓 SCHOLIQEN ACADEMY"
+      "📚 Academy routes:"
     );
 
     console.log(
-      "   • Student Enrollment: ENABLED"
+      "   GET    /api/academy/tutor/tasks"
     );
 
     console.log(
-      "   • Tutor Applications: ENABLED"
+      "   GET    /api/academy/tutor/tasks/:taskId"
     );
 
     console.log(
-      "   • Enrollment Payment: NOT CONNECTED"
+      "   PATCH  /api/academy/tutor/tasks/:taskId"
     );
 
     console.log(
-      "   • Student Portal: READY"
+      "   DELETE /api/academy/tutor/tasks/:taskId"
     );
 
     console.log(
-      "   • Tutor Teaching API: ENABLED"
+      "   POST   /api/academy/tutor/tasks"
     );
 
     console.log(
-      "   • Live Classroom API: ENABLED"
+      "   GET    /api/academy/tutor/tasks/submissions"
     );
 
     console.log(
-      "   • Live Attendance API: ENABLED"
+      "   POST   /api/academy/student/tasks/:taskId/submission"
     );
-
-    console.log(
-      "   • Tutor Tasks API: ENABLED"
-    );
-
-    console.log(
-      "   • Tutor Lessons API: ENABLED"
-    );
-
-    console.log(
-      "   • Tutor Materials API: ENABLED"
-    );
-
-    console.log("");
-
-    console.log(
-      "📦 PREMIUM PRODUCTS"
-    );
-
-    Object.entries(
-      PREMIUM_PRODUCTS
-    ).forEach(
-      ([
-        key,
-        product,
-      ]) => {
-        console.log(
-          `   • ${key}: ${product.name} — ₦${product.priceNaira}`
-        );
-      }
-    );
-
-    console.log("");
 
     console.log(
       "=================================================="
-    );
-
-    console.log("");
-
-    console.log(
-      "🎉 Scholiqen backend is ready."
     );
 
     console.log("");
   }
+);
+
+// ============================================================
+// SERVER ERROR
+// ============================================================
+
+server.on(
+  "error",
+  (error) => {
+    console.error("");
+
+    console.error(
+      "❌ SERVER STARTUP ERROR"
+    );
+
+    console.error(
+      error
+    );
+
+    console.error("");
+
+    if (
+      error?.code ===
+      "EADDRINUSE"
+    ) {
+      console.error(
+        `❌ Port ${PORT} is already in use.`
+      );
+    }
+  }
+);
+
+// ============================================================
+// GRACEFUL SHUTDOWN
+// ============================================================
+
+const shutdown = async (
+  signal
+) => {
+  console.log("");
+
+  console.log(
+    `🛑 ${signal} received. Shutting down...`
+  );
+
+  server.close(
+    async () => {
+      try {
+        await pool.end();
+
+        console.log(
+          "🗄️ Database connection pool closed."
+        );
+      } catch (error) {
+        console.error(
+          "❌ Error closing database pool:",
+          error?.message
+        );
+      }
+
+      console.log(
+        "✅ Server shutdown complete."
+      );
+
+      process.exit(0);
+    }
+  );
+};
+
+process.on(
+  "SIGINT",
+  () => shutdown("SIGINT")
+);
+
+process.on(
+  "SIGTERM",
+  () => shutdown("SIGTERM")
 );

@@ -48,6 +48,7 @@ import EditCourse from "../pages/admin/lms/EditCourse";
 
 import MaterialsAdmin from "../pages/admin/lms/MaterialsAdmin";
 import CreateMaterial from "../pages/admin/lms/CreateMaterial";
+import MaterialEditor from "../pages/admin/lms/MaterialEditor";
 
 import CourseCategories from "../pages/admin/lms/CourseCategories";
 
@@ -249,10 +250,23 @@ const AdminRoutes = () => {
           path="lms/course/:courseId/materials"
           element={<MaterialsAdmin />}
         />
+        <Route
+  path="lms/materials/:id"
+  element={<MaterialEditor />}
+/>
 
         <Route
           path="lms/materials/create"
           element={<CreateMaterial />}
+        />
+
+        {/* ====================================================
+            ADMIN MATERIALS
+        ==================================================== */}
+
+        <Route
+          path="lms/materials"
+          element={<MaterialsAdmin />}
         />
 
         {/* ====================================================

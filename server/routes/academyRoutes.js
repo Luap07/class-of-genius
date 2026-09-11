@@ -21,10 +21,13 @@ const PRIMARY_GRADES = [
   "Primary 6",
 ];
 
-const SECONDARY_CLASSES = [
+const JSS_GRADES = [
   "JSS 1",
   "JSS 2",
   "JSS 3",
+];
+
+const SS_GRADES = [
   "SS 1",
   "SS 2",
   "SS 3",
@@ -32,7 +35,8 @@ const SECONDARY_CLASSES = [
 
 const ALL_TUTOR_CLASSES = [
   ...PRIMARY_GRADES,
-  ...SECONDARY_CLASSES,
+  ...JSS_GRADES,
+  ...SS_GRADES,
 ];
 
 /* =========================================================
@@ -91,43 +95,85 @@ const SS_SUBJECTS = [
   "Islamic Religious Studies",
 ];
 
+const ALL_SUBJECTS = [
+  ...new Set([
+    ...PRIMARY_SUBJECTS,
+    ...JSS_SUBJECTS,
+    ...SS_SUBJECTS,
+  ]),
+];
+
+const subjectsByClass = {
+  ...Object.fromEntries(
+    PRIMARY_GRADES.map((grade) => [
+      grade,
+      PRIMARY_SUBJECTS,
+    ])
+  ),
+
+  ...Object.fromEntries(
+    JSS_GRADES.map((grade) => [
+      grade,
+      JSS_SUBJECTS,
+    ])
+  ),
+
+  ...Object.fromEntries(
+    SS_GRADES.map((grade) => [
+      grade,
+      SS_SUBJECTS,
+    ])
+  ),
+};
+
 /* =========================================================
    HELPERS
 ========================================================= */
 
 function clean(value) {
-  return value === undefined || value === null
-    ? ""
-    : String(value).trim();
+  if (value === undefined || value === null) {
+    return "";
+  }
+
+  return String(value).trim();
 }
 
 function normalizeEmail(value) {
   return clean(value).toLowerCase();
 }
 
-function normalizeSubject(value) {
+function normalizeName(value) {
   return clean(value)
+    .toLowerCase()
     .replace(/\s+/g, " ")
-    .toLowerCase();
-}
-
-function normalizeClass(value) {
-  return clean(value)
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+    .trim();
 }
 
 function normalizeStatus(value) {
   return clean(value)
     .toLowerCase()
-    .replace(/[\s-]+/g, "_");
+    .replace(/[\s_-]+/g, "");
+}
+
+function normalizeClass(value) {
+  return clean(value)
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeSubject(value) {
+  return clean(value)
+    .toLowerCase()
+    .replace(/[\s_-]+/g, " ")
+    .trim();
 }
 
 function uniqueArray(values = []) {
   return [
     ...new Set(
       values
-        .map(clean)
+        .map((value) => clean(value))
         .filter(Boolean)
     ),
   ];
@@ -135,70 +181,164 @@ function uniqueArray(values = []) {
 
 function arrayFromValue(value) {
   if (Array.isArray(value)) {
-    return uniqueArray(value);
+    return value;
   }
 
-  if (value === null || value === undefined) {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
     return [];
   }
 
-  if (typeof value === "object") {
-    if (Array.isArray(value.values)) {
-      return uniqueArray(value.values);
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return [];
     }
 
-    return Object.values(value)
-      .flatMap((item) => {
-        if (Array.isArray(item)) {
-          return item;
-        }
+    try {
+      const parsed = JSON.parse(trimmed);
 
-        return clean(item);
-      })
-      .filter(Boolean)
-      .map(clean);
-  }
-
-  const stringValue = clean(value);
-
-  if (!stringValue) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(stringValue);
-
-    if (Array.isArray(parsed)) {
-      return uniqueArray(parsed);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Continue as comma-separated text.
     }
 
-    if (
-      parsed &&
-      typeof parsed === "object"
-    ) {
-      return uniqueArray(
-        Object.values(parsed)
-          .flatMap((item) =>
-            Array.isArray(item)
-              ? item
-              : [item]
-          )
-      );
-    }
-  } catch {
-    // Not JSON. Continue with comma-separated handling.
-  }
-
-  return uniqueArray(
-    stringValue
+    return trimmed
       .split(",")
       .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [value];
+}
+
+function getClassSubjects(grade) {
+  const normalized = normalizeClass(grade);
+
+  const found = ALL_TUTOR_CLASSES.find(
+    (item) =>
+      normalizeClass(item) === normalized
+  );
+
+  if (!found) {
+    return [];
+  }
+
+  return subjectsByClass[found] || [];
+}
+
+function isValidTutorClass(grade) {
+  return ALL_TUTOR_CLASSES.some(
+    (item) =>
+      normalizeClass(item) ===
+      normalizeClass(grade)
+  );
+}
+
+function getCanonicalClass(grade) {
+  return (
+    ALL_TUTOR_CLASSES.find(
+      (item) =>
+        normalizeClass(item) ===
+        normalizeClass(grade)
+    ) || null
   );
 }
 
 /* =========================================================
-   SUBJECT ALIASES
+   SUBJECT MATCHING
 ========================================================= */
+
+const SUBJECT_ALIASES = {
+  mathematics: [
+    "mathematics",
+    "math",
+    "maths",
+    "general mathematics",
+    "general maths",
+  ],
+
+  "further mathematics": [
+    "further mathematics",
+    "further maths",
+    "further math",
+  ],
+
+  "english language": [
+    "english language",
+    "english",
+    "english studies",
+    "use of english",
+    "use of english language",
+  ],
+
+  "physical and health education": [
+    "physical and health education",
+    "physical health education",
+    "physical education",
+    "health education",
+    "phe",
+    "p h e",
+  ],
+
+  "computer studies": [
+    "computer studies",
+    "computer science",
+    "computer",
+    "ict",
+    "information technology",
+  ],
+
+  "christian religious studies": [
+    "christian religious studies",
+    "christian religious knowledge",
+    "crs",
+    "crk",
+    "christian religion",
+  ],
+
+  "islamic religious studies": [
+    "islamic religious studies",
+    "islamic religious knowledge",
+    "irs",
+    "irk",
+    "islamic religion",
+  ],
+
+  "agricultural science": [
+    "agricultural science",
+    "agriculture",
+    "agric science",
+    "agric",
+  ],
+
+  "civic education": [
+    "civic education",
+    "civic",
+  ],
+
+  "basic science": [
+    "basic science",
+    "basic sciences",
+  ],
+
+  "basic technology": [
+    "basic technology",
+    "basic tech",
+  ],
+
+  "literature in english": [
+    "literature in english",
+    "literature",
+    "english literature",
+  ],
+};
 
 function subjectsMatch(first, second) {
   const a = normalizeSubject(first);
@@ -212,94 +352,15 @@ function subjectsMatch(first, second) {
     return true;
   }
 
-  const aliases = {
-    mathematics: [
-      "mathematics",
-      "math",
-      "maths",
-      "general mathematics",
-      "general maths",
-    ],
-
-    "further mathematics": [
-      "further mathematics",
-      "further maths",
-      "further math",
-    ],
-
-    "english language": [
-      "english language",
-      "english",
-      "english studies",
-      "use of english",
-    ],
-
-    "physical and health education": [
-      "physical and health education",
-      "physical health education",
-      "physical & health education",
-      "physical education",
-      "phe",
-      "p.h.e",
-    ],
-
-    "computer studies": [
-      "computer studies",
-      "computer science",
-      "computer",
-      "ict",
-      "information technology",
-    ],
-
-    "christian religious studies": [
-      "christian religious studies",
-      "christian religious knowledge",
-      "crs",
-      "crk",
-    ],
-
-    "islamic religious studies": [
-      "islamic religious studies",
-      "islamic religious knowledge",
-      "irs",
-      "irk",
-    ],
-
-    "agricultural science": [
-      "agricultural science",
-      "agriculture",
-      "agric science",
-    ],
-
-    "civic education": [
-      "civic education",
-      "civic",
-    ],
-
-    "basic science": [
-      "basic science",
-      "basic sciences",
-    ],
-
-    "basic technology": [
-      "basic technology",
-      "basic tech",
-    ],
-
-    "literature in english": [
-      "literature in english",
-      "literature",
-      "english literature",
-    ],
-  };
-
-  for (const values of Object.values(aliases)) {
-    const normalizedValues =
-      values.map(normalizeSubject);
+  for (const aliases of Object.values(
+    SUBJECT_ALIASES
+  )) {
+    const normalizedAliases =
+      aliases.map(normalizeSubject);
 
     if (
-      normalizedValues.includes(a) &&
-      normalizedValues.includes(b)
+      normalizedAliases.includes(a) &&
+      normalizedAliases.includes(b)
     ) {
       return true;
     }
@@ -308,79 +369,195 @@ function subjectsMatch(first, second) {
   return false;
 }
 
-/* =========================================================
-   CLASS SUBJECTS
-========================================================= */
+function getMatchingCanonicalSubject(
+  grade,
+  subject
+) {
+  const allowedSubjects =
+    getClassSubjects(grade);
 
-function getClassSubjects(grade) {
-  const normalized = normalizeClass(grade);
-
-  if (
-    PRIMARY_GRADES.some(
-      (item) =>
-        normalizeClass(item) === normalized
-    )
-  ) {
-    return PRIMARY_SUBJECTS;
-  }
-
-  if (
-    ["jss 1", "jss 2", "jss 3"].includes(
-      normalized
-    )
-  ) {
-    return JSS_SUBJECTS;
-  }
-
-  if (
-    ["ss 1", "ss 2", "ss 3"].includes(
-      normalized
-    )
-  ) {
-    return SS_SUBJECTS;
-  }
-
-  return [];
+  return (
+    allowedSubjects.find((item) =>
+      subjectsMatch(item, subject)
+    ) || null
+  );
 }
 
-function isValidTutorClass(grade) {
-  return ALL_TUTOR_CLASSES.some(
+/* =========================================================
+   TUTOR DATA
+========================================================= */
+
+function getTutorReference(tutor) {
+  return clean(
+    tutor?.reference ||
+      tutor?.application_reference ||
+      tutor?.applicationReference ||
+      tutor?.tutor_reference ||
+      tutor?.tutorReference
+  );
+}
+
+function getTutorName(tutor) {
+  return clean(
+    tutor?.name ||
+      tutor?.full_name ||
+      tutor?.fullName ||
+      [
+        tutor?.first_name,
+        tutor?.middle_name,
+        tutor?.last_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+  );
+}
+
+function getTutorClasses(tutor) {
+  const values = [
+    ...arrayFromValue(tutor?.classes),
+    ...arrayFromValue(tutor?.tutor_classes),
+    ...arrayFromValue(
+      tutor?.tutorClasses
+    ),
+    ...arrayFromValue(
+      tutor?.registered_classes
+    ),
+    ...arrayFromValue(
+      tutor?.registeredClasses
+    ),
+  ];
+
+  return uniqueArray(
+    values.map((item) => {
+      if (typeof item === "string") {
+        return item;
+      }
+
+      if (
+        item &&
+        typeof item === "object"
+      ) {
+        return (
+          item.grade ||
+          item.class ||
+          item.class_name ||
+          item.className ||
+          item.name ||
+          ""
+        );
+      }
+
+      return "";
+    })
+  );
+}
+
+function getTutorSubjects(tutor) {
+  const values = [
+    ...arrayFromValue(tutor?.subjects),
+    ...arrayFromValue(
+      tutor?.tutor_subjects
+    ),
+    ...arrayFromValue(
+      tutor?.tutorSubjects
+    ),
+    ...arrayFromValue(
+      tutor?.registered_subjects
+    ),
+    ...arrayFromValue(
+      tutor?.registeredSubjects
+    ),
+  ];
+
+  return uniqueArray(
+    values.map((item) => {
+      if (typeof item === "string") {
+        return item;
+      }
+
+      if (
+        item &&
+        typeof item === "object"
+      ) {
+        return (
+          item.subject ||
+          item.subject_name ||
+          item.subjectName ||
+          item.name ||
+          ""
+        );
+      }
+
+      return "";
+    })
+  );
+}
+
+function tutorHasClass(
+  tutor,
+  grade
+) {
+  return getTutorClasses(tutor).some(
     (item) =>
       normalizeClass(item) ===
       normalizeClass(grade)
   );
 }
 
-function getMatchingCanonicalSubject(
-  grade,
+function tutorHasSubject(
+  tutor,
   subject
 ) {
-  const subjects = getClassSubjects(grade);
-
-  return (
-    subjects.find((item) =>
+  return getTutorSubjects(tutor).some(
+    (item) =>
       subjectsMatch(item, subject)
-    ) || null
-  );
-}
-
-function isValidTutorSubject(
-  grade,
-  subject
-) {
-  return Boolean(
-    getMatchingCanonicalSubject(
-      grade,
-      subject
-    )
   );
 }
 
 /* =========================================================
-   VERIFIED TUTOR + REGISTERED CLASS/SUBJECT
-   NOTE:
-   Tutor classes and subjects are independent.
-   The assignments column is NOT required.
+   DATABASE-SAFE TUTOR LOOKUP
+========================================================= */
+
+async function findTutorByReference(
+  reference
+) {
+  const wanted =
+    clean(reference);
+
+  if (!wanted) {
+    return null;
+  }
+
+  const result =
+    await pool.query(
+      `
+        SELECT *
+        FROM academy_tutor_applications
+        ORDER BY created_at DESC
+      `
+    );
+
+  const tutors =
+    result.rows || [];
+
+  return (
+    tutors.find(
+      (tutor) =>
+        clean(
+          tutor.reference
+        ) === wanted ||
+        clean(
+          tutor.application_reference
+        ) === wanted ||
+        clean(
+          tutor.tutor_reference
+        ) === wanted
+    ) || null
+  );
+}
+
+/* =========================================================
+   VERIFIED TUTOR LOOKUP
 ========================================================= */
 
 async function getVerifiedTutorForClassSubject(
@@ -388,181 +565,354 @@ async function getVerifiedTutorForClassSubject(
   grade,
   subject
 ) {
-  const tutorResult = await pool.query(
-    `
-      SELECT
-        reference,
-        first_name,
-        middle_name,
-        last_name,
-        email,
-        phone,
-        school,
-        teaching_level,
-        qualification,
-        specialization,
-        experience,
-        subjects,
-        classes,
-        assignments,
-        application_status,
-        account_status,
-        email_verified
-      FROM academy_tutor_applications
-      WHERE
-        LOWER(TRIM(reference)) =
-        LOWER(TRIM($1))
-      LIMIT 1
-    `,
-    [reference]
-  );
+  const tutorReference =
+    clean(reference);
 
-  if (!tutorResult.rows.length) {
+  if (!tutorReference) {
     return {
       error: {
-        status: 404,
-        code: "TUTOR_NOT_FOUND",
-        message: "Tutor not found.",
-      },
-    };
-  }
-
-  const tutor = tutorResult.rows[0];
-
-  if (
-    normalizeStatus(
-      tutor.application_status
-    ) !== "verified"
-  ) {
-    return {
-      error: {
-        status: 403,
-        code: "TUTOR_NOT_VERIFIED",
+        status: 400,
+        code:
+          "TUTOR_REFERENCE_REQUIRED",
         message:
-          "Tutor account has not been verified.",
+          "Tutor reference is required.",
       },
     };
   }
 
-  const tutorClasses = uniqueArray(
-    arrayFromValue(tutor.classes)
-  );
+  try {
+    const tutor =
+      await findTutorByReference(
+        tutorReference
+      );
 
-  const tutorSubjects = uniqueArray(
-    arrayFromValue(tutor.subjects)
-  );
+    if (!tutor) {
+      return {
+        error: {
+          status: 404,
+          code:
+            "TUTOR_NOT_FOUND",
+          message:
+            "Tutor application could not be found.",
+        },
+      };
+    }
 
-  /* ---------------------------------------------
-     CLASS MUST BELONG TO TUTOR
-  --------------------------------------------- */
+    const status =
+      normalizeStatus(
+        tutor.application_status ||
+          tutor.status
+      );
 
-  const tutorHasClass = tutorClasses.some(
-    (item) =>
-      normalizeClass(item) ===
-      normalizeClass(grade)
-  );
+    if (status !== "verified") {
+      return {
+        error: {
+          status: 403,
+          code:
+            "TUTOR_NOT_VERIFIED",
+          message:
+            "Your tutor account has not been verified yet.",
+        },
+      };
+    }
 
-  if (!tutorHasClass) {
-    return {
-      error: {
-        status: 403,
-        code: "TUTOR_CLASS_NOT_REGISTERED",
-        message:
-          `This class is not registered to this tutor: ${grade}.`,
-      },
-    };
-  }
+    if (
+      !tutorHasClass(
+        tutor,
+        grade
+      )
+    ) {
+      return {
+        error: {
+          status: 403,
+          code:
+            "CLASS_NOT_REGISTERED",
+          message:
+            `You are not registered to teach ${grade}.`,
+        },
+      };
+    }
 
-  /* ---------------------------------------------
-     SUBJECT MUST BELONG TO TUTOR
-
-     Uses aliases so:
-     English Studies ↔ English Language
-     Computer Studies ↔ Computer Science
-     Physical & Health Education ↔ PHE
-     Mathematics ↔ Maths
-     etc.
-  --------------------------------------------- */
-
-  const tutorHasSubject = tutorSubjects.some(
-    (item) =>
-      subjectsMatch(
-        item,
+    if (
+      !tutorHasSubject(
+        tutor,
         subject
       )
-  );
+    ) {
+      return {
+        error: {
+          status: 403,
+          code:
+            "SUBJECT_NOT_REGISTERED",
+          message:
+            `You are not registered to teach ${subject}.`,
+        },
+      };
+    }
 
-  if (!tutorHasSubject) {
+    return {
+      tutor,
+    };
+  } catch (error) {
+    console.error(
+      "Tutor verification error:",
+      error
+    );
+
     return {
       error: {
-        status: 403,
-        code: "TUTOR_SUBJECT_NOT_REGISTERED",
+        status: 500,
+        code:
+          error?.code ||
+          "TUTOR_VERIFICATION_ERROR",
         message:
-          `This subject is not registered to this tutor: ${subject}.`,
+          error?.message ||
+          "Unable to verify tutor.",
       },
     };
   }
+}
+
+/* =========================================================
+   CLASS CARDS
+========================================================= */
+
+function createClassCards(
+  tutor,
+  studentsByClass = {}
+) {
+  const tutorClasses =
+    getTutorClasses(tutor);
+
+  return tutorClasses.map(
+    (rawGrade) => {
+      const grade =
+        getCanonicalClass(
+          rawGrade
+        ) || rawGrade;
+
+      const key =
+        normalizeClass(
+          grade
+        );
+
+      const students =
+        studentsByClass[key] ||
+        [];
+
+      return {
+        id: grade
+          .toLowerCase()
+          .replace(
+            /[^a-z0-9]+/g,
+            "-"
+          ),
+
+        grade,
+
+        class: grade,
+
+        className: grade,
+
+        class_name: grade,
+
+        subjects:
+          getClassSubjects(
+            grade
+          ),
+
+        subjectCount:
+          getClassSubjects(
+            grade
+          ).length,
+
+        students,
+
+        studentCount:
+          students.length,
+
+        activities: [],
+
+        activityCount: 0,
+      };
+    }
+  );
+}
+
+/* =========================================================
+   STUDENT SERIALIZATION
+========================================================= */
+
+function serializeStudent(
+  original,
+  fallbackGrade = "",
+  fallbackSubject = ""
+) {
+  const studentGrade =
+    clean(
+      original?.grade ||
+        original?.class ||
+        original?.level ||
+        original?.class_name ||
+        original?.className ||
+        fallbackGrade
+    );
 
   return {
-    tutor,
+    ...original,
 
-    tutorClasses,
+    enrollmentId:
+      original?.id ??
+      original?.enrollment_id ??
+      null,
 
-    tutorSubjects,
+    enrollment_id:
+      original?.enrollment_id ??
+      original?.id ??
+      null,
 
-    /*
-     * Keep this only as compatibility data.
-     * It is NOT used for authorization.
-     */
-    tutorAssignments: [],
+    firstName:
+      original?.first_name ??
+      original?.firstName ??
+      "",
+
+    middleName:
+      original?.middle_name ??
+      original?.middleName ??
+      "",
+
+    lastName:
+      original?.last_name ??
+      original?.lastName ??
+      "",
+
+    name:
+      original?.name ||
+      [
+        original?.first_name,
+        original?.middle_name,
+        original?.last_name,
+      ]
+        .filter(Boolean)
+        .join(" ") ||
+      "",
+
+    email:
+      original?.email ??
+      "",
+
+    studentPhone:
+      original?.student_phone ??
+      original?.studentPhone ??
+      original?.phone ??
+      "",
+
+    phone:
+      original?.phone ??
+      original?.studentPhone ??
+      original?.student_phone ??
+      "",
+
+    grade:
+      studentGrade,
+
+    className:
+      studentGrade,
+
+    class_name:
+      original?.class_name ??
+      original?.className ??
+      studentGrade,
+
+    schoolLevel:
+      original?.school_level ??
+      original?.schoolLevel ??
+      "",
+
+    school_level:
+      original?.school_level ??
+      original?.schoolLevel ??
+      "",
+
+    academicSession:
+      original?.academic_session ??
+      original?.academicSession ??
+      "",
+
+    academic_session:
+      original?.academic_session ??
+      original?.academicSession ??
+      "",
+
+    matchedSubject:
+      fallbackSubject ||
+      original?.matchedSubject ||
+      original?.matched_subject ||
+      "",
+
+    matched_subject:
+      fallbackSubject ||
+      original?.matched_subject ||
+      original?.matchedSubject ||
+      "",
   };
 }
 
 /* =========================================================
-   UPLOAD DIRECTORY
+   UPLOAD CONFIGURATION
 ========================================================= */
 
-const uploadDirectory =
+const UPLOAD_DIR =
   path.resolve(
     process.cwd(),
     "uploads",
     "tasks"
   );
 
-if (
-  !fs.existsSync(
-    uploadDirectory
-  )
-) {
-  fs.mkdirSync(
-    uploadDirectory,
-    {
-      recursive: true,
-    }
-  );
-}
+fs.mkdirSync(
+  UPLOAD_DIR,
+  {
+    recursive: true,
+  }
+);
 
-/* =========================================================
-   MULTER STORAGE
-========================================================= */
+const ALLOWED_MIME_TYPES =
+  new Set([
+    "application/pdf",
 
-const taskStorage =
+    "application/msword",
+
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/svg+xml",
+    "image/avif",
+
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+  ]);
+
+const storage =
   multer.diskStorage({
     destination: (
       _req,
       _file,
-      cb
+      callback
     ) => {
-      cb(
+      callback(
         null,
-        uploadDirectory
+        UPLOAD_DIR
       );
     },
 
     filename: (
       _req,
       file,
-      cb
+      callback
     ) => {
       const extension =
         path.extname(
@@ -571,42 +921,29 @@ const taskStorage =
 
       const safeExtension =
         extension
-          ? extension.toLowerCase()
-          : "";
+          .replace(
+            /[^a-zA-Z0-9.]/g,
+            ""
+          )
+          .toLowerCase();
 
-      const uniqueName =
-        `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${safeExtension}`;
+      const filename =
+        `${Date.now()}-${crypto
+          .randomBytes(8)
+          .toString(
+            "hex"
+          )}${safeExtension}`;
 
-      cb(
+      callback(
         null,
-        uniqueName
+        filename
       );
     },
   });
 
-const ALLOWED_TASK_MIME_TYPES = [
-  "application/pdf",
-
-  "application/msword",
-
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/svg+xml",
-  "image/avif",
-
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-];
-
 const taskUpload =
   multer({
-    storage:
-      taskStorage,
+    storage,
 
     limits: {
       fileSize:
@@ -620,24 +957,124 @@ const taskUpload =
     fileFilter: (
       _req,
       file,
-      cb
+      callback
     ) => {
       if (
-        ALLOWED_TASK_MIME_TYPES.includes(
+        ALLOWED_MIME_TYPES.has(
           file.mimetype
         )
       ) {
-        cb(null, true);
-        return;
+        return callback(
+          null,
+          true
+        );
       }
 
-      cb(
+      const error =
         new Error(
           "Only PDF, DOC, DOCX, images, MP4, WebM and MOV files are allowed."
-        )
+        );
+
+      error.code =
+        "INVALID_FILE_TYPE";
+
+      callback(
+        error,
+        false
       );
     },
   });
+
+/* =========================================================
+   FILE SERIALIZATION
+========================================================= */
+
+function getAttachmentType(
+  mimeType
+) {
+  if (
+    mimeType.startsWith(
+      "video/"
+    )
+  ) {
+    return "video";
+  }
+
+  if (
+    mimeType.startsWith(
+      "image/"
+    )
+  ) {
+    return "image";
+  }
+
+  if (
+    mimeType ===
+    "application/pdf"
+  ) {
+    return "pdf";
+  }
+
+  return "document";
+}
+
+function buildAttachments(
+  files = []
+) {
+  return files.map(
+    (file) => ({
+      id: crypto
+        .randomBytes(8)
+        .toString("hex"),
+
+      originalName:
+        file.originalname,
+
+      filename:
+        file.filename,
+
+      mimeType:
+        file.mimetype,
+
+      type:
+        getAttachmentType(
+          file.mimetype
+        ),
+
+      size:
+        file.size,
+
+      url:
+        `/uploads/tasks/${file.filename}`,
+    })
+  );
+}
+
+function deleteUploadedFiles(
+  files = []
+) {
+  for (
+    const file of files
+  ) {
+    try {
+      if (
+        file?.path &&
+        fs.existsSync(
+          file.path
+        )
+      ) {
+        fs.unlinkSync(
+          file.path
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Uploaded file cleanup error:",
+        error
+      );
+    }
+  }
+}
 
 /* =========================================================
    HEALTH
@@ -656,11 +1093,10 @@ router.get(
 
       return res.json({
         success: true,
-        message:
-          "Academy API is running.",
-        database: true,
-        timestamp:
-          new Date().toISOString(),
+        service:
+          "academy",
+        database:
+          true,
       });
     } catch (error) {
       console.error(
@@ -668,23 +1104,24 @@ router.get(
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Academy API is running but database connection failed.",
-        error:
-          process.env.NODE_ENV ===
-          "development"
-            ? error.message
-            : undefined,
-      });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          service:
+            "academy",
+          database:
+            false,
+          message:
+            error?.message ||
+            "Database unavailable.",
+        });
     }
   }
 );
 
 /* =========================================================
    TUTOR APPLICATION
-   NO ASSIGNMENTS REQUIRED
 ========================================================= */
 
 router.post(
@@ -699,17 +1136,34 @@ router.post(
 
       const firstName =
         clean(
-          body.firstName
+          body.firstName ||
+            body.first_name
         );
 
       const middleName =
         clean(
-          body.middleName
+          body.middleName ||
+            body.middle_name
         );
 
       const lastName =
         clean(
-          body.lastName
+          body.lastName ||
+            body.last_name
+        );
+
+      const name =
+        clean(
+          body.name ||
+            body.fullName ||
+            body.full_name ||
+            [
+              firstName,
+              middleName,
+              lastName,
+            ]
+              .filter(Boolean)
+              .join(" ")
         );
 
       const email =
@@ -719,228 +1173,150 @@ router.post(
 
       const phone =
         clean(
-          body.phone
+          body.phone ||
+            body.phoneNumber ||
+            body.phone_number
         );
 
-      const gender =
+      const location =
         clean(
-          body.gender
-        );
-
-      const dateOfBirth =
-        clean(
-          body.dateOfBirth ||
-          body.date_of_birth
-        );
-
-      const state =
-        clean(
-          body.state
-        );
-
-      const city =
-        clean(
-          body.city
-        );
-
-      const qualification =
-        clean(
-          body.qualification
-        );
-
-      const specialization =
-        clean(
-          body.specialization
-        );
-
-      const experience =
-        clean(
-          body.experience
-        );
-
-      const bio =
-        clean(
-          body.bio
+          body.location
         );
 
       const classes =
-        arrayFromValue(
-          body.classes
+        uniqueArray(
+          arrayFromValue(
+            body.classes ||
+              body.class ||
+              body.grades
+          )
         );
 
       const subjects =
-        arrayFromValue(
-          body.subjects
+        uniqueArray(
+          arrayFromValue(
+            body.subjects ||
+              body.subject
+          )
         );
 
-      if (
-        !firstName ||
-        !lastName
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "First name and last name are required.",
-        });
+      if (!name) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "Full name is required.",
+          });
       }
 
+      /*
+       * Email remains required for the APPLICATION
+       * because it can be used for application
+       * communication.
+       *
+       * It is NOT required for TUTOR LOGIN.
+       */
       if (!email) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Email is required.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "Email address is required.",
+          });
+      }
+
+      if (!phone) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "Phone number is required.",
+          });
       }
 
       if (!classes.length) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "NO_TUTOR_CLASSES",
-          message:
-            "Please select at least one class.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "At least one class is required.",
+          });
       }
 
       if (!subjects.length) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "NO_TUTOR_SUBJECTS",
-          message:
-            "Please select at least one subject.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "At least one subject is required.",
+          });
       }
 
-      const invalidClasses =
-        classes.filter(
+      const invalidClass =
+        classes.find(
           (item) =>
             !isValidTutorClass(
               item
             )
         );
 
-      if (
-        invalidClasses.length
-      ) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "INVALID_TUTOR_CLASSES",
-          message:
-            "One or more selected classes are invalid.",
-          invalidClasses,
-        });
+      if (invalidClass) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              `Invalid class: ${invalidClass}.`,
+          });
       }
+
+      const normalizedClasses =
+        uniqueArray(
+          classes.map(
+            (item) =>
+              getCanonicalClass(
+                item
+              )
+          )
+        );
 
       /*
-       * Subjects only need to be legitimate
-       * Academy subjects. They do not need an
-       * assignments array.
+       * Normalize subjects against each selected
+       * class where possible.
        */
-      const allSubjects = uniqueArray([
-        ...PRIMARY_SUBJECTS,
-        ...JSS_SUBJECTS,
-        ...SS_SUBJECTS,
-      ]);
-
-      const invalidSubjects =
-        subjects.filter(
-          (subject) =>
-            !allSubjects.some(
-              (allowed) =>
-                subjectsMatch(
-                  allowed,
-                  subject
-                )
-            )
-        );
-
-      if (
-        invalidSubjects.length
-      ) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "INVALID_TUTOR_SUBJECTS",
-          message:
-            "One or more selected subjects are invalid.",
-          invalidSubjects,
-        });
-      }
-
-      const finalClasses =
-        uniqueArray(
-          classes
-        );
-
-      const finalSubjects =
+      const normalizedSubjects =
         uniqueArray(
           subjects
         );
 
-      const existing =
-        await pool.query(
-          `
-            SELECT
-              reference,
-              email
-            FROM academy_tutor_applications
-            WHERE
-              LOWER(TRIM(email)) =
-              $1
-            LIMIT 1
-          `,
-          [email]
-        );
-
-      if (
-        existing.rows.length
-      ) {
-        return res.status(409).json({
-          success: false,
-          code:
-            "TUTOR_EMAIL_EXISTS",
-          message:
-            "A tutor application already exists with this email.",
-          reference:
-            existing.rows[0]
-              .reference,
-        });
-      }
-
       const reference =
-        `TUT-${Date.now()
-          .toString(36)
-          .toUpperCase()}-${crypto
-          .randomBytes(3)
-          .toString("hex")
+        `TUT-${Date.now()}-${crypto
+          .randomBytes(4)
+          .toString(
+            "hex"
+          )
           .toUpperCase()}`;
+
+      const applicationStatus =
+        "pending";
 
       const result =
         await pool.query(
           `
             INSERT INTO academy_tutor_applications (
               reference,
-              first_name,
-              middle_name,
-              last_name,
+              name,
               email,
               phone,
-              gender,
-              date_of_birth,
-              state,
-              city,
-              qualification,
-              specialization,
-              experience,
-              subjects,
+              location,
               classes,
-              assignments,
-              bio,
+              subjects,
               application_status,
-              account_status,
-              email_verified,
               created_at,
               updated_at
             )
@@ -953,91 +1329,89 @@ router.post(
               $6,
               $7,
               $8,
-              $9,
-              $10,
-              $11,
-              $12,
-              $13,
-              $14::jsonb,
-              $15::jsonb,
-              '[]'::jsonb,
-              $16,
-              'pending',
-              'pending',
-              FALSE,
               NOW(),
               NOW()
             )
-            RETURNING
-              reference,
-              first_name,
-              middle_name,
-              last_name,
-              email,
-              subjects,
-              classes,
-              application_status,
-              account_status
+            RETURNING *
           `,
           [
             reference,
-            firstName,
-            middleName,
-            lastName,
+            name,
             email,
             phone,
-            gender,
-            dateOfBirth || null,
-            state,
-            city,
-            qualification,
-            specialization,
-            experience,
+            location ||
+              null,
             JSON.stringify(
-              finalSubjects
+              normalizedClasses
             ),
             JSON.stringify(
-              finalClasses
+              normalizedSubjects
             ),
-            bio,
+            applicationStatus,
           ]
         );
 
-      return res.status(201).json({
-        success: true,
-        message:
-          "Tutor application submitted successfully.",
-        tutor:
-          result.rows[0],
-        reference,
-        classes:
-          finalClasses,
-        subjects:
-          finalSubjects,
-      });
+      return res
+        .status(201)
+        .json({
+          success: true,
+
+          message:
+            "Tutor application submitted successfully. Your application is pending review.",
+
+          applicationReference:
+            reference,
+
+          reference,
+
+          applicationId:
+            result.rows[0]?.id ||
+            null,
+
+          application:
+            result.rows[0],
+        });
     } catch (error) {
       console.error(
         "Tutor application error:",
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to submit tutor application.",
-        error:
-          process.env.NODE_ENV ===
-          "development"
-            ? error.message
-            : undefined,
-      });
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "TUTOR_APPLICATION_ERROR",
+
+          message:
+            error?.message ||
+            "Unable to submit tutor application.",
+
+          detail:
+            error?.detail ||
+            null,
+
+          column:
+            error?.column ||
+            null,
+
+          constraint:
+            error?.constraint ||
+            null,
+        });
     }
   }
 );
 
 /* =========================================================
    TUTOR LOGIN
-   NO ASSIGNMENTS REQUIRED
+   ---------------------------------------------------------
+   IMPORTANT:
+   LOGIN = REGISTERED FULL NAME + REFERENCE ID
+   NO EMAIL REQUIRED
 ========================================================= */
 
 router.post(
@@ -1047,212 +1421,166 @@ router.post(
     res
   ) => {
     try {
-      const name =
+      const registeredFullName =
         clean(
-          req.body?.name
+          req.body?.registeredFullName ||
+            req.body?.registered_full_name ||
+            req.body?.fullName ||
+            req.body?.full_name ||
+            req.body?.name
         );
 
       const reference =
         clean(
-          req.body?.referenceId ||
           req.body?.reference ||
-          req.body?.tutorReference ||
-          req.body?.tutor_reference
+            req.body?.referenceId ||
+            req.body?.reference_id ||
+            req.body?.tutorReference ||
+            req.body?.tutor_reference
         );
 
-      if (
-        !name ||
-        !reference
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Name and tutor reference are required.",
-        });
+      /*
+       * DO NOT ASK FOR EMAIL HERE.
+       */
+
+      if (!registeredFullName) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "REGISTERED_NAME_REQUIRED",
+
+            message:
+              "Registered Full Name is required.",
+          });
       }
 
+      if (!reference) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "REFERENCE_ID_REQUIRED",
+
+            message:
+              "Reference ID is required.",
+          });
+      }
+
+      /*
+       * Get the rows first rather than using columns
+       * that may not exist in every version of the
+       * Academy table.
+       */
       const result =
         await pool.query(
           `
             SELECT *
             FROM academy_tutor_applications
-            WHERE
-              LOWER(TRIM(reference)) =
-              LOWER(TRIM($1))
-            LIMIT 1
-          `,
-          [reference]
+            ORDER BY created_at DESC
+          `
         );
 
-      if (
-        !result.rows.length
-      ) {
-        return res.status(401).json({
-          success: false,
-          message:
-            "Invalid tutor name or reference.",
-        });
-      }
+      const tutors =
+        result.rows || [];
+
+      const normalizedLoginName =
+        normalizeName(
+          registeredFullName
+        );
+
+      const normalizedReference =
+        clean(reference);
 
       const tutor =
-        result.rows[0];
+        tutors.find(
+          (item) => {
+            const tutorReference =
+              getTutorReference(
+                item
+              );
 
-      const tutorFullName =
-        [
-          tutor.first_name,
-          tutor.middle_name,
-          tutor.last_name,
-        ]
-          .map(clean)
-          .filter(Boolean)
-          .join(" ");
+            const tutorName =
+              getTutorName(
+                item
+              );
 
-      const suppliedName =
-        name
-          .toLowerCase()
-          .replace(/\s+/g, " ")
-          .trim();
+            return (
+              tutorReference ===
+                normalizedReference &&
+              normalizeName(
+                tutorName
+              ) ===
+                normalizedLoginName
+            );
+          }
+        );
 
-      const storedName =
-        tutorFullName
-          .toLowerCase()
-          .replace(/\s+/g, " ")
-          .trim();
+      if (!tutor) {
+        return res
+          .status(404)
+          .json({
+            success: false,
 
-      const firstLastName =
-        [
-          tutor.first_name,
-          tutor.last_name,
-        ]
-          .map(clean)
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .replace(/\s+/g, " ")
-          .trim();
+            code:
+              "INVALID_TUTOR_LOGIN",
 
-      if (
-        suppliedName !==
-          storedName &&
-        suppliedName !==
-          firstLastName
-      ) {
-        return res.status(401).json({
-          success: false,
-          message:
-            "Invalid tutor name or reference.",
-        });
+            message:
+              "The Registered Full Name and Reference ID do not match any tutor application.",
+          });
       }
 
-      if (
+      const status =
         normalizeStatus(
-          tutor.application_status
-        ) !== "verified"
-      ) {
-        return res.status(403).json({
-          success: false,
-          code:
-            "TUTOR_NOT_VERIFIED",
-          message:
-            "Your tutor account has not been verified yet.",
-          applicationStatus:
-            tutor.application_status,
-        });
-      }
-
-      const classes =
-        arrayFromValue(
-          tutor.classes
+          tutor.application_status ||
+            tutor.status
         );
 
-      const subjects =
-        arrayFromValue(
-          tutor.subjects
+      if (status !== "verified") {
+        return res
+          .status(403)
+          .json({
+            success: false,
+
+            code:
+              "TUTOR_NOT_VERIFIED",
+
+            message:
+              status ===
+              "rejected"
+                ? "Your tutor application was rejected."
+                : "Your tutor application is still pending review.",
+
+            status:
+              tutor.application_status ||
+              tutor.status ||
+              "pending",
+
+            reference:
+              getTutorReference(
+                tutor
+              ),
+          });
+      }
+
+      const tutorReference =
+        getTutorReference(
+          tutor
         );
 
-      if (!classes.length) {
-        return res.status(409).json({
-          success: false,
-          code:
-            "NO_TUTOR_CLASSES",
-          message:
-            "Your tutor account has no registered classes.",
-        });
-      }
+      const tutorClasses =
+        getTutorClasses(
+          tutor
+        );
 
-      if (!subjects.length) {
-        return res.status(409).json({
-          success: false,
-          code:
-            "NO_TUTOR_SUBJECTS",
-          message:
-            "Your tutor account has no registered subjects.",
-        });
-      }
-
-      const token =
-        crypto
-          .randomBytes(32)
-          .toString("hex");
-
-      const tutorData = {
-        reference:
-          tutor.reference,
-
-        tutorReference:
-          tutor.reference,
-
-        tutor_reference:
-          tutor.reference,
-
-        firstName:
-          tutor.first_name,
-
-        middleName:
-          tutor.middle_name,
-
-        lastName:
-          tutor.last_name,
-
-        fullName:
-          tutorFullName,
-
-        email:
-          tutor.email,
-
-        phone:
-          tutor.phone || null,
-
-        school:
-          tutor.school || null,
-
-        teachingLevel:
-          tutor.teaching_level || null,
-
-        qualification:
-          tutor.qualification || null,
-
-        specialization:
-          tutor.specialization || null,
-
-        experience:
-          tutor.experience || null,
-
-        classes,
-
-        subjects,
-
-        applicationStatus:
-          tutor.application_status,
-
-        accountStatus:
-          tutor.account_status || null,
-
-        emailVerified:
-          Boolean(
-            tutor.email_verified
-          ),
-      };
+      const tutorSubjects =
+        getTutorSubjects(
+          tutor
+        );
 
       return res.json({
         success: true,
@@ -1261,31 +1589,58 @@ router.post(
           "Tutor login successful.",
 
         reference:
-          tutor.reference,
+          tutorReference,
 
-        tutorReference:
-          tutor.reference,
+        tutorReference,
 
-        token,
+        registeredFullName:
+          getTutorName(
+            tutor
+          ),
 
-        tutor:
-          tutorData,
+        tutor: {
+          ...tutor,
 
-        classes,
+          reference:
+            tutorReference,
 
-        subjects,
+          tutorReference,
 
-        /*
-         * Kept only as an empty compatibility
-         * value for any old frontend code.
-         *
-         * It is NOT used for authorization.
-         */
-        assignments: [],
+          registeredFullName:
+            getTutorName(
+              tutor
+            ),
 
-        hasAssignments: false,
+          classes:
+            tutorClasses,
 
-        assignmentCount: 0,
+          tutorClasses:
+            tutorClasses,
+
+          registeredClasses:
+            tutorClasses,
+
+          subjects:
+            tutorSubjects,
+
+          tutorSubjects:
+            tutorSubjects,
+
+          registeredSubjects:
+            tutorSubjects,
+        },
+
+        user: {
+          ...tutor,
+
+          reference:
+            tutorReference,
+
+          name:
+            getTutorName(
+              tutor
+            ),
+        },
       });
     } catch (error) {
       console.error(
@@ -1293,156 +1648,33 @@ router.post(
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Tutor login failed.",
-        error:
-          process.env.NODE_ENV ===
-          "development"
-            ? error.message
-            : undefined,
-      });
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "TUTOR_LOGIN_ERROR",
+
+          message:
+            error?.message ||
+            "Unable to continue.",
+
+          detail:
+            error?.detail ||
+            null,
+
+          column:
+            error?.column ||
+            null,
+        });
     }
   }
 );
 
 /* =========================================================
-   TUTOR ASSIGNMENTS
-   LEGACY COMPATIBILITY ONLY
-   NO ASSIGNMENT LOGIC
-========================================================= */
-
-router.get(
-  "/tutor/assignments",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const reference =
-        clean(
-          req.query?.reference ||
-          req.headers[
-            "x-tutor-reference"
-          ]
-        );
-
-      if (!reference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            SELECT
-              reference,
-              first_name,
-              middle_name,
-              last_name,
-              subjects,
-              classes,
-              application_status
-            FROM academy_tutor_applications
-            WHERE
-              LOWER(TRIM(reference)) =
-              LOWER(TRIM($1))
-            LIMIT 1
-          `,
-          [reference]
-        );
-
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Tutor not found.",
-        });
-      }
-
-      const tutor =
-        result.rows[0];
-
-      if (
-        normalizeStatus(
-          tutor.application_status
-        ) !== "verified"
-      ) {
-        return res.status(403).json({
-          success: false,
-          message:
-            "Tutor account has not been verified.",
-        });
-      }
-
-      const classes =
-        arrayFromValue(
-          tutor.classes
-        );
-
-      const subjects =
-        arrayFromValue(
-          tutor.subjects
-        );
-
-      return res.json({
-        success: true,
-
-        reference:
-          tutor.reference,
-
-        assignments: [],
-
-        assignedAssignments: [],
-
-        classes,
-
-        subjects,
-
-        hasAssignments: false,
-
-        assignmentCount: 0,
-
-        tutor: {
-          reference:
-            tutor.reference,
-
-          applicationStatus:
-            tutor.application_status,
-
-          assignments: [],
-
-          classes,
-
-          subjects,
-        },
-
-        generatedAt:
-          new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error(
-        "Tutor assignments error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to load tutor classes and subjects.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   TUTOR CLASSES
+   GET TUTOR CLASSES
 ========================================================= */
 
 router.get(
@@ -1455,81 +1687,141 @@ router.get(
       const reference =
         clean(
           req.query?.reference ||
-          req.headers[
-            "x-tutor-reference"
-          ]
+            req.query?.tutor_reference ||
+            req.query?.tutorReference
         );
 
+      /*
+       * Registration mode.
+       */
       if (!reference) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "TUTOR_REFERENCE_REQUIRED",
-          message:
-            "Tutor reference is required.",
-        });
-      }
+        const classCards =
+          ALL_TUTOR_CLASSES.map(
+            (grade) => ({
+              id: grade
+                .toLowerCase()
+                .replace(
+                  /[^a-z0-9]+/g,
+                  "-"
+                ),
 
-      const tutorResult =
-        await pool.query(
-          `
-            SELECT
-              reference,
-              first_name,
-              middle_name,
-              last_name,
-              email,
-              phone,
-              school,
-              subjects,
-              classes,
-              application_status,
-              account_status
-            FROM academy_tutor_applications
-            WHERE
-              LOWER(TRIM(reference)) =
-              LOWER(TRIM($1))
-            LIMIT 1
-          `,
-          [reference]
-        );
+              grade,
 
-      if (
-        !tutorResult.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Tutor not found.",
+              class: grade,
+
+              className: grade,
+
+              class_name: grade,
+
+              subjects:
+                getClassSubjects(
+                  grade
+                ),
+
+              students: [],
+
+              activities: [],
+            })
+          );
+
+        return res.json({
+          success: true,
+
+          mode:
+            "registration",
+
+          classes:
+            ALL_TUTOR_CLASSES,
+
+          classOptions:
+            ALL_TUTOR_CLASSES,
+
+          availableClasses:
+            ALL_TUTOR_CLASSES,
+
+          subjectsByClass,
+
+          subjects:
+            ALL_SUBJECTS,
+
+          availableSubjects:
+            ALL_SUBJECTS,
+
+          classCards,
+
+          classCount:
+            ALL_TUTOR_CLASSES.length,
+
+          subjectCount:
+            ALL_SUBJECTS.length,
+
+          hasClasses: true,
+
+          assignments: [],
+
+          hasAssignments:
+            false,
+
+          assignmentCount:
+            0,
         });
       }
 
       const tutor =
-        tutorResult.rows[0];
+        await findTutorByReference(
+          reference
+        );
 
-      if (
-        normalizeStatus(
-          tutor.application_status
-        ) !== "verified"
-      ) {
-        return res.status(403).json({
-          success: false,
-          message:
-            "Tutor account has not been verified.",
-        });
+      if (!tutor) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            code:
+              "TUTOR_NOT_FOUND",
+
+            message:
+              "Tutor account could not be found.",
+          });
       }
 
+      const status =
+        normalizeStatus(
+          tutor.application_status ||
+            tutor.status
+        );
+
+      if (status !== "verified") {
+        return res
+          .status(403)
+          .json({
+            success: false,
+
+            code:
+              "TUTOR_NOT_VERIFIED",
+
+            message:
+              "Your tutor account has not been verified yet.",
+          });
+      }
+
+      const tutorReference =
+        getTutorReference(
+          tutor
+        );
+
       const tutorClasses =
-        arrayFromValue(
-          tutor.classes
+        getTutorClasses(
+          tutor
         );
 
       const tutorSubjects =
-        arrayFromValue(
-          tutor.subjects
+        getTutorSubjects(
+          tutor
         );
 
-      const enrollmentResult =
+      const studentsResult =
         await pool.query(
           `
             SELECT *
@@ -1538,180 +1830,307 @@ router.get(
           `
         );
 
-      const activityResult =
-        await pool.query(
-          `
-            SELECT *
-            FROM class_activities
-            WHERE
-              LOWER(TRIM(tutor_reference)) =
-              LOWER(TRIM($1))
-            ORDER BY created_at DESC
-          `,
-          [tutor.reference]
-        );
-
       const students =
-        enrollmentResult.rows;
+        studentsResult.rows ||
+        [];
 
-      const activities =
-        activityResult.rows;
+      const studentsByClass =
+        {};
+
+      for (
+        const grade of tutorClasses
+      ) {
+        studentsByClass[
+          normalizeClass(
+            grade
+          )
+        ] = [];
+      }
+
+      for (
+        const original of students
+      ) {
+        const studentGrade =
+          clean(
+            original.grade ||
+              original.class ||
+              original.level ||
+              original.class_name ||
+              original.className
+          );
+
+        if (!studentGrade) {
+          continue;
+        }
+
+        const tutorGrade =
+          tutorClasses.find(
+            (item) =>
+              normalizeClass(
+                item
+              ) ===
+              normalizeClass(
+                studentGrade
+              )
+          );
+
+        if (!tutorGrade) {
+          continue;
+        }
+
+        const enrolledSubjects =
+          arrayFromValue(
+            original.subjects ||
+              original.subject ||
+              original.selected_subjects ||
+              original.selectedSubjects
+          );
+
+        const matchingSubjects =
+          enrolledSubjects.filter(
+            (
+              studentSubject
+            ) =>
+              tutorSubjects.some(
+                (
+                  tutorSubject
+                ) =>
+                  subjectsMatch(
+                    studentSubject,
+                    tutorSubject
+                  )
+              )
+          );
+
+        /*
+         * If subjects exist but none belong to
+         * the tutor, do not show the student.
+         */
+        if (
+          !matchingSubjects.length &&
+          enrolledSubjects.length
+        ) {
+          continue;
+        }
+
+        const matchedSubject =
+          matchingSubjects[0] ||
+          "";
+
+        const student =
+          serializeStudent(
+            original,
+            tutorGrade,
+            matchedSubject
+          );
+
+        student.tutorClassId =
+          tutorGrade
+            .toLowerCase()
+            .replace(
+              /[^a-z0-9]+/g,
+              "-"
+            );
+
+        const key =
+          normalizeClass(
+            tutorGrade
+          );
+
+        if (
+          !studentsByClass[key]
+        ) {
+          studentsByClass[key] =
+            [];
+        }
+
+        const studentId =
+          student.enrollmentId;
+
+        const alreadyExists =
+          studentsByClass[
+            key
+          ].some(
+            (item) =>
+              studentId !==
+                null &&
+              item.enrollmentId ===
+                studentId
+          );
+
+        if (!alreadyExists) {
+          studentsByClass[
+            key
+          ].push(student);
+        }
+      }
+
+      const classCards =
+        createClassCards(
+          tutor,
+          studentsByClass
+        );
 
       /*
-       * Return one card for every class
-       * registered to the tutor.
-       *
-       * Subjects remain separate so the
-       * frontend can require a class and
-       * subject when creating a task.
+       * Load tutor activities.
        */
-      const classCards =
-        tutorClasses.map(
-          (grade) => {
-            const matchingStudents =
-              students.filter(
-                (student) => {
-                  const studentGrade =
-                    clean(
-                      student.grade ||
-                      student.class ||
-                      student.level
-                    );
+      let activities = [];
 
-                  return (
-                    normalizeClass(
-                      studentGrade
-                    ) ===
-                    normalizeClass(
-                      grade
-                    )
-                  );
-                }
-              );
+      try {
+        const activitiesResult =
+          await pool.query(
+            `
+              SELECT *
+              FROM class_activities
+              WHERE tutor_reference = $1
+              ORDER BY created_at DESC
+            `,
+            [
+              tutorReference,
+            ]
+          );
 
-            const classActivities =
-              activities.filter(
-                (activity) =>
-                  normalizeClass(
-                    activity.grade
-                  ) ===
-                  normalizeClass(
-                    grade
-                  )
-              );
-
-            return {
-              id:
-                grade
-                  .toLowerCase()
-                  .replace(
-                    /[^a-z0-9]+/g,
-                    "-"
-                  ),
-
-              class:
-                grade,
-
-              grade,
-
-              subjects:
-                tutorSubjects,
-
-              students:
-                matchingStudents,
-
-              studentCount:
-                matchingStudents.length,
-
-              verifiedCount:
-                matchingStudents.filter(
-                  (student) =>
-                    normalizeStatus(
-                      student.status ||
-                      student.application_status ||
-                      student.verification_status
-                    ) ===
-                    "verified"
-                ).length,
-
-              pendingCount:
-                matchingStudents.filter(
-                  (student) =>
-                    normalizeStatus(
-                      student.status ||
-                      student.application_status ||
-                      student.verification_status
-                    ) !==
-                    "verified"
-                ).length,
-
-              activities:
-                classActivities,
-
-              activityCount:
-                classActivities.length,
-            };
-          }
+        activities =
+          activitiesResult.rows ||
+          [];
+      } catch (activityError) {
+        console.error(
+          "Tutor activities loading error:",
+          activityError
         );
+      }
+
+      for (
+        const card of classCards
+      ) {
+        const cardActivities =
+          activities.filter(
+            (activity) => {
+              const activityGrade =
+                activity.grade ||
+                activity.class ||
+                activity.class_name ||
+                "";
+
+              const activitySubject =
+                activity.subject ||
+                "";
+
+              const gradeMatches =
+                normalizeClass(
+                  activityGrade
+                ) ===
+                normalizeClass(
+                  card.grade
+                );
+
+              const subjectMatches =
+                !activitySubject ||
+                getClassSubjects(
+                  card.grade
+                ).some(
+                  (
+                    allowedSubject
+                  ) =>
+                    subjectsMatch(
+                      allowedSubject,
+                      activitySubject
+                    )
+                );
+
+              return (
+                gradeMatches &&
+                subjectMatches
+              );
+            }
+          );
+
+        card.activities =
+          cardActivities;
+
+        card.activityCount =
+          cardActivities.length;
+      }
 
       return res.json({
         success: true,
 
+        mode: "tutor",
+
         reference:
-          tutor.reference,
+          tutorReference,
 
-        /*
-         * These are the values the
-         * TutorCreateTask page should use.
-         */
+        tutorReference,
+
+        tutor: {
+          ...tutor,
+
+          reference:
+            tutorReference,
+
+          classes:
+            tutorClasses,
+
+          tutorClasses:
+            tutorClasses,
+
+          registeredClasses:
+            tutorClasses,
+
+          subjects:
+            tutorSubjects,
+
+          tutorSubjects:
+            tutorSubjects,
+
+          registeredSubjects:
+            tutorSubjects,
+        },
+
         classes:
-          tutorClasses,
-
-        subjects:
-          tutorSubjects,
+          classCards,
 
         classCards,
 
-        hasClasses:
-          tutorClasses.length > 0,
+        subjectsByClass,
 
-        classCount:
-          tutorClasses.length,
-
-        subjectCount:
-          tutorSubjects.length,
-
-        /*
-         * Legacy compatibility only.
-         */
         assignments: [],
 
-        hasAssignments: false,
+        hasAssignments:
+          false,
 
-        assignmentCount: 0,
+        assignmentCount:
+          0,
       });
     } catch (error) {
       console.error(
-        "Tutor classes error:",
+        "GET tutor classes error:",
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to load tutor classes.",
-        error:
-          process.env.NODE_ENV ===
-          "development"
-            ? error.message
-            : undefined,
-      });
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "TUTOR_CLASSES_LOAD_ERROR",
+
+          message:
+            error?.message ||
+            "Unable to load tutor classes.",
+
+          detail:
+            error?.detail ||
+            null,
+        });
     }
   }
 );
 
 /* =========================================================
-   TUTOR SINGLE CLASS / SUBJECT
+   GET ONE TUTOR CLASS
 ========================================================= */
 
 router.get(
@@ -1724,9 +2143,8 @@ router.get(
       const reference =
         clean(
           req.query?.reference ||
-          req.headers[
-            "x-tutor-reference"
-          ]
+            req.query?.tutor_reference ||
+            req.query?.tutorReference
         );
 
       const grade =
@@ -1740,137 +2158,246 @@ router.get(
         );
 
       if (!reference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "TUTOR_REFERENCE_REQUIRED",
+
+            message:
+              "Tutor reference is required.",
+          });
       }
 
-      if (!grade || !subject) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Class and subject are required.",
-        });
+      const canonicalClass =
+        getCanonicalClass(
+          grade
+        );
+
+      if (!canonicalClass) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "INVALID_CLASS",
+
+            message:
+              `Invalid class: ${grade}.`,
+          });
+      }
+
+      const canonicalSubject =
+        getMatchingCanonicalSubject(
+          canonicalClass,
+          subject
+        );
+
+      if (!canonicalSubject) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "INVALID_SUBJECT",
+
+            message:
+              `The subject "${subject}" is not available for ${canonicalClass}.`,
+          });
       }
 
       const auth =
         await getVerifiedTutorForClassSubject(
           reference,
-          grade,
-          subject
+          canonicalClass,
+          canonicalSubject
         );
 
       if (auth.error) {
-        return res.status(
-          auth.error.status
-        ).json({
-          success: false,
-          code:
-            auth.error.code,
-          message:
-            auth.error.message,
-        });
+        return res
+          .status(
+            auth.error.status
+          )
+          .json({
+            success: false,
+
+            code:
+              auth.error.code,
+
+            message:
+              auth.error.message,
+          });
       }
 
-      const studentResult =
+      const studentsResult =
         await pool.query(
           `
             SELECT *
             FROM academy_student_enrollments
-            WHERE
-              LOWER(TRIM(grade)) =
-              LOWER(TRIM($1))
             ORDER BY created_at DESC
-          `,
-          [grade]
+          `
         );
 
       const students =
-        studentResult.rows.filter(
-          (student) => {
-            const studentSubjects =
-              arrayFromValue(
-                student.subjects
-              );
+        studentsResult.rows ||
+        [];
 
-            return studentSubjects.some(
-              (item) =>
-                subjectsMatch(
-                  item,
-                  subject
+      const matchedStudents =
+        students
+          .filter(
+            (student) => {
+              const studentGrade =
+                clean(
+                  student.grade ||
+                    student.class ||
+                    student.level ||
+                    student.class_name ||
+                    student.className
+                );
+
+              if (
+                normalizeClass(
+                  studentGrade
+                ) !==
+                normalizeClass(
+                  canonicalClass
                 )
-            );
-          }
-        );
+              ) {
+                return false;
+              }
 
-      const activityResult =
-        await pool.query(
-          `
-            SELECT *
-            FROM class_activities
-            WHERE
-              LOWER(TRIM(grade)) =
-              LOWER(TRIM($1))
-              AND
-              LOWER(TRIM(tutor_reference)) =
-              LOWER(TRIM($2))
-            ORDER BY created_at DESC
-          `,
-          [
-            grade,
-            reference,
-          ]
-        );
+              const studentSubjects =
+                arrayFromValue(
+                  student.subjects ||
+                    student.subject ||
+                    student.selected_subjects ||
+                    student.selectedSubjects
+                );
 
-      const activities =
-        activityResult.rows.filter(
-          (activity) =>
-            subjectsMatch(
-              activity.subject,
-              subject
-            )
+              if (
+                !studentSubjects.length
+              ) {
+                return true;
+              }
+
+              return studentSubjects.some(
+                (item) =>
+                  subjectsMatch(
+                    item,
+                    canonicalSubject
+                  )
+              );
+            }
+          )
+          .map(
+            (original) =>
+              serializeStudent(
+                original,
+                canonicalClass,
+                canonicalSubject
+              )
+          );
+
+      let activities = [];
+
+      try {
+        const activitiesResult =
+          await pool.query(
+            `
+              SELECT *
+              FROM class_activities
+              WHERE
+                tutor_reference = $1
+                AND LOWER(grade) = LOWER($2)
+              ORDER BY created_at DESC
+            `,
+            [
+              reference,
+              canonicalClass,
+            ]
+          );
+
+        activities =
+          (
+            activitiesResult.rows ||
+            []
+          ).filter(
+            (activity) =>
+              !activity.subject ||
+              subjectsMatch(
+                activity.subject,
+                canonicalSubject
+              )
+          );
+      } catch (activityError) {
+        console.error(
+          "Class activity query error:",
+          activityError
         );
+      }
 
       return res.json({
         success: true,
 
+        reference,
+
+        grade:
+          canonicalClass,
+
         class:
-          grade,
+          canonicalClass,
 
-        grade,
+        subject:
+          canonicalSubject,
 
-        subject,
-
-        students,
+        students:
+          matchedStudents,
 
         studentCount:
-          students.length,
+          matchedStudents.length,
 
         activities,
 
         activityCount:
           activities.length,
+
+        assignments: [],
+
+        hasAssignments:
+          false,
+
+        assignmentCount:
+          0,
       });
     } catch (error) {
       console.error(
-        "Tutor class details error:",
+        "GET tutor class error:",
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to load class.",
-      });
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "TUTOR_CLASS_LOAD_ERROR",
+
+          message:
+            error?.message ||
+            "Unable to load class.",
+        });
     }
   }
 );
 
 /* =========================================================
    CREATE TUTOR TASK
-   PDF / DOC / DOCX / IMAGE / VIDEO
 ========================================================= */
 
 router.post(
@@ -1890,30 +2417,34 @@ router.post(
       const reference =
         clean(
           req.body?.reference ||
-          req.body?.tutor_reference ||
-          req.body?.tutorReference ||
-          req.headers[
-            "x-tutor-reference"
-          ]
+            req.body?.tutor_reference ||
+            req.body?.tutorReference ||
+            req.headers[
+              "x-tutor-reference"
+            ]
         );
 
       const grade =
         clean(
           req.body?.grade ||
-          req.body?.class ||
-          req.body?.className
+            req.body?.class ||
+            req.body?.class_name ||
+            req.body?.className
         );
 
       const subject =
         clean(
-          req.body?.subject
+          req.body?.subject ||
+            req.body?.subject_name ||
+            req.body?.subjectName
         );
 
       const activityType =
         clean(
           req.body?.activityType ||
-          req.body?.type ||
-          "task"
+            req.body?.activity_type ||
+            req.body?.type ||
+            "task"
         ).toLowerCase();
 
       const title =
@@ -1933,195 +2464,220 @@ router.post(
 
       const dueDate =
         clean(
-          req.body?.dueDate
+          req.body?.dueDate ||
+            req.body?.due_date
         );
 
       const rawMaxScore =
         clean(
-          req.body?.maxScore
+          req.body?.maxScore ||
+            req.body?.max_score
         );
 
-      const maxScore =
-        rawMaxScore
-          ? Number(
-              rawMaxScore
-            )
-          : null;
+      let maxScore = null;
 
-      if (!reference) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "TUTOR_REFERENCE_REQUIRED",
-          message:
-            "Tutor reference is required.",
-        });
-      }
+      if (rawMaxScore) {
+        maxScore =
+          Number(
+            rawMaxScore
+          );
 
-      if (!grade) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "CLASS_REQUIRED",
-          message:
-            "Class is required.",
-        });
-      }
-
-      if (!subject) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "SUBJECT_REQUIRED",
-          message:
-            "Subject is required.",
-        });
-      }
-
-      if (!title) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "TITLE_REQUIRED",
-          message:
-            "Task title is required.",
-        });
-      }
-
-      if (
-        activityType !== "task"
-      ) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "INVALID_ACTIVITY_TYPE",
-          message:
-            "This endpoint is only for tasks.",
-        });
-      }
-
-      /*
-       * THIS IS THE IMPORTANT AUTHORIZATION.
-       *
-       * The tutor must have:
-       * 1. The selected class in tutor.classes
-       * 2. The selected subject in tutor.subjects
-       *
-       * assignments is never checked.
-       */
-      const auth =
-        await getVerifiedTutorForClassSubject(
-          reference,
-          grade,
-          subject
-        );
-
-      if (auth.error) {
-        return res.status(
-          auth.error.status
-        ).json({
-          success: false,
-          code:
-            auth.error.code,
-          message:
-            auth.error.message,
-        });
-      }
-
-      if (
-        rawMaxScore &&
-        (
+        if (
           Number.isNaN(
             maxScore
           ) ||
           maxScore < 0
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "INVALID_MAX_SCORE",
-          message:
-            "Max score must be a valid non-negative number.",
-        });
+        ) {
+          deleteUploadedFiles(
+            uploadedFiles
+          );
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+
+              code:
+                "INVALID_MAX_SCORE",
+
+              message:
+                "Max score must be a valid non-negative number.",
+            });
+        }
       }
 
-      /*
-       * Normalize subject to the Academy's
-       * canonical subject name for the selected
-       * class.
-       */
-      const canonicalSubject =
-        getMatchingCanonicalSubject(
-          grade,
-          subject
-        ) || subject;
-
-      const attachments =
-        uploadedFiles.map(
-          (file) => {
-            let type =
-              "document";
-
-            if (
-              file.mimetype.startsWith(
-                "video/"
-              )
-            ) {
-              type = "video";
-            } else if (
-              file.mimetype.startsWith(
-                "image/"
-              )
-            ) {
-              type = "image";
-            } else if (
-              file.mimetype ===
-              "application/pdf"
-            ) {
-              type = "pdf";
-            }
-
-            return {
-              id:
-                crypto
-                  .randomBytes(8)
-                  .toString(
-                    "hex"
-                  ),
-
-              originalName:
-                file.originalname,
-
-              filename:
-                file.filename,
-
-              mimeType:
-                file.mimetype,
-
-              type,
-
-              size:
-                file.size,
-
-              url:
-                `/uploads/tasks/${file.filename}`,
-
-              path:
-                `/uploads/tasks/${file.filename}`,
-            };
-          }
+      if (!reference) {
+        deleteUploadedFiles(
+          uploadedFiles
         );
 
-      /*
-       * IMPORTANT:
-       *
-       * There is no assignment object here.
-       * There is no classSubjectAssignment.
-       *
-       * The class and subject are already
-       * first-class columns on class_activities.
-       */
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "TUTOR_REFERENCE_REQUIRED",
+
+            message:
+              "Tutor reference is required.",
+          });
+      }
+
+      if (!grade) {
+        deleteUploadedFiles(
+          uploadedFiles
+        );
+
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "CLASS_REQUIRED",
+
+            message:
+              "Class is required.",
+          });
+      }
+
+      if (!subject) {
+        deleteUploadedFiles(
+          uploadedFiles
+        );
+
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "SUBJECT_REQUIRED",
+
+            message:
+              "Subject is required.",
+          });
+      }
+
+      if (!title) {
+        deleteUploadedFiles(
+          uploadedFiles
+        );
+
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "TITLE_REQUIRED",
+
+            message:
+              "Task title is required.",
+          });
+      }
+
+      if (
+        activityType !==
+        "task"
+      ) {
+        deleteUploadedFiles(
+          uploadedFiles
+        );
+
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "INVALID_ACTIVITY_TYPE",
+
+            message:
+              "This endpoint is only for tasks.",
+          });
+      }
+
+      const canonicalClass =
+        getCanonicalClass(
+          grade
+        );
+
+      if (!canonicalClass) {
+        deleteUploadedFiles(
+          uploadedFiles
+        );
+
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "INVALID_CLASS",
+
+            message:
+              `The selected class is invalid: ${grade}.`,
+          });
+      }
+
+      const canonicalSubject =
+        getMatchingCanonicalSubject(
+          canonicalClass,
+          subject
+        );
+
+      if (!canonicalSubject) {
+        deleteUploadedFiles(
+          uploadedFiles
+        );
+
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "INVALID_SUBJECT",
+
+            message:
+              `The subject "${subject}" is not available for ${canonicalClass}.`,
+          });
+      }
+
+      const auth =
+        await getVerifiedTutorForClassSubject(
+          reference,
+          canonicalClass,
+          canonicalSubject
+        );
+
+      if (auth.error) {
+        deleteUploadedFiles(
+          uploadedFiles
+        );
+
+        return res
+          .status(
+            auth.error.status
+          )
+          .json({
+            success: false,
+
+            code:
+              auth.error.code,
+
+            message:
+              auth.error.message,
+          });
+      }
+
+      const attachments =
+        buildAttachments(
+          uploadedFiles
+        );
+
       const metadata = {
         attachments,
 
@@ -2134,455 +2690,405 @@ router.post(
           null,
 
         maxScore:
-          maxScore !== null &&
-          !Number.isNaN(
-            maxScore
-          )
+          maxScore !== null
             ? maxScore
             : null,
-      };
 
-      const result =
-        await pool.query(
-          `
-            INSERT INTO class_activities (
-              tutor_reference,
-              grade,
-              subject,
-              activity_type,
-              title,
-              description,
-              metadata,
-              created_at,
-              updated_at
-            )
-            VALUES (
-              $1,
-              $2,
-              $3,
-              'task',
-              $4,
-              $5,
-              $6::jsonb,
-              NOW(),
-              NOW()
-            )
-            RETURNING *
-          `,
-          [
-            reference,
-            grade,
-            canonicalSubject,
-            title,
-            description || null,
-            JSON.stringify(
-              metadata
-            ),
-          ]
-        );
-
-      return res.status(201).json({
-        success: true,
-
-        message:
-          "Task created successfully.",
-
-        activity:
-          result.rows[0],
+        activityType:
+          "task",
 
         class:
-          grade,
+          canonicalClass,
 
-        grade,
+        grade:
+          canonicalClass,
 
         subject:
           canonicalSubject,
 
-        attachments,
+        createdBy:
+          reference,
+      };
 
-        recipientRule: {
+      /*
+       * Check the actual table structure before
+       * inserting optional fields.
+       */
+      const columnsResult =
+        await pool.query(
+          `
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE
+              table_schema = 'public'
+              AND table_name = 'class_activities'
+          `
+        );
+
+      const availableColumns =
+        new Set(
+          columnsResult.rows.map(
+            (row) =>
+              row.column_name
+          )
+        );
+
+      const requiredColumns = [
+        "tutor_reference",
+        "grade",
+        "subject",
+        "activity_type",
+        "title",
+      ];
+
+      const missingRequired =
+        requiredColumns.filter(
+          (column) =>
+            !availableColumns.has(
+              column
+            )
+        );
+
+      if (
+        missingRequired.length
+      ) {
+        deleteUploadedFiles(
+          uploadedFiles
+        );
+
+        return res
+          .status(500)
+          .json({
+            success: false,
+
+            code:
+              "TASK_TABLE_SCHEMA_ERROR",
+
+            message:
+              "The class_activities table is missing required columns.",
+
+            missingColumns:
+              missingRequired,
+          });
+      }
+
+      const insertColumns = [
+        "tutor_reference",
+        "grade",
+        "subject",
+        "activity_type",
+        "title",
+      ];
+
+      const insertValues = [
+        reference,
+        canonicalClass,
+        canonicalSubject,
+        "task",
+        title,
+      ];
+
+      const placeholders = [
+        "$1",
+        "$2",
+        "$3",
+        "$4",
+        "$5",
+      ];
+
+      if (
+        availableColumns.has(
+          "description"
+        )
+      ) {
+        insertColumns.push(
+          "description"
+        );
+
+        insertValues.push(
+          description ||
+            null
+        );
+
+        placeholders.push(
+          `$${insertValues.length}`
+        );
+      }
+
+      if (
+        availableColumns.has(
+          "metadata"
+        )
+      ) {
+        insertColumns.push(
+          "metadata"
+        );
+
+        insertValues.push(
+          JSON.stringify(
+            metadata
+          )
+        );
+
+        placeholders.push(
+          `$${insertValues.length}::jsonb`
+        );
+      }
+
+      if (
+        availableColumns.has(
+          "created_at"
+        )
+      ) {
+        insertColumns.push(
+          "created_at"
+        );
+
+        placeholders.push(
+          "NOW()"
+        );
+      }
+
+      if (
+        availableColumns.has(
+          "updated_at"
+        )
+      ) {
+        insertColumns.push(
+          "updated_at"
+        );
+
+        placeholders.push(
+          "NOW()"
+        );
+      }
+
+      const insertQuery = `
+        INSERT INTO class_activities (
+          ${insertColumns.join(
+            ", "
+          )}
+        )
+        VALUES (
+          ${placeholders.join(
+            ", "
+          )}
+        )
+        RETURNING *
+      `;
+
+      console.log(
+        "=============================================="
+      );
+
+      console.log(
+        "CREATING ACADEMY TASK"
+      );
+
+      console.log({
+        reference,
+        grade:
+          canonicalClass,
+        subject:
+          canonicalSubject,
+        title,
+        files:
+          uploadedFiles.length,
+        columns:
+          insertColumns,
+      });
+
+      console.log(
+        "=============================================="
+      );
+
+      const result =
+        await pool.query(
+          insertQuery,
+          insertValues
+        );
+
+      const activity =
+        result.rows[0];
+
+      return res
+        .status(201)
+        .json({
+          success: true,
+
+          message:
+            "Task created successfully.",
+
+          activity,
+
+          task:
+            activity,
+
           class:
-            grade,
+            canonicalClass,
+
+          grade:
+            canonicalClass,
 
           subject:
             canonicalSubject,
 
-          message:
-            "This task is available to students enrolled in this class and subject.",
-        },
-      });
+          title,
+
+          attachments,
+
+          files:
+            attachments,
+
+          fileCount:
+            attachments.length,
+
+          assignments: [],
+
+          hasAssignments:
+            false,
+
+          assignmentCount:
+            0,
+        });
     } catch (error) {
       console.error(
-        "Create class activity error:",
-        error
+        "================================================="
       );
 
-      /*
-       * Delete uploaded files if the
-       * database insert failed.
-       */
-      for (
-        const file of uploadedFiles
-      ) {
-        try {
-          if (
-            file?.path &&
-            fs.existsSync(
-              file.path
-            )
-          ) {
-            fs.unlinkSync(
-              file.path
-            );
-          }
-        } catch (
-          cleanupError
-        ) {
-          console.error(
-            "Upload cleanup error:",
-            cleanupError
-          );
-        }
-      }
+      console.error(
+        "CREATE TASK ERROR"
+      );
 
-      const message =
-        clean(
-          error?.message
-        );
+      console.error(
+        "Message:",
+        error?.message
+      );
 
-      if (
-        message.includes(
-          "Only PDF"
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "INVALID_FILE_TYPE",
-          message:
-            "Only PDF, DOC, DOCX, images, MP4, WebM and MOV files are allowed.",
-        });
-      }
+      console.error(
+        "Code:",
+        error?.code
+      );
+
+      console.error(
+        "Detail:",
+        error?.detail
+      );
+
+      console.error(
+        "Hint:",
+        error?.hint
+      );
+
+      console.error(
+        "Constraint:",
+        error?.constraint
+      );
+
+      console.error(
+        "Table:",
+        error?.table
+      );
+
+      console.error(
+        "Column:",
+        error?.column
+      );
+
+      console.error(
+        "================================================="
+      );
+
+      deleteUploadedFiles(
+        uploadedFiles
+      );
 
       if (
         error?.code ===
         "LIMIT_FILE_SIZE"
       ) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "FILE_TOO_LARGE",
-          message:
-            "Each uploaded file must be 250MB or less.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "FILE_TOO_LARGE",
+
+            message:
+              "Each file must be 250MB or less.",
+          });
       }
 
       if (
         error?.code ===
         "LIMIT_FILE_COUNT"
       ) {
-        return res.status(400).json({
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "TOO_MANY_FILES",
+
+            message:
+              "You can upload a maximum of 10 files.",
+          });
+      }
+
+      if (
+        error?.code ===
+        "INVALID_FILE_TYPE"
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "INVALID_FILE_TYPE",
+
+            message:
+              "Only PDF, DOC, DOCX, images, MP4, WebM and MOV are allowed.",
+          });
+      }
+
+      return res
+        .status(500)
+        .json({
           success: false,
+
           code:
-            "TOO_MANY_FILES",
+            error?.code ||
+            "CREATE_TASK_ERROR",
+
           message:
-            "You can upload a maximum of 10 files.",
+            error?.message ||
+            "Unable to create task.",
+
+          detail:
+            error?.detail ||
+            null,
+
+          hint:
+            error?.hint ||
+            null,
+
+          column:
+            error?.column ||
+            null,
+
+          constraint:
+            error?.constraint ||
+            null,
         });
-      }
-
-      console.error(
-        "Database/task creation error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to create task.",
-        error:
-          process.env.NODE_ENV ===
-          "development"
-            ? message
-            : undefined,
-      });
     }
   }
 );
 
 /* =========================================================
-   START LIVE CLASS
-========================================================= */
-
-router.post(
-  "/tutor/class-activities/live/start",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const reference =
-        clean(
-          req.body?.reference ||
-          req.headers[
-            "x-tutor-reference"
-          ]
-        );
-
-      const grade =
-        clean(
-          req.body?.grade ||
-          req.body?.class
-        );
-
-      const subject =
-        clean(
-          req.body?.subject
-        );
-
-      const title =
-        clean(
-          req.body?.title
-        ) ||
-        "Live Class";
-
-      const description =
-        clean(
-          req.body?.description
-        );
-
-      if (
-        !reference ||
-        !grade ||
-        !subject
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference, class and subject are required.",
-        });
-      }
-
-      const auth =
-        await getVerifiedTutorForClassSubject(
-          reference,
-          grade,
-          subject
-        );
-
-      if (auth.error) {
-        return res.status(
-          auth.error.status
-        ).json({
-          success: false,
-          code:
-            auth.error.code,
-          message:
-            auth.error.message,
-        });
-      }
-
-      const canonicalSubject =
-        getMatchingCanonicalSubject(
-          grade,
-          subject
-        ) || subject;
-
-      const result =
-        await pool.query(
-          `
-            INSERT INTO class_activities (
-              tutor_reference,
-              grade,
-              subject,
-              activity_type,
-              title,
-              description,
-              metadata,
-              created_at,
-              updated_at
-            )
-            VALUES (
-              $1,
-              $2,
-              $3,
-              'live',
-              $4,
-              $5,
-              $6::jsonb,
-              NOW(),
-              NOW()
-            )
-            RETURNING *
-          `,
-          [
-            reference,
-            grade,
-            canonicalSubject,
-            title,
-            description || null,
-            JSON.stringify({
-              live: true,
-              status: "live",
-              startedAt:
-                new Date().toISOString(),
-            }),
-          ]
-        );
-
-      return res.status(201).json({
-        success: true,
-        message:
-          "Live class started.",
-        activity:
-          result.rows[0],
-      });
-    } catch (error) {
-      console.error(
-        "Start live class error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to start live class.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   END LIVE CLASS
-========================================================= */
-
-router.patch(
-  "/tutor/class-activities/:id/live/end",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const reference =
-        clean(
-          req.body?.reference ||
-          req.headers[
-            "x-tutor-reference"
-          ]
-        );
-
-      const activityId =
-        req.params.id;
-
-      if (!reference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      const existing =
-        await pool.query(
-          `
-            SELECT *
-            FROM class_activities
-            WHERE
-              id = $1
-              AND
-              LOWER(TRIM(tutor_reference)) =
-              LOWER(TRIM($2))
-            LIMIT 1
-          `,
-          [
-            activityId,
-            reference,
-          ]
-        );
-
-      if (
-        !existing.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Live activity not found.",
-        });
-      }
-
-      const activity =
-        existing.rows[0];
-
-      let metadata =
-        activity.metadata;
-
-      if (
-        typeof metadata ===
-        "string"
-      ) {
-        try {
-          metadata =
-            JSON.parse(
-              metadata
-            );
-        } catch {
-          metadata = {};
-        }
-      }
-
-      metadata = {
-        ...(metadata || {}),
-        status: "ended",
-        endedAt:
-          new Date().toISOString(),
-      };
-
-      const result =
-        await pool.query(
-          `
-            UPDATE class_activities
-            SET
-              metadata = $1::jsonb,
-              updated_at = NOW()
-            WHERE
-              id = $2
-              AND
-              LOWER(TRIM(tutor_reference)) =
-              LOWER(TRIM($3))
-            RETURNING *
-          `,
-          [
-            JSON.stringify(
-              metadata
-            ),
-            activityId,
-            reference,
-          ]
-        );
-
-      return res.json({
-        success: true,
-        message:
-          "Live class ended.",
-        activity:
-          result.rows[0],
-      });
-    } catch (error) {
-      console.error(
-        "End live class error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to end live class.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   TUTOR CLASS ACTIVITIES
+   GET TUTOR ACTIVITIES
 ========================================================= */
 
 router.get(
@@ -2595,260 +3101,753 @@ router.get(
       const reference =
         clean(
           req.query?.reference ||
-          req.headers[
-            "x-tutor-reference"
-          ]
+            req.query?.tutor_reference ||
+            req.query?.tutorReference ||
+            req.headers[
+              "x-tutor-reference"
+            ]
         );
 
       if (!reference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "TUTOR_REFERENCE_REQUIRED",
+
+            message:
+              "Tutor reference is required.",
+          });
       }
 
-      const result =
-        await pool.query(
-          `
-            SELECT *
-            FROM class_activities
-            WHERE
-              LOWER(TRIM(tutor_reference)) =
-              LOWER(TRIM($1))
-            ORDER BY created_at DESC
-          `,
-          [reference]
+      const tutor =
+        await findTutorByReference(
+          reference
         );
+
+      if (!tutor) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            code:
+              "TUTOR_NOT_FOUND",
+
+            message:
+              "Tutor account could not be found.",
+          });
+      }
+
+      const status =
+        normalizeStatus(
+          tutor.application_status ||
+            tutor.status
+        );
+
+      if (status !== "verified") {
+        return res
+          .status(403)
+          .json({
+            success: false,
+
+            code:
+              "TUTOR_NOT_VERIFIED",
+
+            message:
+              "Your tutor account has not been verified yet.",
+          });
+      }
+
+      const tutorReference =
+        getTutorReference(
+          tutor
+        );
+
+      let activities =
+        [];
+
+      try {
+        const result =
+          await pool.query(
+            `
+              SELECT *
+              FROM class_activities
+              WHERE tutor_reference = $1
+              ORDER BY created_at DESC
+            `,
+            [
+              tutorReference,
+            ]
+          );
+
+        activities =
+          result.rows ||
+          [];
+      } catch (error) {
+        console.error(
+          "Activity loading error:",
+          error
+        );
+
+        return res
+          .status(500)
+          .json({
+            success: false,
+
+            code:
+              error?.code ||
+              "ACTIVITY_LOAD_ERROR",
+
+            message:
+              error?.message ||
+              "Unable to load tutor tasks.",
+          });
+      }
 
       return res.json({
         success: true,
-        activities:
-          result.rows,
+
+        reference:
+          tutorReference,
+
+        activities,
+
+        tasks:
+          activities,
+
+        activityCount:
+          activities.length,
+
+        taskCount:
+          activities.length,
+
+        assignments: [],
+
+        hasAssignments:
+          false,
+
+        assignmentCount:
+          0,
       });
     } catch (error) {
       console.error(
-        "Tutor activities error:",
+        "GET tutor activities error:",
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to load tutor activities.",
-      });
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "ACTIVITY_LOAD_ERROR",
+
+          message:
+            error?.message ||
+            "Unable to load tasks.",
+        });
     }
   }
 );
 
 /* =========================================================
-   STUDENT CLASS ACTIVITIES
+   GET ALL STUDENT ENROLLMENTS
+   ---------------------------------------------------------
+   This fixes:
+   "Unable to load student enrollments."
 ========================================================= */
 
 router.get(
-  "/student/class-activities",
+  "/student-enrollments",
+  async (
+    _req,
+    res
+  ) => {
+    try {
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_student_enrollments
+            ORDER BY created_at DESC
+          `
+        );
+
+      const enrollments =
+        result.rows || [];
+
+      const students =
+        enrollments.map(
+          (student) =>
+            serializeStudent(
+              student
+            )
+        );
+
+      return res.json({
+        success: true,
+
+        enrollments,
+
+        students,
+
+        data:
+          enrollments,
+
+        count:
+          enrollments.length,
+
+        enrollmentCount:
+          enrollments.length,
+
+        studentCount:
+          students.length,
+      });
+    } catch (error) {
+      console.error(
+        "GET student enrollments error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "STUDENT_ENROLLMENTS_LOAD_ERROR",
+
+          message:
+            error?.message ||
+            "Unable to load student enrollments.",
+
+          detail:
+            error?.detail ||
+            null,
+
+          hint:
+            error?.hint ||
+            null,
+
+          table:
+            error?.table ||
+            null,
+
+          column:
+            error?.column ||
+            null,
+        });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN ALIAS FOR STUDENT ENROLLMENTS
+========================================================= */
+
+router.get(
+  "/admin/enrollments",
+  async (
+    _req,
+    res
+  ) => {
+    try {
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_student_enrollments
+            ORDER BY created_at DESC
+          `
+        );
+
+      const enrollments =
+        result.rows || [];
+
+      const students =
+        enrollments.map(
+          (student) =>
+            serializeStudent(
+              student
+            )
+        );
+
+      return res.json({
+        success: true,
+
+        enrollments,
+
+        students,
+
+        data:
+          enrollments,
+
+        count:
+          enrollments.length,
+
+        enrollmentCount:
+          enrollments.length,
+
+        studentCount:
+          students.length,
+      });
+    } catch (error) {
+      console.error(
+        "Admin enrollments error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "STUDENT_ENROLLMENTS_LOAD_ERROR",
+
+          message:
+            error?.message ||
+            "Unable to load student enrollments.",
+
+          detail:
+            error?.detail ||
+            null,
+        });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN: GET TUTORS
+========================================================= */
+
+router.get(
+  "/admin/tutors",
+  async (
+    _req,
+    res
+  ) => {
+    try {
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_tutor_applications
+            ORDER BY created_at DESC
+          `
+        );
+
+      return res.json({
+        success: true,
+
+        tutors:
+          result.rows,
+
+        data:
+          result.rows,
+
+        count:
+          result.rows.length,
+      });
+    } catch (error) {
+      console.error(
+        "Admin tutors error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          message:
+            error?.message ||
+            "Unable to load tutors.",
+        });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN: GET ONE TUTOR
+========================================================= */
+
+router.get(
+  "/admin/tutor/:reference",
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const reference =
+        clean(
+          req.params.reference
+        );
+
+      const tutor =
+        await findTutorByReference(
+          reference
+        );
+
+      if (!tutor) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            message:
+              "Tutor not found.",
+          });
+      }
+
+      return res.json({
+        success: true,
+
+        tutor,
+      });
+    } catch (error) {
+      console.error(
+        "Admin tutor detail error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          message:
+            error?.message ||
+            "Unable to load tutor.",
+        });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN: UPDATE TUTOR STATUS
+========================================================= */
+
+router.patch(
+  "/admin/tutor/:reference/status",
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const reference =
+        clean(
+          req.params.reference
+        );
+
+      const status =
+        clean(
+          req.body?.status ||
+            req.body?.application_status
+        ).toLowerCase();
+
+      const allowedStatuses = [
+        "pending",
+        "verified",
+        "rejected",
+      ];
+
+      if (
+        !allowedStatuses.includes(
+          status
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              "Invalid tutor status.",
+
+            allowedStatuses,
+          });
+      }
+
+      /*
+       * Resolve the tutor first so this route
+       * does not depend on optional columns.
+       */
+      const tutor =
+        await findTutorByReference(
+          reference
+        );
+
+      if (!tutor) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            message:
+              "Tutor not found.",
+          });
+      }
+
+      const tutorReference =
+        getTutorReference(
+          tutor
+        );
+
+      const result =
+        await pool.query(
+          `
+            UPDATE academy_tutor_applications
+            SET
+              application_status = $1,
+              updated_at = NOW()
+            WHERE reference = $2
+            RETURNING *
+          `,
+          [
+            status,
+            tutorReference,
+          ]
+        );
+
+      if (!result.rows.length) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            message:
+              "Tutor not found.",
+          });
+      }
+
+      return res.json({
+        success: true,
+
+        message:
+          `Tutor status updated to ${status}.`,
+
+        tutor:
+          result.rows[0],
+      });
+    } catch (error) {
+      console.error(
+        "Admin tutor status error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "TUTOR_STATUS_UPDATE_ERROR",
+
+          message:
+            error?.message ||
+            "Unable to update tutor status.",
+
+          detail:
+            error?.detail ||
+            null,
+
+          column:
+            error?.column ||
+            null,
+
+          constraint:
+            error?.constraint ||
+            null,
+        });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN: UPDATE STUDENT ENROLLMENT STATUS
+========================================================= */
+
+router.patch(
+  "/admin/enrollment/:enrollmentId/status",
   async (
     req,
     res
   ) => {
     try {
       const enrollmentId =
+        req.params.enrollmentId;
+
+      const status =
         clean(
-          req.query?.enrollmentId ||
-          req.query?.enrollment_id
-        );
+          req.body?.status
+        ).toLowerCase();
 
-      if (!enrollmentId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Enrollment ID is required.",
-        });
-      }
-
-      const studentResult =
-        await pool.query(
-          `
-            SELECT *
-            FROM academy_student_enrollments
-            WHERE
-              id = $1
-            LIMIT 1
-          `,
-          [enrollmentId]
-        );
+      const allowedStatuses = [
+        "pending",
+        "approved",
+        "verified",
+        "rejected",
+        "active",
+        "inactive",
+      ];
 
       if (
-        !studentResult.rows.length
+        !allowedStatuses.includes(
+          status
+        )
       ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Student enrollment not found.",
-        });
-      }
+        return res
+          .status(400)
+          .json({
+            success: false,
 
-      const student =
-        studentResult.rows[0];
+            message:
+              "Invalid enrollment status.",
 
-      const studentGrade =
-        clean(
-          student.grade ||
-          student.class ||
-          student.level
-        );
-
-      const studentSubjects =
-        arrayFromValue(
-          student.subjects
-        );
-
-      if (!studentGrade) {
-        return res.json({
-          success: true,
-          activities: [],
-          tasks: [],
-        });
-      }
-
-      const activityResult =
-        await pool.query(
-          `
-            SELECT *
-            FROM class_activities
-            WHERE
-              LOWER(TRIM(grade)) =
-              LOWER(TRIM($1))
-            ORDER BY created_at DESC
-          `,
-          [studentGrade]
-        );
-
-      const activities =
-        activityResult.rows.filter(
-          (activity) => {
-            if (
-              normalizeClass(
-                activity.grade
-              ) !==
-              normalizeClass(
-                studentGrade
-              )
-            ) {
-              return false;
-            }
-
-            return studentSubjects.some(
-              (
-                studentSubject
-              ) =>
-                subjectsMatch(
-                  studentSubject,
-                  activity.subject
-                )
-            );
-          }
-        );
-
-      const tasks =
-        activities.filter(
-          (activity) =>
-            clean(
-              activity.activity_type
-            ).toLowerCase() ===
-            "task"
-        );
-
-      return res.json({
-        success: true,
-
-        enrollmentId,
-
-        grade:
-          studentGrade,
-
-        subjects:
-          studentSubjects,
-
-        activities,
-
-        tasks,
-
-        activityCount:
-          activities.length,
-
-        taskCount:
-          tasks.length,
-      });
-    } catch (error) {
-      console.error(
-        "Student class activities error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to load student class activities.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   STUDENT BY USER ID
-========================================================= */
-
-router.get(
-  "/student/:userId",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const userId =
-        clean(
-          req.params.userId
-        );
-
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "User ID is required.",
-        });
+            allowedStatuses,
+          });
       }
 
       const result =
         await pool.query(
           `
-            SELECT *
-            FROM academy_student_enrollments
-            WHERE
-              user_id = $1
-              OR
-              student_id = $1
-            ORDER BY created_at DESC
+            UPDATE academy_student_enrollments
+            SET
+              status = $1,
+              updated_at = NOW()
+            WHERE id = $2
+            RETURNING *
           `,
-          [userId]
+          [
+            status,
+            enrollmentId,
+          ]
+        );
+
+      if (!result.rows.length) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            message:
+              "Enrollment not found.",
+          });
+      }
+
+      return res.json({
+        success: true,
+
+        message:
+          "Enrollment status updated.",
+
+        enrollment:
+          result.rows[0],
+      });
+    } catch (error) {
+      console.error(
+        "Admin enrollment status error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "ENROLLMENT_STATUS_UPDATE_ERROR",
+
+          message:
+            error?.message ||
+            "Unable to update enrollment status.",
+
+          detail:
+            error?.detail ||
+            null,
+
+          column:
+            error?.column ||
+            null,
+        });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN: VERIFY ALL PENDING TUTORS
+========================================================= */
+
+router.post(
+  "/admin/verify-all-statuses",
+  async (
+    _req,
+    res
+  ) => {
+    try {
+      const result =
+        await pool.query(
+          `
+            UPDATE academy_tutor_applications
+            SET
+              application_status = 'verified',
+              updated_at = NOW()
+            WHERE
+              LOWER(
+                COALESCE(
+                  application_status,
+                  ''
+                )
+              ) IN (
+                'pending',
+                'approved',
+                'verified'
+              )
+            RETURNING *
+          `
         );
 
       return res.json({
         success: true,
-        students:
+
+        message:
+          "Tutor statuses synchronized.",
+
+        tutors:
           result.rows,
+
+        count:
+          result.rows.length,
       });
     } catch (error) {
       console.error(
-        "Student lookup error:",
+        "Verify all statuses error:",
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to load student.",
-      });
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          message:
+            error?.message ||
+            "Unable to verify tutor statuses.",
+
+          detail:
+            error?.detail ||
+            null,
+        });
     }
   }
 );
@@ -2869,17 +3868,34 @@ router.post(
 
       const firstName =
         clean(
-          body.firstName
+          body.firstName ||
+            body.first_name
         );
 
       const middleName =
         clean(
-          body.middleName
+          body.middleName ||
+            body.middle_name
         );
 
       const lastName =
         clean(
-          body.lastName
+          body.lastName ||
+            body.last_name
+        );
+
+      const name =
+        clean(
+          body.name ||
+            body.fullName ||
+            body.full_name ||
+            [
+              firstName,
+              middleName,
+              lastName,
+            ]
+              .filter(Boolean)
+              .join(" ")
         );
 
       const email =
@@ -2889,48 +3905,72 @@ router.post(
 
       const phone =
         clean(
-          body.phone
+          body.phone ||
+            body.studentPhone ||
+            body.student_phone
         );
 
       const grade =
         clean(
           body.grade ||
-          body.class ||
-          body.level
+            body.class ||
+            body.class_name ||
+            body.className
         );
 
       const subjects =
-        arrayFromValue(
-          body.subjects
+        uniqueArray(
+          arrayFromValue(
+            body.subjects ||
+              body.subject ||
+              body.selected_subjects ||
+              body.selectedSubjects
+          )
         );
 
-      const state =
+      const schoolLevel =
         clean(
-          body.state
+          body.schoolLevel ||
+            body.school_level
         );
 
-      const city =
+      const academicSession =
         clean(
-          body.city
+          body.academicSession ||
+            body.academic_session
         );
 
-      if (
-        !firstName ||
-        !lastName
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "First name and last name are required.",
-        });
+      if (!name) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              "Student name is required.",
+          });
+      }
+
+      if (!email) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              "Student email is required.",
+          });
       }
 
       if (!grade) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Class is required.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              "Class is required.",
+          });
       }
 
       if (
@@ -2938,48 +3978,57 @@ router.post(
           grade
         )
       ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid class selected.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              `Invalid class: ${grade}.`,
+          });
       }
 
       if (!subjects.length) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "At least one subject is required.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              "At least one subject is required.",
+          });
       }
 
-      const invalidSubjects =
-        subjects.filter(
-          (subject) =>
-            !isValidTutorSubject(
-              grade,
-              subject
-            )
+      const canonicalClass =
+        getCanonicalClass(
+          grade
         );
 
-      if (
-        invalidSubjects.length
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "One or more selected subjects are not available for this class.",
-          invalidSubjects,
-        });
+      const validSubjects =
+        subjects
+          .map(
+            (subject) =>
+              getMatchingCanonicalSubject(
+                canonicalClass,
+                subject
+              )
+          )
+          .filter(Boolean);
+
+      if (!validSubjects.length) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            message:
+              `None of the selected subjects are available for ${canonicalClass}.`,
+          });
       }
 
-      const finalSubjects =
-        subjects.map(
-          (subject) =>
-            getMatchingCanonicalSubject(
-              grade,
-              subject
-            ) || subject
+      const normalizedSubjects =
+        uniqueArray(
+          validSubjects
         );
 
       const result =
@@ -2989,12 +4038,13 @@ router.post(
               first_name,
               middle_name,
               last_name,
+              name,
               email,
-              phone,
+              student_phone,
               grade,
               subjects,
-              state,
-              city,
+              school_level,
+              academic_session,
               status,
               created_at,
               updated_at
@@ -3006,640 +4056,96 @@ router.post(
               $4,
               $5,
               $6,
-              $7::jsonb,
+              $7,
               $8,
               $9,
-              'pending',
+              $10,
+              $11,
               NOW(),
               NOW()
             )
             RETURNING *
           `,
           [
-            firstName,
-            middleName,
-            lastName,
+            firstName ||
+              null,
+
+            middleName ||
+              null,
+
+            lastName ||
+              null,
+
+            name,
+
             email,
-            phone,
-            grade,
+
+            phone ||
+              null,
+
+            canonicalClass,
+
             JSON.stringify(
-              uniqueArray(
-                finalSubjects
-              )
+              normalizedSubjects
             ),
-            state,
-            city,
+
+            schoolLevel ||
+              null,
+
+            academicSession ||
+              null,
+
+            "pending",
           ]
         );
 
-      return res.status(201).json({
-        success: true,
-        message:
-          "Student enrollment submitted successfully.",
-        student:
-          result.rows[0],
-      });
+      return res
+        .status(201)
+        .json({
+          success: true,
+
+          message:
+            "Student enrollment submitted successfully.",
+
+          enrollment:
+            result.rows[0],
+
+          student:
+            serializeStudent(
+              result.rows[0]
+            ),
+        });
     } catch (error) {
       console.error(
         "Student enrollment error:",
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to submit student enrollment.",
-        error:
-          process.env.NODE_ENV ===
-          "development"
-            ? error.message
-            : undefined,
-      });
-    }
-  }
-);
-
-/* =========================================================
-   ACCEPTANCE FEE
-========================================================= */
-
-router.post(
-  "/acceptance-fee",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const enrollmentId =
-        clean(
-          req.body?.enrollmentId ||
-          req.body?.enrollment_id
-        );
-
-      const amount =
-        Number(
-          req.body?.amount
-        );
-
-      const paymentReference =
-        clean(
-          req.body?.paymentReference ||
-          req.body?.payment_reference ||
-          req.body?.reference
-        );
-
-      if (!enrollmentId) {
-        return res.status(400).json({
+      return res
+        .status(500)
+        .json({
           success: false,
+
+          code:
+            error?.code ||
+            "STUDENT_ENROLLMENT_ERROR",
+
           message:
-            "Enrollment ID is required.",
+            error?.message ||
+            "Unable to submit student enrollment.",
+
+          detail:
+            error?.detail ||
+            null,
+
+          column:
+            error?.column ||
+            null,
+
+          constraint:
+            error?.constraint ||
+            null,
         });
-      }
-
-      if (
-        !Number.isFinite(
-          amount
-        ) ||
-        amount <= 0
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "A valid payment amount is required.",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            UPDATE academy_student_enrollments
-            SET
-              acceptance_fee_paid = TRUE,
-              acceptance_fee_amount = $1,
-              acceptance_fee_reference = $2,
-              updated_at = NOW()
-            WHERE id = $3
-            RETURNING *
-          `,
-          [
-            amount,
-            paymentReference,
-            enrollmentId,
-          ]
-        );
-
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Enrollment not found.",
-        });
-      }
-
-      return res.json({
-        success: true,
-        message:
-          "Acceptance fee recorded successfully.",
-        enrollment:
-          result.rows[0],
-      });
-    } catch (error) {
-      console.error(
-        "Acceptance fee error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to record acceptance fee.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   ADMIN VERIFY ALL STATUSES
-========================================================= */
-
-router.post(
-  "/admin/verify-all-statuses",
-  async (
-    _req,
-    res
-  ) => {
-    try {
-      const tutorResult =
-        await pool.query(
-          `
-            UPDATE academy_tutor_applications
-            SET
-              application_status = 'verified',
-              account_status = 'active',
-              updated_at = NOW()
-            WHERE
-              LOWER(TRIM(COALESCE(application_status, ''))) != 'verified'
-          `
-        );
-
-      return res.json({
-        success: true,
-        message:
-          "Tutor verification statuses updated.",
-        tutorsUpdated:
-          tutorResult.rowCount,
-      });
-    } catch (error) {
-      console.error(
-        "Verify all statuses error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to verify tutor statuses.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   ADMIN ENROLLMENT STATUS
-========================================================= */
-
-router.patch(
-  "/admin/enrollment/:enrollmentId/status",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const enrollmentId =
-        clean(
-          req.params.enrollmentId
-        );
-
-      const status =
-        clean(
-          req.body?.status
-        ).toLowerCase();
-
-      if (!enrollmentId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Enrollment ID is required.",
-        });
-      }
-
-      if (!status) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Status is required.",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            UPDATE academy_student_enrollments
-            SET
-              status = $1,
-              updated_at = NOW()
-            WHERE
-              id = $2
-            RETURNING *
-          `,
-          [
-            status,
-            enrollmentId,
-          ]
-        );
-
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Enrollment not found.",
-        });
-      }
-
-      return res.json({
-        success: true,
-        message:
-          "Enrollment status updated.",
-        enrollment:
-          result.rows[0],
-      });
-    } catch (error) {
-      console.error(
-        "Enrollment status error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to update enrollment status.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   ADMIN TUTOR STATUS
-========================================================= */
-
-router.patch(
-  "/admin/tutor/:reference/status",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const reference =
-        clean(
-          req.params.reference
-        );
-
-      const status =
-        clean(
-          req.body?.status ||
-          req.body?.applicationStatus
-        ).toLowerCase();
-
-      if (!reference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      if (!status) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Status is required.",
-        });
-      }
-
-      const accountStatus =
-        status === "verified"
-          ? "active"
-          : status;
-
-      const result =
-        await pool.query(
-          `
-            UPDATE academy_tutor_applications
-            SET
-              application_status = $1,
-              account_status = $2,
-              updated_at = NOW()
-            WHERE
-              LOWER(TRIM(reference)) =
-              LOWER(TRIM($3))
-            RETURNING *
-          `,
-          [
-            status,
-            accountStatus,
-            reference,
-          ]
-        );
-
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Tutor not found.",
-        });
-      }
-
-      return res.json({
-        success: true,
-        message:
-          "Tutor status updated.",
-        tutor:
-          result.rows[0],
-      });
-    } catch (error) {
-      console.error(
-        "Tutor status error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to update tutor status.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   ADMIN TUTOR LOOKUP
-========================================================= */
-
-router.get(
-  "/admin/tutor/:reference",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const reference =
-        clean(
-          req.params.reference
-        );
-
-      if (!reference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            SELECT *
-            FROM academy_tutor_applications
-            WHERE
-              LOWER(TRIM(reference)) =
-              LOWER(TRIM($1))
-            LIMIT 1
-          `,
-          [reference]
-        );
-
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Tutor not found.",
-        });
-      }
-
-      const tutor =
-        result.rows[0];
-
-      return res.json({
-        success: true,
-
-        tutor: {
-          ...tutor,
-
-          resolvedClasses:
-            arrayFromValue(
-              tutor.classes
-            ),
-
-          resolvedSubjects:
-            arrayFromValue(
-              tutor.subjects
-            ),
-
-          /*
-           * Compatibility only.
-           */
-          assignments: [],
-        },
-      });
-    } catch (error) {
-      console.error(
-        "Admin tutor lookup error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to load tutor.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   ADMIN STUDENT PASSWORD
-========================================================= */
-
-router.patch(
-  "/admin/student-password",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const enrollmentId =
-        clean(
-          req.body?.enrollmentId ||
-          req.body?.enrollment_id
-        );
-
-      const password =
-        clean(
-          req.body?.password
-        );
-
-      if (!enrollmentId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Enrollment ID is required.",
-        });
-      }
-
-      if (!password) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Password is required.",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            UPDATE academy_student_enrollments
-            SET
-              password = $1,
-              updated_at = NOW()
-            WHERE id = $2
-            RETURNING id
-          `,
-          [
-            password,
-            enrollmentId,
-          ]
-        );
-
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Student enrollment not found.",
-        });
-      }
-
-      return res.json({
-        success: true,
-        message:
-          "Student password updated successfully.",
-      });
-    } catch (error) {
-      console.error(
-        "Student password error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to update student password.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   ADMIN TUTOR PASSWORD
-========================================================= */
-
-router.patch(
-  "/admin/tutor-password",
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const reference =
-        clean(
-          req.body?.reference ||
-          req.body?.tutorReference
-        );
-
-      const password =
-        clean(
-          req.body?.password
-        );
-
-      if (!reference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      if (!password) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Password is required.",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            UPDATE academy_tutor_applications
-            SET
-              password = $1,
-              updated_at = NOW()
-            WHERE
-              LOWER(TRIM(reference)) =
-              LOWER(TRIM($2))
-            RETURNING reference
-          `,
-          [
-            password,
-            reference,
-          ]
-        );
-
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Tutor not found.",
-        });
-      }
-
-      return res.json({
-        success: true,
-        message:
-          "Tutor password updated successfully.",
-      });
-    } catch (error) {
-      console.error(
-        "Tutor password error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to update tutor password.",
-      });
     }
   }
 );
@@ -3660,20 +4166,15 @@ router.post(
           req.body?.email
         );
 
-      const password =
-        clean(
-          req.body?.password
-        );
+      if (!email) {
+        return res
+          .status(400)
+          .json({
+            success: false,
 
-      if (
-        !email ||
-        !password
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Email and password are required.",
-        });
+            message:
+              "Email address is required.",
+          });
       }
 
       const result =
@@ -3681,38 +4182,28 @@ router.post(
           `
             SELECT *
             FROM academy_student_enrollments
-            WHERE
-              LOWER(TRIM(email)) =
-              LOWER(TRIM($1))
+            WHERE LOWER(email) = $1
+            ORDER BY created_at DESC
             LIMIT 1
           `,
-          [email]
+          [
+            email,
+          ]
         );
 
-      if (
-        !result.rows.length
-      ) {
-        return res.status(401).json({
-          success: false,
-          message:
-            "Invalid student email or password.",
-        });
+      if (!result.rows.length) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            message:
+              "No student enrollment was found for this email.",
+          });
       }
 
       const student =
         result.rows[0];
-
-      if (
-        clean(
-          student.password
-        ) !== password
-      ) {
-        return res.status(401).json({
-          success: false,
-          message:
-            "Invalid student email or password.",
-        });
-      }
 
       return res.json({
         success: true,
@@ -3720,14 +4211,13 @@ router.post(
         message:
           "Student login successful.",
 
-        student: {
-          ...student,
+        student,
 
-          subjects:
-            arrayFromValue(
-              student.subjects
-            ),
-        },
+        user:
+          student,
+
+        enrollment:
+          student,
       });
     } catch (error) {
       console.error(
@@ -3735,11 +4225,86 @@ router.post(
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Student login failed.",
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          message:
+            error?.message ||
+            "Unable to continue.",
+        });
+    }
+  }
+);
+
+/* =========================================================
+   GET STUDENT PROFILE
+========================================================= */
+
+router.get(
+  "/student/:userId",
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const userId =
+        clean(
+          req.params.userId
+        );
+
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_student_enrollments
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [
+            userId,
+          ]
+        );
+
+      if (!result.rows.length) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            message:
+              "Student not found.",
+          });
+      }
+
+      return res.json({
+        success: true,
+
+        student:
+          result.rows[0],
+
+        user:
+          result.rows[0],
+
+        enrollment:
+          result.rows[0],
       });
+    } catch (error) {
+      console.error(
+        "Student profile error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          message:
+            error?.message ||
+            "Unable to load student profile.",
+        });
     }
   }
 );
@@ -3753,7 +4318,7 @@ router.use(
     error,
     _req,
     res,
-    next
+    _next
   ) => {
     if (
       error instanceof
@@ -3763,52 +4328,98 @@ router.use(
         error.code ===
         "LIMIT_FILE_SIZE"
       ) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "FILE_TOO_LARGE",
-          message:
-            "Each file must be 250MB or less.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "FILE_TOO_LARGE",
+
+            message:
+              "Each file must be 250MB or less.",
+          });
       }
 
       if (
         error.code ===
         "LIMIT_FILE_COUNT"
       ) {
-        return res.status(400).json({
-          success: false,
-          code:
-            "TOO_MANY_FILES",
-          message:
-            "A maximum of 10 files can be uploaded.",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            code:
+              "TOO_MANY_FILES",
+
+            message:
+              "You can upload a maximum of 10 files.",
+          });
       }
 
-      return res.status(400).json({
-        success: false,
-        code:
-          error.code,
-        message:
-          error.message,
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+
+          code:
+            error.code ||
+            "UPLOAD_ERROR",
+
+          message:
+            error.message ||
+            "File upload failed.",
+        });
     }
 
     if (
-      error?.message?.includes(
-        "Only PDF"
-      )
+      error?.code ===
+      "INVALID_FILE_TYPE"
     ) {
-      return res.status(400).json({
-        success: false,
-        code:
-          "INVALID_FILE_TYPE",
-        message:
-          "Only PDF, DOC, DOCX, images, MP4, WebM and MOV files are allowed.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+
+          code:
+            "INVALID_FILE_TYPE",
+
+          message:
+            "Only PDF, DOC, DOCX, images, MP4, WebM and MOV are allowed.",
+        });
     }
 
-    next(error);
+    console.error(
+      "Academy route error:",
+      error
+    );
+
+    return res
+      .status(500)
+      .json({
+        success: false,
+
+        code:
+          error?.code ||
+          "ACADEMY_ROUTE_ERROR",
+
+        message:
+          error?.message ||
+          "Unable to continue.",
+
+        detail:
+          error?.detail ||
+          null,
+
+        column:
+          error?.column ||
+          null,
+
+        constraint:
+          error?.constraint ||
+          null,
+      });
   }
 );
 

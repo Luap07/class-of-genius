@@ -1,3 +1,5 @@
+// src/components/AdminSidebar.jsx
+
 import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 
@@ -22,6 +24,7 @@ import {
   PanelLeftOpen,
   ClipboardList,
   Image as ImageIcon,
+  Library,
 } from "lucide-react";
 
 import { supabase } from "../lib/supabaseClient";
@@ -93,6 +96,19 @@ const menuItems = [
     title: "Documents",
     icon: FileText,
     path: "/admin/documents",
+  },
+
+  /* ==========================================================
+     MATERIALS
+  ========================================================== */
+
+  {
+    title: "Materials",
+    icon: Library,
+
+    // IMPORTANT:
+    // This must match AdminRoutes.jsx
+    path: "/admin/lms/materials",
   },
 
   /* ==========================================================

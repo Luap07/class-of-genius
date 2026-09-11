@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   Search,
   Eye,
@@ -18,24 +24,54 @@ import {
   GraduationCap,
   Check,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+
+import {
+  motion,
+  AnimatePresence,
+} from "framer-motion";
 
 /* =========================================================
    API
 ========================================================= */
 
-const API_URL = (
-  import.meta.env.VITE_API_URL || "http://localhost:5000"
-).replace(/\/$/, "");
+const RAW_API_URL = (
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
 
-const TUTORS_URL = `${API_URL}/api/academy/admin/tutors`;
+const getAcademyApiBaseUrl = (url) => {
+  const cleanUrl = url.replace(/\/+$/, "");
+
+  if (cleanUrl.endsWith("/api/academy")) {
+    return cleanUrl;
+  }
+
+  if (cleanUrl.endsWith("/api")) {
+    return `${cleanUrl}/academy`;
+  }
+
+  return `${cleanUrl}/api/academy`;
+};
+
+const ACADEMY_API_URL =
+  getAcademyApiBaseUrl(RAW_API_URL);
+
+const TUTORS_URL =
+  `${ACADEMY_API_URL}/admin/tutors`;
 
 /* =========================================================
    HELPERS
 ========================================================= */
 
 const clean = (value) => {
-  if (value === undefined || value === null) return "";
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return "";
+  }
+
   return String(value).trim();
 };
 
@@ -46,9 +82,14 @@ const normalize = (value) =>
 
 const getTutorName = (tutor) => {
   const fullName = [
-    tutor.first_name || tutor.firstName,
-    tutor.middle_name || tutor.middleName,
-    tutor.last_name || tutor.lastName,
+    tutor.first_name ||
+      tutor.firstName,
+
+    tutor.middle_name ||
+      tutor.middleName,
+
+    tutor.last_name ||
+      tutor.lastName,
   ]
     .map(clean)
     .filter(Boolean)
@@ -66,7 +107,9 @@ const getTutorReference = (tutor) => {
   return (
     clean(tutor.reference) ||
     clean(tutor.application_reference) ||
-    clean(tutor.tutor_application_reference) ||
+    clean(
+      tutor.tutor_application_reference
+    ) ||
     clean(tutor.reference_id) ||
     clean(tutor.id)
   );
@@ -87,14 +130,6 @@ const getTutorPhone = (tutor) => {
 
 /* =========================================================
    SUBJECT HELPER
-
-   Handles:
-   - subjects as array
-   - subjects as JSON string
-   - subjects as comma-separated string
-   - subject
-   - teaching_subject
-   - specialization
 ========================================================= */
 
 const getTutorSubjects = (tutor) => {
@@ -114,7 +149,9 @@ const getTutorSubjects = (tutor) => {
   if (typeof value === "string") {
     const text = value.trim();
 
-    if (!text) return [];
+    if (!text) {
+      return [];
+    }
 
     try {
       const parsed = JSON.parse(text);
@@ -125,11 +162,15 @@ const getTutorSubjects = (tutor) => {
           .filter(Boolean);
       }
 
-      if (typeof parsed === "string") {
-        return [clean(parsed)].filter(Boolean);
+      if (
+        typeof parsed === "string"
+      ) {
+        return [
+          clean(parsed),
+        ].filter(Boolean);
       }
     } catch {
-      // Not JSON. Continue below.
+      // Continue as normal string.
     }
 
     return text
@@ -138,11 +179,14 @@ const getTutorSubjects = (tutor) => {
       .filter(Boolean);
   }
 
-  return value ? [clean(value)] : [];
+  return value
+    ? [clean(value)]
+    : [];
 };
 
 const getTutorSubject = (tutor) => {
-  const subjects = getTutorSubjects(tutor);
+  const subjects =
+    getTutorSubjects(tutor);
 
   return subjects.length
     ? subjects.join(", ")
@@ -151,74 +195,108 @@ const getTutorSubject = (tutor) => {
 
 /* =========================================================
    STATUS
-
-   IMPORTANT:
-   Backend only allows:
-
-   pending -> verified
-
-   No rejected/active/inactive logic here.
 ========================================================= */
 
 const getTutorStatus = (tutor) => {
   return (
-    clean(tutor.application_status) ||
+    clean(
+      tutor.application_status
+    ) ||
     clean(tutor.status) ||
-    clean(tutor.verification_status) ||
+    clean(
+      tutor.verification_status
+    ) ||
     "pending"
   );
 };
 
 const isTutorVerified = (tutor) => {
-  return normalize(getTutorStatus(tutor)) === "verified";
+  return (
+    normalize(
+      getTutorStatus(tutor)
+    ) === "verified"
+  );
 };
 
 const isTutorPending = (tutor) => {
-  return normalize(getTutorStatus(tutor)) === "pending";
+  return (
+    normalize(
+      getTutorStatus(tutor)
+    ) === "pending"
+  );
 };
 
+/* =========================================================
+   DATE HELPERS
+========================================================= */
+
 const formatDate = (value) => {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return clean(value) || "—";
   }
 
-  return date.toLocaleDateString("en-NG", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return date.toLocaleDateString(
+    "en-NG",
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }
+  );
 };
 
 const formatDateTime = (value) => {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return clean(value) || "—";
   }
 
-  return date.toLocaleString("en-NG", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return date.toLocaleString(
+    "en-NG",
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }
+  );
 };
 
+/* =========================================================
+   INITIALS
+========================================================= */
+
 const getInitials = (tutor) => {
-  const name = getTutorName(tutor);
+  const name =
+    getTutorName(tutor);
 
   const parts = name
     .split(" ")
     .filter(Boolean);
 
-  if (!parts.length) return "TU";
+  if (!parts.length) {
+    return "TU";
+  }
 
   if (parts.length === 1) {
     return parts[0]
@@ -236,9 +314,13 @@ const getInitials = (tutor) => {
 ========================================================= */
 
 const getStatusMeta = (status) => {
-  const normalized = normalize(status);
+  const normalized =
+    normalize(status);
 
-  if (normalized === "verified") {
+  if (
+    normalized ===
+    "verified"
+  ) {
     return {
       label: "Verified",
       icon: CheckCircle,
@@ -259,8 +341,12 @@ const getStatusMeta = (status) => {
    STATUS BADGE
 ========================================================= */
 
-function StatusBadge({ status }) {
-  const meta = getStatusMeta(status);
+function StatusBadge({
+  status,
+}) {
+  const meta =
+    getStatusMeta(status);
+
   const Icon = meta.icon;
 
   return (
@@ -312,21 +398,35 @@ function TutorDetailsModal({
   tutor,
   onClose,
 }) {
-  if (!tutor) return null;
+  if (!tutor) {
+    return null;
+  }
 
-  const name = getTutorName(tutor);
-  const reference = getTutorReference(tutor);
-  const subjects = getTutorSubjects(tutor);
+  const name =
+    getTutorName(tutor);
+
+  const reference =
+    getTutorReference(tutor);
+
+  const subjects =
+    getTutorSubjects(tutor);
 
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        initial={{
+          opacity: 0,
+        }}
+        animate={{
+          opacity: 1,
+        }}
+        exit={{
+          opacity: 0,
+        }}
         onMouseDown={(event) => {
           if (
-            event.target === event.currentTarget
+            event.target ===
+            event.currentTarget
           ) {
             onClose();
           }
@@ -351,9 +451,7 @@ function TutorDetailsModal({
           }}
           className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-[#080d1a] shadow-2xl shadow-black/50"
         >
-          {/* =================================================
-              HEADER
-          ================================================= */}
+          {/* HEADER */}
 
           <div className="sticky top-0 z-10 border-b border-white/10 bg-[#080d1a]/95 px-6 py-5 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-4">
@@ -387,9 +485,7 @@ function TutorDetailsModal({
           </div>
 
           <div className="space-y-6 p-6">
-            {/* =================================================
-                STATUS
-            ================================================= */}
+            {/* STATUS */}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
@@ -398,7 +494,9 @@ function TutorDetailsModal({
                 </p>
 
                 <StatusBadge
-                  status={getTutorStatus(tutor)}
+                  status={getTutorStatus(
+                    tutor
+                  )}
                 />
               </div>
 
@@ -413,9 +511,7 @@ function TutorDetailsModal({
               </div>
             </div>
 
-            {/* =================================================
-                TUTOR INFORMATION
-            ================================================= */}
+            {/* TUTOR INFORMATION */}
 
             <section>
               <div className="mb-3 flex items-center gap-2">
@@ -433,13 +529,17 @@ function TutorDetailsModal({
                 <InfoItem
                   icon={Mail}
                   label="Email"
-                  value={getTutorEmail(tutor)}
+                  value={getTutorEmail(
+                    tutor
+                  )}
                 />
 
                 <InfoItem
                   icon={Phone}
                   label="Phone"
-                  value={getTutorPhone(tutor)}
+                  value={getTutorPhone(
+                    tutor
+                  )}
                 />
 
                 <InfoItem
@@ -447,7 +547,9 @@ function TutorDetailsModal({
                   label="Teaching Subjects"
                   value={
                     subjects.length
-                      ? subjects.join(", ")
+                      ? subjects.join(
+                          ", "
+                        )
                       : "Not specified"
                   }
                 />
@@ -473,14 +575,14 @@ function TutorDetailsModal({
                 <InfoItem
                   icon={ShieldCheck}
                   label="Application Status"
-                  value={getTutorStatus(tutor)}
+                  value={getTutorStatus(
+                    tutor
+                  )}
                 />
               </div>
             </section>
 
-            {/* =================================================
-                ADDITIONAL INFORMATION
-            ================================================= */}
+            {/* APPLICATION DETAILS */}
 
             <section>
               <div className="mb-3 flex items-center gap-2">
@@ -504,7 +606,9 @@ function TutorDetailsModal({
                 <InfoItem
                   icon={CalendarDays}
                   label="Date of Birth"
-                  value={tutor.date_of_birth}
+                  value={
+                    tutor.date_of_birth
+                  }
                 />
 
                 <InfoItem
@@ -528,7 +632,9 @@ function TutorDetailsModal({
                 <InfoItem
                   icon={ShieldCheck}
                   label="Account Status"
-                  value={tutor.account_status}
+                  value={
+                    tutor.account_status
+                  }
                 />
 
                 <InfoItem
@@ -541,9 +647,7 @@ function TutorDetailsModal({
               </div>
             </section>
 
-            {/* =================================================
-                CLASSES
-            ================================================= */}
+            {/* CLASSES */}
 
             {(tutor.classes ||
               tutor.levels) && (
@@ -578,9 +682,7 @@ function TutorDetailsModal({
               </section>
             )}
 
-            {/* =================================================
-                BIO / APPLICATION MESSAGE
-            ================================================= */}
+            {/* APPLICATION MESSAGE */}
 
             {(tutor.message ||
               tutor.bio ||
@@ -676,8 +778,10 @@ export default function Teachers() {
   const [refreshing, setRefreshing] =
     useState(false);
 
-  const [verifyingReference, setVerifyingReference] =
-    useState("");
+  const [
+    verifyingReference,
+    setVerifyingReference,
+  ] = useState("");
 
   const [error, setError] =
     useState("");
@@ -691,8 +795,10 @@ export default function Teachers() {
   const [subject, setSubject] =
     useState("All");
 
-  const [selectedTutor, setSelectedTutor] =
-    useState(null);
+  const [
+    selectedTutor,
+    setSelectedTutor,
+  ] = useState(null);
 
   /* =======================================================
      FETCH LIVE TUTORS
@@ -709,15 +815,22 @@ export default function Teachers() {
 
         setError("");
 
-        const response = await fetch(
-          TUTORS_URL,
-          {
-            method: "GET",
-            headers: {
-              Accept: "application/json",
-            },
-          }
+        console.log(
+          "Fetching Academy tutors from:",
+          TUTORS_URL
         );
+
+        const response =
+          await fetch(
+            TUTORS_URL,
+            {
+              method: "GET",
+              headers: {
+                Accept:
+                  "application/json",
+              },
+            }
+          );
 
         const contentType =
           response.headers.get(
@@ -739,19 +852,30 @@ export default function Teachers() {
               data?.message ||
               data?.error ||
               message;
+
+            if (
+              response.status ===
+              404
+            ) {
+              message =
+                `${message} — Requested endpoint: ${TUTORS_URL}`;
+            }
           } else {
             const text =
               await response.text();
 
             if (text) {
-              message = text.slice(
-                0,
-                300
-              );
+              message =
+                text.slice(
+                  0,
+                  300
+                );
             }
           }
 
-          throw new Error(message);
+          throw new Error(
+            message
+          );
         }
 
         if (
@@ -760,7 +884,7 @@ export default function Teachers() {
           )
         ) {
           throw new Error(
-            "The server returned a non-JSON response. Check that your Academy backend is running and that /api/academy/admin/tutors exists."
+            "The server returned a non-JSON response. Check that the Academy backend is running and that /api/academy/admin/tutors exists."
           );
         }
 
@@ -784,7 +908,9 @@ export default function Teachers() {
             ? data.data
             : [];
 
-        setTeachers(tutorList);
+        setTeachers(
+          tutorList
+        );
       } catch (err) {
         console.error(
           "Tutor fetch error:",
@@ -814,30 +940,40 @@ export default function Teachers() {
   }, [fetchTeachers]);
 
   /* =======================================================
-     SUBJECT OPTIONS FROM REAL DATABASE
+     SUBJECT OPTIONS
   ======================================================= */
 
   const subjects = useMemo(() => {
-    const values = new Set();
+    const values =
+      new Set();
 
-    teachers.forEach((teacher) => {
-      const tutorSubjects =
-        getTutorSubjects(teacher);
+    teachers.forEach(
+      (teacher) => {
+        const tutorSubjects =
+          getTutorSubjects(
+            teacher
+          );
 
-      tutorSubjects.forEach(
-        (item) => {
-          const value = clean(item);
+        tutorSubjects.forEach(
+          (item) => {
+            const value =
+              clean(item);
 
-          if (value) {
-            values.add(value);
+            if (value) {
+              values.add(
+                value
+              );
+            }
           }
-        }
-      );
-    });
+        );
+      }
+    );
 
     return [
       "All",
-      ...Array.from(values).sort(
+      ...Array.from(
+        values
+      ).sort(
         (a, b) =>
           a.localeCompare(b)
       ),
@@ -848,88 +984,101 @@ export default function Teachers() {
      FILTER
   ======================================================= */
 
-  const filteredTeachers = useMemo(() => {
-    const query =
-      normalize(search);
+  const filteredTeachers =
+    useMemo(() => {
+      const query =
+        normalize(search);
 
-    return teachers.filter(
-      (teacher) => {
-        const name =
-          normalize(
-            getTutorName(
-              teacher
-            )
-          );
-
-        const email =
-          normalize(
-            getTutorEmail(
-              teacher
-            )
-          );
-
-        const phone =
-          normalize(
-            getTutorPhone(
-              teacher
-            )
-          );
-
-        const reference =
-          normalize(
-            getTutorReference(
-              teacher
-            )
-          );
-
-        const tutorSubject =
-          normalize(
-            getTutorSubject(
-              teacher
-            )
-          );
-
-        const tutorStatus =
-          normalize(
-            getTutorStatus(
-              teacher
-            )
-          );
-
-        const searchMatch =
-          !query ||
-          name.includes(query) ||
-          email.includes(query) ||
-          phone.includes(query) ||
-          reference.includes(query) ||
-          tutorSubject.includes(query) ||
-          tutorStatus.includes(query);
-
-        const subjectMatch =
-          subject === "All" ||
-          getTutorSubjects(
-            teacher
-          ).some(
-            (item) =>
-              normalize(
-                item
-              ) ===
-              normalize(
-                subject
+      return teachers.filter(
+        (teacher) => {
+          const name =
+            normalize(
+              getTutorName(
+                teacher
               )
-          );
+            );
 
-        return (
-          searchMatch &&
-          subjectMatch
-        );
-      }
-    );
-  }, [
-    teachers,
-    search,
-    subject,
-  ]);
+          const email =
+            normalize(
+              getTutorEmail(
+                teacher
+              )
+            );
+
+          const phone =
+            normalize(
+              getTutorPhone(
+                teacher
+              )
+            );
+
+          const reference =
+            normalize(
+              getTutorReference(
+                teacher
+              )
+            );
+
+          const tutorSubject =
+            normalize(
+              getTutorSubject(
+                teacher
+              )
+            );
+
+          const tutorStatus =
+            normalize(
+              getTutorStatus(
+                teacher
+              )
+            );
+
+          const searchMatch =
+            !query ||
+            name.includes(
+              query
+            ) ||
+            email.includes(
+              query
+            ) ||
+            phone.includes(
+              query
+            ) ||
+            reference.includes(
+              query
+            ) ||
+            tutorSubject.includes(
+              query
+            ) ||
+            tutorStatus.includes(
+              query
+            );
+
+          const subjectMatch =
+            subject === "All" ||
+            getTutorSubjects(
+              teacher
+            ).some(
+              (item) =>
+                normalize(
+                  item
+                ) ===
+                normalize(
+                  subject
+                )
+            );
+
+          return (
+            searchMatch &&
+            subjectMatch
+          );
+        }
+      );
+    }, [
+      teachers,
+      search,
+      subject,
+    ]);
 
   /* =======================================================
      STATS
@@ -960,7 +1109,8 @@ export default function Teachers() {
     );
 
     return {
-      total: teachers.length,
+      total:
+        teachers.length,
       verified,
       pending,
     };
@@ -968,209 +1118,196 @@ export default function Teachers() {
 
   /* =======================================================
      VERIFY TUTOR
-
-     IMPORTANT:
-
-     This is the ONLY status operation.
-
-     Backend:
-     PATCH
-     /api/academy/admin/tutor/:reference/status
-
-     Body:
-     {
-       status: "verified"
-     }
-
-     Backend only updates:
-     application_status
   ======================================================= */
 
-  const verifyTutor = async (
-    tutor
-  ) => {
-    const reference =
-      getTutorReference(
-        tutor
-      );
-
-    if (!reference) {
-      setError(
-        "This tutor does not have an application reference."
-      );
-
-      return;
-    }
-
-    if (
-      isTutorVerified(
-        tutor
-      )
-    ) {
-      setSuccess(
-        "This tutor is already verified."
-      );
-
-      return;
-    }
-
-    if (
-      !isTutorPending(
-        tutor
-      )
-    ) {
-      setError(
-        "Only pending tutor applications can be verified."
-      );
-
-      return;
-    }
-
-    try {
-      setError("");
-      setSuccess("");
-
-      setVerifyingReference(
-        reference
-      );
-
-      const response =
-        await fetch(
-          `${API_URL}/api/academy/admin/tutor/${encodeURIComponent(
-            reference
-          )}/status`,
-          {
-            method: "PATCH",
-            headers: {
-              "Content-Type":
-                "application/json",
-              Accept:
-                "application/json",
-            },
-            body: JSON.stringify(
-              {
-                status:
-                  "verified",
-              }
-            ),
-          }
+  const verifyTutor =
+    async (tutor) => {
+      const reference =
+        getTutorReference(
+          tutor
         );
 
-      const contentType =
-        response.headers.get(
-          "content-type"
-        ) || "";
+      if (!reference) {
+        setError(
+          "This tutor does not have an application reference."
+        );
 
-      let data = {};
+        return;
+      }
 
       if (
-        contentType.includes(
-          "application/json"
+        isTutorVerified(
+          tutor
         )
       ) {
-        data =
-          await response.json();
-      } else {
-        const text =
-          await response.text();
+        setSuccess(
+          "This tutor is already verified."
+        );
 
-        if (text) {
-          data = {
-            message: text,
-          };
-        }
+        return;
       }
 
-      if (!response.ok) {
-        throw new Error(
-          data?.message ||
-            data?.error ||
-            `Failed to verify tutor (${response.status})`
+      if (
+        !isTutorPending(
+          tutor
+        )
+      ) {
+        setError(
+          "Only pending tutor applications can be verified."
+        );
+
+        return;
+      }
+
+      try {
+        setError("");
+        setSuccess("");
+
+        setVerifyingReference(
+          reference
+        );
+
+        const verificationUrl =
+          `${ACADEMY_API_URL}/admin/tutor/${encodeURIComponent(
+            reference
+          )}/status`;
+
+        console.log(
+          "Verifying tutor at:",
+          verificationUrl
+        );
+
+        const response =
+          await fetch(
+            verificationUrl,
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type":
+                  "application/json",
+                Accept:
+                  "application/json",
+              },
+              body: JSON.stringify(
+                {
+                  status:
+                    "verified",
+                }
+              ),
+            }
+          );
+
+        const contentType =
+          response.headers.get(
+            "content-type"
+          ) || "";
+
+        let data = {};
+
+        if (
+          contentType.includes(
+            "application/json"
+          )
+        ) {
+          data =
+            await response.json();
+        } else {
+          const text =
+            await response.text();
+
+          if (text) {
+            data = {
+              message: text,
+            };
+          }
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            data?.message ||
+              data?.error ||
+              `Failed to verify tutor (${response.status})`
+          );
+        }
+
+        /* Update local status */
+
+        setTeachers(
+          (prev) =>
+            prev.map(
+              (item) => {
+                const itemReference =
+                  getTutorReference(
+                    item
+                  );
+
+                if (
+                  itemReference !==
+                  reference
+                ) {
+                  return item;
+                }
+
+                return {
+                  ...item,
+                  application_status:
+                    "verified",
+                };
+              }
+            )
+        );
+
+        /* Keep modal synchronized */
+
+        setSelectedTutor(
+          (current) => {
+            if (!current) {
+              return current;
+            }
+
+            if (
+              getTutorReference(
+                current
+              ) !== reference
+            ) {
+              return current;
+            }
+
+            return {
+              ...current,
+              application_status:
+                "verified",
+            };
+          }
+        );
+
+        setSuccess(
+          `${getTutorName(
+            tutor
+          )} has been verified successfully.`
+        );
+
+        /* Reload actual database state */
+
+        await fetchTeachers(
+          true
+        );
+      } catch (err) {
+        console.error(
+          "Tutor verification error:",
+          err
+        );
+
+        setError(
+          err?.message ||
+            "Unable to verify tutor."
+        );
+      } finally {
+        setVerifyingReference(
+          ""
         );
       }
-
-      /*
-       * Update only the status in local UI.
-       *
-       * No account_status.
-       * No email_verified.
-       * No password.
-       * No other field.
-       */
-
-      setTeachers(
-        (prev) =>
-          prev.map(
-            (item) => {
-              const itemReference =
-                getTutorReference(
-                  item
-                );
-
-              if (
-                itemReference !==
-                reference
-              ) {
-                return item;
-              }
-
-              return {
-                ...item,
-                application_status:
-                  "verified",
-              };
-            }
-          )
-      );
-
-      /* Keep modal synchronized */
-      setSelectedTutor(
-        (current) => {
-          if (!current) {
-            return current;
-          }
-
-          if (
-            getTutorReference(
-              current
-            ) !== reference
-          ) {
-            return current;
-          }
-
-          return {
-            ...current,
-            application_status:
-              "verified",
-          };
-        }
-      );
-
-      setSuccess(
-        `${getTutorName(
-          tutor
-        )} has been verified successfully.`
-      );
-
-      /*
-       * Fetch the actual database state
-       * after a successful update.
-       */
-      await fetchTeachers(true);
-    } catch (err) {
-      console.error(
-        "Tutor verification error:",
-        err
-      );
-
-      setError(
-        err?.message ||
-          "Unable to verify tutor."
-      );
-    } finally {
-      setVerifyingReference("");
-    }
-  };
+    };
 
   /* =======================================================
      RENDER
@@ -1178,9 +1315,7 @@ export default function Teachers() {
 
   return (
     <div className="min-h-screen bg-[#050914] text-white">
-      {/* =================================================
-          BACKGROUND
-      ================================================= */}
+      {/* BACKGROUND */}
 
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
@@ -1199,9 +1334,7 @@ export default function Teachers() {
       </div>
 
       <div className="relative z-10 mx-auto max-w-[1600px] p-5 sm:p-7 lg:p-8">
-        {/* =================================================
-            HEADER
-        ================================================= */}
+        {/* HEADER */}
 
         <div className="mb-7 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
@@ -1217,8 +1350,9 @@ export default function Teachers() {
 
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
               View Academy tutor
-              applications and verify
-              pending tutors.
+              applications and
+              verify pending
+              tutors.
             </p>
           </div>
 
@@ -1247,9 +1381,7 @@ export default function Teachers() {
           </button>
         </div>
 
-        {/* =================================================
-            SUCCESS
-        ================================================= */}
+        {/* SUCCESS */}
 
         <AnimatePresence>
           {success && (
@@ -1298,9 +1430,7 @@ export default function Teachers() {
           )}
         </AnimatePresence>
 
-        {/* =================================================
-            ERROR
-        ================================================= */}
+        {/* ERROR */}
 
         <AnimatePresence>
           {error && (
@@ -1327,10 +1457,11 @@ export default function Teachers() {
 
                 <div>
                   <p className="text-sm font-medium text-red-200">
-                    Tutor management error
+                    Tutor management
+                    error
                   </p>
 
-                  <p className="mt-1 text-xs text-red-300/70">
+                  <p className="mt-1 break-all text-xs text-red-300/70">
                     {error}
                   </p>
                 </div>
@@ -1349,9 +1480,7 @@ export default function Teachers() {
           )}
         </AnimatePresence>
 
-        {/* =================================================
-            STATS
-        ================================================= */}
+        {/* STATS */}
 
         <div className="mb-7 grid gap-4 sm:grid-cols-3">
           <StatCard
@@ -1364,25 +1493,27 @@ export default function Teachers() {
           <StatCard
             icon={CheckCircle}
             label="Verified"
-            value={stats.verified}
+            value={
+              stats.verified
+            }
             description="Approved tutors"
           />
 
           <StatCard
             icon={Clock}
             label="Pending"
-            value={stats.pending}
+            value={
+              stats.pending
+            }
             description="Awaiting verification"
           />
         </div>
 
-        {/* =================================================
-            FILTER BAR
-        ================================================= */}
+        {/* FILTER BAR */}
 
         <div className="mb-5 rounded-2xl border border-white/10 bg-[#0a1020]/80 p-4 backdrop-blur-xl">
           <div className="flex flex-col gap-3 lg:flex-row">
-            {/* Search */}
+            {/* SEARCH */}
 
             <div className="relative min-w-0 flex-1">
               <Search
@@ -1403,7 +1534,7 @@ export default function Teachers() {
               />
             </div>
 
-            {/* Subject */}
+            {/* SUBJECT */}
 
             <div className="relative">
               <select
@@ -1422,7 +1553,8 @@ export default function Teachers() {
                       value={item}
                       className="bg-[#080d1a]"
                     >
-                      {item === "All"
+                      {item ===
+                      "All"
                         ? "All Subjects"
                         : item}
                     </option>
@@ -1437,7 +1569,7 @@ export default function Teachers() {
               >
                 <path
                   fillRule="evenodd"
-                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25-4.51a.75.75 0 01-1.08-1.06l-4.25-4.51a.75.75 0 01.02-1.06z"
                   clipRule="evenodd"
                 />
               </svg>
@@ -1455,9 +1587,12 @@ export default function Teachers() {
                 </span>{" "}
                 of{" "}
                 <span className="font-medium text-slate-300">
-                  {teachers.length}
+                  {
+                    teachers.length
+                  }
                 </span>{" "}
-                tutor applications
+                tutor
+                applications
               </p>
 
               {(search ||
@@ -1480,15 +1615,9 @@ export default function Teachers() {
           )}
         </div>
 
-        {/* =================================================
-            TABLE
-        ================================================= */}
+        {/* TABLE */}
 
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a1020]/80 shadow-2xl shadow-black/10 backdrop-blur-xl">
-          {/* =================================================
-              LOADING
-          ================================================= */}
-
           {loading ? (
             <div className="flex min-h-[420px] flex-col items-center justify-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/5">
@@ -1505,15 +1634,12 @@ export default function Teachers() {
 
               <p className="mt-1 text-xs text-slate-600">
                 Fetching the latest
-                Academy tutor records
+                Academy tutor
+                records
               </p>
             </div>
           ) : filteredTeachers.length ===
             0 ? (
-            /* =================================================
-                EMPTY
-            ================================================= */
-
             <div className="flex min-h-[420px] flex-col items-center justify-center px-6 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-slate-600">
                 {teachers.length ===
@@ -1563,9 +1689,7 @@ export default function Teachers() {
             </div>
           ) : (
             <>
-              {/* =================================================
-                  DESKTOP
-              ================================================= */}
+              {/* DESKTOP */}
 
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[950px]">
@@ -1649,8 +1773,6 @@ export default function Teachers() {
                             }}
                             className="border-b border-white/5 transition hover:bg-white/[0.025]"
                           >
-                            {/* Tutor */}
-
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/10 bg-gradient-to-br from-violet-400/10 to-blue-500/10 text-xs font-bold text-violet-300">
@@ -1682,8 +1804,6 @@ export default function Teachers() {
                               </div>
                             </td>
 
-                            {/* Subject */}
-
                             <td className="px-5 py-4">
                               <div className="flex items-start gap-2">
                                 <BookOpen
@@ -1701,16 +1821,12 @@ export default function Teachers() {
                               </div>
                             </td>
 
-                            {/* Reference */}
-
                             <td className="px-5 py-4">
                               <span className="font-mono text-xs text-slate-400">
                                 {reference ||
                                   "—"}
                               </span>
                             </td>
-
-                            {/* Verification */}
 
                             <td className="px-5 py-4">
                               <StatusBadge
@@ -1719,8 +1835,6 @@ export default function Teachers() {
                                 )}
                               />
                             </td>
-
-                            {/* Applied */}
 
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-2">
@@ -1739,12 +1853,8 @@ export default function Teachers() {
                               </div>
                             </td>
 
-                            {/* Actions */}
-
                             <td className="px-5 py-4">
                               <div className="flex justify-end gap-2">
-                                {/* View */}
-
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -1761,8 +1871,6 @@ export default function Teachers() {
                                     }
                                   />
                                 </button>
-
-                                {/* Verify */}
 
                                 <button
                                   type="button"
@@ -1820,9 +1928,7 @@ export default function Teachers() {
                 </table>
               </div>
 
-              {/* =================================================
-                  MOBILE
-              ================================================= */}
+              {/* MOBILE */}
 
               <div className="divide-y divide-white/5 md:hidden">
                 {filteredTeachers.map(
@@ -1909,8 +2015,6 @@ export default function Teachers() {
                               </button>
                             </div>
 
-                            {/* Subject */}
-
                             <div className="mt-4 rounded-xl border border-white/5 bg-white/[0.02] p-3">
                               <p className="text-[9px] uppercase tracking-wider text-slate-600">
                                 Subjects
@@ -1923,8 +2027,6 @@ export default function Teachers() {
                               </p>
                             </div>
 
-                            {/* Reference */}
-
                             <div className="mt-2 rounded-xl border border-white/5 bg-white/[0.02] p-3">
                               <p className="text-[9px] uppercase tracking-wider text-slate-600">
                                 Reference
@@ -1935,8 +2037,6 @@ export default function Teachers() {
                                   "—"}
                               </p>
                             </div>
-
-                            {/* Applied */}
 
                             <div className="mt-2 rounded-xl border border-white/5 bg-white/[0.02] p-3">
                               <p className="text-[9px] uppercase tracking-wider text-slate-600">
@@ -1950,8 +2050,6 @@ export default function Teachers() {
                               </p>
                             </div>
 
-                            {/* Status */}
-
                             <div className="mt-3">
                               <StatusBadge
                                 status={getTutorStatus(
@@ -1959,8 +2057,6 @@ export default function Teachers() {
                                 )}
                               />
                             </div>
-
-                            {/* Verify */}
 
                             <div className="mt-4">
                               <button
@@ -2026,9 +2122,7 @@ export default function Teachers() {
           )}
         </div>
 
-        {/* =================================================
-            BOTTOM
-        ================================================= */}
+        {/* BOTTOM */}
 
         {!loading &&
           teachers.length > 0 && (
@@ -2048,13 +2142,13 @@ export default function Teachers() {
           )}
       </div>
 
-      {/* =================================================
-          DETAILS MODAL
-      ================================================= */}
+      {/* DETAILS MODAL */}
 
       {selectedTutor && (
         <TutorDetailsModal
-          tutor={selectedTutor}
+          tutor={
+            selectedTutor
+          }
           onClose={() =>
             setSelectedTutor(null)
           }

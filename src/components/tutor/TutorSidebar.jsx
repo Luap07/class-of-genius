@@ -26,27 +26,29 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-/* ============================================================
-   AUTH KEYS
-============================================================ */
+/* =========================================================
+   STORAGE KEYS
+========================================================= */
 
 const ACADEMY_TOKEN_KEY = "scholiqen_academy_token";
 const ACADEMY_USER_KEY = "scholiqen_academy_user";
 
-/* ============================================================
-   MENU DATA
-============================================================ */
+/* =========================================================
+   MENU ITEMS
+========================================================= */
 
 const menuItems = [
   {
+    id: "dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
     path: "/academy/tutor",
   },
 
   {
+    id: "classes",
     label: "My Classes",
-    icon: Users,
+    icon: GraduationCap,
     children: [
       {
         label: "All Classes",
@@ -64,6 +66,7 @@ const menuItems = [
   },
 
   {
+    id: "tasks",
     label: "Tasks",
     icon: ClipboardList,
     children: [
@@ -77,14 +80,15 @@ const menuItems = [
       },
       {
         label: "Submissions",
-        path: "/academy/tutor/tasks/submissions",
+        path: "/academy/tutor/task/submissions",
       },
     ],
   },
 
   {
+    id: "assignments",
     label: "Assignments",
-    icon: FileText,
+    icon: ClipboardCheck,
     children: [
       {
         label: "Assignments",
@@ -94,14 +98,11 @@ const menuItems = [
         label: "Create Assignment",
         path: "/academy/tutor/assignments/create",
       },
-      {
-        label: "Grading",
-        path: "/academy/tutor/assignments/grading",
-      },
     ],
   },
 
   {
+    id: "lessons",
     label: "Lessons",
     icon: Presentation,
     children: [
@@ -113,14 +114,11 @@ const menuItems = [
         label: "Create Lesson",
         path: "/academy/tutor/lessons/create",
       },
-      {
-        label: "Lesson History",
-        path: "/academy/tutor/lessons/history",
-      },
     ],
   },
 
   {
+    id: "materials",
     label: "Materials",
     icon: Library,
     children: [
@@ -128,14 +126,12 @@ const menuItems = [
         label: "My Materials",
         path: "/academy/tutor/materials",
       },
-      {
-        label: "Upload Material",
-        path: "/academy/tutor/materials/upload",
-      },
+      
     ],
   },
 
   {
+    id: "live-classes",
     label: "Live Classes",
     icon: Video,
     children: [
@@ -159,24 +155,28 @@ const menuItems = [
   },
 
   {
+    id: "attendance",
     label: "Attendance",
-    icon: ClipboardCheck,
+    icon: Users,
     path: "/academy/tutor/attendance",
   },
 
   {
+    id: "progress",
     label: "Student Progress",
     icon: BarChart3,
     path: "/academy/tutor/progress",
   },
 
   {
+    id: "calendar",
     label: "Calendar",
     icon: CalendarDays,
     path: "/academy/tutor/calendar",
   },
 
   {
+    id: "messages",
     label: "Messages",
     icon: MessageSquare,
     children: [
@@ -192,129 +192,103 @@ const menuItems = [
   },
 
   {
+    id: "announcements",
     label: "Announcements",
     icon: Bell,
     path: "/academy/tutor/announcements",
   },
 ];
 
-/* ============================================================
+/* =========================================================
    COMPONENT
-============================================================ */
+========================================================= */
 
-export default function TutorSidebar({
-  mobileOpen,
-  onClose,
-}) {
+const TutorSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  /* ==========================================================
-     INTERNAL MOBILE SIDEBAR STATE
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState({});
+  const [tutor, setTutor] = useState(null);
 
-     This makes the sidebar work even when the parent does not
-     correctly control mobileOpen.
-  ========================================================== */
+  /* =======================================================
+     LOAD TUTOR
+  ======================================================= */
 
-  const [internalMobileOpen, setInternalMobileOpen] =
-    useState(false);
-
-  /*
-   * If the parent provides mobileOpen, we still listen to it.
-   * The internal state remains available as a fallback.
-   */
   useEffect(() => {
-    if (typeof mobileOpen === "boolean") {
-      setInternalMobileOpen(mobileOpen);
-    }
-  }, [mobileOpen]);
-
-  /*
-   * The actual state used by the sidebar.
-   */
-  const sidebarOpen =
-    typeof mobileOpen === "boolean"
-      ? internalMobileOpen
-      : internalMobileOpen;
-
-  /* ==========================================================
-     MENU STATE
-  ========================================================== */
-
-  const [openMenus, setOpenMenus] = useState({
-    "My Classes": true,
-  });
-
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  /* ==========================================================
-     GET TUTOR
-  ========================================================== */
-
-  const getTutor = () => {
     try {
-      const savedUser =
-        localStorage.getItem(ACADEMY_USER_KEY);
+      const storedTutor = localStorage.getItem(ACADEMY_USER_KEY);
 
-      if (!savedUser) {
-        return null;
+      if (storedTutor) {
+        const parsedTutor = JSON.parse(storedTutor);
+        setTutor(parsedTutor);
       }
-
-      return JSON.parse(savedUser);
-    } catch {
-      return null;
+    } catch (error) {
+      console.error("Unable to load tutor:", error);
     }
+  }, []);
+
+  /* =======================================================
+     AUTO EXPAND ACTIVE MENU
+  ======================================================= */
+
+  useEffect(() => {
+    const activeParent = {};
+
+    menuItems.forEach((item) => {
+      if (!item.children) return;
+
+      const isActive = item.children.some((child) =>
+        location.pathname === child.path ||
+        location.pathname.startsWith(`${child.path}/`)
+      );
+
+      if (isActive) {
+        activeParent[item.id] = true;
+      }
+    });
+
+    setExpandedMenus((prev) => ({
+      ...prev,
+      ...activeParent,
+    }));
+  }, [location.pathname]);
+
+  /* =======================================================
+     CLOSE MOBILE SIDEBAR ON ROUTE CHANGE
+  ======================================================= */
+
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [location.pathname]);
+
+  /* =======================================================
+     TOGGLE MENU
+  ======================================================= */
+
+  const toggleMenu = (id) => {
+    setExpandedMenus((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   };
 
-  const tutor = getTutor();
+  /* =======================================================
+     NAVIGATION
+  ======================================================= */
 
-  /* ==========================================================
-     NAME
-  ========================================================== */
+  const handleNavigation = (path) => {
+    navigate(path);
+    setIsMobileOpen(false);
+  };
 
-  const tutorName =
-    [
-      tutor?.firstName,
-      tutor?.middleName,
-      tutor?.lastName,
-    ]
-      .filter(Boolean)
-      .join(" ") ||
-    tutor?.name ||
-    "Tutor";
+  /* =======================================================
+     ACTIVE CHECK
+  ======================================================= */
 
-  /* ==========================================================
-     SPECIALIZATION
-  ========================================================== */
-
-  const specialization =
-    tutor?.specialization ||
-    tutor?.qualification ||
-    "Tutor";
-
-  /* ==========================================================
-     AVATAR INITIALS
-  ========================================================== */
-
-  const initials = tutorName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-
-  /* ==========================================================
-     ACTIVE ROUTE
-  ========================================================== */
-
-  const isActive = (path) => {
-    if (!path) {
-      return false;
-    }
-
+  const isPathActive = (path) => {
     if (path === "/academy/tutor") {
-      return location.pathname === path;
+      return location.pathname === "/academy/tutor";
     }
 
     return (
@@ -323,957 +297,376 @@ export default function TutorSidebar({
     );
   };
 
-  /* ==========================================================
-     MENU ACTIVE
-  ========================================================== */
+  /* =======================================================
+     SIGN OUT
+  ======================================================= */
 
-  const isParentActive = (item) => {
-    if (!item.children) {
-      return false;
+  const handleSignOut = () => {
+    try {
+      localStorage.removeItem(ACADEMY_TOKEN_KEY);
+      localStorage.removeItem(ACADEMY_USER_KEY);
+
+      localStorage.removeItem("tutor");
+      localStorage.removeItem("academyTutor");
+      localStorage.removeItem("scholiqen_user");
+      localStorage.removeItem("tutorReference");
+    } catch (error) {
+      console.error("Sign out cleanup error:", error);
     }
 
-    return item.children.some((child) =>
-      isActive(child.path)
-    );
-  };
-
-  /* ==========================================================
-     TOGGLE PARENT MENU
-  ========================================================== */
-
-  const toggleMenu = (label) => {
-    setOpenMenus((previous) => ({
-      ...previous,
-      [label]: !previous[label],
-    }));
-  };
-
-  /* ==========================================================
-     MOBILE SIDEBAR TOGGLE
-  ========================================================== */
-
-  const openMobileSidebar = () => {
-    setInternalMobileOpen(true);
-  };
-
-  const closeMobileSidebar = () => {
-    setInternalMobileOpen(false);
-
-    if (typeof onClose === "function") {
-      onClose();
-    }
-  };
-
-  const toggleMobileSidebar = () => {
-    if (sidebarOpen) {
-      closeMobileSidebar();
-    } else {
-      openMobileSidebar();
-    }
-  };
-
-  /* ==========================================================
-     NAVIGATE
-  ========================================================== */
-
-  const handleNavigation = (path) => {
-    if (!path) {
-      return;
-    }
-
-    navigate(path);
-
-    /*
-     * Always close the sidebar after navigation on mobile.
-     */
-    setInternalMobileOpen(false);
-
-    if (typeof onClose === "function") {
-      onClose();
-    }
-  };
-
-  /* ==========================================================
-     LOGOUT
-  ========================================================== */
-
-  const handleLogout = () => {
-    if (loggingOut) {
-      return;
-    }
-
-    setLoggingOut(true);
-
-    localStorage.removeItem(
-      ACADEMY_TOKEN_KEY
-    );
-
-    localStorage.removeItem(
-      ACADEMY_USER_KEY
-    );
-
-    navigate("/academy/login", {
+    navigate("/academy/tutor/login", {
       replace: true,
     });
   };
 
-  /* ==========================================================
-     LOCK BODY SCROLL WHEN MOBILE SIDEBAR IS OPEN
-  ========================================================== */
+  /* =======================================================
+     TUTOR NAME
+  ======================================================= */
 
-  useEffect(() => {
-    if (!sidebarOpen) {
-      return;
-    }
+  const tutorName =
+    tutor?.name ||
+    tutor?.full_name ||
+    tutor?.fullName ||
+    tutor?.tutorName ||
+    "Tutor";
 
-    const mediaQuery = window.matchMedia(
-      "(max-width: 1023px)"
-    );
+  const tutorReference =
+    tutor?.reference ||
+    tutor?.tutorReference ||
+    tutor?.applicationReference ||
+    "Academy Tutor";
 
-    if (!mediaQuery.matches) {
-      return;
-    }
+  /* =======================================================
+     SIDEBAR CONTENT
+  ======================================================= */
 
-    const previousOverflow =
-      document.body.style.overflow;
+  const sidebarContent = (
+    <div className="flex h-full flex-col bg-[#020617] text-white">
+      {/* ===================================================
+          HEADER
+      =================================================== */}
 
-    document.body.style.overflow = "hidden";
+      <div className="flex h-[76px] shrink-0 items-center justify-between border-b border-white/10 px-5">
+        <button
+          type="button"
+          onClick={() => handleNavigation("/academy/tutor")}
+          className="flex items-center gap-3"
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10">
+            <GraduationCap
+              size={22}
+              className="text-cyan-400"
+            />
+          </div>
 
-    return () => {
-      document.body.style.overflow =
-        previousOverflow;
-    };
-  }, [sidebarOpen]);
+          <div className="text-left">
+            <p className="text-sm font-bold tracking-wide text-white">
+              SCHOLIQEN
+            </p>
 
-  /* ==========================================================
-     CLOSE MOBILE SIDEBAR WHEN SCREEN BECOMES LARGE
-  ========================================================== */
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-cyan-400/80">
+              Academy Tutor
+            </p>
+          </div>
+        </button>
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setInternalMobileOpen(false);
-      }
-    };
+        <button
+          type="button"
+          onClick={() => setIsMobileOpen(false)}
+          className="rounded-lg p-2 text-slate-400 transition hover:bg-white/5 hover:text-white lg:hidden"
+          aria-label="Close sidebar"
+        >
+          <X size={20} />
+        </button>
+      </div>
 
-    window.addEventListener(
-      "resize",
-      handleResize
-    );
+      {/* ===================================================
+          TUTOR PROFILE
+      =================================================== */}
 
-    return () => {
-      window.removeEventListener(
-        "resize",
-        handleResize
-      );
-    };
-  }, []);
+      <div className="mx-4 mt-4 rounded-2xl border border-white/10 bg-[#071426] p-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/10">
+            <UserCircle
+              size={27}
+              className="text-cyan-400"
+            />
+          </div>
 
-  /* ==========================================================
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-white">
+              {tutorName}
+            </p>
+
+            <p className="truncate text-[11px] text-slate-400">
+              {tutorReference}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================================================
+          NAVIGATION
+      =================================================== */}
+
+      <nav className="mt-5 flex-1 overflow-y-auto px-3 pb-5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+        <div className="mb-3 px-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+            Workspace
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+
+            const hasChildren =
+              Array.isArray(item.children) &&
+              item.children.length > 0;
+
+            const active =
+              !hasChildren && isPathActive(item.path);
+
+            const parentActive =
+              hasChildren &&
+              item.children.some((child) =>
+                isPathActive(child.path)
+              );
+
+            const expanded =
+              expandedMenus[item.id] || parentActive;
+
+            return (
+              <div key={item.id}>
+                {/* =========================================
+                    PARENT ITEM
+                ========================================= */}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (hasChildren) {
+                      toggleMenu(item.id);
+                    } else if (item.path) {
+                      handleNavigation(item.path);
+                    }
+                  }}
+                  className={`group flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-all duration-200 ${
+                    active || parentActive
+                      ? "border border-cyan-400/10 bg-cyan-400/10 text-cyan-300"
+                      : "border border-transparent text-slate-300 hover:bg-white/[0.04] hover:text-white"
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <Icon
+                      size={18}
+                      className={`shrink-0 ${
+                        active || parentActive
+                          ? "text-cyan-400"
+                          : "text-slate-400 group-hover:text-slate-200"
+                      }`}
+                    />
+
+                    <span className="truncate text-sm font-medium">
+                      {item.label}
+                    </span>
+                  </span>
+
+                  {hasChildren && (
+                    <span className="shrink-0 text-slate-500">
+                      {expanded ? (
+                        <ChevronDown size={16} />
+                      ) : (
+                        <ChevronRight size={16} />
+                      )}
+                    </span>
+                  )}
+                </button>
+
+                {/* =========================================
+                    CHILDREN
+                ========================================= */}
+
+                {hasChildren && expanded && (
+                  <div className="ml-5 mt-1 space-y-1 border-l border-white/10 pl-3">
+                    {item.children.map((child) => {
+                      const childActive = isPathActive(
+                        child.path
+                      );
+
+                      return (
+                        <button
+                          key={child.path}
+                          type="button"
+                          onClick={() =>
+                            handleNavigation(child.path)
+                          }
+                          className={`relative flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm transition-all duration-200 ${
+                            childActive
+                              ? "bg-cyan-400/10 font-medium text-cyan-300"
+                              : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+                          }`}
+                        >
+                          {childActive && (
+                            <span className="absolute -left-[17px] h-5 w-0.5 rounded-full bg-cyan-400" />
+                          )}
+
+                          <span className="truncate">
+                            {child.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* ===================================================
+          SMART TEACHING AI
+      =================================================== */}
+
+      <div className="mx-4 mb-4 rounded-2xl border border-cyan-400/10 bg-gradient-to-br from-cyan-400/[0.08] to-blue-500/[0.04] p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10">
+            <Sparkles
+              size={17}
+              className="text-cyan-400"
+            />
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-white">
+              Smart Teaching AI
+            </p>
+
+            <p className="mt-1 text-[11px] leading-5 text-slate-400">
+              Get help creating engaging learning
+              experiences for your students.
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                handleNavigation("/ai-tutor")
+              }
+              className="mt-3 text-[11px] font-semibold text-cyan-400 transition hover:text-cyan-300"
+            >
+              Open AI Assistant →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================================================
+          BOTTOM ACTIONS
+      =================================================== */}
+
+      <div className="border-t border-white/10 px-3 py-3">
+        <button
+          type="button"
+          onClick={() =>
+            handleNavigation("/academy/tutor/profile")
+          }
+          className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-400 transition hover:bg-white/[0.04] hover:text-white"
+        >
+          <UserCircle
+            size={18}
+            className="text-slate-500 group-hover:text-slate-300"
+          />
+
+          <span>Profile</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            handleNavigation("/academy/tutor/settings")
+          }
+          className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-400 transition hover:bg-white/[0.04] hover:text-white"
+        >
+          <Settings
+            size={18}
+            className="text-slate-500 group-hover:text-slate-300"
+          />
+
+          <span>Settings</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-400 transition hover:bg-red-500/10 hover:text-red-300"
+        >
+          <LogOut
+            size={18}
+            className="text-slate-500 group-hover:text-red-400"
+          />
+
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  /* =======================================================
      RENDER
-  ========================================================== */
+  ======================================================= */
 
   return (
     <>
-      {/* ======================================================
-          MOBILE MENU TOGGLE
-
-          This is the important fix.
-
-          It stays fixed on small screens and is completely
-          independent of the parent component.
-      ====================================================== */}
+      {/* ===================================================
+          MOBILE MENU BUTTON
+      =================================================== */}
 
       <button
         type="button"
-        aria-label={
-          sidebarOpen
-            ? "Close tutor menu"
-            : "Open tutor menu"
-        }
-        aria-expanded={sidebarOpen}
-        onClick={toggleMobileSidebar}
-        className="
-          fixed
-          left-4
-          top-4
-          z-[70]
-          flex
-          h-11
-          w-11
-          items-center
-          justify-center
-          rounded-xl
-          border
-          border-white/10
-          bg-[#050816]/95
-          text-slate-300
-          shadow-2xl
-          shadow-black/40
-          backdrop-blur-xl
-          transition-all
-          duration-200
-          hover:border-cyan-400/30
-          hover:bg-[#081126]
-          hover:text-cyan-300
-          active:scale-95
-          lg:hidden
-        "
+        onClick={() => setIsMobileOpen(true)}
+        className="fixed left-4 top-4 z-[60] flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-[#071426]/95 text-slate-200 shadow-xl backdrop-blur-xl transition hover:border-cyan-400/20 hover:text-cyan-400 lg:hidden"
+        aria-label="Open tutor sidebar"
       >
-        {sidebarOpen ? (
-          <X size={21} />
-        ) : (
-          <Menu size={21} />
-        )}
+        <Menu size={21} />
       </button>
 
-      {/* ======================================================
+      {/* ===================================================
           MOBILE BACKDROP
-      ====================================================== */}
+      =================================================== */}
 
-      <div
-        aria-hidden={!sidebarOpen}
-        onClick={closeMobileSidebar}
-        className={`
-          fixed
-          inset-0
-          z-[55]
-          bg-black/70
-          backdrop-blur-[3px]
-          transition-all
-          duration-300
-          lg:hidden
-          ${
-            sidebarOpen
-              ? "pointer-events-auto opacity-100"
-              : "pointer-events-none opacity-0"
-          }
-        `}
-      />
+      {isMobileOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar backdrop"
+          onClick={() => setIsMobileOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] lg:hidden"
+        />
+      )}
 
-      {/* ======================================================
-          SIDEBAR
-      ====================================================== */}
+      {/* ===================================================
+          DESKTOP SIDEBAR
+      =================================================== */}
+
+      <aside className="fixed inset-y-0 left-0 z-50 hidden w-[280px] border-r border-white/10 bg-[#020617] lg:block">
+        {sidebarContent}
+      </aside>
+
+      {/* ===================================================
+          MOBILE SIDEBAR
+      =================================================== */}
 
       <aside
-        aria-label="Tutor navigation"
-        className={`
-          fixed
-          left-0
-          top-0
-          z-[60]
-          flex
-          h-[100dvh]
-          w-[280px]
-          max-w-[88vw]
-          flex-col
-          border-r
-          border-white/10
-          bg-[#050816]
-          shadow-2xl
-          shadow-black/50
-          transition-transform
-          duration-300
-          ease-out
-          lg:translate-x-0
-          ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
-          }
-        `}
+        className={`fixed inset-y-0 left-0 z-50 w-[285px] border-r border-white/10 bg-[#020617] shadow-2xl transition-transform duration-300 ease-out lg:hidden ${
+          isMobileOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
+        }`}
       >
-        {/* ==================================================
-            BRAND
-        ================================================== */}
-
-        <div
-          className="
-            flex
-            h-[76px]
-            min-h-[76px]
-            shrink-0
-            items-center
-            justify-between
-            border-b
-            border-white/10
-            px-5
-          "
-        >
-          <button
-            type="button"
-            onClick={() =>
-              handleNavigation(
-                "/academy/tutor"
-              )
-            }
-            className="
-              flex
-              min-w-0
-              items-center
-              gap-3
-              text-left
-            "
-          >
-            <div
-              className="
-                relative
-                flex
-                h-11
-                w-11
-                shrink-0
-                items-center
-                justify-center
-                rounded-2xl
-                bg-gradient-to-br
-                from-cyan-400
-                via-blue-500
-                to-violet-600
-                shadow-lg
-                shadow-cyan-500/20
-              "
-            >
-              <GraduationCap
-                size={23}
-                className="text-white"
-              />
-
-              <div
-                className="
-                  absolute
-                  -right-1
-                  -top-1
-                  h-3
-                  w-3
-                  rounded-full
-                  border-2
-                  border-[#050816]
-                  bg-cyan-400
-                "
-              />
-            </div>
-
-            <div className="min-w-0">
-              <div
-                className="
-                  truncate
-                  text-lg
-                  font-black
-                  tracking-tight
-                  text-white
-                "
-              >
-                Scholiqen
-              </div>
-
-              <div
-                className="
-                  truncate
-                  text-[10px]
-                  font-semibold
-                  uppercase
-                  tracking-[0.2em]
-                  text-cyan-400
-                "
-              >
-                Tutor Academy
-              </div>
-            </div>
-          </button>
-
-          {/* ==================================================
-              MOBILE CLOSE
-          ================================================== */}
-
-          <button
-            type="button"
-            aria-label="Close tutor menu"
-            onClick={closeMobileSidebar}
-            className="
-              ml-2
-              flex
-              h-9
-              w-9
-              shrink-0
-              items-center
-              justify-center
-              rounded-xl
-              text-slate-400
-              transition
-              hover:bg-white/5
-              hover:text-white
-              lg:hidden
-            "
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* ==================================================
-            TUTOR PROFILE
-        ================================================== */}
-
-        <div className="shrink-0 border-b border-white/10 p-4">
-          <div
-            className="
-              rounded-2xl
-              border
-              border-white/10
-              bg-gradient-to-br
-              from-white/[0.06]
-              to-white/[0.02]
-              p-3
-            "
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className="
-                  flex
-                  h-11
-                  w-11
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-xl
-                  bg-gradient-to-br
-                  from-cyan-400
-                  to-blue-600
-                  text-sm
-                  font-black
-                  text-white
-                  shadow-lg
-                  shadow-cyan-500/10
-                "
-              >
-                {initials || "T"}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <p
-                  className="
-                    truncate
-                    text-sm
-                    font-bold
-                    text-white
-                  "
-                >
-                  {tutorName}
-                </p>
-
-                <p
-                  className="
-                    mt-0.5
-                    truncate
-                    text-xs
-                    text-slate-400
-                  "
-                >
-                  {specialization}
-                </p>
-              </div>
-
-              <div
-                className="
-                  h-2.5
-                  w-2.5
-                  shrink-0
-                  rounded-full
-                  bg-emerald-400
-                  shadow-lg
-                  shadow-emerald-400/30
-                "
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* ==================================================
-            NAVIGATION
-        ================================================== */}
-
-        <nav
-          className="
-            min-h-0
-            flex-1
-            overflow-x-hidden
-            overflow-y-auto
-            overscroll-contain
-            px-3
-            py-4
-            [scrollbar-width:thin]
-          "
-        >
-          <div
-            className="
-              mb-3
-              px-3
-              text-[10px]
-              font-bold
-              uppercase
-              tracking-[0.2em]
-              text-slate-600
-            "
-          >
-            Teaching
-          </div>
-
-          <div className="space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-
-              const active =
-                isActive(item.path) ||
-                isParentActive(item);
-
-              const expanded =
-                Boolean(openMenus[item.label]);
-
-              /* ==============================================
-                 SIMPLE ITEM
-              ============================================== */
-
-              if (!item.children) {
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() =>
-                      handleNavigation(
-                        item.path
-                      )
-                    }
-                    className={`
-                      group
-                      relative
-                      flex
-                      min-h-[42px]
-                      w-full
-                      items-center
-                      gap-3
-                      rounded-xl
-                      px-3
-                      py-2.5
-                      text-left
-                      transition-all
-                      duration-200
-                      ${
-                        active
-                          ? "bg-cyan-400/10 text-cyan-300"
-                          : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
-                      }
-                    `}
-                  >
-                    {active && (
-                      <span
-                        className="
-                          absolute
-                          left-0
-                          top-1/2
-                          h-6
-                          w-1
-                          -translate-y-1/2
-                          rounded-r-full
-                          bg-cyan-400
-                        "
-                      />
-                    )}
-
-                    <Icon
-                      size={18}
-                      className={`
-                        shrink-0
-                        transition
-                        ${
-                          active
-                            ? "text-cyan-400"
-                            : "text-slate-500 group-hover:text-slate-300"
-                        }
-                      `}
-                    />
-
-                    <span
-                      className="
-                        min-w-0
-                        flex-1
-                        truncate
-                        text-sm
-                        font-medium
-                      "
-                    >
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              }
-
-              /* ==============================================
-                 PARENT ITEM
-              ============================================== */
-
-              return (
-                <div key={item.label}>
-                  <button
-                    type="button"
-                    aria-expanded={expanded}
-                    onClick={() =>
-                      toggleMenu(
-                        item.label
-                      )
-                    }
-                    className={`
-                      group
-                      flex
-                      min-h-[42px]
-                      w-full
-                      items-center
-                      gap-3
-                      rounded-xl
-                      px-3
-                      py-2.5
-                      text-left
-                      transition-all
-                      ${
-                        active
-                          ? "bg-white/[0.04] text-white"
-                          : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
-                      }
-                    `}
-                  >
-                    <Icon
-                      size={18}
-                      className={`
-                        shrink-0
-                        ${
-                          active
-                            ? "text-cyan-400"
-                            : "text-slate-500 group-hover:text-slate-300"
-                        }
-                      `}
-                    />
-
-                    <span
-                      className="
-                        min-w-0
-                        flex-1
-                        truncate
-                        text-sm
-                        font-medium
-                      "
-                    >
-                      {item.label}
-                    </span>
-
-                    {expanded ? (
-                      <ChevronDown
-                        size={15}
-                        className="shrink-0 text-slate-600"
-                      />
-                    ) : (
-                      <ChevronRight
-                        size={15}
-                        className="shrink-0 text-slate-600"
-                      />
-                    )}
-                  </button>
-
-                  {/* ==========================================
-                      CHILDREN
-                  ========================================== */}
-
-                  {expanded && (
-                    <div
-                      className="
-                        ml-5
-                        mt-1
-                        space-y-0.5
-                        border-l
-                        border-white/10
-                        pl-3
-                      "
-                    >
-                      {item.children.map(
-                        (child) => {
-                          const childActive =
-                            isActive(
-                              child.path
-                            );
-
-                          return (
-                            <button
-                              key={
-                                child.path
-                              }
-                              type="button"
-                              onClick={() =>
-                                handleNavigation(
-                                  child.path
-                                )
-                              }
-                              className={`
-                                relative
-                                flex
-                                min-h-[36px]
-                                w-full
-                                items-center
-                                rounded-lg
-                                px-3
-                                py-2
-                                text-left
-                                text-xs
-                                transition
-                                ${
-                                  childActive
-                                    ? "bg-cyan-400/10 font-semibold text-cyan-300"
-                                    : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-200"
-                                }
-                              `}
-                            >
-                              {childActive && (
-                                <span
-                                  className="
-                                    absolute
-                                    -left-[17px]
-                                    top-1/2
-                                    h-5
-                                    w-0.5
-                                    -translate-y-1/2
-                                    rounded-full
-                                    bg-cyan-400
-                                  "
-                                />
-                              )}
-
-                              <span className="truncate">
-                                {child.label}
-                              </span>
-                            </button>
-                          );
-                        }
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ==================================================
-              SMART TEACHING
-          ================================================== */}
-
-          <div
-            className="
-              mt-6
-              px-3
-              text-[10px]
-              font-bold
-              uppercase
-              tracking-[0.2em]
-              text-slate-600
-            "
-          >
-            Smart Teaching
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              handleNavigation(
-                "/academy/tutor/ai-assistant"
-              )
-            }
-            className="
-              group
-              mt-2
-              flex
-              w-full
-              items-center
-              gap-3
-              rounded-xl
-              border
-              border-violet-500/10
-              bg-gradient-to-r
-              from-violet-500/10
-              to-cyan-500/5
-              px-3
-              py-3
-              text-left
-              transition
-              hover:border-violet-400/20
-              hover:bg-violet-500/15
-            "
-          >
-            <div
-              className="
-                flex
-                h-9
-                w-9
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                bg-violet-500/15
-              "
-            >
-              <Sparkles
-                size={17}
-                className="text-violet-400"
-              />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p
-                className="
-                  truncate
-                  text-xs
-                  font-bold
-                  text-white
-                "
-              >
-                AI Teaching Assistant
-              </p>
-
-              <p
-                className="
-                  mt-0.5
-                  truncate
-                  text-[10px]
-                  text-slate-500
-                "
-              >
-                Plan, grade & analyze
-              </p>
-            </div>
-          </button>
-        </nav>
-
-        {/* ==================================================
-            BOTTOM ACTIONS
-        ================================================== */}
-
-        <div
-          className="
-            shrink-0
-            border-t
-            border-white/10
-            bg-[#050816]
-            p-3
-          "
-        >
-          <button
-            type="button"
-            onClick={() =>
-              handleNavigation(
-                "/academy/tutor/profile"
-              )
-            }
-            className="
-              flex
-              min-h-[42px]
-              w-full
-              items-center
-              gap-3
-              rounded-xl
-              px-3
-              py-2.5
-              text-left
-              text-slate-400
-              transition
-              hover:bg-white/[0.04]
-              hover:text-white
-            "
-          >
-            <UserCircle
-              size={18}
-              className="shrink-0"
-            />
-
-            <span className="text-sm font-medium">
-              My Profile
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              handleNavigation(
-                "/academy/tutor/settings"
-              )
-            }
-            className="
-              flex
-              min-h-[42px]
-              w-full
-              items-center
-              gap-3
-              rounded-xl
-              px-3
-              py-2.5
-              text-left
-              text-slate-400
-              transition
-              hover:bg-white/[0.04]
-              hover:text-white
-            "
-          >
-            <Settings
-              size={18}
-              className="shrink-0"
-            />
-
-            <span className="text-sm font-medium">
-              Settings
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="
-              mt-1
-              flex
-              min-h-[42px]
-              w-full
-              items-center
-              gap-3
-              rounded-xl
-              px-3
-              py-2.5
-              text-left
-              text-red-400
-              transition
-              hover:bg-red-500/10
-              hover:text-red-300
-              disabled:cursor-not-allowed
-              disabled:opacity-50
-            "
-          >
-            <LogOut
-              size={18}
-              className="shrink-0"
-            />
-
-            <span className="text-sm font-medium">
-              {loggingOut
-                ? "Signing out..."
-                : "Sign Out"}
-            </span>
-          </button>
-
-          <div
-            className="
-              mt-3
-              px-3
-              text-center
-              text-[9px]
-              text-slate-700
-            "
-          >
-            Scholiqen Tutor Academy
-          </div>
-        </div>
+        {sidebarContent}
       </aside>
     </>
   );
-}
+};
+
+export default TutorSidebar;

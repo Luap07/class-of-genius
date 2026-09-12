@@ -1,5 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   Calendar,
@@ -7,7 +13,6 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
-  ExternalLink,
   FileText,
   Loader2,
   Play,
@@ -22,16 +27,8 @@ import {
   X,
 } from "lucide-react";
 
-/* =========================================================
-   API
-========================================================= */
-
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000";
-
-/* =========================================================
-   HELPERS
-========================================================= */
 
 const getStoredTutor = () => {
   const keys = [
@@ -44,26 +41,19 @@ const getStoredTutor = () => {
   for (const key of keys) {
     try {
       const value = localStorage.getItem(key);
-
       if (!value) continue;
 
-      const parsed = JSON.parse(value);
+      try {
+        const parsed = JSON.parse(value);
 
-      if (parsed && typeof parsed === "object") {
-        return parsed;
+        if (parsed && typeof parsed === "object") {
+          return parsed;
+        }
+      } catch {
+        return { reference: value };
       }
-
-      return {
-        reference: value,
-      };
     } catch {
-      const value = localStorage.getItem(key);
-
-      if (value) {
-        return {
-          reference: value,
-        };
-      }
+      continue;
     }
   }
 
@@ -75,15 +65,15 @@ const getTutorReference = () => {
 
   if (!tutor) return "";
 
-  return (
+  return String(
     tutor.tutorReference ||
-    tutor.reference ||
-    tutor.tutor_reference ||
-    tutor.applicationReference ||
-    tutor.application_reference ||
-    tutor.id ||
-    ""
-  );
+      tutor.reference ||
+      tutor.tutor_reference ||
+      tutor.applicationReference ||
+      tutor.application_reference ||
+      tutor.id ||
+      ""
+  ).trim();
 };
 
 const getTutorName = () => {
@@ -107,41 +97,56 @@ const normaliseClass = (item) => {
     return {
       id: item,
       name: item,
+      grade: item,
+      class_name: item,
       subjects: [],
     };
   }
 
   const id =
-    item.id ||
-    item.class_id ||
-    item.classId ||
-    item.grade_id ||
-    item.gradeId ||
-    item.value ||
-    item.name;
+    item.id ??
+    item.class_id ??
+    item.classId ??
+    item.grade_id ??
+    item.gradeId ??
+    item.value ??
+    item.name ??
+    "";
 
   const name =
-    item.name ||
-    item.class_name ||
-    item.className ||
-    item.grade ||
-    item.grade_name ||
-    item.gradeName ||
-    item.title ||
-    item.label ||
+    item.name ??
+    item.class_name ??
+    item.className ??
+    item.grade ??
+    item.grade_name ??
+    item.gradeName ??
+    item.title ??
+    item.label ??
     String(id || "");
 
+  const grade =
+    item.grade ??
+    item.grade_name ??
+    item.gradeName ??
+    item.class_name ??
+    item.className ??
+    item.name ??
+    name;
+
   const subjects =
-    item.subjects ||
-    item.assignedSubjects ||
-    item.assigned_subjects ||
-    item.subject_list ||
+    item.subjects ??
+    item.assignedSubjects ??
+    item.assigned_subjects ??
+    item.subject_list ??
+    item.subjects_list ??
     [];
 
   return {
     ...item,
     id,
     name,
+    grade,
+    class_name: name,
     subjects: Array.isArray(subjects) ? subjects : [],
   };
 };
@@ -157,18 +162,19 @@ const normaliseSubject = (item) => {
   }
 
   const id =
-    item.id ||
-    item.subject_id ||
-    item.subjectId ||
-    item.value ||
-    item.name;
+    item.id ??
+    item.subject_id ??
+    item.subjectId ??
+    item.value ??
+    item.name ??
+    "";
 
   const name =
-    item.name ||
-    item.subject_name ||
-    item.subjectName ||
-    item.title ||
-    item.label ||
+    item.name ??
+    item.subject_name ??
+    item.subjectName ??
+    item.title ??
+    item.label ??
     String(id || "");
 
   return {
@@ -179,9 +185,7 @@ const normaliseSubject = (item) => {
 };
 
 const extractArray = (data, keys = []) => {
-  if (Array.isArray(data)) {
-    return data;
-  }
+  if (Array.isArray(data)) return data;
 
   if (!data || typeof data !== "object") {
     return [];
@@ -196,32 +200,52 @@ const extractArray = (data, keys = []) => {
   return [];
 };
 
-const formatDateTime = (value) => {
-  if (!value) return "Not scheduled";
+const getSessionId = (session) =>
+  session?.id ??
+  session?.session_id ??
+  session?.sessionId ??
+  session?.live_id ??
+  session?.liveId ??
+  "";
 
-  const date = new Date(value);
+const getJoinUrl = (session) =>
+  session?.join_url ||
+  session?.joinUrl ||
+  session?.meeting_url ||
+  session?.meetingUrl ||
+  session?.live_url ||
+  session?.liveUrl ||
+  session?.room_url ||
+  session?.roomUrl ||
+  session?.url ||
+  "";
 
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
+const getClassName = (session) =>
+  session?.class_name ||
+  session?.className ||
+  session?.grade ||
+  session?.grade_name ||
+  session?.gradeName ||
+  session?.class ||
+  session?.class_id ||
+  "Class";
 
-  return date.toLocaleString([], {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
+const getSubjectName = (session) =>
+  session?.subject_name ||
+  session?.subjectName ||
+  session?.subject ||
+  "Subject";
 
-const toDateTimeLocalValue = (date) => {
-  const local = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60000
-  );
-
-  return local.toISOString().slice(0, 16);
-};
+const getScheduledAt = (session) =>
+  session?.scheduled_at ||
+  session?.scheduledAt ||
+  session?.scheduled_start ||
+  session?.scheduledStart ||
+  session?.start_time ||
+  session?.startTime ||
+  session?.starts_at ||
+  session?.startsAt ||
+  "";
 
 const getStatus = (session) => {
   const raw = String(
@@ -252,63 +276,36 @@ const getStatus = (session) => {
     return "ended";
   }
 
-  const scheduledTime =
-    session?.scheduled_at ||
-    session?.scheduledAt ||
-    session?.start_time ||
-    session?.startTime ||
-    session?.starts_at ||
-    session?.startsAt;
-
-  if (scheduledTime) {
-    const timestamp = new Date(scheduledTime).getTime();
-
-    if (!Number.isNaN(timestamp) && timestamp <= Date.now()) {
-      return "live";
-    }
-  }
-
   return "scheduled";
 };
 
-const getSessionId = (session) =>
-  session?.id ||
-  session?.session_id ||
-  session?.sessionId ||
-  session?.live_id ||
-  session?.liveId ||
-  "";
+const formatDateTime = (value) => {
+  if (!value) return "Not scheduled";
 
-const getJoinUrl = (session) =>
-  session?.join_url ||
-  session?.joinUrl ||
-  session?.meeting_url ||
-  session?.meetingUrl ||
-  session?.live_url ||
-  session?.liveUrl ||
-  session?.room_url ||
-  session?.roomUrl ||
-  session?.url ||
-  "";
+  const date = new Date(value);
 
-const getClassName = (session) =>
-  session?.class_name ||
-  session?.className ||
-  session?.class ||
-  session?.grade ||
-  session?.grade_name ||
-  session?.gradeName ||
-  "Class";
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
 
-const getSubjectName = (session) =>
-  session?.subject_name ||
-  session?.subjectName ||
-  session?.subject ||
-  "Subject";
+  return date.toLocaleString([], {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
 
-/* =========================================================
-   STATUS BADGE
-========================================================= */
+const toDateTimeLocalValue = (date) => {
+  const local = new Date(
+    date.getTime() -
+      date.getTimezoneOffset() * 60000
+  );
+
+  return local.toISOString().slice(0, 16);
+};
 
 const StatusBadge = ({ status }) => {
   if (status === "live") {
@@ -337,16 +334,17 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-/* =========================================================
-   MAIN COMPONENT
-========================================================= */
-
 export default function TutorLiveClasses() {
+  const navigate = useNavigate();
+
   const [classes, setClasses] = useState([]);
   const [sessions, setSessions] = useState([]);
 
-  const [loadingClasses, setLoadingClasses] = useState(true);
-  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [loadingClasses, setLoadingClasses] =
+    useState(true);
+
+  const [loadingSessions, setLoadingSessions] =
+    useState(true);
 
   const [creating, setCreating] = useState(false);
   const [startingId, setStartingId] = useState("");
@@ -358,13 +356,15 @@ export default function TutorLiveClasses() {
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] =
+    useState(false);
 
   const [form, setForm] = useState({
     title: "",
     description: "",
     classId: "",
+    className: "",
+    grade: "",
     subject: "",
     scheduledAt: toDateTimeLocalValue(
       new Date(Date.now() + 30 * 60 * 1000)
@@ -374,10 +374,6 @@ export default function TutorLiveClasses() {
   const tutorReference = getTutorReference();
   const tutorName = getTutorName();
 
-  /* =======================================================
-     HEADERS
-  ======================================================= */
-
   const getHeaders = useCallback(
     () => ({
       "Content-Type": "application/json",
@@ -386,10 +382,6 @@ export default function TutorLiveClasses() {
     }),
     [tutorReference]
   );
-
-  /* =======================================================
-     FETCH CLASSES
-  ======================================================= */
 
   const fetchClasses = useCallback(async () => {
     setLoadingClasses(true);
@@ -404,7 +396,9 @@ export default function TutorLiveClasses() {
         }
       );
 
-      const data = await response.json().catch(() => ({}));
+      const data = await response
+        .json()
+        .catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
@@ -428,14 +422,50 @@ export default function TutorLiveClasses() {
 
       setClasses(normalised);
 
-      if (!form.classId && normalised.length > 0) {
-        setForm((current) => ({
+      setForm((current) => {
+        if (
+          current.classId ||
+          normalised.length === 0
+        ) {
+          return current;
+        }
+
+        const firstClass = normalised[0];
+
+        const firstSubject =
+          Array.isArray(firstClass.subjects) &&
+          firstClass.subjects.length
+            ? normaliseSubject(
+                firstClass.subjects[0]
+              )
+            : null;
+
+        const className = String(
+          firstClass.name ||
+            firstClass.class_name ||
+            firstClass.grade ||
+            ""
+        ).trim();
+
+        const grade = String(
+          firstClass.grade ||
+            firstClass.grade_name ||
+            className
+        ).trim();
+
+        return {
           ...current,
-          classId: String(normalised[0].id || ""),
-        }));
-      }
+          classId: String(firstClass.id || ""),
+          className,
+          grade,
+          subject: firstSubject?.name || "",
+        };
+      });
     } catch (err) {
-      console.error("Fetch tutor classes error:", err);
+      console.error(
+        "Fetch tutor classes error:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -444,120 +474,78 @@ export default function TutorLiveClasses() {
     } finally {
       setLoadingClasses(false);
     }
-  }, [form.classId, getHeaders]);
-
-  /* =======================================================
-     FETCH LIVE SESSIONS
-  ======================================================= */
+  }, [getHeaders]);
 
   const fetchSessions = useCallback(async () => {
     setLoadingSessions(true);
 
     try {
-      /*
-       * The frontend first tries the existing tutor live
-       * endpoint. If the endpoint is not available yet,
-       * the page remains usable and displays an empty state.
-       */
-
-      const endpoints = [
-        "/api/academy/tutor/live",
-        "/api/academy/tutor/live-classes",
-        "/api/academy/tutor/live/classes",
-      ];
-
-      let loaded = false;
-      let lastError = null;
-
-      for (const endpoint of endpoints) {
-        try {
-          const response = await fetch(
-            `${API_BASE_URL}${endpoint}`,
-            {
-              method: "GET",
-              credentials: "include",
-              headers: getHeaders(),
-            }
-          );
-
-          const data = await response.json().catch(() => ({}));
-
-          if (!response.ok) {
-            lastError = new Error(
-              data?.message ||
-                data?.error ||
-                `Unable to load live classes (${response.status}).`
-            );
-
-            continue;
-          }
-
-          const rawSessions = extractArray(data, [
-            "sessions",
-            "liveClasses",
-            "live_classes",
-            "classes",
-            "data",
-            "results",
-          ]);
-
-          setSessions(rawSessions);
-          loaded = true;
-          break;
-        } catch (err) {
-          lastError = err;
+      const response = await fetch(
+        `${API_BASE_URL}/api/academy/tutor/live-classes`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: getHeaders(),
         }
-      }
+      );
 
-      if (!loaded) {
-        /*
-         * Do not make the whole page unusable if the live
-         * listing endpoint has not been added to the backend.
-         */
-        setSessions([]);
+      const data = await response
+        .json()
+        .catch(() => ({}));
 
-        console.warn(
-          "No tutor live-session listing endpoint responded.",
-          lastError
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Unable to load your live classes."
         );
       }
+
+      const rawSessions = extractArray(data, [
+        "sessions",
+        "liveClasses",
+        "live_classes",
+        "data",
+        "results",
+      ]);
+
+      setSessions(rawSessions);
     } catch (err) {
-      console.error("Fetch live sessions error:", err);
+      console.error(
+        "Fetch live classes error:",
+        err
+      );
+
+      setSessions([]);
+
+      setError(
+        err?.message ||
+          "Unable to load your live classes."
+      );
     } finally {
       setLoadingSessions(false);
     }
   }, [getHeaders]);
-
-  /* =======================================================
-     INITIAL LOAD
-  ======================================================= */
 
   useEffect(() => {
     fetchClasses();
     fetchSessions();
   }, [fetchClasses, fetchSessions]);
 
-  /* =======================================================
-     AUTO STATUS REFRESH
-  ======================================================= */
-
   useEffect(() => {
     const timer = setInterval(() => {
-      setSessions((current) => [...current]);
+      fetchSessions();
     }, 30000);
 
     return () => clearInterval(timer);
-  }, []);
-
-  /* =======================================================
-     SUBJECTS FOR SELECTED CLASS
-  ======================================================= */
+  }, [fetchSessions]);
 
   const selectedClass = useMemo(
     () =>
       classes.find(
         (item) =>
-          String(item.id) === String(form.classId)
+          String(item.id) ===
+          String(form.classId)
       ),
     [classes, form.classId]
   );
@@ -576,10 +564,6 @@ export default function TutorLiveClasses() {
       .filter(Boolean);
   }, [selectedClass]);
 
-  /* =======================================================
-     FORM HANDLING
-  ======================================================= */
-
   const updateForm = (field, value) => {
     setForm((current) => ({
       ...current,
@@ -589,7 +573,8 @@ export default function TutorLiveClasses() {
 
   const handleClassChange = (value) => {
     const nextClass = classes.find(
-      (item) => String(item.id) === String(value)
+      (item) =>
+        String(item.id) === String(value)
     );
 
     const subjects =
@@ -599,20 +584,37 @@ export default function TutorLiveClasses() {
       [];
 
     const firstSubject =
-      subjects.length > 0
+      subjects.length
         ? normaliseSubject(subjects[0])
         : null;
 
+    const className = String(
+      nextClass?.name ||
+        nextClass?.class_name ||
+        nextClass?.className ||
+        nextClass?.grade ||
+        nextClass?.grade_name ||
+        nextClass?.gradeName ||
+        ""
+    ).trim();
+
+    const grade = String(
+      nextClass?.grade ||
+        nextClass?.grade_name ||
+        nextClass?.gradeName ||
+        nextClass?.class_name ||
+        nextClass?.className ||
+        className
+    ).trim();
+
     setForm((current) => ({
       ...current,
-      classId: value,
+      classId: String(value || ""),
+      className,
+      grade,
       subject: firstSubject?.name || "",
     }));
   };
-
-  /* =======================================================
-     CREATE LIVE CLASS
-  ======================================================= */
 
   const handleCreate = async (event) => {
     event.preventDefault();
@@ -637,21 +639,69 @@ export default function TutorLiveClasses() {
       return;
     }
 
+    const selected = classes.find(
+      (item) =>
+        String(item.id) ===
+        String(form.classId)
+    );
+
+    const finalClassName = String(
+      selected?.name ||
+        selected?.class_name ||
+        selected?.className ||
+        selected?.grade ||
+        selected?.grade_name ||
+        selected?.gradeName ||
+        form.className ||
+        form.grade ||
+        ""
+    ).trim();
+
+    const finalGrade = String(
+      selected?.grade ||
+        selected?.grade_name ||
+        selected?.gradeName ||
+        selected?.class_name ||
+        selected?.className ||
+        finalClassName ||
+        form.grade ||
+        form.className ||
+        ""
+    ).trim();
+
+    if (!finalClassName) {
+      setError(
+        "The selected class has no class name/grade."
+      );
+      return;
+    }
+
+    if (!finalGrade) {
+      setError(
+        "The selected class has no grade."
+      );
+      return;
+    }
+
     if (!form.subject.trim()) {
       setError("Please select a subject.");
       return;
     }
 
     if (!form.scheduledAt) {
-      setError("Please select the live class date and time.");
+      setError(
+        "Please select the live class date and time."
+      );
       return;
     }
 
-    const selectedDate = new Date(form.scheduledAt);
+    const selectedDate = new Date(
+      form.scheduledAt
+    );
 
     if (
       Number.isNaN(selectedDate.getTime()) ||
-      selectedDate.getTime() < Date.now()
+      selectedDate.getTime() <= Date.now()
     ) {
       setError(
         "The live class date and time must be in the future."
@@ -669,23 +719,25 @@ export default function TutorLiveClasses() {
         title: form.title.trim(),
         description: form.description.trim(),
 
-        classId: form.classId,
-        class_id: form.classId,
+        classId: String(form.classId),
+        class_id: String(form.classId),
+
+        className: finalClassName,
+        class_name: finalClassName,
+
+        grade: finalGrade,
 
         subject: form.subject.trim(),
         subject_name: form.subject.trim(),
 
-        scheduledAt: selectedDate.toISOString(),
-        scheduled_at: selectedDate.toISOString(),
+        scheduledAt:
+          selectedDate.toISOString(),
+        scheduled_at:
+          selectedDate.toISOString(),
       };
 
-      /*
-       * Try the existing /live/start route first.
-       * This allows the page to work with the Academy
-       * live route already present in your backend.
-       */
       const response = await fetch(
-        `${API_BASE_URL}/api/academy/tutor/live/start`,
+        `${API_BASE_URL}/api/academy/tutor/live-classes`,
         {
           method: "POST",
           credentials: "include",
@@ -694,13 +746,25 @@ export default function TutorLiveClasses() {
         }
       );
 
-      const data = await response.json().catch(() => ({}));
+      const rawText = await response.text();
+
+      let data = {};
+
+      try {
+        data = rawText
+          ? JSON.parse(rawText)
+          : {};
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
         throw new Error(
           data?.message ||
             data?.error ||
-            "Unable to create the live class."
+            data?.detail ||
+            rawText ||
+            `Server returned HTTP ${response.status}`
         );
       }
 
@@ -708,10 +772,12 @@ export default function TutorLiveClasses() {
         data?.session ||
         data?.liveClass ||
         data?.live_class ||
-        data?.data ||
-        data;
+        data?.data;
 
-      if (createdSession && typeof createdSession === "object") {
+      if (
+        createdSession &&
+        typeof createdSession === "object"
+      ) {
         setSessions((current) => [
           createdSession,
           ...current,
@@ -720,26 +786,61 @@ export default function TutorLiveClasses() {
 
       setSuccess(
         data?.message ||
-          "Live class created successfully."
+          "Live class scheduled successfully."
       );
+
+      const firstClass = classes[0];
+
+      const firstSubject =
+        firstClass?.subjects?.length
+          ? normaliseSubject(
+              firstClass.subjects[0]
+            )
+          : null;
+
+      const firstClassName = String(
+        firstClass?.name ||
+          firstClass?.class_name ||
+          firstClass?.className ||
+          firstClass?.grade ||
+          firstClass?.grade_name ||
+          ""
+      ).trim();
+
+      const firstGrade = String(
+        firstClass?.grade ||
+          firstClass?.grade_name ||
+          firstClass?.gradeName ||
+          firstClass?.class_name ||
+          firstClassName
+      ).trim();
 
       setForm({
         title: "",
         description: "",
-        classId: classes[0]?.id
-          ? String(classes[0].id)
+        classId: firstClass?.id
+          ? String(firstClass.id)
           : "",
-        subject: "",
-        scheduledAt: toDateTimeLocalValue(
-          new Date(Date.now() + 30 * 60 * 1000)
-        ),
+        className: firstClassName,
+        grade: firstGrade,
+        subject: firstSubject?.name || "",
+        scheduledAt:
+          toDateTimeLocalValue(
+            new Date(
+              Date.now() +
+                30 * 60 * 1000
+            )
+          ),
       });
 
       setShowCreateModal(false);
 
       await fetchSessions();
     } catch (err) {
-      console.error("Create live class error:", err);
+      console.error(
+        "CREATE LIVE CLASS ERROR:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -750,10 +851,6 @@ export default function TutorLiveClasses() {
     }
   };
 
-  /* =======================================================
-     START LIVE CLASS
-  ======================================================= */
-
   const handleStart = async (session) => {
     const id = getSessionId(session);
 
@@ -761,15 +858,19 @@ export default function TutorLiveClasses() {
     setSuccess("");
 
     if (!id) {
-      setError("This live class has no valid session ID.");
+      setError(
+        "This live class has no valid session ID."
+      );
       return;
     }
 
-    setStartingId(id);
+    setStartingId(String(id));
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/academy/tutor/live/start`,
+        `${API_BASE_URL}/api/academy/tutor/live-classes/${encodeURIComponent(
+          id
+        )}/start`,
         {
           method: "POST",
           credentials: "include",
@@ -783,7 +884,9 @@ export default function TutorLiveClasses() {
         }
       );
 
-      const data = await response.json().catch(() => ({}));
+      const data = await response
+        .json()
+        .catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
@@ -797,7 +900,8 @@ export default function TutorLiveClasses() {
         data?.session ||
         data?.liveClass ||
         data?.live_class ||
-        data?.data;
+        data?.data ||
+        {};
 
       setSessions((current) =>
         current.map((item) => {
@@ -810,9 +914,10 @@ export default function TutorLiveClasses() {
 
           return {
             ...item,
-            ...(updated || {}),
+            ...updated,
             status: "live",
             session_status: "live",
+            is_live: true,
             started_at:
               updated?.started_at ||
               new Date().toISOString(),
@@ -825,24 +930,24 @@ export default function TutorLiveClasses() {
           "Live class started successfully."
       );
 
-      const joinUrl =
-        getJoinUrl(updated) ||
-        getJoinUrl(session) ||
-        data?.joinUrl ||
-        data?.join_url ||
-        data?.url;
-
-      if (joinUrl) {
-        window.open(
-          joinUrl,
-          "_blank",
-          "noopener,noreferrer"
-        );
-      }
-
       await fetchSessions();
+
+      /*
+       * Go to the INTERNAL TutorLiveClassroom.
+       *
+       * App.jsx defines:
+       * /academy/tutor/live/:id
+       */
+      navigate(
+        `/academy/tutor/live/${encodeURIComponent(
+          String(id)
+        )}`
+      );
     } catch (err) {
-      console.error("Start live class error:", err);
+      console.error(
+        "Start live class error:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -853,83 +958,64 @@ export default function TutorLiveClasses() {
     }
   };
 
-  /* =======================================================
-     END LIVE CLASS
-  ======================================================= */
-
   const handleEnd = async (session) => {
     const id = getSessionId(session);
 
     if (!id) {
-      setError("This live class has no valid session ID.");
+      setError(
+        "This live class has no valid session ID."
+      );
       return;
     }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to end this live class?"
-    );
-
-    if (!confirmed) return;
+    if (
+      !window.confirm(
+        "Are you sure you want to end this live class?"
+      )
+    ) {
+      return;
+    }
 
     setError("");
     setSuccess("");
-    setEndingId(id);
+    setEndingId(String(id));
 
     try {
-      const endpoints = [
-        `/api/academy/tutor/live/${id}/end`,
-        `/api/academy/tutor/live/end`,
-      ];
-
-      let completed = false;
-      let lastError = null;
-
-      for (const endpoint of endpoints) {
-        try {
-          const response = await fetch(
-            `${API_BASE_URL}${endpoint}`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: getHeaders(),
-              body: JSON.stringify({
-                sessionId: id,
-                session_id: id,
-                tutorReference,
-                tutor_reference: tutorReference,
-              }),
-            }
-          );
-
-          const data = await response
-            .json()
-            .catch(() => ({}));
-
-          if (!response.ok) {
-            lastError = new Error(
-              data?.message ||
-                data?.error ||
-                "Unable to end the live class."
-            );
-
-            continue;
-          }
-
-          completed = true;
-          break;
-        } catch (err) {
-          lastError = err;
+      const response = await fetch(
+        `${API_BASE_URL}/api/academy/tutor/live-classes/${encodeURIComponent(
+          id
+        )}/end`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: getHeaders(),
+          body: JSON.stringify({
+            sessionId: id,
+            session_id: id,
+            tutorReference,
+            tutor_reference: tutorReference,
+          }),
         }
-      }
+      );
 
-      if (!completed) {
-        throw (
-          lastError ||
-          new Error(
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
             "Unable to end the live class."
-          )
         );
       }
+
+      const updated =
+        data?.session ||
+        data?.liveClass ||
+        data?.live_class ||
+        data?.data ||
+        {};
 
       setSessions((current) =>
         current.map((item) => {
@@ -942,18 +1028,28 @@ export default function TutorLiveClasses() {
 
           return {
             ...item,
+            ...updated,
             status: "ended",
             session_status: "ended",
-            ended_at: new Date().toISOString(),
+            is_live: false,
+            ended_at:
+              updated?.ended_at ||
+              new Date().toISOString(),
           };
         })
       );
 
-      setSuccess("Live class ended successfully.");
+      setSuccess(
+        data?.message ||
+          "Live class ended successfully."
+      );
 
       await fetchSessions();
     } catch (err) {
-      console.error("End live class error:", err);
+      console.error(
+        "End live class error:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -964,85 +1060,63 @@ export default function TutorLiveClasses() {
     }
   };
 
-  /* =======================================================
-     DELETE / CANCEL
-  ======================================================= */
-
   const handleDelete = async (session) => {
     const id = getSessionId(session);
+    const status = getStatus(session);
 
     if (!id) {
-      setError("This live class has no valid session ID.");
+      setError(
+        "This live class has no valid session ID."
+      );
       return;
     }
 
-    const confirmed = window.confirm(
-      "Delete this scheduled live class?"
-    );
+    if (status === "live") {
+      setError(
+        "A live class cannot be deleted while it is running. End the class first."
+      );
+      return;
+    }
 
-    if (!confirmed) return;
+    if (
+      !window.confirm(
+        status === "ended"
+          ? "Delete this ended live class?"
+          : "Delete this scheduled live class?"
+      )
+    ) {
+      return;
+    }
 
     setError("");
     setSuccess("");
-    setDeletingId(id);
+    setDeletingId(String(id));
 
     try {
-      const endpoints = [
-        `/api/academy/tutor/live/${id}`,
-        `/api/academy/tutor/live/delete`,
-      ];
-
-      let completed = false;
-      let lastError = null;
-
-      for (const endpoint of endpoints) {
-        try {
-          const response = await fetch(
-            `${API_BASE_URL}${endpoint}`,
-            {
-              method: endpoint.endsWith(id)
-                ? "DELETE"
-                : "POST",
-              credentials: "include",
-              headers: getHeaders(),
-              body: endpoint.endsWith(id)
-                ? undefined
-                : JSON.stringify({
-                    sessionId: id,
-                    session_id: id,
-                    tutorReference,
-                    tutor_reference: tutorReference,
-                  }),
-            }
-          );
-
-          const data = await response
-            .json()
-            .catch(() => ({}));
-
-          if (!response.ok) {
-            lastError = new Error(
-              data?.message ||
-                data?.error ||
-                "Unable to delete the live class."
-            );
-
-            continue;
-          }
-
-          completed = true;
-          break;
-        } catch (err) {
-          lastError = err;
+      const response = await fetch(
+        `${API_BASE_URL}/api/academy/tutor/live-classes/${encodeURIComponent(
+          id
+        )}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: getHeaders(),
+          body: JSON.stringify({
+            tutorReference,
+            tutor_reference: tutorReference,
+          }),
         }
-      }
+      );
 
-      if (!completed) {
-        throw (
-          lastError ||
-          new Error(
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
             "Unable to delete the live class."
-          )
         );
       }
 
@@ -1054,9 +1128,15 @@ export default function TutorLiveClasses() {
         )
       );
 
-      setSuccess("Live class deleted successfully.");
+      setSuccess(
+        data?.message ||
+          "Live class deleted successfully."
+      );
     } catch (err) {
-      console.error("Delete live class error:", err);
+      console.error(
+        "Delete live class error:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -1067,58 +1147,61 @@ export default function TutorLiveClasses() {
     }
   };
 
-  /* =======================================================
-     JOIN
-  ======================================================= */
-
+  /*
+   * JOIN INTERNAL CLASSROOM
+   */
   const handleJoin = (session) => {
-    const joinUrl = getJoinUrl(session);
+    const id = getSessionId(session);
 
-    if (!joinUrl) {
+    if (!id) {
       setError(
-        "A join link has not been generated for this live class yet."
+        "This live class has no valid session ID."
       );
       return;
     }
 
-    window.open(
-      joinUrl,
-      "_blank",
-      "noopener,noreferrer"
+    /*
+     * IMPORTANT:
+     * This MUST match App.jsx:
+     *
+     * /academy/tutor/live/:id
+     */
+    navigate(
+      `/academy/tutor/live/${encodeURIComponent(
+        String(id)
+      )}`
     );
   };
-
-  /* =======================================================
-     COPY LINK
-  ======================================================= */
 
   const handleCopyLink = async (session) => {
     const joinUrl = getJoinUrl(session);
 
     if (!joinUrl) {
       setError(
-        "There is no live class link to copy."
+        "There is no classroom link to copy."
       );
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(joinUrl);
+      await navigator.clipboard.writeText(
+        joinUrl
+      );
 
-      setSuccess("Live class link copied.");
+      setSuccess(
+        "Live classroom link copied."
+      );
     } catch {
       setError(
-        "Unable to copy the live class link."
+        "Unable to copy the live classroom link."
       );
     }
   };
 
-  /* =======================================================
-     FILTER
-  ======================================================= */
-
   const filteredSessions = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = search
+      .trim()
+      .toLowerCase();
 
     return sessions.filter((session) => {
       const status = getStatus(session);
@@ -1134,6 +1217,7 @@ export default function TutorLiveClasses() {
 
       const text = [
         session?.title,
+        session?.name,
         session?.description,
         getClassName(session),
         getSubjectName(session),
@@ -1146,10 +1230,6 @@ export default function TutorLiveClasses() {
     });
   }, [sessions, search, filter]);
 
-  /* =======================================================
-     COUNTS
-  ======================================================= */
-
   const counts = useMemo(() => {
     let live = 0;
     let scheduled = 0;
@@ -1158,9 +1238,13 @@ export default function TutorLiveClasses() {
     sessions.forEach((session) => {
       const status = getStatus(session);
 
-      if (status === "live") live += 1;
-      else if (status === "ended") ended += 1;
-      else scheduled += 1;
+      if (status === "live") {
+        live++;
+      } else if (status === "ended") {
+        ended++;
+      } else {
+        scheduled++;
+      }
     });
 
     return {
@@ -1171,17 +1255,9 @@ export default function TutorLiveClasses() {
     };
   }, [sessions]);
 
-  /* =======================================================
-     RENDER
-  ======================================================= */
-
   return (
     <div className="min-h-screen bg-[#020617] text-white">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* =================================================
-            HEADER
-        ================================================= */}
-
         <div className="mb-7 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
@@ -1204,9 +1280,15 @@ export default function TutorLiveClasses() {
             </div>
 
             <p className="max-w-2xl text-sm leading-6 text-slate-400">
-              Create and manage live lessons for your
-              assigned classes and subjects.
+              Create and manage live lessons for
+              your assigned classes and subjects.
             </p>
+
+            {tutorName && (
+              <p className="mt-2 text-xs text-slate-600">
+                Signed in as {tutorName}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -1244,10 +1326,6 @@ export default function TutorLiveClasses() {
           </div>
         </div>
 
-        {/* =================================================
-            ALERTS
-        ================================================= */}
-
         <AnimatePresence>
           {error && (
             <motion.div
@@ -1276,7 +1354,9 @@ export default function TutorLiveClasses() {
 
               <button
                 type="button"
-                onClick={() => setError("")}
+                onClick={() =>
+                  setError("")
+                }
                 className="text-red-300 transition hover:text-white"
               >
                 <X size={17} />
@@ -1311,7 +1391,9 @@ export default function TutorLiveClasses() {
 
               <button
                 type="button"
-                onClick={() => setSuccess("")}
+                onClick={() =>
+                  setSuccess("")
+                }
                 className="text-emerald-300 transition hover:text-white"
               >
                 <X size={17} />
@@ -1320,14 +1402,12 @@ export default function TutorLiveClasses() {
           )}
         </AnimatePresence>
 
-        {/* =================================================
-            STATS
-        ================================================= */}
-
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <button
             type="button"
-            onClick={() => setFilter("all")}
+            onClick={() =>
+              setFilter("all")
+            }
             className={`rounded-2xl border p-4 text-left transition ${
               filter === "all"
                 ? "border-cyan-400/30 bg-cyan-400/10"
@@ -1339,7 +1419,6 @@ export default function TutorLiveClasses() {
                 size={19}
                 className="text-cyan-300"
               />
-
               <span className="text-xs text-slate-500">
                 TOTAL
               </span>
@@ -1356,7 +1435,9 @@ export default function TutorLiveClasses() {
 
           <button
             type="button"
-            onClick={() => setFilter("live")}
+            onClick={() =>
+              setFilter("live")
+            }
             className={`rounded-2xl border p-4 text-left transition ${
               filter === "live"
                 ? "border-red-400/30 bg-red-400/10"
@@ -1368,7 +1449,6 @@ export default function TutorLiveClasses() {
                 size={19}
                 className="text-red-300"
               />
-
               <span className="text-xs text-slate-500">
                 NOW
               </span>
@@ -1385,7 +1465,9 @@ export default function TutorLiveClasses() {
 
           <button
             type="button"
-            onClick={() => setFilter("scheduled")}
+            onClick={() =>
+              setFilter("scheduled")
+            }
             className={`rounded-2xl border p-4 text-left transition ${
               filter === "scheduled"
                 ? "border-cyan-400/30 bg-cyan-400/10"
@@ -1397,7 +1479,6 @@ export default function TutorLiveClasses() {
                 size={19}
                 className="text-cyan-300"
               />
-
               <span className="text-xs text-slate-500">
                 UPCOMING
               </span>
@@ -1414,7 +1495,9 @@ export default function TutorLiveClasses() {
 
           <button
             type="button"
-            onClick={() => setFilter("ended")}
+            onClick={() =>
+              setFilter("ended")
+            }
             className={`rounded-2xl border p-4 text-left transition ${
               filter === "ended"
                 ? "border-slate-600 bg-slate-800/60"
@@ -1426,7 +1509,6 @@ export default function TutorLiveClasses() {
                 size={19}
                 className="text-slate-400"
               />
-
               <span className="text-xs text-slate-500">
                 PAST
               </span>
@@ -1441,10 +1523,6 @@ export default function TutorLiveClasses() {
             </p>
           </button>
         </div>
-
-        {/* =================================================
-            SEARCH
-        ================================================= */}
 
         <div className="mb-5 flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
@@ -1486,10 +1564,6 @@ export default function TutorLiveClasses() {
           </select>
         </div>
 
-        {/* =================================================
-            SESSION LIST
-        ================================================= */}
-
         {loadingSessions ? (
           <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-slate-800 bg-[#071426]">
             <div className="text-center">
@@ -1526,18 +1600,19 @@ export default function TutorLiveClasses() {
                 : "Create your first live class and start teaching your students online."}
             </p>
 
-            {!search && filter === "all" && (
-              <button
-                type="button"
-                onClick={() =>
-                  setShowCreateModal(true)
-                }
-                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
-              >
-                <Plus size={17} />
-                Create Live Class
-              </button>
-            )}
+            {!search &&
+              filter === "all" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowCreateModal(true)
+                  }
+                  className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
+                >
+                  <Plus size={17} />
+                  Create Live Class
+                </button>
+              )}
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
@@ -1559,12 +1634,7 @@ export default function TutorLiveClasses() {
                   "Live learning session";
 
                 const scheduledAt =
-                  session?.scheduled_at ||
-                  session?.scheduledAt ||
-                  session?.start_time ||
-                  session?.startTime ||
-                  session?.starts_at ||
-                  session?.startsAt;
+                  getScheduledAt(session);
 
                 const joinUrl =
                   getJoinUrl(session);
@@ -1584,11 +1654,10 @@ export default function TutorLiveClasses() {
                       y: 0,
                     }}
                     transition={{
-                      delay:
-                        Math.min(
-                          index * 0.04,
-                          0.3
-                        ),
+                      delay: Math.min(
+                        index * 0.04,
+                        0.3
+                      ),
                     }}
                     className={`group overflow-hidden rounded-2xl border bg-[#071426] transition ${
                       status === "live"
@@ -1596,7 +1665,6 @@ export default function TutorLiveClasses() {
                         : "border-slate-800 hover:border-slate-700"
                     }`}
                   >
-                    {/* CARD TOP */}
                     <div className="relative overflow-hidden border-b border-slate-800 p-5">
                       <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-cyan-400/5 blur-3xl" />
 
@@ -1609,24 +1677,17 @@ export default function TutorLiveClasses() {
                                 : "bg-cyan-400/10 text-cyan-300"
                             }`}
                           >
-                            {status ===
-                            "live" ? (
-                              <Radio
-                                size={21}
-                              />
+                            {status === "live" ? (
+                              <Radio size={21} />
                             ) : (
-                              <Video
-                                size={21}
-                              />
+                              <Video size={21} />
                             )}
                           </div>
 
                           <div className="min-w-0">
                             <div className="mb-2">
                               <StatusBadge
-                                status={
-                                  status
-                                }
+                                status={status}
                               />
                             </div>
 
@@ -1648,33 +1709,33 @@ export default function TutorLiveClasses() {
                             )
                           }
                           disabled={
-                            deletingId === id ||
+                            deletingId ===
+                              String(id) ||
                             status === "live"
                           }
                           className="shrink-0 rounded-lg p-2 text-slate-600 transition hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
-                          title="Delete"
+                          title={
+                            status === "live"
+                              ? "End the live class first"
+                              : "Delete"
+                          }
                         >
                           {deletingId ===
-                          id ? (
+                          String(id) ? (
                             <Loader2
                               size={17}
                               className="animate-spin"
                             />
                           ) : (
-                            <Trash2
-                              size={17}
-                            />
+                            <Trash2 size={17} />
                           )}
                         </button>
                       </div>
 
-                      {/* CLASS + SUBJECT */}
                       <div className="relative mt-5 grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-slate-800 bg-[#020617]/50 p-3">
                           <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                            <Users
-                              size={13}
-                            />
+                            <Users size={13} />
                             Class
                           </div>
 
@@ -1687,9 +1748,7 @@ export default function TutorLiveClasses() {
 
                         <div className="rounded-xl border border-slate-800 bg-[#020617]/50 p-3">
                           <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                            <FileText
-                              size={13}
-                            />
+                            <FileText size={13} />
                             Subject
                           </div>
 
@@ -1702,12 +1761,9 @@ export default function TutorLiveClasses() {
                       </div>
                     </div>
 
-                    {/* CARD FOOTER */}
                     <div className="p-4">
                       <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
-                        <Calendar
-                          size={14}
-                        />
+                        <Calendar size={14} />
 
                         <span>
                           {formatDateTime(
@@ -1727,17 +1783,15 @@ export default function TutorLiveClasses() {
                             }
                             disabled={
                               startingId ===
-                              id
+                              String(id)
                             }
                             className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {startingId ===
-                            id ? (
+                            String(id) ? (
                               <>
                                 <Loader2
-                                  size={
-                                    16
-                                  }
+                                  size={16}
                                   className="animate-spin"
                                 />
                                 Starting...
@@ -1745,9 +1799,7 @@ export default function TutorLiveClasses() {
                             ) : (
                               <>
                                 <Play
-                                  size={
-                                    16
-                                  }
+                                  size={16}
                                   fill="currentColor"
                                 />
                                 Start Live
@@ -1758,24 +1810,18 @@ export default function TutorLiveClasses() {
 
                         {status === "live" && (
                           <>
-                            {joinUrl && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleJoin(
-                                    session
-                                  )
-                                }
-                                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
-                              >
-                                <ExternalLink
-                                  size={
-                                    16
-                                  }
-                                />
-                                Join Room
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleJoin(
+                                  session
+                                )
+                              }
+                              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
+                            >
+                              <Video size={16} />
+                              Join Room
+                            </button>
 
                             <button
                               type="button"
@@ -1786,49 +1832,69 @@ export default function TutorLiveClasses() {
                               }
                               disabled={
                                 endingId ===
-                                id
+                                String(id)
                               }
                               className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {endingId ===
-                              id ? (
+                              String(id) ? (
                                 <Loader2
-                                  size={
-                                    16
-                                  }
+                                  size={16}
                                   className="animate-spin"
                                 />
                               ) : (
                                 <Square
-                                  size={
-                                    15
-                                  }
+                                  size={15}
                                   fill="currentColor"
                                 />
                               )}
-
                               End
                             </button>
                           </>
                         )}
 
-                        {status === "ended" &&
-                          joinUrl && (
+                        {status === "ended" && (
+                          <>
+                            {joinUrl && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopyLink(
+                                    session
+                                  )
+                                }
+                                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+                              >
+                                <Copy size={16} />
+                                Copy Link
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() =>
-                                handleCopyLink(
+                                handleDelete(
                                   session
                                 )
                               }
-                              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+                              disabled={
+                                deletingId ===
+                                String(id)
+                              }
+                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
                             >
-                              <Copy
-                                size={16}
-                              />
-                              Copy Link
+                              {deletingId ===
+                              String(id) ? (
+                                <Loader2
+                                  size={16}
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
                             </button>
-                          )}
+                          </>
+                        )}
                       </div>
                     </div>
                   </motion.article>
@@ -1839,10 +1905,6 @@ export default function TutorLiveClasses() {
         )}
       </div>
 
-      {/* =====================================================
-          CREATE MODAL
-      ===================================================== */}
-
       <AnimatePresence>
         {showCreateModal && (
           <motion.div
@@ -1852,7 +1914,8 @@ export default function TutorLiveClasses() {
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
             onMouseDown={(event) => {
               if (
-                event.target === event.currentTarget &&
+                event.target ===
+                  event.currentTarget &&
                 !creating
               ) {
                 setShowCreateModal(false);
@@ -1877,25 +1940,21 @@ export default function TutorLiveClasses() {
               }}
               className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-800 bg-[#071426] shadow-2xl"
             >
-              {/* MODAL HEADER */}
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-800 bg-[#071426]/95 px-5 py-4 backdrop-blur sm:px-6">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
-                      <Video
-                        size={20}
-                      />
-                    </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+                    <Video size={20} />
+                  </div>
 
-                    <div>
-                      <h2 className="text-lg font-bold text-white">
-                        Create Live Class
-                      </h2>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">
+                      Create Live Class
+                    </h2>
 
-                      <p className="text-xs text-slate-500">
-                        Set up your next online lesson
-                      </p>
-                    </div>
+                    <p className="text-xs text-slate-500">
+                      Schedule your next online
+                      lesson
+                    </p>
                   </div>
                 </div>
 
@@ -1911,15 +1970,16 @@ export default function TutorLiveClasses() {
                 </button>
               </div>
 
-              {/* FORM */}
               <form
                 onSubmit={handleCreate}
                 className="space-y-5 p-5 sm:p-6"
               >
-                {/* TITLE */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-200">
                     Live Class Title
+                    <span className="ml-1 text-red-400">
+                      *
+                    </span>
                   </label>
 
                   <input
@@ -1937,7 +1997,6 @@ export default function TutorLiveClasses() {
                   />
                 </div>
 
-                {/* DESCRIPTION */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-200">
                     Description
@@ -1960,7 +2019,6 @@ export default function TutorLiveClasses() {
                   />
                 </div>
 
-                {/* CLASS + SUBJECT */}
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-200">
@@ -1977,6 +2035,11 @@ export default function TutorLiveClasses() {
                           className="animate-spin"
                         />
                         Loading classes...
+                      </div>
+                    ) : classes.length === 0 ? (
+                      <div className="rounded-xl border border-red-400/20 bg-red-500/5 p-3 text-xs leading-5 text-red-300">
+                        No assigned classes were
+                        found for this tutor.
                       </div>
                     ) : (
                       <select
@@ -2000,9 +2063,9 @@ export default function TutorLiveClasses() {
                                 item.id ||
                                 index
                               }
-                              value={
+                              value={String(
                                 item.id
-                              }
+                              )}
                             >
                               {item.name}
                             </option>
@@ -2010,6 +2073,16 @@ export default function TutorLiveClasses() {
                         )}
                       </select>
                     )}
+
+                    {form.classId &&
+                      form.className && (
+                        <p className="mt-2 text-xs text-slate-600">
+                          Selected:{" "}
+                          <span className="text-slate-400">
+                            {form.className}
+                          </span>
+                        </p>
+                      )}
                   </div>
 
                   <div>
@@ -2020,8 +2093,7 @@ export default function TutorLiveClasses() {
                       </span>
                     </label>
 
-                    {availableSubjects.length >
-                    0 ? (
+                    {availableSubjects.length > 0 ? (
                       <select
                         value={form.subject}
                         onChange={(event) =>
@@ -2071,9 +2143,7 @@ export default function TutorLiveClasses() {
                             ? "Enter subject"
                             : "Select a class first"
                         }
-                        disabled={
-                          !form.classId
-                        }
+                        disabled={!form.classId}
                         className="w-full rounded-xl border border-slate-800 bg-[#020617] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-50"
                         required
                       />
@@ -2081,7 +2151,6 @@ export default function TutorLiveClasses() {
                   </div>
                 </div>
 
-                {/* DATE/TIME */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-200">
                     Scheduled Date & Time
@@ -2106,7 +2175,10 @@ export default function TutorLiveClasses() {
                         )
                       }
                       min={toDateTimeLocalValue(
-                        new Date()
+                        new Date(
+                          Date.now() +
+                            60 * 1000
+                        )
                       )}
                       className="w-full rounded-xl border border-slate-800 bg-[#020617] py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-cyan-400/40"
                       required
@@ -2114,12 +2186,12 @@ export default function TutorLiveClasses() {
                   </div>
 
                   <p className="mt-2 text-xs text-slate-600">
-                    Students will see this session
-                    as scheduled until you start it.
+                    Students will see this
+                    session as scheduled until
+                    you start it.
                   </p>
                 </div>
 
-                {/* IMPORTANT INFO */}
                 <div className="rounded-2xl border border-cyan-400/10 bg-cyan-400/5 p-4">
                   <div className="flex gap-3">
                     <div className="mt-0.5 shrink-0 text-cyan-300">
@@ -2128,20 +2200,20 @@ export default function TutorLiveClasses() {
 
                     <div>
                       <p className="text-sm font-semibold text-cyan-200">
-                        Class and subject are required
+                        Class and subject are
+                        required
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        The selected class and subject
-                        determine which students are
-                        eligible to receive this live
-                        class.
+                        Only students assigned to
+                        the selected class and
+                        subject should receive
+                        this live class.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* ACTIONS */}
                 <div className="flex flex-col-reverse gap-3 border-t border-slate-800 pt-5 sm:flex-row sm:justify-end">
                   <button
                     type="button"
@@ -2156,7 +2228,11 @@ export default function TutorLiveClasses() {
 
                   <button
                     type="submit"
-                    disabled={creating}
+                    disabled={
+                      creating ||
+                      loadingClasses ||
+                      classes.length === 0
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {creating ? (
@@ -2169,10 +2245,8 @@ export default function TutorLiveClasses() {
                       </>
                     ) : (
                       <>
-                        <Plus
-                          size={17}
-                        />
-                        Create Live Class
+                        <Plus size={17} />
+                        Schedule Live Class
                       </>
                     )}
                   </button>

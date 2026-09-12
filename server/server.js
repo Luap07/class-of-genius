@@ -34,6 +34,7 @@ import academyTeachingRoutes from "./routes/academyTeaching.js";
 import academyAssignmentRoutes from "./routes/academyAssignmentRoutes.js";
 import academyLessonRoutes from "./routes/academyLessonRoutes.js";
 import materialRoutes from "./routes/materialRoutes.js";
+import academyLiveClassRoutes from "./routes/academyLiveClassRoutes.js";
 
 // ============================================================
 // PATH CONFIGURATION
@@ -1366,6 +1367,16 @@ app.use(
 app.use(
   "/api/academy",
   academyTeachingRoutes
+);
+
+
+// ============================================================
+// SCHOLIQEN ACADEMY LIVE CLASS ROUTES
+// ============================================================
+
+app.use(
+  "/api/academy",
+  academyLiveClassRoutes
 );
 
 // ============================================================

@@ -55,7 +55,10 @@ import TutorTaskSubmissions from "./pages/tutor/TutorTaskSubmissions";
 import TutorCreateAssignment from "./pages/tutor/TutorCreateAssignment";
 import TutorAssignments from "./pages/tutor/TutorAssignments";
 import TutorAssignmentSubmissions from "./pages/tutor/TutorAssignmentSubmissions";
+
 import TutorLiveClasses from "./pages/tutor/TutorLiveClasses";
+import TutorLiveClassroom from "./pages/tutor/TutorLiveClassroom";
+
 import TutorCreateLesson from "./pages/tutor/TutorCreateLesson";
 import TutorLessonPlan from "./pages/tutor/TutorLessonPlan";
 
@@ -888,7 +891,11 @@ const AnimatedRoutes = () => {
           }
         />
 
-          <Route
+        {/* =====================================================
+            TUTOR LIVE CLASSES - CREATE
+        ===================================================== */}
+
+        <Route
           path="/academy/tutor/live/start"
           element={
             <TutorProtectedRoute>
@@ -900,9 +907,20 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
+            TUTOR LIVE CLASSROOM
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/live/:id"
+          element={
+            <TutorProtectedRoute>
+              <TutorLiveClassroom />
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
             TUTOR MATERIALS
-            BookReader is opened from TutorMaterials.jsx.
-            NO separate App.jsx route is required.
         ===================================================== */}
 
         <Route

@@ -35,6 +35,9 @@ import academyAssignmentRoutes from "./routes/academyAssignmentRoutes.js";
 import academyLessonRoutes from "./routes/academyLessonRoutes.js";
 import materialRoutes from "./routes/materialRoutes.js";
 import academyLiveClassRoutes from "./routes/academyLiveClassRoutes.js";
+import academyTutorAttendanceRoutes from "./routes/academyTutorAttendance.js";
+import academyTutorMessages from "./routes/academyTutorMessages.js";
+import academyTutorAnnouncements from "./routes/academyTutorAnnouncements.js";
 
 // ============================================================
 // PATH CONFIGURATION
@@ -104,6 +107,11 @@ const VIDEOS_DIR = path.join(
   UPLOADS_DIR,
   "videos"
 );
+
+void NOVEL_COVERS_DIR;
+void DOCUMENTS_DIR;
+void THUMBNAILS_DIR;
+void VIDEOS_DIR;
 
 // ============================================================
 // PORT
@@ -296,8 +304,6 @@ console.log("");
 
 // ============================================================
 // CORS
-// IMPORTANT:
-// CORS MUST COME BEFORE /uploads STATIC FILES
 // ============================================================
 
 const allowedOrigins = [
@@ -330,8 +336,7 @@ app.use(
         );
       }
 
-      // Development mode.
-      // Restrict this in production.
+      // Keep existing permissive CORS behavior.
       return callback(
         null,
         true
@@ -363,8 +368,6 @@ app.use(
 
 // ============================================================
 // STATIC UPLOADS
-// IMPORTANT:
-// PDF FILES INSIDE /uploads RECEIVE CORS HEADERS
 // ============================================================
 
 app.use(
@@ -425,6 +428,7 @@ app.use(
 
 // ============================================================
 // JSON BODY
+// IMPORTANT: This comes BEFORE POST announcement routes.
 // ============================================================
 
 app.use(
@@ -632,6 +636,9 @@ app.get(
         createTutorLesson:
           "POST /api/academy/tutor/lessons",
 
+        tutorAttendanceClasses:
+          "GET /api/academy/tutor/attendance/classes",
+
         tutorAttendance:
           "GET /api/academy/tutor/attendance",
 
@@ -658,6 +665,41 @@ app.get(
 
         saveWhiteboard:
           "POST /api/academy/tutor/live-classes/:id/whiteboard",
+
+        // ======================================================
+        // TUTOR STUDENT MESSAGES
+        // ======================================================
+
+        tutorStudentMessages:
+          "GET /api/academy/tutor/messages",
+
+        tutorConversationMessages:
+          "GET /api/academy/tutor/messages/:conversationId",
+
+        sendTutorStudentMessage:
+          "POST /api/academy/tutor/messages/:conversationId",
+
+        startTutorStudentConversation:
+          "POST /api/academy/tutor/messages/start",
+
+        // ======================================================
+        // TUTOR ANNOUNCEMENTS
+        // ======================================================
+
+        tutorAnnouncements:
+          "GET /api/academy/tutor/announcements",
+
+        tutorAnnouncement:
+          "GET /api/academy/tutor/announcements/:id",
+
+        createTutorAnnouncement:
+          "POST /api/academy/tutor/announcements",
+
+        updateTutorAnnouncement:
+          "PATCH /api/academy/tutor/announcements/:id",
+
+        deleteTutorAnnouncement:
+          "DELETE /api/academy/tutor/announcements/:id",
 
         health:
           "GET /api/health",
@@ -739,6 +781,15 @@ app.get(
           databaseConfigured,
 
         academyTaskSubmissions:
+          databaseConfigured,
+
+        academyTutorAttendance:
+          databaseConfigured,
+
+        academyTutorMessages:
+          databaseConfigured,
+
+        academyTutorAnnouncements:
           databaseConfigured,
       },
     });
@@ -1369,7 +1420,6 @@ app.use(
   academyTeachingRoutes
 );
 
-
 // ============================================================
 // SCHOLIQEN ACADEMY LIVE CLASS ROUTES
 // ============================================================
@@ -1377,6 +1427,35 @@ app.use(
 app.use(
   "/api/academy",
   academyLiveClassRoutes
+);
+
+// ============================================================
+// SCHOLIQEN ACADEMY TUTOR ATTENDANCE ROUTES
+// ============================================================
+
+app.use(
+  "/api/academy/tutor",
+  academyTutorAttendanceRoutes
+);
+
+// ============================================================
+// SCHOLIQEN ACADEMY TUTOR STUDENT MESSAGES
+// ============================================================
+
+app.use(
+  "/api/academy/tutor",
+  academyTutorMessages
+);
+
+// ============================================================
+// SCHOLIQEN ACADEMY TUTOR ANNOUNCEMENTS
+// IMPORTANT:
+// This is AFTER express.json() and BEFORE 404.
+// ============================================================
+
+app.use(
+  "/api/academy/tutor",
+  academyTutorAnnouncements
 );
 
 // ============================================================
@@ -1553,6 +1632,62 @@ const server = app.listen(
 
     console.log(
       "   POST   /api/academy/student/tasks/:taskId/submission"
+    );
+
+    console.log(
+      "   GET    /api/academy/tutor/attendance/classes"
+    );
+
+    console.log(
+      "   GET    /api/academy/tutor/attendance"
+    );
+
+    console.log("");
+
+    console.log(
+      "💬 Tutor student messaging routes:"
+    );
+
+    console.log(
+      "   GET    /api/academy/tutor/messages"
+    );
+
+    console.log(
+      "   GET    /api/academy/tutor/messages/:conversationId"
+    );
+
+    console.log(
+      "   POST   /api/academy/tutor/messages/:conversationId"
+    );
+
+    console.log(
+      "   POST   /api/academy/tutor/messages/start"
+    );
+
+    console.log("");
+
+    console.log(
+      "📢 Tutor announcement routes:"
+    );
+
+    console.log(
+      "   GET    /api/academy/tutor/announcements"
+    );
+
+    console.log(
+      "   GET    /api/academy/tutor/announcements/:id"
+    );
+
+    console.log(
+      "   POST   /api/academy/tutor/announcements"
+    );
+
+    console.log(
+      "   PATCH  /api/academy/tutor/announcements/:id"
+    );
+
+    console.log(
+      "   DELETE /api/academy/tutor/announcements/:id"
     );
 
     console.log(

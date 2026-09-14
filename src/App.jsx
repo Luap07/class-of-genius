@@ -55,7 +55,7 @@ import TutorTaskSubmissions from "./pages/tutor/TutorTaskSubmissions";
 import TutorCreateAssignment from "./pages/tutor/TutorCreateAssignment";
 import TutorAssignments from "./pages/tutor/TutorAssignments";
 import TutorAssignmentSubmissions from "./pages/tutor/TutorAssignmentSubmissions";
-
+import TutorAttendance from "./pages/tutor/TutorAttendance";
 import TutorLiveClasses from "./pages/tutor/TutorLiveClasses";
 import TutorLiveClassroom from "./pages/tutor/TutorLiveClassroom";
 
@@ -65,10 +65,12 @@ import TutorLessonPlan from "./pages/tutor/TutorLessonPlan";
 import TutorClassDetails from "./pages/tutor/TutorClassDetails";
 import TutorDashboard from "./pages/tutor/TutorDashboard";
 import TutorClasses from "./pages/tutor/TutorClasses";
-
+import TutorProfile from "./pages/tutor/TutorProfile";
 import TutorLayout from "./components/tutor/TutorLayout";
 import TutorMaterials from "./pages/tutor/TutorMaterials";
-
+import TutorCalendar from "./pages/tutor/TutorCalendar";
+import TutorStudentMessages from "./pages/tutor/TutorStudentMessages";
+import TutorAnnouncements from "./pages/tutor/TutorAnnouncements"
 /* ============================================================
    ADMIN
 ============================================================ */
@@ -784,6 +786,22 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
+            TUTOR ATTENDANCE
+            FIXED: TutorProtectedRoute
+        ===================================================== */}
+
+        <Route
+          path="/academy/tutor/attendance"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Attendance">
+                <TutorAttendance />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* =====================================================
             TUTOR REGISTRATION
         ===================================================== */}
 
@@ -890,6 +908,17 @@ const AnimatedRoutes = () => {
             </TutorProtectedRoute>
           }
         />
+
+        <Route
+  path="/academy/tutor/calendar"
+  element={
+    <TutorProtectedRoute>
+      <TutorLayout title="Calendar">
+        <TutorCalendar />
+      </TutorLayout>
+    </TutorProtectedRoute>
+  }
+/>
 
         {/* =====================================================
             TUTOR LIVE CLASSES - CREATE
@@ -1084,8 +1113,26 @@ const AnimatedRoutes = () => {
           }
         />
 
+            <Route 
+            path="/academy/tutor/messages/students" 
+            element={ 
+            <TutorProtectedRoute> 
+              <TutorLayout title="Student Messages"> 
+                <TutorStudentMessages /> 
+                </TutorLayout> 
+                </TutorProtectedRoute> } />
+
+                 <Route 
+            path="/academy/tutor/announcements" 
+            element={ 
+            <TutorProtectedRoute> 
+              <TutorLayout title="Tutor Announcements"> 
+                <TutorAnnouncements /> 
+                </TutorLayout> 
+                </TutorProtectedRoute> } />
+
         {/* =====================================================
-            LEGACY TASK SUBMISSIONS PATH
+            LEGACY TASK SUBMISSIONS PATH 
         ===================================================== */}
 
         <Route
@@ -1424,6 +1471,12 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* TUTOR PROFILE */}
+          <Route
+  path="/academy/tutor/profile"
+  element={<TutorProfile />}
+/>
 
         {/* =====================================================
             PDF

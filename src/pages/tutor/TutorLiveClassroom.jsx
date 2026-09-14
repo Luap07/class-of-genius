@@ -222,12 +222,26 @@ export default function TutorLiveClassroom() {
     useState(null);
 
   /*
-   * NONE = classroom is clean.
+   * PANEL STATE
    *
-   * This means Materials starts CLOSED.
+   * activePanel controls the actual classroom feature:
+   * chat, participants, presentation, video, etc.
+   *
+   * "none" = no classroom feature is open.
    */
   const [activePanel, setActivePanel] =
     useState("none");
+
+  /*
+   * RIGHT SIDEBAR
+   *
+   * CLOSED BY DEFAULT.
+   *
+   * Clicking the PanelRight button opens it.
+   * Clicking X closes it.
+   */
+  const [isRightPanelOpen, setIsRightPanelOpen] =
+    useState(false);
 
   const [isLive, setIsLive] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -574,6 +588,30 @@ export default function TutorLiveClassroom() {
     );
   };
 
+  /*
+   * OPEN RIGHT SIDEBAR
+   *
+   * When a sidebar feature is clicked, make sure
+   * the right sidebar opens too.
+   */
+  const openRightPanel = (panel = null) => {
+    setIsRightPanelOpen(true);
+
+    if (panel) {
+      setActivePanel((current) =>
+        current === panel ? "none" : panel
+      );
+    }
+  };
+
+  /*
+   * CLOSE RIGHT SIDEBAR
+   */
+  const closeRightPanel = () => {
+    setIsRightPanelOpen(false);
+    setActivePanel("none");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
@@ -614,8 +652,10 @@ export default function TutorLiveClassroom() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col overflow-hidden">
+
       {/* HEADER */}
-      <header className="h-16 shrink-0 border-b border-white/10 bg-slate-900/95 backdrop-blur flex items-center justify-between px-4 lg:px-6 z-50">
+      <header className="h-16 shrink-0 border-b border-white/10 bg-slate-900/95 backdrop-blur-xl flex items-center justify-between px-4 lg:px-6 z-50">
+
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
@@ -633,7 +673,7 @@ export default function TutorLiveClassroom() {
               </h1>
 
               {isLive && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/15 text-red-300 text-xs font-semibold">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/15 border border-red-400/10 text-red-300 text-xs font-semibold">
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                   LIVE
                 </span>
@@ -653,6 +693,7 @@ export default function TutorLiveClassroom() {
         </div>
 
         <div className="flex items-center gap-2">
+
           {notice && (
             <span className="hidden md:block text-sm text-emerald-300">
               {notice}
@@ -670,6 +711,29 @@ export default function TutorLiveClassroom() {
             </button>
           )}
 
+          {/* RIGHT PANEL OPEN BUTTON */}
+          {!isRightPanelOpen && (
+            <button
+              type="button"
+              onClick={() => openRightPanel()}
+              className="
+                w-10 h-10
+                rounded-xl
+                bg-white/[0.04]
+                border border-white/[0.08]
+                hover:bg-white/[0.09]
+                hover:border-white/[0.15]
+                text-white/70
+                hover:text-white
+                flex items-center justify-center
+                transition-all
+              "
+              title="Open classroom panel"
+            >
+              <PanelRight size={19} />
+            </button>
+          )}
+
           {!isLive && status !== "ended" && (
             <button
               type="button"
@@ -678,6 +742,7 @@ export default function TutorLiveClassroom() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 font-semibold text-sm"
             >
               <Video size={17} />
+
               {starting
                 ? "Starting..."
                 : "Start Class"}
@@ -692,6 +757,7 @@ export default function TutorLiveClassroom() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 font-semibold text-sm"
             >
               <X size={17} />
+
               {ending
                 ? "Ending..."
                 : "End Class"}
@@ -702,12 +768,16 @@ export default function TutorLiveClassroom() {
 
       {/* MAIN */}
       <main className="flex-1 min-h-0 flex flex-col lg:flex-row">
+
         {/* LEFT / MAIN AREA */}
         <section className="flex-1 min-w-0 min-h-0 flex flex-col relative">
+
           {/* CLASSROOM STAGE */}
           <div className="flex-1 min-h-[420px] relative overflow-hidden">
+
             {/* PROFESSIONAL OFFICE-STYLE CLASSROOM BACKGROUND */}
             <div className="absolute inset-0 overflow-hidden bg-slate-900">
+
               {/* Back wall */}
               <div className="absolute inset-0 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-950" />
 
@@ -752,6 +822,7 @@ export default function TutorLiveClassroom() {
               {activePanel === "none" && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
+
                     <div className="w-20 h-20 mx-auto mb-5 rounded-3xl bg-white/10 border border-white/10 flex items-center justify-center backdrop-blur">
                       <BookOpen
                         size={34}
@@ -766,6 +837,7 @@ export default function TutorLiveClassroom() {
                     <p className="mt-2 text-sm text-white/40">
                       Your virtual classroom is ready
                     </p>
+
                   </div>
                 </div>
               )}
@@ -787,7 +859,7 @@ export default function TutorLiveClassroom() {
 
             {/* WHITEBOARD */}
             {activePanel === "whiteboard" && (
-              <div className="absolute inset-0 z-10 bg-white">
+              <div className="absolute inset-0 z-10 bg-slate-950">
                 <Whiteboard
                   liveClassId={classId}
                   tutorReference={tutorReference}
@@ -797,7 +869,7 @@ export default function TutorLiveClassroom() {
 
             {/* CHAT MAIN AREA ON MOBILE */}
             {activePanel === "chat" && (
-              <div className="absolute inset-0 z-10 bg-slate-900 lg:hidden">
+              <div className="absolute inset-0 z-10 bg-slate-950 lg:hidden">
                 <LiveChat
                   liveClassId={classId}
                   tutorReference={tutorReference}
@@ -810,7 +882,7 @@ export default function TutorLiveClassroom() {
 
             {/* PARTICIPANTS MAIN AREA ON MOBILE */}
             {activePanel === "participants" && (
-              <div className="absolute inset-0 z-10 bg-slate-900 lg:hidden">
+              <div className="absolute inset-0 z-10 bg-slate-950 lg:hidden">
                 <ParticipantsPanel
                   liveClassId={classId}
                   participants={participants}
@@ -871,6 +943,21 @@ export default function TutorLiveClassroom() {
           <ClassroomToolbar
             activePanel={activePanel}
             onPanelChange={(panel) => {
+
+              /*
+               * If the toolbar is being used for a
+               * right-side feature, open the right
+               * sidebar automatically.
+               */
+              if (
+                panel === "chat" ||
+                panel === "participants" ||
+                panel === "presentation"
+              ) {
+                openRightPanel(panel);
+                return;
+              }
+
               if (panel === "presentation") {
                 togglePanel("presentation");
                 return;
@@ -888,6 +975,7 @@ export default function TutorLiveClassroom() {
           {/* MOBILE QUICK PANEL BUTTONS */}
           <div className="lg:hidden border-t border-white/10 bg-slate-900">
             <div className="grid grid-cols-3">
+
               <button
                 type="button"
                 onClick={() =>
@@ -934,144 +1022,197 @@ export default function TutorLiveClassroom() {
                 <BookOpen size={17} />
                 Materials
               </button>
+
             </div>
           </div>
         </section>
 
-        {/* RIGHT SIDEBAR */}
-        <aside className="hidden lg:flex w-[360px] shrink-0 border-l border-white/10 bg-slate-900 flex-col">
-          {/* PANEL HEADER */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-            <div className="flex items-center gap-2">
-              <PanelRight size={17} />
+        {/* =====================================================
+            RIGHT SIDEBAR
+            CLOSED BY DEFAULT
+           ===================================================== */}
 
-              <span className="font-semibold text-sm">
-                Classroom
-              </span>
-            </div>
+        {isRightPanelOpen && (
+          <aside
+            className="
+              hidden lg:flex
+              w-[360px]
+              shrink-0
+              border-l border-white/10
+              bg-slate-950/95
+              backdrop-blur-2xl
+              flex-col
+              shadow-[-20px_0_60px_rgba(0,0,0,0.25)]
+            "
+          >
 
-            {activePanel !== "none" && (
+            {/* PANEL HEADER */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-400/15 flex items-center justify-center">
+                  <PanelRight
+                    size={17}
+                    className="text-indigo-300"
+                  />
+                </div>
+
+                <span className="font-semibold text-sm">
+                  Classroom
+                </span>
+              </div>
+
               <button
                 type="button"
-                onClick={() =>
-                  setActivePanel("none")
-                }
-                className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center"
-                title="Close"
+                onClick={closeRightPanel}
+                className="
+                  w-8 h-8
+                  rounded-lg
+                  bg-white/[0.03]
+                  hover:bg-white/[0.09]
+                  border border-white/[0.06]
+                  flex items-center justify-center
+                  text-white/50
+                  hover:text-white
+                  transition-all
+                "
+                title="Close classroom panel"
               >
                 <X size={17} />
               </button>
-            )}
-          </div>
+            </div>
 
-          {/* PANEL BUTTONS */}
-          <div className="grid grid-cols-3 border-b border-white/10">
-            <button
-              type="button"
-              onClick={() =>
-                togglePanel("chat")
-              }
-              className={`p-3 text-sm flex flex-col items-center gap-1 ${
-                activePanel === "chat"
-                  ? "bg-white/10 text-white"
-                  : "text-white/50 hover:bg-white/5"
-              }`}
-            >
-              <MessageCircle size={18} />
-              Chat
-            </button>
+            {/* PANEL BUTTONS */}
+            <div className="grid grid-cols-3 border-b border-white/10 bg-white/[0.015]">
 
-            <button
-              type="button"
-              onClick={() =>
-                togglePanel("participants")
-              }
-              className={`p-3 text-sm flex flex-col items-center gap-1 ${
-                activePanel === "participants"
-                  ? "bg-white/10 text-white"
-                  : "text-white/50 hover:bg-white/5"
-              }`}
-            >
-              <Users size={18} />
-              Students
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                togglePanel("presentation")
-              }
-              className={`p-3 text-sm flex flex-col items-center gap-1 ${
-                activePanel ===
-                "presentation"
-                  ? "bg-white/10 text-white"
-                  : "text-white/50 hover:bg-white/5"
-              }`}
-            >
-              <BookOpen size={18} />
-              Materials
-            </button>
-          </div>
-
-          {/* SIDEBAR CONTENT */}
-          <div className="flex-1 min-h-0">
-            {activePanel === "chat" && (
-              <LiveChat
-                liveClassId={classId}
-                tutorReference={tutorReference}
-                tutorName={tutorName}
-                messages={messages}
-                onNewMessage={handleNewMessage}
-              />
-            )}
-
-            {activePanel ===
-              "participants" && (
-              <ParticipantsPanel
-                liveClassId={classId}
-                participants={participants}
-                onParticipantUpdate={
-                  handleParticipantUpdate
+              <button
+                type="button"
+                onClick={() =>
+                  togglePanel("chat")
                 }
-              />
-            )}
+                className={`p-3 text-sm flex flex-col items-center gap-1.5 transition-all ${
+                  activePanel === "chat"
+                    ? "bg-indigo-500/10 text-white border-b-2 border-indigo-400"
+                    : "text-white/50 hover:bg-white/[0.05] hover:text-white"
+                }`}
+              >
+                <MessageCircle size={18} />
+                Chat
+              </button>
 
-            {activePanel ===
-              "presentation" && (
-              <div className="h-full p-4 overflow-y-auto">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h2 className="font-semibold mb-2">
-                    Classroom Materials
-                  </h2>
+              <button
+                type="button"
+                onClick={() =>
+                  togglePanel("participants")
+                }
+                className={`p-3 text-sm flex flex-col items-center gap-1.5 transition-all ${
+                  activePanel === "participants"
+                    ? "bg-indigo-500/10 text-white border-b-2 border-indigo-400"
+                    : "text-white/50 hover:bg-white/[0.05] hover:text-white"
+                }`}
+              >
+                <Users size={18} />
+                Students
+              </button>
 
-                  <p className="text-sm text-white/50">
-                    Upload and present your PDF
-                    or PowerPoint from the
-                    presentation area.
-                  </p>
+              <button
+                type="button"
+                onClick={() =>
+                  togglePanel("presentation")
+                }
+                className={`p-3 text-sm flex flex-col items-center gap-1.5 transition-all ${
+                  activePanel ===
+                  "presentation"
+                    ? "bg-indigo-500/10 text-white border-b-2 border-indigo-400"
+                    : "text-white/50 hover:bg-white/[0.05] hover:text-white"
+                }`}
+              >
+                <BookOpen size={18} />
+                Materials
+              </button>
+
+            </div>
+
+            {/* SIDEBAR CONTENT */}
+            <div className="flex-1 min-h-0">
+
+              {/* CHAT */}
+              {activePanel === "chat" && (
+                <LiveChat
+                  liveClassId={classId}
+                  tutorReference={tutorReference}
+                  tutorName={tutorName}
+                  messages={messages}
+                  onNewMessage={handleNewMessage}
+                />
+              )}
+
+              {/* PARTICIPANTS */}
+              {activePanel === "participants" && (
+                <ParticipantsPanel
+                  liveClassId={classId}
+                  participants={participants}
+                  onParticipantUpdate={
+                    handleParticipantUpdate
+                  }
+                />
+              )}
+
+              {/* PRESENTATION */}
+              {activePanel ===
+                "presentation" && (
+                <div className="h-full p-4 overflow-y-auto bg-slate-950">
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-4">
+
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-400/15 flex items-center justify-center mb-3">
+                      <BookOpen
+                        size={19}
+                        className="text-indigo-300"
+                      />
+                    </div>
+
+                    <h2 className="font-semibold mb-2">
+                      Classroom Materials
+                    </h2>
+
+                    <p className="text-sm text-white/50">
+                      Upload and present your PDF
+                      or PowerPoint from the
+                      presentation area.
+                    </p>
+
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activePanel === "none" && (
-              <div className="h-full flex items-center justify-center p-6 text-center">
-                <div>
-                  <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/5 flex items-center justify-center">
-                    <PanelRight
-                      size={24}
-                      className="text-white/30"
-                    />
+              {/* NOTHING SELECTED */}
+              {activePanel === "none" && (
+                <div className="h-full flex items-center justify-center p-6 text-center bg-slate-950">
+
+                  <div>
+
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center">
+                      <PanelRight
+                        size={24}
+                        className="text-white/25"
+                      />
+                    </div>
+
+                    <p className="text-sm text-white/40">
+                      Select Chat, Students or
+                      Materials
+                    </p>
+
                   </div>
 
-                  <p className="text-sm text-white/40">
-                    Select Chat, Students or
-                    Materials
-                  </p>
                 </div>
-              </div>
-            )}
-          </div>
-        </aside>
+              )}
+
+            </div>
+          </aside>
+        )}
+
       </main>
     </div>
   );

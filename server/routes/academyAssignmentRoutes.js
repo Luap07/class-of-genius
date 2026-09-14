@@ -207,7 +207,7 @@ async function findTutorByReference(reference) {
               ''
             )
           )
-        ) = LOWER(TRIM($1))
+        ) = LOWER(TRIM($1::TEXT))
       `
     )
     .join(" OR ");
@@ -288,25 +288,70 @@ function getTutorName(tutor) {
 ========================================================= */
 
 router.get("/tutor/assignments", async (req, res) => {
-  try {
-    const tutorReference = getTutorReference(req);
+  const tutorReference = getTutorReference(req);
 
-    if (!tutorReference) {
-      return res.status(400).json({
-        success: false,
-        error: "Tutor reference is required.",
-      });
-    }
+  if (!tutorReference) {
+    return res.status(400).json({
+      success: false,
+      error: "Tutor reference is required.",
+    });
+  }
+
+  try {
+    console.log(
+      "GET /tutor/assignments",
+      {
+        tutorReference,
+      }
+    );
+
+    /*
+     * IMPORTANT:
+     *
+     * Cast tutor_reference to TEXT.
+     *
+     * This works whether the database column is:
+     * TEXT
+     * UUID
+     * BIGINT
+     * or another PostgreSQL type that can be
+     * represented as text.
+     */
 
     const result = await pool.query(
       `
         SELECT *
         FROM academy_assignments
-        WHERE LOWER(TRIM(tutor_reference)) =
-              LOWER(TRIM($1))
-        ORDER BY created_at DESC NULLS LAST
+        WHERE LOWER(
+                TRIM(
+                  CAST(tutor_reference AS TEXT)
+                )
+              )
+              =
+              LOWER(
+                TRIM(
+                  $1::TEXT
+                )
+              )
+        ORDER BY
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'academy_assignments'
+                AND column_name = 'created_at'
+            )
+            THEN 0
+            ELSE 1
+          END,
+          created_at DESC NULLS LAST
       `,
       [tutorReference]
+    );
+
+    console.log(
+      `GET /tutor/assignments: ${result.rows.length} assignments found`
     );
 
     return res.json({
@@ -322,7 +367,10 @@ router.get("/tutor/assignments", async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Unable to load assignments.",
-      details: error.message,
+      details:
+        error?.message ||
+        "Database request failed.",
+      code: error?.code || null,
     });
   }
 });
@@ -331,559 +379,93 @@ router.get("/tutor/assignments", async (req, res) => {
    GET SINGLE TUTOR ASSIGNMENT
 ========================================================= */
 
-router.get("/tutor/assignments/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const assignmentResult = await pool.query(
-      `
-        SELECT *
-        FROM academy_assignments
-        WHERE id = $1
-        LIMIT 1
-      `,
-      [id]
-    );
-
-    if (!assignmentResult.rows.length) {
-      return res.status(404).json({
-        success: false,
-        error: "Assignment not found.",
-      });
-    }
-
-    const assignment = assignmentResult.rows[0];
-
-    const questionResult = await pool.query(
-      `
-        SELECT *
-        FROM academy_assignment_questions
-        WHERE assignment_id = $1
-        ORDER BY question_number ASC
-      `,
-      [id]
-    );
-
-    return res.json({
-      success: true,
-      assignment: {
-        ...assignment,
-        questions: questionResult.rows,
-      },
-    });
-  } catch (error) {
-    console.error(
-      "GET /tutor/assignments/:id error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      error: "Unable to load assignment.",
-      details: error.message,
-    });
-  }
-});
-
-/* =========================================================
-   CREATE ASSIGNMENT
-========================================================= */
-
-router.post("/tutor/assignments", async (req, res) => {
-  let client = null;
-  let transactionStarted = false;
-
-  try {
-    const tutorReference = getTutorReference(req);
-
-    if (!tutorReference) {
-      return res.status(400).json({
-        success: false,
-        error: "Tutor reference is required.",
-      });
-    }
-
-    const title = clean(req.body?.title);
-
-    const description = clean(
-      req.body?.description
-    );
-
-    const instructions = clean(
-      req.body?.instructions
-    );
-
-    const grade = findGrade(
-      req.body?.class ||
-        req.body?.grade ||
-        req.body?.className
-    );
-
-    const subject = findSubject(
-      req.body?.subject
-    );
-
-    const dueDate = normalizeDueDate(
-      req.body?.dueDate ||
-        req.body?.due_date
-    );
-
-    const questions = Array.isArray(
-      req.body?.questions
-    )
-      ? req.body.questions
-      : [];
-
-    /* -------------------------------------------------------
-       BASIC VALIDATION
-    ------------------------------------------------------- */
-
-    if (title.length < 3) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Assignment title must be at least 3 characters.",
-      });
-    }
-
-    if (!grade) {
-      return res.status(400).json({
-        success: false,
-        error: "A valid class is required.",
-      });
-    }
-
-    if (!subject) {
-      return res.status(400).json({
-        success: false,
-        error: "A valid subject is required.",
-      });
-    }
-
-    if (questions.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "At least one question is required.",
-      });
-    }
-
-    /* -------------------------------------------------------
-       VERIFY TUTOR
-    ------------------------------------------------------- */
-
-    const tutorVerification =
-      await verifyTutor(tutorReference);
-
-    if (!tutorVerification.valid) {
-      return res.status(403).json({
-        success: false,
-        error: tutorVerification.error,
-      });
-    }
-
-    const tutor = tutorVerification.tutor;
-    const tutorName = getTutorName(tutor);
-
-    /* -------------------------------------------------------
-       NORMALIZE QUESTIONS
-    ------------------------------------------------------- */
-
-    const normalizedQuestions = questions.map(
-      (item, index) => {
-        const question = clean(
-          item?.question ||
-            item?.text
-        );
-
-        const optionA = clean(
-          item?.optionA ||
-            item?.option_a ||
-            item?.options?.A
-        );
-
-        const optionB = clean(
-          item?.optionB ||
-            item?.option_b ||
-            item?.options?.B
-        );
-
-        const optionC = clean(
-          item?.optionC ||
-            item?.option_c ||
-            item?.options?.C
-        );
-
-        const optionD = clean(
-          item?.optionD ||
-            item?.option_d ||
-            item?.options?.D
-        );
-
-        const correctAnswer =
-          normalizeAnswer(
-            item?.correctAnswer ||
-              item?.correct_answer ||
-              item?.answer
-          );
-
-        const reason = clean(
-          item?.explanation ||
-            item?.reason
-        );
-
-        const marks = getMarks(
-          item?.marks
-        );
-
-        return {
-          questionNumber:
-            Number(item?.questionNumber) ||
-            index + 1,
-          question,
-          optionA,
-          optionB,
-          optionC,
-          optionD,
-          correctAnswer,
-          reason,
-          marks,
-        };
-      }
-    );
-
-    /* -------------------------------------------------------
-       QUESTION VALIDATION
-    ------------------------------------------------------- */
-
-    for (
-      let index = 0;
-      index < normalizedQuestions.length;
-      index++
-    ) {
-      const item =
-        normalizedQuestions[index];
-
-      const number = index + 1;
-
-      if (!item.question) {
-        return res.status(400).json({
-          success: false,
-          error: `Question ${number} is empty.`,
-        });
-      }
-
-      if (!item.optionA) {
-        return res.status(400).json({
-          success: false,
-          error:
-            `Option A for question ${number} is required.`,
-        });
-      }
-
-      if (!item.optionB) {
-        return res.status(400).json({
-          success: false,
-          error:
-            `Option B for question ${number} is required.`,
-        });
-      }
-
-      if (!item.optionC) {
-        return res.status(400).json({
-          success: false,
-          error:
-            `Option C for question ${number} is required.`,
-        });
-      }
-
-      if (!item.optionD) {
-        return res.status(400).json({
-          success: false,
-          error:
-            `Option D for question ${number} is required.`,
-        });
-      }
-
-      if (!item.correctAnswer) {
-        return res.status(400).json({
-          success: false,
-          error:
-            `Correct answer for question ${number} must be A, B, C, or D.`,
-        });
-      }
-    }
-
-    const totalQuestions =
-      normalizedQuestions.length;
-
-    const totalMarks =
-      normalizedQuestions.reduce(
-        (sum, item) =>
-          sum + Number(item.marks || 1),
-        0
-      );
-
-    /* -------------------------------------------------------
-       CHECK ASSIGNMENT TABLE
-    ------------------------------------------------------- */
-
-    const assignmentColumns =
-      await getTableColumns(
-        "academy_assignments"
-      );
-
-    const requiredAssignmentColumns = [
-      "tutor_reference",
-      "tutor_name",
-      "grade",
-      "subject",
-      "title",
-      "description",
-      "instructions",
-      "due_date",
-      "total_questions",
-      "total_marks",
-      "status",
-      "result_released",
-    ];
-
-    const missingAssignmentColumns =
-      requiredAssignmentColumns.filter(
-        (column) =>
-          !assignmentColumns.has(column)
-      );
-
-    if (missingAssignmentColumns.length) {
-      throw new Error(
-        `academy_assignments is missing these columns: ${missingAssignmentColumns.join(
-          ", "
-        )}`
-      );
-    }
-
-    /* -------------------------------------------------------
-       CHECK QUESTION TABLE
-    ------------------------------------------------------- */
-
-    const questionColumns =
-      await getTableColumns(
-        "academy_assignment_questions"
-      );
-
-    const requiredQuestionColumns = [
-      "assignment_id",
-      "question_number",
-      "question",
-      "option_a",
-      "option_b",
-      "option_c",
-      "option_d",
-      "correct_answer",
-      "reason",
-      "marks",
-    ];
-
-    const missingQuestionColumns =
-      requiredQuestionColumns.filter(
-        (column) =>
-          !questionColumns.has(column)
-      );
-
-    if (missingQuestionColumns.length) {
-      throw new Error(
-        `academy_assignment_questions is missing these columns: ${missingQuestionColumns.join(
-          ", "
-        )}`
-      );
-    }
-
-    /* -------------------------------------------------------
-       CONNECT
-    ------------------------------------------------------- */
-
-    client = await pool.connect();
-
-    await client.query("BEGIN");
-    transactionStarted = true;
-
-    /* -------------------------------------------------------
-       INSERT ASSIGNMENT
-    ------------------------------------------------------- */
-
-    const assignmentResult =
-      await client.query(
-        `
-          INSERT INTO academy_assignments (
-            tutor_reference,
-            tutor_name,
-            grade,
-            subject,
-            title,
-            description,
-            instructions,
-            due_date,
-            total_questions,
-            total_marks,
-            status,
-            result_released
-          )
-          VALUES (
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            $7,
-            $8,
-            $9,
-            $10,
-            'published',
-            false
-          )
-          RETURNING *
-        `,
-        [
-          tutorReference,
-          tutorName,
-          grade,
-          subject,
-          title,
-          description,
-          instructions,
-          dueDate,
-          totalQuestions,
-          totalMarks,
-        ]
-      );
-
-    const assignment =
-      assignmentResult.rows[0];
-
-    /* -------------------------------------------------------
-       INSERT QUESTIONS
-    ------------------------------------------------------- */
-
-    for (
-      let index = 0;
-      index < normalizedQuestions.length;
-      index++
-    ) {
-      const item =
-        normalizedQuestions[index];
-
-      await client.query(
-        `
-          INSERT INTO academy_assignment_questions (
-            assignment_id,
-            question_number,
-            question,
-            option_a,
-            option_b,
-            option_c,
-            option_d,
-            correct_answer,
-            reason,
-            marks
-          )
-          VALUES (
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            $7,
-            $8,
-            $9,
-            $10
-          )
-        `,
-        [
-          assignment.id,
-          index + 1,
-          item.question,
-          item.optionA,
-          item.optionB,
-          item.optionC,
-          item.optionD,
-          item.correctAnswer,
-          item.reason,
-          item.marks,
-        ]
-      );
-    }
-
-    await client.query("COMMIT");
-    transactionStarted = false;
-
-    return res.status(201).json({
-      success: true,
-      message:
-        "Assignment created successfully.",
-      assignment: {
-        ...assignment,
-        questions:
-          normalizedQuestions.map(
-            (item, index) => ({
-              id: null,
-              questionNumber: index + 1,
-              question: item.question,
-              optionA: item.optionA,
-              optionB: item.optionB,
-              optionC: item.optionC,
-              optionD: item.optionD,
-              correctAnswer:
-                item.correctAnswer,
-              explanation: item.reason,
-              marks: item.marks,
-            })
-          ),
-      },
-    });
-  } catch (error) {
-    console.error(
-      "POST /tutor/assignments error:",
-      error
-    );
-
-    if (client && transactionStarted) {
-      try {
-        await client.query("ROLLBACK");
-      } catch (rollbackError) {
-        console.error(
-          "Assignment rollback error:",
-          rollbackError
-        );
-      }
-    }
-
-    return res.status(500).json({
-      success: false,
-      error:
-        "Unable to create assignment.",
-      details:
-        error?.message ||
-        "Unknown server error.",
-    });
-  } finally {
-    if (client) {
-      client.release();
-    }
-  }
-});
-
-/* =========================================================
-   UPDATE ASSIGNMENT
-========================================================= */
-
-router.patch(
+router.get(
   "/tutor/assignments/:id",
   async (req, res) => {
     try {
       const { id } = req.params;
 
-      const title = clean(req.body?.title);
+      const assignmentResult =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [id]
+        );
+
+      if (!assignmentResult.rows.length) {
+        return res.status(404).json({
+          success: false,
+          error: "Assignment not found.",
+        });
+      }
+
+      const assignment =
+        assignmentResult.rows[0];
+
+      const questionResult =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignment_questions
+            WHERE assignment_id = $1
+            ORDER BY question_number ASC
+          `,
+          [id]
+        );
+
+      return res.json({
+        success: true,
+        assignment: {
+          ...assignment,
+          questions:
+            questionResult.rows,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "GET /tutor/assignments/:id error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Unable to load assignment.",
+        details: error.message,
+      });
+    }
+  }
+);
+
+/* =========================================================
+   CREATE ASSIGNMENT
+========================================================= */
+
+router.post(
+  "/tutor/assignments",
+  async (req, res) => {
+    let client = null;
+    let transactionStarted = false;
+
+    try {
+      const tutorReference =
+        getTutorReference(req);
+
+      if (!tutorReference) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Tutor reference is required.",
+        });
+      }
+
+      const title = clean(
+        req.body?.title
+      );
 
       const description = clean(
         req.body?.description
@@ -903,10 +485,22 @@ router.patch(
         req.body?.subject
       );
 
-      const dueDate = normalizeDueDate(
-        req.body?.dueDate ||
-          req.body?.due_date
-      );
+      const dueDate =
+        normalizeDueDate(
+          req.body?.dueDate ||
+            req.body?.due_date
+        );
+
+      const questions =
+        Array.isArray(
+          req.body?.questions
+        )
+          ? req.body.questions
+          : [];
+
+      /* -----------------------------------------------------
+         VALIDATION
+      ----------------------------------------------------- */
 
       if (title.length < 3) {
         return res.status(400).json({
@@ -919,46 +513,583 @@ router.patch(
       if (!grade) {
         return res.status(400).json({
           success: false,
-          error: "A valid class is required.",
+          error:
+            "A valid class is required.",
         });
       }
 
       if (!subject) {
         return res.status(400).json({
           success: false,
-          error: "A valid subject is required.",
+          error:
+            "A valid subject is required.",
         });
       }
 
-      const result = await pool.query(
-        `
-          UPDATE academy_assignments
-          SET
-            title = $1,
-            description = $2,
-            instructions = $3,
-            grade = $4,
-            subject = $5,
-            due_date = $6,
-            updated_at = NOW()
-          WHERE id = $7
-          RETURNING *
-        `,
-        [
-          title,
-          description,
-          instructions,
-          grade,
-          subject,
-          dueDate,
-          id,
-        ]
+      if (questions.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "At least one question is required.",
+        });
+      }
+
+      /* -----------------------------------------------------
+         VERIFY TUTOR
+      ----------------------------------------------------- */
+
+      const tutorVerification =
+        await verifyTutor(
+          tutorReference
+        );
+
+      if (!tutorVerification.valid) {
+        return res.status(403).json({
+          success: false,
+          error:
+            tutorVerification.error,
+        });
+      }
+
+      const tutor =
+        tutorVerification.tutor;
+
+      const tutorName =
+        getTutorName(tutor);
+
+      /* -----------------------------------------------------
+         NORMALIZE QUESTIONS
+      ----------------------------------------------------- */
+
+      const normalizedQuestions =
+        questions.map(
+          (item, index) => {
+            const question = clean(
+              item?.question ||
+                item?.text
+            );
+
+            const optionA = clean(
+              item?.optionA ||
+                item?.option_a ||
+                item?.options?.A
+            );
+
+            const optionB = clean(
+              item?.optionB ||
+                item?.option_b ||
+                item?.options?.B
+            );
+
+            const optionC = clean(
+              item?.optionC ||
+                item?.option_c ||
+                item?.options?.C
+            );
+
+            const optionD = clean(
+              item?.optionD ||
+                item?.option_d ||
+                item?.options?.D
+            );
+
+            const correctAnswer =
+              normalizeAnswer(
+                item?.correctAnswer ||
+                  item?.correct_answer ||
+                  item?.answer
+              );
+
+            const reason = clean(
+              item?.explanation ||
+                item?.reason
+            );
+
+            const marks = getMarks(
+              item?.marks
+            );
+
+            return {
+              questionNumber:
+                Number(
+                  item?.questionNumber
+                ) ||
+                index + 1,
+
+              question,
+
+              optionA,
+
+              optionB,
+
+              optionC,
+
+              optionD,
+
+              correctAnswer,
+
+              reason,
+
+              marks,
+            };
+          }
+        );
+
+      /* -----------------------------------------------------
+         VALIDATE QUESTIONS
+      ----------------------------------------------------- */
+
+      for (
+        let index = 0;
+        index <
+        normalizedQuestions.length;
+        index++
+      ) {
+        const item =
+          normalizedQuestions[index];
+
+        const number = index + 1;
+
+        if (!item.question) {
+          return res.status(400).json({
+            success: false,
+            error:
+              `Question ${number} is empty.`,
+          });
+        }
+
+        if (!item.optionA) {
+          return res.status(400).json({
+            success: false,
+            error:
+              `Option A for question ${number} is required.`,
+          });
+        }
+
+        if (!item.optionB) {
+          return res.status(400).json({
+            success: false,
+            error:
+              `Option B for question ${number} is required.`,
+          });
+        }
+
+        if (!item.optionC) {
+          return res.status(400).json({
+            success: false,
+            error:
+              `Option C for question ${number} is required.`,
+          });
+        }
+
+        if (!item.optionD) {
+          return res.status(400).json({
+            success: false,
+            error:
+              `Option D for question ${number} is required.`,
+          });
+        }
+
+        if (!item.correctAnswer) {
+          return res.status(400).json({
+            success: false,
+            error:
+              `Correct answer for question ${number} must be A, B, C, or D.`,
+          });
+        }
+      }
+
+      const totalQuestions =
+        normalizedQuestions.length;
+
+      const totalMarks =
+        normalizedQuestions.reduce(
+          (sum, item) =>
+            sum +
+            Number(item.marks || 1),
+          0
+        );
+
+      /* -----------------------------------------------------
+         CHECK ASSIGNMENT TABLE
+      ----------------------------------------------------- */
+
+      const assignmentColumns =
+        await getTableColumns(
+          "academy_assignments"
+        );
+
+      const requiredAssignmentColumns = [
+        "tutor_reference",
+        "tutor_name",
+        "grade",
+        "subject",
+        "title",
+        "description",
+        "instructions",
+        "due_date",
+        "total_questions",
+        "total_marks",
+        "status",
+        "result_released",
+      ];
+
+      const missingAssignmentColumns =
+        requiredAssignmentColumns.filter(
+          (column) =>
+            !assignmentColumns.has(
+              column
+            )
+        );
+
+      if (
+        missingAssignmentColumns.length
+      ) {
+        throw new Error(
+          `academy_assignments is missing these columns: ${missingAssignmentColumns.join(
+            ", "
+          )}`
+        );
+      }
+
+      /* -----------------------------------------------------
+         CHECK QUESTION TABLE
+      ----------------------------------------------------- */
+
+      const questionColumns =
+        await getTableColumns(
+          "academy_assignment_questions"
+        );
+
+      const requiredQuestionColumns = [
+        "assignment_id",
+        "question_number",
+        "question",
+        "option_a",
+        "option_b",
+        "option_c",
+        "option_d",
+        "correct_answer",
+        "reason",
+        "marks",
+      ];
+
+      const missingQuestionColumns =
+        requiredQuestionColumns.filter(
+          (column) =>
+            !questionColumns.has(
+              column
+            )
+        );
+
+      if (
+        missingQuestionColumns.length
+      ) {
+        throw new Error(
+          `academy_assignment_questions is missing these columns: ${missingQuestionColumns.join(
+            ", "
+          )}`
+        );
+      }
+
+      /* -----------------------------------------------------
+         DATABASE CONNECTION
+      ----------------------------------------------------- */
+
+      client = await pool.connect();
+
+      await client.query("BEGIN");
+
+      transactionStarted = true;
+
+      /* -----------------------------------------------------
+         INSERT ASSIGNMENT
+      ----------------------------------------------------- */
+
+      const assignmentResult =
+        await client.query(
+          `
+            INSERT INTO academy_assignments (
+              tutor_reference,
+              tutor_name,
+              grade,
+              subject,
+              title,
+              description,
+              instructions,
+              due_date,
+              total_questions,
+              total_marks,
+              status,
+              result_released
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6,
+              $7,
+              $8,
+              $9,
+              $10,
+              'published',
+              false
+            )
+            RETURNING *
+          `,
+          [
+            tutorReference,
+            tutorName,
+            grade,
+            subject,
+            title,
+            description,
+            instructions,
+            dueDate,
+            totalQuestions,
+            totalMarks,
+          ]
+        );
+
+      const assignment =
+        assignmentResult.rows[0];
+
+      /* -----------------------------------------------------
+         INSERT QUESTIONS
+      ----------------------------------------------------- */
+
+      for (
+        let index = 0;
+        index <
+        normalizedQuestions.length;
+        index++
+      ) {
+        const item =
+          normalizedQuestions[index];
+
+        await client.query(
+          `
+            INSERT INTO academy_assignment_questions (
+              assignment_id,
+              question_number,
+              question,
+              option_a,
+              option_b,
+              option_c,
+              option_d,
+              correct_answer,
+              reason,
+              marks
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6,
+              $7,
+              $8,
+              $9,
+              $10
+            )
+          `,
+          [
+            assignment.id,
+            index + 1,
+            item.question,
+            item.optionA,
+            item.optionB,
+            item.optionC,
+            item.optionD,
+            item.correctAnswer,
+            item.reason,
+            item.marks,
+          ]
+        );
+      }
+
+      await client.query("COMMIT");
+
+      transactionStarted = false;
+
+      return res.status(201).json({
+        success: true,
+
+        message:
+          "Assignment created successfully.",
+
+        assignment: {
+          ...assignment,
+
+          questions:
+            normalizedQuestions.map(
+              (item, index) => ({
+                id: null,
+
+                questionNumber:
+                  index + 1,
+
+                question:
+                  item.question,
+
+                optionA:
+                  item.optionA,
+
+                optionB:
+                  item.optionB,
+
+                optionC:
+                  item.optionC,
+
+                optionD:
+                  item.optionD,
+
+                correctAnswer:
+                  item.correctAnswer,
+
+                explanation:
+                  item.reason,
+
+                marks:
+                  item.marks,
+              })
+            ),
+        },
+      });
+    } catch (error) {
+      console.error(
+        "POST /tutor/assignments error:",
+        error
       );
+
+      if (
+        client &&
+        transactionStarted
+      ) {
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch (rollbackError) {
+          console.error(
+            "Assignment rollback error:",
+            rollbackError
+          );
+        }
+      }
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Unable to create assignment.",
+        details:
+          error?.message ||
+          "Unknown server error.",
+      });
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }
+  }
+);
+
+/* =========================================================
+   UPDATE ASSIGNMENT
+========================================================= */
+
+router.patch(
+  "/tutor/assignments/:id",
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const title = clean(
+        req.body?.title
+      );
+
+      const description = clean(
+        req.body?.description
+      );
+
+      const instructions = clean(
+        req.body?.instructions
+      );
+
+      const grade = findGrade(
+        req.body?.class ||
+          req.body?.grade ||
+          req.body?.className
+      );
+
+      const subject = findSubject(
+        req.body?.subject
+      );
+
+      const dueDate =
+        normalizeDueDate(
+          req.body?.dueDate ||
+            req.body?.due_date
+        );
+
+      if (title.length < 3) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Assignment title must be at least 3 characters.",
+        });
+      }
+
+      if (!grade) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "A valid class is required.",
+        });
+      }
+
+      if (!subject) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "A valid subject is required.",
+        });
+      }
+
+      const result =
+        await pool.query(
+          `
+            UPDATE academy_assignments
+            SET
+              title = $1,
+              description = $2,
+              instructions = $3,
+              grade = $4,
+              subject = $5,
+              due_date = $6,
+              updated_at = NOW()
+            WHERE id = $7
+            RETURNING *
+          `,
+          [
+            title,
+            description,
+            instructions,
+            grade,
+            subject,
+            dueDate,
+            id,
+          ]
+        );
 
       if (!result.rows.length) {
         return res.status(404).json({
           success: false,
-          error: "Assignment not found.",
+          error:
+            "Assignment not found.",
         });
       }
 
@@ -966,7 +1097,8 @@ router.patch(
         success: true,
         message:
           "Assignment updated successfully.",
-        assignment: result.rows[0],
+        assignment:
+          result.rows[0],
       });
     } catch (error) {
       console.error(
@@ -997,9 +1129,13 @@ router.delete(
     try {
       const { id } = req.params;
 
-      client = await pool.connect();
+      client =
+        await pool.connect();
 
-      await client.query("BEGIN");
+      await client.query(
+        "BEGIN"
+      );
+
       transactionStarted = true;
 
       await client.query(
@@ -1030,26 +1166,34 @@ router.delete(
         [id]
       );
 
-      const result = await client.query(
-        `
-          DELETE FROM academy_assignments
-          WHERE id = $1
-          RETURNING id
-        `,
-        [id]
-      );
+      const result =
+        await client.query(
+          `
+            DELETE FROM academy_assignments
+            WHERE id = $1
+            RETURNING id
+          `,
+          [id]
+        );
 
       if (!result.rows.length) {
-        await client.query("ROLLBACK");
+        await client.query(
+          "ROLLBACK"
+        );
+
         transactionStarted = false;
 
         return res.status(404).json({
           success: false,
-          error: "Assignment not found.",
+          error:
+            "Assignment not found.",
         });
       }
 
-      await client.query("COMMIT");
+      await client.query(
+        "COMMIT"
+      );
+
       transactionStarted = false;
 
       return res.json({
@@ -1063,9 +1207,14 @@ router.delete(
         error
       );
 
-      if (client && transactionStarted) {
+      if (
+        client &&
+        transactionStarted
+      ) {
         try {
-          await client.query("ROLLBACK");
+          await client.query(
+            "ROLLBACK"
+          );
         } catch {}
       }
 
@@ -1073,7 +1222,8 @@ router.delete(
         success: false,
         error:
           "Unable to delete assignment.",
-        details: error.message,
+        details:
+          error.message,
       });
     } finally {
       if (client) {
@@ -1091,32 +1241,38 @@ router.get(
   "/student/assignments",
   async (req, res) => {
     try {
-      const studentReference = clean(
-        req.query?.studentReference ||
-          req.query?.student_reference ||
-          req.query?.reference ||
-          req.headers["x-student-reference"]
-      );
+      const studentReference =
+        clean(
+          req.query?.studentReference ||
+            req.query?.student_reference ||
+            req.query?.reference ||
+            req.headers[
+              "x-student-reference"
+            ]
+        );
 
-      const studentId = clean(
-        req.query?.studentId ||
-          req.query?.student_id
-      );
+      const studentId =
+        clean(
+          req.query?.studentId ||
+            req.query?.student_id
+        );
 
-      const result = await pool.query(
-        `
-          SELECT *
-          FROM academy_assignments
-          WHERE status = 'published'
-          ORDER BY created_at DESC NULLS LAST
-        `
-      );
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE status = 'published'
+            ORDER BY created_at DESC NULLS LAST
+          `
+        );
 
       return res.json({
         success: true,
         studentReference,
         studentId,
-        assignments: result.rows,
+        assignments:
+          result.rows,
       });
     } catch (error) {
       console.error(
@@ -1128,7 +1284,8 @@ router.get(
         success: false,
         error:
           "Unable to load student assignments.",
-        details: error.message,
+        details:
+          error.message,
       });
     }
   }
@@ -1142,7 +1299,8 @@ router.get(
   "/student/assignments/:id",
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } =
+        req.params;
 
       const assignmentResult =
         await pool.query(
@@ -1156,10 +1314,13 @@ router.get(
           [id]
         );
 
-      if (!assignmentResult.rows.length) {
+      if (
+        !assignmentResult.rows.length
+      ) {
         return res.status(404).json({
           success: false,
-          error: "Assignment not found.",
+          error:
+            "Assignment not found.",
         });
       }
 
@@ -1200,7 +1361,8 @@ router.get(
         success: false,
         error:
           "Unable to load assignment.",
-        details: error.message,
+        details:
+          error.message,
       });
     }
   }
@@ -1217,23 +1379,29 @@ router.post(
     let transactionStarted = false;
 
     try {
-      const { id } = req.params;
+      const { id } =
+        req.params;
 
-      const studentId = clean(
-        req.body?.studentId ||
-          req.body?.student_id
-      );
+      const studentId =
+        clean(
+          req.body?.studentId ||
+            req.body?.student_id
+        );
 
-      const studentReference = clean(
-        req.body?.studentReference ||
-          req.body?.student_reference ||
-          req.body?.reference
-      );
+      const studentReference =
+        clean(
+          req.body?.studentReference ||
+            req.body?.student_reference ||
+            req.body?.reference
+        );
 
       const submittedAnswers =
         req.body?.answers || {};
 
-      if (!studentId && !studentReference) {
+      if (
+        !studentId &&
+        !studentReference
+      ) {
         return res.status(400).json({
           success: false,
           error:
@@ -1253,10 +1421,13 @@ router.post(
           [id]
         );
 
-      if (!assignmentResult.rows.length) {
+      if (
+        !assignmentResult.rows.length
+      ) {
         return res.status(404).json({
           success: false,
-          error: "Assignment not found.",
+          error:
+            "Assignment not found.",
         });
       }
 
@@ -1309,12 +1480,16 @@ router.post(
           );
 
         const marks =
-          Number(question.marks) || 1;
+          Number(
+            question.marks
+          ) || 1;
 
         const isCorrect =
-          submittedAnswer &&
-          submittedAnswer ===
-            correctAnswer;
+          Boolean(
+            submittedAnswer &&
+              submittedAnswer ===
+                correctAnswer
+          );
 
         if (isCorrect) {
           score += marks;
@@ -1323,13 +1498,19 @@ router.post(
         totalMarks += marks;
 
         answerRows.push({
-          questionId: question.id,
+          questionId:
+            question.id,
+
           studentAnswer:
-            submittedAnswer || null,
+            submittedAnswer ||
+            null,
+
           isCorrect,
-          marksAwarded: isCorrect
-            ? marks
-            : 0,
+
+          marksAwarded:
+            isCorrect
+              ? marks
+              : 0,
         });
       }
 
@@ -1337,7 +1518,8 @@ router.post(
         totalMarks > 0
           ? Number(
               (
-                (score / totalMarks) *
+                (score /
+                  totalMarks) *
                 100
               ).toFixed(2)
             )
@@ -1347,19 +1529,31 @@ router.post(
 
       if (percentage >= 70) {
         resultGrade = "A";
-      } else if (percentage >= 60) {
+      } else if (
+        percentage >= 60
+      ) {
         resultGrade = "B";
-      } else if (percentage >= 50) {
+      } else if (
+        percentage >= 50
+      ) {
         resultGrade = "C";
-      } else if (percentage >= 45) {
+      } else if (
+        percentage >= 45
+      ) {
         resultGrade = "D";
-      } else if (percentage >= 40) {
+      } else if (
+        percentage >= 40
+      ) {
         resultGrade = "E";
       }
 
-      client = await pool.connect();
+      client =
+        await pool.connect();
 
-      await client.query("BEGIN");
+      await client.query(
+        "BEGIN"
+      );
+
       transactionStarted = true;
 
       const submissionResult =
@@ -1403,7 +1597,9 @@ router.post(
       const submission =
         submissionResult.rows[0];
 
-      for (const answer of answerRows) {
+      for (
+        const answer of answerRows
+      ) {
         await client.query(
           `
             INSERT INTO academy_assignment_answers (
@@ -1431,13 +1627,17 @@ router.post(
         );
       }
 
-      await client.query("COMMIT");
+      await client.query(
+        "COMMIT"
+      );
+
       transactionStarted = false;
 
       return res.status(201).json({
         success: true,
         message:
           "Assignment submitted successfully.",
+
         submission: {
           ...submission,
           score,
@@ -1452,9 +1652,14 @@ router.post(
         error
       );
 
-      if (client && transactionStarted) {
+      if (
+        client &&
+        transactionStarted
+      ) {
         try {
-          await client.query("ROLLBACK");
+          await client.query(
+            "ROLLBACK"
+          );
         } catch {}
       }
 
@@ -1462,7 +1667,8 @@ router.post(
         success: false,
         error:
           "Unable to submit assignment.",
-        details: error.message,
+        details:
+          error.message,
       });
     } finally {
       if (client) {
@@ -1480,21 +1686,24 @@ router.get(
   "/tutor/assignments/:id/submissions",
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } =
+        req.params;
 
-      const result = await pool.query(
-        `
-          SELECT *
-          FROM academy_assignment_submissions
-          WHERE assignment_id = $1
-          ORDER BY submitted_at DESC NULLS LAST
-        `,
-        [id]
-      );
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignment_submissions
+            WHERE assignment_id = $1
+            ORDER BY submitted_at DESC NULLS LAST
+          `,
+          [id]
+        );
 
       return res.json({
         success: true,
-        submissions: result.rows,
+        submissions:
+          result.rows,
       });
     } catch (error) {
       console.error(
@@ -1506,7 +1715,8 @@ router.get(
         success: false,
         error:
           "Unable to load submissions.",
-        details: error.message,
+        details:
+          error.message,
       });
     }
   }
@@ -1534,21 +1744,26 @@ router.patch(
               AND assignment_id = $2
             RETURNING *
           `,
-          [submissionId, id]
+          [
+            submissionId,
+            id,
+          ]
         );
 
       if (!result.rows.length) {
         return res.status(404).json({
           success: false,
-          error: "Submission not found.",
+          error:
+            "Submission not found.",
         });
       }
 
       await pool.query(
         `
           UPDATE academy_assignments
-          SET result_released = true,
-              updated_at = NOW()
+          SET
+            result_released = true,
+            updated_at = NOW()
           WHERE id = $1
         `,
         [id]
@@ -1558,7 +1773,8 @@ router.patch(
         success: true,
         message:
           "Result released successfully.",
-        submission: result.rows[0],
+        submission:
+          result.rows[0],
       });
     } catch (error) {
       console.error(
@@ -1570,7 +1786,8 @@ router.patch(
         success: false,
         error:
           "Unable to release result.",
-        details: error.message,
+        details:
+          error.message,
       });
     }
   }
@@ -1584,20 +1801,26 @@ router.get(
   "/student/assignments/:id/result",
   async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } =
+        req.params;
 
-      const studentId = clean(
-        req.query?.studentId ||
-          req.query?.student_id
-      );
+      const studentId =
+        clean(
+          req.query?.studentId ||
+            req.query?.student_id
+        );
 
-      const studentReference = clean(
-        req.query?.studentReference ||
-          req.query?.student_reference ||
-          req.query?.reference
-      );
+      const studentReference =
+        clean(
+          req.query?.studentReference ||
+            req.query?.student_reference ||
+            req.query?.reference
+        );
 
-      if (!studentId && !studentReference) {
+      if (
+        !studentId &&
+        !studentReference
+      ) {
         return res.status(400).json({
           success: false,
           error:
@@ -1606,17 +1829,32 @@ router.get(
       }
 
       let whereStudent = "";
+
       const values = [id];
 
       if (studentId) {
         values.push(studentId);
+
         whereStudent =
           `student_id = $${values.length}`;
       } else {
-        values.push(studentReference);
+        values.push(
+          studentReference
+        );
+
         whereStudent =
-          `LOWER(TRIM(student_reference)) =
-           LOWER(TRIM($${values.length}))`;
+          `LOWER(
+             TRIM(
+               CAST(
+                 student_reference AS TEXT
+               )
+             )
+           ) =
+           LOWER(
+             TRIM(
+               $${values.length}::TEXT
+             )
+           )`;
       }
 
       const submissionResult =
@@ -1632,7 +1870,9 @@ router.get(
           values
         );
 
-      if (!submissionResult.rows.length) {
+      if (
+        !submissionResult.rows.length
+      ) {
         return res.status(404).json({
           success: false,
           error:
@@ -1643,7 +1883,9 @@ router.get(
       const submission =
         submissionResult.rows[0];
 
-      if (!submission.result_released) {
+      if (
+        !submission.result_released
+      ) {
         return res.json({
           success: true,
           released: false,
@@ -1679,7 +1921,8 @@ router.get(
         success: true,
         released: true,
         submission,
-        answers: answersResult.rows,
+        answers:
+          answersResult.rows,
       });
     } catch (error) {
       console.error(
@@ -1691,11 +1934,15 @@ router.get(
         success: false,
         error:
           "Unable to load result.",
-        details: error.message,
+        details:
+          error.message,
       });
     }
   }
 );
 
-export default router;
+/* =========================================================
+   EXPORT
+========================================================= */
 
+export default router;

@@ -97,37 +97,79 @@ export default function ClassroomToolbar({
   };
 
   return (
-    <div className="w-full bg-white border-t border-gray-200 shadow-sm">
+    <div className="relative w-full border-t border-white/[0.08] bg-[#080b12]/95 backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.35)]">
+      {/* Subtle top glow */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-400/40 to-transparent" />
+
       {/* Main toolbar */}
-      <div className="px-3 sm:px-4 py-2.5">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin">
+      <div className="px-3 sm:px-5 py-3">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+
           {/* Start / End */}
           {!isLive ? (
             <button
               type="button"
               onClick={onStartClass}
               disabled={starting || ending}
-              className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed transition"
+              className="
+                group relative flex-shrink-0 inline-flex items-center gap-2
+                px-4 py-2.5 rounded-xl
+                bg-gradient-to-r from-emerald-500 to-emerald-600
+                hover:from-emerald-400 hover:to-emerald-500
+                text-white text-sm font-semibold
+                shadow-[0_8px_25px_rgba(16,185,129,0.18)]
+                hover:shadow-[0_8px_30px_rgba(16,185,129,0.3)]
+                border border-emerald-400/20
+                disabled:opacity-50 disabled:cursor-not-allowed
+                transition-all duration-200
+              "
             >
-              <Play size={17} fill="currentColor" />
+              <span className="absolute inset-0 rounded-xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-              {starting ? "Starting..." : "Start class"}
+              <Play
+                size={16}
+                fill="currentColor"
+                className="relative"
+              />
+
+              <span className="relative">
+                {starting ? "Starting..." : "Start class"}
+              </span>
             </button>
           ) : (
             <button
               type="button"
               onClick={onEndClass}
               disabled={ending}
-              className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed transition"
+              className="
+                group relative flex-shrink-0 inline-flex items-center gap-2
+                px-4 py-2.5 rounded-xl
+                bg-gradient-to-r from-red-500 to-rose-600
+                hover:from-red-400 hover:to-rose-500
+                text-white text-sm font-semibold
+                shadow-[0_8px_25px_rgba(239,68,68,0.18)]
+                hover:shadow-[0_8px_30px_rgba(239,68,68,0.3)]
+                border border-red-400/20
+                disabled:opacity-50 disabled:cursor-not-allowed
+                transition-all duration-200
+              "
             >
-              <Square size={16} fill="currentColor" />
+              <span className="absolute inset-0 rounded-xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-              {ending ? "Ending..." : "End class"}
+              <Square
+                size={15}
+                fill="currentColor"
+                className="relative"
+              />
+
+              <span className="relative">
+                {ending ? "Ending..." : "End class"}
+              </span>
             </button>
           )}
 
           {/* Divider */}
-          <div className="hidden sm:block w-px h-8 bg-gray-200 mx-1" />
+          <div className="hidden sm:block w-px h-8 bg-white/[0.08] mx-1" />
 
           {/* Panels */}
           {panels.map((panel) => {
@@ -139,13 +181,49 @@ export default function ClassroomToolbar({
                 key={panel.id}
                 type="button"
                 onClick={() => handlePanelClick(panel.id)}
-                className={`flex-shrink-0 inline-flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
-                  active
-                    ? "bg-indigo-100 text-indigo-700"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                }`}
+                className={`
+                  group relative flex-shrink-0
+                  inline-flex items-center gap-2
+                  px-3 py-2.5 rounded-xl
+                  text-sm font-medium
+                  border
+                  transition-all duration-200
+
+                  ${
+                    active
+                      ? `
+                        bg-indigo-500/15
+                        text-indigo-300
+                        border-indigo-400/25
+                        shadow-[0_0_20px_rgba(99,102,241,0.10)]
+                      `
+                      : `
+                        bg-white/[0.025]
+                        text-slate-400
+                        border-white/[0.06]
+                        hover:bg-white/[0.07]
+                        hover:text-white
+                        hover:border-white/[0.12]
+                      `
+                  }
+                `}
               >
-                <Icon size={17} />
+                {/* Active indicator */}
+                {active && (
+                  <span className="absolute left-1/2 -bottom-[1px] -translate-x-1/2 w-5 h-[2px] rounded-full bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.9)]" />
+                )}
+
+                <Icon
+                  size={17}
+                  className={`
+                    transition-transform duration-200
+                    ${
+                      active
+                        ? "text-indigo-300"
+                        : "text-slate-500 group-hover:text-slate-200"
+                    }
+                  `}
+                />
 
                 <span className="hidden md:inline">
                   {panel.label}
@@ -154,11 +232,26 @@ export default function ClassroomToolbar({
                 {panel.id === "participants" &&
                   participantCount > 0 && (
                     <span
-                      className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        active
-                          ? "bg-indigo-600 text-white"
-                          : "bg-gray-200 text-gray-700"
-                      }`}
+                      className={`
+                        min-w-[20px] h-5 px-1.5
+                        rounded-full
+                        flex items-center justify-center
+                        text-[10px] font-bold
+                        border
+                        ${
+                          active
+                            ? `
+                              bg-indigo-500/20
+                              text-indigo-200
+                              border-indigo-400/20
+                            `
+                            : `
+                              bg-white/[0.07]
+                              text-slate-400
+                              border-white/[0.06]
+                            `
+                        }
+                      `}
                     >
                       {participantCount}
                     </span>
@@ -172,11 +265,35 @@ export default function ClassroomToolbar({
             type="button"
             onClick={handleScreenShare}
             disabled={!isLive}
-            className={`flex-shrink-0 inline-flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
-              screenSharing
-                ? "bg-blue-100 text-blue-700"
-                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-            } disabled:opacity-40 disabled:cursor-not-allowed`}
+            className={`
+              group relative flex-shrink-0
+              inline-flex items-center gap-2
+              px-3 py-2.5 rounded-xl
+              text-sm font-medium
+              border
+              transition-all duration-200
+
+              ${
+                screenSharing
+                  ? `
+                    bg-sky-500/15
+                    text-sky-300
+                    border-sky-400/25
+                    shadow-[0_0_20px_rgba(14,165,233,0.12)]
+                  `
+                  : `
+                    bg-white/[0.025]
+                    text-slate-400
+                    border-white/[0.06]
+                    hover:bg-white/[0.07]
+                    hover:text-white
+                    hover:border-white/[0.12]
+                  `
+              }
+
+              disabled:opacity-30
+              disabled:cursor-not-allowed
+            `}
             title={
               isLive
                 ? screenSharing
@@ -185,7 +302,14 @@ export default function ClassroomToolbar({
                 : "Start the class first"
             }
           >
-            <MonitorUp size={17} />
+            <MonitorUp
+              size={17}
+              className={
+                screenSharing
+                  ? "text-sky-300"
+                  : "text-slate-500 group-hover:text-slate-200"
+              }
+            />
 
             <span className="hidden lg:inline">
               {screenSharing ? "Stop share" : "Share screen"}
@@ -196,19 +320,47 @@ export default function ClassroomToolbar({
           <div className="flex-1 min-w-2" />
 
           {/* Live status */}
-          <div className="flex-shrink-0 flex items-center gap-2">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
+          <div
+            className={`
+              flex-shrink-0
+              flex items-center gap-2
+              px-3 py-2
+              rounded-xl
+              border
+              ${
                 isLive
-                  ? "bg-red-500 animate-pulse"
-                  : "bg-gray-400"
-              }`}
-            />
+                  ? "bg-red-500/10 border-red-400/15"
+                  : "bg-white/[0.025] border-white/[0.06]"
+              }
+            `}
+          >
+            <span className="relative flex items-center justify-center">
+              {isLive && (
+                <span className="absolute w-3 h-3 rounded-full bg-red-500/30 animate-ping" />
+              )}
+
+              <span
+                className={`
+                  relative w-2.5 h-2.5 rounded-full
+                  ${
+                    isLive
+                      ? "bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]"
+                      : "bg-slate-500"
+                  }
+                `}
+              />
+            </span>
 
             <span
-              className={`hidden sm:inline text-xs font-semibold ${
-                isLive ? "text-red-600" : "text-gray-500"
-              }`}
+              className={`
+                hidden sm:inline
+                text-xs font-bold tracking-wider
+                ${
+                  isLive
+                    ? "text-red-400"
+                    : "text-slate-500"
+                }
+              `}
             >
               {isLive ? "LIVE" : "NOT LIVE"}
             </span>
@@ -216,10 +368,25 @@ export default function ClassroomToolbar({
 
           {/* Timer */}
           {isLive && (
-            <div className="flex-shrink-0 flex items-center gap-1.5 text-gray-600 text-sm font-mono">
-              <Clock3 size={16} />
+            <div
+              className="
+                flex-shrink-0
+                flex items-center gap-2
+                px-3 py-2
+                rounded-xl
+                bg-white/[0.025]
+                border border-white/[0.06]
+                text-slate-300
+              "
+            >
+              <Clock3
+                size={15}
+                className="text-slate-500"
+              />
 
-              <span>{formatDuration(duration)}</span>
+              <span className="text-sm font-mono font-medium tracking-wide">
+                {formatDuration(duration)}
+              </span>
             </div>
           )}
         </div>
@@ -227,22 +394,38 @@ export default function ClassroomToolbar({
 
       {/* Live information bar */}
       {isLive && (
-        <div className="px-3 sm:px-4 py-2 border-t border-gray-100 bg-gray-50">
+        <div className="relative px-3 sm:px-5 py-2.5 border-t border-white/[0.06] bg-white/[0.015]">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <Radio
-                size={15}
-                className="text-red-500 flex-shrink-0"
-              />
 
-              <span className="text-xs text-gray-600 truncate">
+            {/* Live message */}
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-red-500/10 border border-red-400/10">
+                <Radio
+                  size={14}
+                  className="text-red-400"
+                />
+              </div>
+
+              <span className="text-xs text-slate-400 truncate">
                 Your class is currently live
               </span>
             </div>
 
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                <Users size={14} />
+            {/* Stats */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+
+              <div
+                className="
+                  flex items-center gap-1.5
+                  px-2.5 py-1.5
+                  rounded-lg
+                  bg-white/[0.025]
+                  border border-white/[0.05]
+                  text-xs text-slate-400
+                "
+              >
+                <Users size={13} className="text-slate-500" />
+
                 <span>
                   {participantCount}{" "}
                   {participantCount === 1
@@ -251,9 +434,25 @@ export default function ClassroomToolbar({
                 </span>
               </div>
 
-              <div className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500">
-                <Clock3 size={14} />
-                <span>{formatDuration(duration)}</span>
+              <div
+                className="
+                  hidden sm:flex
+                  items-center gap-1.5
+                  px-2.5 py-1.5
+                  rounded-lg
+                  bg-white/[0.025]
+                  border border-white/[0.05]
+                  text-xs text-slate-400
+                "
+              >
+                <Clock3
+                  size={13}
+                  className="text-slate-500"
+                />
+
+                <span>
+                  {formatDuration(duration)}
+                </span>
               </div>
             </div>
           </div>

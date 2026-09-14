@@ -147,10 +147,6 @@ const menuItems = [
         label: "Live Classroom",
         path: "/academy/tutor/live/classroom",
       },
-      {
-        label: "Past Classes",
-        path: "/academy/tutor/live/history",
-      },
     ],
   },
 
@@ -159,13 +155,6 @@ const menuItems = [
     label: "Attendance",
     icon: Users,
     path: "/academy/tutor/attendance",
-  },
-
-  {
-    id: "progress",
-    label: "Student Progress",
-    icon: BarChart3,
-    path: "/academy/tutor/progress",
   },
 
   {
@@ -184,18 +173,8 @@ const menuItems = [
         label: "Students",
         path: "/academy/tutor/messages/students",
       },
-      {
-        label: "Class Messages",
-        path: "/academy/tutor/messages/classes",
-      },
+      
     ],
-  },
-
-  {
-    id: "announcements",
-    label: "Announcements",
-    icon: Bell,
-    path: "/academy/tutor/announcements",
   },
 ];
 

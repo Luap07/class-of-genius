@@ -38,6 +38,7 @@ import academyLiveClassRoutes from "./routes/academyLiveClassRoutes.js";
 import academyTutorAttendanceRoutes from "./routes/academyTutorAttendance.js";
 import academyTutorMessages from "./routes/academyTutorMessages.js";
 import academyTutorAnnouncements from "./routes/academyTutorAnnouncements.js";
+import academyEnrollmentRoutes from "./routes/academyEnrollmentRoutes.js";
 
 // ============================================================
 // PATH CONFIGURATION
@@ -414,6 +415,8 @@ app.use(
   )
 );
 
+
+app.use( "/api/academy", academyEnrollmentRoutes );
 // ============================================================
 // PAYSTACK WEBHOOK RAW BODY
 // ============================================================

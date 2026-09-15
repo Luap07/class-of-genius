@@ -12,7 +12,10 @@ const router = express.Router();
 ========================================================= */
 
 const clean = (value) => {
-  if (value === undefined || value === null) return "";
+  if (value === undefined || value === null) {
+    return "";
+  }
+
   return String(value).trim();
 };
 
@@ -25,7 +28,9 @@ const normalizeName = (value) =>
     .trim();
 
 const uniqueArray = (value) => {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
 
   return [
     ...new Set(
@@ -37,7 +42,9 @@ const uniqueArray = (value) => {
 };
 
 const arrayFromValue = (value) => {
-  if (Array.isArray(value)) return value;
+  if (Array.isArray(value)) {
+    return value;
+  }
 
   if (
     value === null ||
@@ -66,7 +73,10 @@ const arrayFromValue = (value) => {
 };
 
 const jsonValue = (value, fallback = []) => {
-  if (value === null || value === undefined) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
     return fallback;
   }
 
@@ -131,8 +141,10 @@ const SUBJECT_ALIASES = {
   Accounting: "Accounting",
 
   "Social Studies": "Social Studies",
+
   "Christian Religious Studies":
     "Christian Religious Studies",
+
   "Islamic Religious Studies":
     "Islamic Religious Studies",
 
@@ -151,19 +163,25 @@ const SUBJECT_ALIASES = {
 const normalizeSubject = (subject) => {
   const value = clean(subject);
 
-  if (!value) return "";
+  if (!value) {
+    return "";
+  }
 
-  return (
-    SUBJECT_ALIASES[value] ||
-    SUBJECT_ALIASES[
-      Object.keys(SUBJECT_ALIASES).find(
-        (key) =>
-          key.toLowerCase() ===
-          value.toLowerCase()
-      )
-    ] ||
-    value
+  if (SUBJECT_ALIASES[value]) {
+    return SUBJECT_ALIASES[value];
+  }
+
+  const matchingKey = Object.keys(
+    SUBJECT_ALIASES
+  ).find(
+    (key) =>
+      key.toLowerCase() ===
+      value.toLowerCase()
   );
+
+  return matchingKey
+    ? SUBJECT_ALIASES[matchingKey]
+    : value;
 };
 
 const subjectsMatch = (a, b) => {
@@ -203,7 +221,10 @@ const normalizeAssignments = (value) => {
 
   return input
     .map((item) => {
-      if (!item || typeof item !== "object") {
+      if (
+        !item ||
+        typeof item !== "object"
+      ) {
         return null;
       }
 
@@ -329,6 +350,18 @@ const getTutorReferenceFromRequest = (
 };
 
 /* =========================================================
+   TUTOR VERIFICATION
+========================================================= */
+
+const isTutorVerified = (tutor) => {
+  return (
+    clean(
+      tutor.application_status
+    ).toLowerCase() === "verified"
+  );
+};
+
+/* =========================================================
    SERIALIZE TUTOR
 ========================================================= */
 
@@ -351,13 +384,17 @@ const serializeTutor = (tutor) => {
   const subjects = uniqueArray(
     assignmentSubjects.length
       ? assignmentSubjects
-      : arrayFromValue(tutor.subjects)
-  );
+      : arrayFromValue(
+          tutor.subjects
+        )
+    ).map(normalizeSubject);
 
   const classes = uniqueArray(
     assignmentClasses.length
       ? assignmentClasses
-      : arrayFromValue(tutor.classes)
+      : arrayFromValue(
+          tutor.classes
+        )
   );
 
   const teachingLevel =
@@ -379,6 +416,7 @@ const serializeTutor = (tutor) => {
     id: tutor.id,
 
     reference: tutor.reference,
+
     applicationReference:
       tutor.reference,
 
@@ -541,7 +579,118 @@ router.get(
 );
 
 /* =========================================================
+   ADMIN - GET ALL TUTORS
+   GET /api/academy/admin/tutors
+========================================================= */
+
+router.get(
+  "/admin/tutors",
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `
+          SELECT *
+          FROM academy_tutor_applications
+          ORDER BY created_at DESC
+        `
+      );
+
+      const tutors =
+        result.rows.map(
+          (tutor) =>
+            serializeTutor(tutor)
+        );
+
+      return res.status(200).json({
+        success: true,
+        tutors,
+        data: tutors,
+        results: tutors,
+        count: tutors.length,
+      });
+    } catch (error) {
+      console.error(
+        "GET ADMIN TUTORS ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to load tutor applications.",
+        tutors: [],
+        data: [],
+        results: [],
+        count: 0,
+        error:
+          error.message,
+      });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN - GET SINGLE TUTOR
+   GET /api/academy/admin/tutors/:reference
+========================================================= */
+
+router.get(
+  "/admin/tutors/:reference",
+  async (req, res) => {
+    try {
+      const reference =
+        clean(
+          req.params.reference
+        );
+
+      if (!reference) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Tutor reference is required.",
+        });
+      }
+
+      const tutor =
+        await findTutorByReference(
+          reference
+        );
+
+      if (!tutor) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Tutor not found.",
+        });
+      }
+
+      return res.json({
+        success: true,
+        tutor:
+          serializeTutor(tutor),
+        data:
+          serializeTutor(tutor),
+      });
+    } catch (error) {
+      console.error(
+        "GET ADMIN SINGLE TUTOR ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to load tutor.",
+        error:
+          error.message,
+      });
+    }
+  }
+);
+
+/* =========================================================
    TUTOR REGISTRATION
+   POST /api/academy/tutor-application
 ========================================================= */
 
 router.post(
@@ -550,7 +699,9 @@ router.post(
     try {
       const body = req.body || {};
 
-      /* PERSONAL INFORMATION */
+      /* =====================================================
+         PERSONAL INFORMATION
+      ===================================================== */
 
       const firstName = clean(
         body.firstName ??
@@ -595,7 +746,9 @@ router.post(
         body.state
       );
 
-      /* QUALIFICATION */
+      /* =====================================================
+         QUALIFICATION
+      ===================================================== */
 
       const highestQualification =
         clean(
@@ -632,7 +785,9 @@ router.post(
             body.professional_certification
         );
 
-      /* SPECIALIZATION */
+      /* =====================================================
+         SPECIALIZATION
+      ===================================================== */
 
       const specialization =
         clean(
@@ -641,7 +796,9 @@ router.post(
             body.course_of_study
         );
 
-      /* TEACHING EXPERIENCE */
+      /* =====================================================
+         TEACHING EXPERIENCE
+      ===================================================== */
 
       const yearsExperience = clean(
         body.yearsExperience ??
@@ -666,7 +823,9 @@ router.post(
             body.current_occupation
         );
 
-      /* TEACHING LEVEL */
+      /* =====================================================
+         TEACHING LEVEL
+      ===================================================== */
 
       const teachingLevel =
         uniqueArray(
@@ -676,7 +835,9 @@ router.post(
           )
         );
 
-      /* SUBJECTS */
+      /* =====================================================
+         SUBJECTS
+      ===================================================== */
 
       let subjects =
         uniqueArray(
@@ -691,7 +852,9 @@ router.post(
           normalizeSubject
         );
 
-      /* ASSIGNMENTS */
+      /* =====================================================
+         ASSIGNMENTS
+      ===================================================== */
 
       const assignments =
         normalizeAssignments(
@@ -702,7 +865,9 @@ router.post(
             body.class_subject_assignments
         );
 
-      /* CLASSES */
+      /* =====================================================
+         CLASSES
+      ===================================================== */
 
       let classes =
         uniqueArray(
@@ -712,7 +877,9 @@ router.post(
           )
         );
 
-      /* ASSIGNMENTS ARE SOURCE OF TRUTH */
+      /* =====================================================
+         ASSIGNMENTS ARE SOURCE OF TRUTH
+      ===================================================== */
 
       if (assignments.length > 0) {
         classes =
@@ -728,7 +895,9 @@ router.post(
           );
       }
 
-      /* AVAILABILITY */
+      /* =====================================================
+         AVAILABILITY
+      ===================================================== */
 
       const availableDays =
         uniqueArray(
@@ -753,7 +922,9 @@ router.post(
           body.preferred_mode
       );
 
-      /* OTHER */
+      /* =====================================================
+         OTHER
+      ===================================================== */
 
       const motivation = clean(
         body.motivation
@@ -773,7 +944,9 @@ router.post(
               currentOccupation,
             };
 
-      /* VALIDATION */
+      /* =====================================================
+         VALIDATION
+      ===================================================== */
 
       if (!firstName) {
         return res.status(400).json({
@@ -821,12 +994,16 @@ router.post(
         });
       }
 
-      /* DUPLICATE EMAIL */
+      /* =====================================================
+         DUPLICATE EMAIL
+      ===================================================== */
 
       const existing =
         await pool.query(
           `
-            SELECT reference
+            SELECT
+              reference,
+              application_status
             FROM academy_tutor_applications
             WHERE LOWER(email) = LOWER($1)
             ORDER BY created_at DESC
@@ -847,10 +1024,15 @@ router.post(
           reference:
             existing.rows[0]
               .reference,
+          applicationStatus:
+            existing.rows[0]
+              .application_status,
         });
       }
 
-      /* REFERENCE */
+      /* =====================================================
+         REFERENCE
+      ===================================================== */
 
       const reference =
         `TUT-${Date.now()
@@ -860,7 +1042,9 @@ router.post(
           .toString("hex")
           .toUpperCase()}`;
 
-      /* INSERT */
+      /* =====================================================
+         INSERT
+      ===================================================== */
 
       const result =
         await pool.query(
@@ -1010,7 +1194,10 @@ router.post(
       const tutor =
         result.rows[0];
 
-      res.status(201).json({
+      const serialized =
+        serializeTutor(tutor);
+
+      return res.status(201).json({
         success: true,
 
         message:
@@ -1030,11 +1217,9 @@ router.post(
             tutor.assignments
           ),
 
-        tutor:
-          serializeTutor(tutor),
+        tutor: serialized,
 
-        application:
-          serializeTutor(tutor),
+        application: serialized,
       });
     } catch (error) {
       console.error(
@@ -1042,11 +1227,13 @@ router.post(
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           error.message ||
           "Failed to submit tutor application.",
+        error:
+          error.message,
       });
     }
   }
@@ -1054,6 +1241,7 @@ router.post(
 
 /* =========================================================
    TUTOR LOGIN
+   POST /api/academy/tutor-login
 ========================================================= */
 
 router.post(
@@ -1097,10 +1285,13 @@ router.post(
         });
       }
 
-      if (
+      const registeredName =
         normalizeName(
           getTutorName(tutor)
-        ).toLowerCase() !==
+        ).toLowerCase();
+
+      if (
+        registeredName !==
         fullName.toLowerCase()
       ) {
         return res.status(401).json({
@@ -1110,7 +1301,28 @@ router.post(
         });
       }
 
-      res.json({
+      /* =====================================================
+         TUTOR MUST BE VERIFIED BEFORE LOGIN
+      ===================================================== */
+
+      if (
+        !isTutorVerified(tutor)
+      ) {
+        return res.status(403).json({
+          success: false,
+          code:
+            "TUTOR_NOT_VERIFIED",
+          message:
+            "Your tutor application has not been verified yet. Please wait for admin approval.",
+          applicationStatus:
+            tutor.application_status ||
+            "pending",
+          tutor:
+            serializeTutor(tutor),
+        });
+      }
+
+      return res.json({
         success: true,
         message:
           "Tutor login successful.",
@@ -1123,10 +1335,12 @@ router.post(
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           "Unable to login tutor.",
+        error:
+          error.message,
       });
     }
   }
@@ -1134,6 +1348,7 @@ router.post(
 
 /* =========================================================
    GET TUTOR PROFILE
+   GET /api/academy/tutor/profile
 ========================================================= */
 
 router.get(
@@ -1166,12 +1381,13 @@ router.get(
         });
       }
 
-      res.json({
+      const serialized =
+        serializeTutor(tutor);
+
+      return res.json({
         success: true,
-        tutor:
-          serializeTutor(tutor),
-        profile:
-          serializeTutor(tutor),
+        tutor: serialized,
+        profile: serialized,
       });
     } catch (error) {
       console.error(
@@ -1179,10 +1395,12 @@ router.get(
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           "Failed to load tutor profile.",
+        error:
+          error.message,
       });
     }
   }
@@ -1190,6 +1408,7 @@ router.get(
 
 /* =========================================================
    UPDATE TUTOR PROFILE
+   PATCH /api/academy/tutor/profile
 ========================================================= */
 
 router.patch(
@@ -1244,7 +1463,9 @@ router.patch(
         );
       };
 
-      /* PERSONAL */
+      /* =====================================================
+         PERSONAL
+      ===================================================== */
 
       if (
         body.firstName !==
@@ -1355,7 +1576,9 @@ router.patch(
         );
       }
 
-      /* QUALIFICATION */
+      /* =====================================================
+         QUALIFICATION
+      ===================================================== */
 
       if (
         body.qualification !==
@@ -1452,7 +1675,9 @@ router.patch(
         );
       }
 
-      /* TEACHING EXPERIENCE */
+      /* =====================================================
+         TEACHING EXPERIENCE
+      ===================================================== */
 
       if (
         body.experience !==
@@ -1510,7 +1735,9 @@ router.patch(
         );
       }
 
-      /* TEACHING LEVEL */
+      /* =====================================================
+         TEACHING LEVEL
+      ===================================================== */
 
       if (
         body.teachingLevel !==
@@ -1531,7 +1758,9 @@ router.patch(
         );
       }
 
-      /* ASSIGNMENTS */
+      /* =====================================================
+         ASSIGNMENTS
+      ===================================================== */
 
       if (
         body.assignments !==
@@ -1588,7 +1817,9 @@ router.patch(
         );
       }
 
-      /* AVAILABILITY */
+      /* =====================================================
+         AVAILABILITY
+      ===================================================== */
 
       if (
         body.availableDays !==
@@ -1654,7 +1885,9 @@ router.patch(
         );
       }
 
-      /* MOTIVATION */
+      /* =====================================================
+         MOTIVATION
+      ===================================================== */
 
       if (
         body.motivation !==
@@ -1668,7 +1901,9 @@ router.patch(
         );
       }
 
-      /* AGREEMENT */
+      /* =====================================================
+         AGREEMENT
+      ===================================================== */
 
       if (
         body.agreement !==
@@ -1676,14 +1911,14 @@ router.patch(
       ) {
         addUpdate(
           "agreement",
-          body.agreement ===
-            true ||
-            body.agreement ===
-              "true"
+          body.agreement === true ||
+            body.agreement === "true"
         );
       }
 
-      /* BIO */
+      /* =====================================================
+         BIO
+      ===================================================== */
 
       if (
         body.bio !==
@@ -1699,19 +1934,22 @@ router.patch(
         );
       }
 
-      /* NOTHING TO UPDATE */
+      /* =====================================================
+         NOTHING TO UPDATE
+      ===================================================== */
 
       if (
         updates.length === 0
       ) {
+        const serialized =
+          serializeTutor(tutor);
+
         return res.json({
           success: true,
           message:
             "Nothing to update.",
-          tutor:
-            serializeTutor(
-              tutor
-            ),
+          tutor: serialized,
+          profile: serialized,
         });
       }
 
@@ -1733,21 +1971,20 @@ router.patch(
       const updatedTutor =
         result.rows[0];
 
-      res.json({
+      const serialized =
+        serializeTutor(
+          updatedTutor
+        );
+
+      return res.json({
         success: true,
 
         message:
           "Tutor profile updated successfully.",
 
-        tutor:
-          serializeTutor(
-            updatedTutor
-          ),
+        tutor: serialized,
 
-        profile:
-          serializeTutor(
-            updatedTutor
-          ),
+        profile: serialized,
       });
     } catch (error) {
       console.error(
@@ -1755,7 +1992,7 @@ router.patch(
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           "Failed to update tutor profile.",
@@ -1768,12 +2005,13 @@ router.patch(
 
 /* =========================================================
    PROFILE IMAGE UPLOAD
-   IMPORTANT:
-   FRONTEND SENDS:
-      formData.append("image", file)
+   POST /api/academy/tutor/profile/image
 
-   THEREFORE MULTER MUST USE:
-      .single("image")
+   FRONTEND:
+   formData.append("image", file)
+
+   HEADER:
+   x-tutor-reference
 ========================================================= */
 
 const tutorUploadDir =
@@ -1811,10 +2049,11 @@ const tutorImageStorage =
       const reference =
         getTutorReferenceFromRequest(
           req
-        ).replace(
-          /[^a-zA-Z0-9_-]/g,
-          ""
-        );
+        )
+          .replace(
+            /[^a-zA-Z0-9_-]/g,
+            ""
+          );
 
       const extension =
         path.extname(
@@ -1875,15 +2114,6 @@ const tutorImageUpload =
 router.post(
   "/tutor/profile/image",
 
-  /*
-   * FIXED:
-   *
-   * Your TutorProfile.jsx has:
-   *
-   * formData.append("image", file)
-   *
-   * So this MUST be "image".
-   */
   tutorImageUpload.single(
     "image"
   ),
@@ -1899,6 +2129,14 @@ router.post(
         );
 
       if (!reference) {
+        if (req.file?.path) {
+          try {
+            fs.unlinkSync(
+              req.file.path
+            );
+          } catch {}
+        }
+
         return res.status(400).json({
           success: false,
           message:
@@ -1920,10 +2158,6 @@ router.post(
         );
 
       if (!tutor) {
-        /*
-         * Delete newly uploaded file
-         * if tutor does not exist.
-         */
         try {
           fs.unlinkSync(
             req.file.path
@@ -1940,9 +2174,9 @@ router.post(
       const imageUrl =
         `/uploads/tutors/${req.file.filename}`;
 
-      /* ---------------------------------------------
+      /* =====================================================
          DELETE OLD LOCAL IMAGE
-      --------------------------------------------- */
+      ===================================================== */
 
       if (
         tutor.profile_image_url &&
@@ -1977,9 +2211,9 @@ router.post(
         }
       }
 
-      /* ---------------------------------------------
+      /* =====================================================
          SAVE IMAGE URL
-      --------------------------------------------- */
+      ===================================================== */
 
       const result =
         await pool.query(
@@ -2000,7 +2234,12 @@ router.post(
       const updatedTutor =
         result.rows[0];
 
-      res.json({
+      const serialized =
+        serializeTutor(
+          updatedTutor
+        );
+
+      return res.json({
         success: true,
 
         message:
@@ -2014,15 +2253,9 @@ router.post(
         profileImage:
           imageUrl,
 
-        tutor:
-          serializeTutor(
-            updatedTutor
-          ),
+        tutor: serialized,
 
-        profile:
-          serializeTutor(
-            updatedTutor
-          ),
+        profile: serialized,
       });
     } catch (error) {
       console.error(
@@ -2030,11 +2263,6 @@ router.post(
         error
       );
 
-      /*
-       * If database update fails after
-       * the file was uploaded, remove
-       * the newly uploaded file.
-       */
       if (req.file?.path) {
         try {
           fs.unlinkSync(
@@ -2043,7 +2271,7 @@ router.post(
         } catch {}
       }
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           error.message ||
@@ -2055,7 +2283,11 @@ router.post(
 
 /* =========================================================
    GET TUTOR CLASSES
-   RETURNS EXACT REGISTERED CLASS/SUBJECT PAIRS
+
+   GET /api/academy/tutor/classes
+
+   RETURNS EXACT REGISTERED
+   CLASS/SUBJECT PAIRS
 ========================================================= */
 
 router.get(
@@ -2123,7 +2355,7 @@ router.get(
           })
         );
 
-      res.json({
+      return res.json({
         success: true,
 
         reference:
@@ -2144,10 +2376,12 @@ router.get(
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           "Failed to load tutor classes.",
+        error:
+          error.message,
       });
     }
   }
@@ -2155,6 +2389,9 @@ router.get(
 
 /* =========================================================
    GET TUTOR CLASS + SUBJECT
+
+   GET:
+   /api/academy/tutor/classes/:grade/:subject
 ========================================================= */
 
 router.get(
@@ -2241,7 +2478,7 @@ router.get(
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
 
         class:
@@ -2269,14 +2506,95 @@ router.get(
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           "Failed to load tutor class.",
+        error:
+          error.message,
       });
     }
   }
 );
+
+/* =========================================================
+   VERIFY TUTOR CLASS + SUBJECT HELPER
+
+   This helper can be reused by other tutor route files
+   if they import it from this module in the future.
+========================================================= */
+
+const verifyTutorClassSubject = async (
+  reference,
+  grade,
+  subject
+) => {
+  const tutor =
+    await findTutorByReference(
+      reference
+    );
+
+  if (!tutor) {
+    return {
+      ok: false,
+      status: 404,
+      message:
+        "Tutor not found.",
+    };
+  }
+
+  const assignments =
+    normalizeAssignments(
+      tutor.assignments
+    );
+
+  const assignment =
+    assignments.find(
+      (item) =>
+        classesMatch(
+          item.class,
+          grade
+        )
+    );
+
+  if (!assignment) {
+    return {
+      ok: false,
+      status: 403,
+      message:
+        "You are not assigned to this class.",
+    };
+  }
+
+  const normalizedSubject =
+    normalizeSubject(subject);
+
+  const allowed =
+    assignment.subjects.some(
+      (item) =>
+        subjectsMatch(
+          item,
+          normalizedSubject
+        )
+    );
+
+  if (!allowed) {
+    return {
+      ok: false,
+      status: 403,
+      message:
+        "You are not assigned to this subject for this class.",
+    };
+  }
+
+  return {
+    ok: true,
+    tutor,
+    assignment,
+    subject:
+      normalizedSubject,
+  };
+};
 
 /* =========================================================
    MULTER ERROR HANDLER
@@ -2334,5 +2652,21 @@ router.use(
     next();
   }
 );
+
+export {
+  clean,
+  normalizeSubject,
+  normalizeClass,
+  subjectsMatch,
+  classesMatch,
+  normalizeAssignments,
+  getClassesFromAssignments,
+  getSubjectsFromAssignments,
+  getTutorSubjectsForClass,
+  findTutorByReference,
+  getTutorReferenceFromRequest,
+  serializeTutor,
+  verifyTutorClassSubject,
+};
 
 export default router;

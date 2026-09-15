@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
@@ -37,14 +38,13 @@ const REQUEST_TIMEOUT = 15000;
 const ACADEMY_TOKEN_KEY = "scholiqen_academy_token";
 const ACADEMY_USER_KEY = "scholiqen_academy_user";
 
-/*
-  These are also saved because some tutor pages/components
-  may still read one of the older tutor keys.
-*/
 const TUTOR_STORAGE_KEYS = [
   "tutor",
   "currentTutor",
   "loggedInTutor",
+  "academyTutor",
+  "scholiqenTutor",
+  "tutorUser",
 ];
 
 /* =========================================================
@@ -79,9 +79,6 @@ const arrayFromValue = (value) => {
       return [];
     }
 
-    /*
-      JSON array
-    */
     try {
       const parsed = JSON.parse(trimmed);
 
@@ -89,12 +86,9 @@ const arrayFromValue = (value) => {
         return parsed;
       }
     } catch {
-      // Not JSON. Continue.
+      // Continue with comma-separated fallback.
     }
 
-    /*
-      Comma separated fallback
-    */
     return trimmed
       .split(",")
       .map((item) => item.trim())
@@ -120,20 +114,8 @@ const normalizeAssignmentSubject = (value) => {
     .trim();
 };
 
-/*
-  Converts all supported assignment formats into:
-
-  {
-    class: "JSS 1",
-    subject: "Mathematics"
-  }
-
-  The backend currently uses this format.
-*/
-
 const normalizeAssignments = (value) => {
   const source = arrayFromValue(value);
-
   const output = [];
 
   source.forEach((item) => {
@@ -141,10 +123,10 @@ const normalizeAssignments = (value) => {
       return;
     }
 
-    /*
-      Already an object
-    */
-    if (typeof item === "object" && !Array.isArray(item)) {
+    if (
+      typeof item === "object" &&
+      !Array.isArray(item)
+    ) {
       const className = normalizeAssignmentClass(
         item.class ??
           item.grade ??
@@ -153,15 +135,6 @@ const normalizeAssignments = (value) => {
           item.class_name ??
           ""
       );
-
-      /*
-        Backend format:
-
-        {
-          class: "JSS 1",
-          subject: "Mathematics"
-        }
-      */
 
       const directSubject = normalizeAssignmentSubject(
         item.subject ??
@@ -176,15 +149,6 @@ const normalizeAssignments = (value) => {
           subject: directSubject,
         });
       }
-
-      /*
-        Older format:
-
-        {
-          class: "JSS 1",
-          subjects: ["Mathematics", "English Language"]
-        }
-      */
 
       const subjects = arrayFromValue(
         item.subjects ??
@@ -207,12 +171,6 @@ const normalizeAssignments = (value) => {
 
       return;
     }
-
-    /*
-      String fallback:
-
-      "JSS 1 - Mathematics"
-      */
 
     if (typeof item === "string") {
       const value = item.trim();
@@ -258,10 +216,6 @@ const normalizeAssignments = (value) => {
     }
   });
 
-  /*
-    Remove duplicates
-  */
-
   const seen = new Set();
 
   return output.filter((item) => {
@@ -297,33 +251,26 @@ const getTutorReference = (tutor) => {
 };
 
 /* =========================================================
-   GET ALL ASSIGNMENTS FROM RESPONSE
+   GET ASSIGNMENTS FROM RESPONSE
 ========================================================= */
 
-const getAssignmentsFromResponse = (data, tutorData) => {
+const getAssignmentsFromResponse = (
+  data,
+  tutorData
+) => {
   const possibleSources = [
-    /*
-      Most important:
-      assignments inside tutor
-    */
     tutorData?.assignments,
     tutorData?.teaching_assignments,
     tutorData?.teachingAssignments,
     tutorData?.class_subject_assignments,
     tutorData?.classSubjectAssignments,
 
-    /*
-      Backend may also return assignments at root
-    */
     data?.assignments,
     data?.teaching_assignments,
     data?.teachingAssignments,
     data?.class_subject_assignments,
     data?.classSubjectAssignments,
 
-    /*
-      Nested data
-    */
     data?.data?.assignments,
     data?.data?.teaching_assignments,
     data?.data?.teachingAssignments,
@@ -343,7 +290,7 @@ const getAssignmentsFromResponse = (data, tutorData) => {
 };
 
 /* =========================================================
-   BUILD CLASS / SUBJECT ARRAYS
+   UNIQUE ARRAY
 ========================================================= */
 
 const uniqueArray = (values) => {
@@ -371,7 +318,7 @@ const uniqueArray = (values) => {
 };
 
 /* =========================================================
-   SMALL INPUT COMPONENT
+   INPUT COMPONENT
 ========================================================= */
 
 function InputField({
@@ -385,12 +332,15 @@ function InputField({
   disabled = false,
   autoComplete,
 }) {
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] =
+    useState(false);
 
   const isPassword = type === "password";
 
   const inputType =
-    isPassword && showPassword ? "text" : type;
+    isPassword && showPassword
+      ? "text"
+      : type;
 
   return (
     <div className="space-y-2">
@@ -446,7 +396,9 @@ function InputField({
           <button
             type="button"
             onClick={() =>
-              setShowPassword((current) => !current)
+              setShowPassword(
+                (current) => !current
+              )
             }
             disabled={disabled}
             className="
@@ -550,25 +502,43 @@ export default function TutorEnrollmentLogin() {
   ======================================================= */
 
   const saveTutorSession = (session) => {
-    const serialized = JSON.stringify(session);
+    const serialized =
+      JSON.stringify(session);
 
-    /*
-      Main session
-    */
     localStorage.setItem(
       ACADEMY_USER_KEY,
       serialized
     );
 
-    /*
-      Compatibility keys for existing tutor pages.
-    */
     TUTOR_STORAGE_KEYS.forEach((key) => {
-      localStorage.setItem(key, serialized);
+      localStorage.setItem(
+        key,
+        serialized
+      );
     });
 
     /*
-      Useful aliases for older components.
+      Save the reference separately too.
+      This is useful for pages that only need
+      the tutor reference.
+    */
+    const tutorReference =
+      getTutorReference(session);
+
+    if (tutorReference) {
+      localStorage.setItem(
+        "tutorReference",
+        tutorReference
+      );
+
+      localStorage.setItem(
+        "tutor_reference",
+        tutorReference
+      );
+    }
+
+    /*
+      Save aliases used by older Academy pages.
     */
     localStorage.setItem(
       "academyTutor",
@@ -604,44 +574,81 @@ export default function TutorEnrollmentLogin() {
     setSubmitting(true);
     setSubmitError("");
 
-    const controller = new AbortController();
+    const controller =
+      new AbortController();
 
-    const timeoutId = window.setTimeout(() => {
-      controller.abort();
-    }, REQUEST_TIMEOUT);
+    const timeoutId =
+      window.setTimeout(() => {
+        controller.abort();
+      }, REQUEST_TIMEOUT);
+
+    /*
+      IMPORTANT:
+      Backend expects:
+
+        name
+        reference
+
+      NOT:
+
+        referenceId
+    */
+    const fullName = clean(form.name);
+    const tutorReference =
+      clean(form.referenceId);
 
     try {
-      const response = await fetch(TUTOR_LOGIN_URL, {
-        method: "POST",
+      const response = await fetch(
+        TUTOR_LOGIN_URL,
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+          headers: {
+            "Content-Type":
+              "application/json",
+            Accept: "application/json",
+          },
 
-        body: JSON.stringify({
-          name: clean(form.name),
-          referenceId: clean(form.referenceId),
-        }),
+          /*
+            THIS IS THE MAIN FIX.
 
-        signal: controller.signal,
+            Before:
+              referenceId: tutorReference
 
-        credentials: "same-origin",
-      });
+            Now:
+              reference: tutorReference
+          */
+          body: JSON.stringify({
+            name: fullName,
+            reference: tutorReference,
+          }),
+
+          signal: controller.signal,
+
+          credentials: "same-origin",
+        }
+      );
 
       let data = {};
 
       const contentType =
-        response.headers.get("content-type") || "";
+        response.headers.get(
+          "content-type"
+        ) || "";
 
-      if (contentType.includes("application/json")) {
+      if (
+        contentType.includes(
+          "application/json"
+        )
+      ) {
         try {
           data = await response.json();
         } catch {
           data = {};
         }
       } else {
-        const text = await response.text();
+        const text =
+          await response.text();
 
         data = {
           message:
@@ -654,7 +661,10 @@ export default function TutorEnrollmentLogin() {
          LOGIN FAILED
       =================================================== */
 
-      if (!response.ok || !data.success) {
+      if (
+        !response.ok ||
+        !data.success
+      ) {
         setSubmitError(
           clean(data.message) ||
             clean(data.error) ||
@@ -674,30 +684,30 @@ export default function TutorEnrollmentLogin() {
         ...(data?.data?.tutor || {}),
       };
 
-      /*
-        If the backend put the tutor itself inside data.data,
-        preserve it too.
-      */
       if (
         data?.data &&
         typeof data.data === "object" &&
         !Array.isArray(data.data)
       ) {
-        Object.assign(tutorData, data.data);
+        Object.assign(
+          tutorData,
+          data.data
+        );
       }
 
       /* ===================================================
          GET REFERENCE
       =================================================== */
 
-      const tutorReference =
+      const returnedTutorReference =
         getTutorReference(tutorData) ||
         clean(data?.reference) ||
         clean(data?.tutorReference) ||
         clean(data?.tutor_reference) ||
-        clean(data?.data?.reference);
+        clean(data?.data?.reference) ||
+        tutorReference;
 
-      if (!tutorReference) {
+      if (!returnedTutorReference) {
         console.error(
           "Tutor login succeeded but backend did not return a tutor reference.",
           {
@@ -723,39 +733,39 @@ export default function TutorEnrollmentLogin() {
           tutorData
         );
 
-      /*
-        Build classes and subjects directly from assignments.
+      /* ===================================================
+         BUILD CLASS / SUBJECT ARRAYS
+      =================================================== */
 
-        This is important because Create Task needs to know
-        exactly which class + subject belongs to the tutor.
-      */
+      const assignmentClasses =
+        uniqueArray(
+          assignments.map(
+            (item) => item.class
+          )
+        );
 
-      const assignmentClasses = uniqueArray(
-        assignments.map((item) => item.class)
-      );
+      const assignmentSubjects =
+        uniqueArray(
+          assignments.map(
+            (item) => item.subject
+          )
+        );
 
-      const assignmentSubjects = uniqueArray(
-        assignments.map((item) => item.subject)
-      );
+      const backendClasses =
+        uniqueArray(
+          tutorData?.classes ??
+            data?.classes ??
+            data?.data?.classes ??
+            []
+        );
 
-      /*
-        Preserve backend classes/subjects too, but assignments
-        remain the source of truth.
-      */
-
-      const backendClasses = uniqueArray(
-        tutorData?.classes ??
-          data?.classes ??
-          data?.data?.classes ??
-          []
-      );
-
-      const backendSubjects = uniqueArray(
-        tutorData?.subjects ??
-          data?.subjects ??
-          data?.data?.subjects ??
-          []
-      );
+      const backendSubjects =
+        uniqueArray(
+          tutorData?.subjects ??
+            data?.subjects ??
+            data?.data?.subjects ??
+            []
+        );
 
       const classes = uniqueArray([
         ...assignmentClasses,
@@ -774,43 +784,37 @@ export default function TutorEnrollmentLogin() {
       const tutorSession = {
         ...tutorData,
 
-        /*
-          Identity
-        */
-        reference: tutorReference,
-        tutorReference,
-        tutor_reference: tutorReference,
+        reference:
+          returnedTutorReference,
 
-        /*
-          Account type
-        */
+        tutorReference:
+          returnedTutorReference,
+
+        tutor_reference:
+          returnedTutorReference,
+
         userType: "tutor",
         user_type: "tutor",
 
-        /*
-          Teaching information
-        */
         classes,
         subjects,
 
-        /*
-          MOST IMPORTANT:
-          Exact class + subject assignments
-        */
         assignments,
 
-        /*
-          Additional aliases for older components
-        */
-        teaching_assignments: assignments,
-        teachingAssignments: assignments,
-        class_subject_assignments: assignments,
-        classSubjectAssignments: assignments,
+        teaching_assignments:
+          assignments,
 
-        /*
-          Login timestamp
-        */
-        loggedInAt: new Date().toISOString(),
+        teachingAssignments:
+          assignments,
+
+        class_subject_assignments:
+          assignments,
+
+        classSubjectAssignments:
+          assignments,
+
+        loggedInAt:
+          new Date().toISOString(),
       };
 
       /* ===================================================
@@ -820,7 +824,9 @@ export default function TutorEnrollmentLogin() {
       console.log(
         "TUTOR LOGIN SUCCESS:",
         {
-          reference: tutorReference,
+          name: fullName,
+          reference:
+            returnedTutorReference,
           classes,
           subjects,
           assignments,
@@ -843,7 +849,9 @@ export default function TutorEnrollmentLogin() {
          SAVE COMPLETE SESSION
       =================================================== */
 
-      saveTutorSession(tutorSession);
+      saveTutorSession(
+        tutorSession
+      );
 
       /* ===================================================
          VERIFY STORAGE
@@ -862,12 +870,11 @@ export default function TutorEnrollmentLogin() {
         return;
       }
 
-      /*
-        Verify that assignments actually made it into storage.
-      */
       try {
         const parsedSession =
-          JSON.parse(savedSession);
+          JSON.parse(
+            savedSession
+          );
 
         console.log(
           "SAVED TUTOR SESSION:",
@@ -875,10 +882,17 @@ export default function TutorEnrollmentLogin() {
         );
 
         console.log(
+          "SAVED TUTOR REFERENCE:",
+          parsedSession?.reference
+        );
+
+        console.log(
           "SAVED TUTOR ASSIGNMENTS:",
           parsedSession?.assignments || []
         );
-      } catch (storageError) {
+      } catch (
+        storageError
+      ) {
         console.error(
           "Could not verify saved tutor session:",
           storageError
@@ -897,14 +911,18 @@ export default function TutorEnrollmentLogin() {
       =================================================== */
 
       window.setTimeout(() => {
-        navigate("/academy/tutor", {
-          replace: true,
-          state: {
-            tutor: tutorSession,
-            reference: tutorReference,
-            assignments,
-          },
-        });
+        navigate(
+          "/academy/tutor",
+          {
+            replace: true,
+            state: {
+              tutor: tutorSession,
+              reference:
+                returnedTutorReference,
+              assignments,
+            },
+          }
+        );
       }, 1200);
     } catch (error) {
       console.error(
@@ -912,7 +930,10 @@ export default function TutorEnrollmentLogin() {
         error
       );
 
-      if (error?.name === "AbortError") {
+      if (
+        error?.name ===
+        "AbortError"
+      ) {
         setSubmitError(
           "The Academy server took too long to respond. Please make sure the backend server is running and try again."
         );
@@ -926,13 +947,19 @@ export default function TutorEnrollmentLogin() {
       if (
         errorMessage
           .toLowerCase()
-          .includes("failed to fetch") ||
+          .includes(
+            "failed to fetch"
+          ) ||
         errorMessage
           .toLowerCase()
-          .includes("networkerror") ||
+          .includes(
+            "networkerror"
+          ) ||
         errorMessage
           .toLowerCase()
-          .includes("network error")
+          .includes(
+            "network error"
+          )
       ) {
         setSubmitError(
           `Cannot connect to the Academy server at ${API_URL}. Make sure your backend is running and that VITE_API_URL points to the correct server.`
@@ -945,7 +972,10 @@ export default function TutorEnrollmentLogin() {
         "Unable to connect to the Academy server. Please try again."
       );
     } finally {
-      window.clearTimeout(timeoutId);
+      window.clearTimeout(
+        timeoutId
+      );
+
       setSubmitting(false);
     }
   };
@@ -961,7 +991,9 @@ export default function TutorEnrollmentLogin() {
       "";
 
     const assignmentCount =
-      Array.isArray(tutor?.assignments)
+      Array.isArray(
+        tutor?.assignments
+      )
         ? tutor.assignments.length
         : 0;
 
@@ -979,8 +1011,6 @@ export default function TutorEnrollmentLogin() {
           text-white
         "
       >
-        {/* Background glow */}
-
         <div
           className="
             absolute
@@ -1007,8 +1037,6 @@ export default function TutorEnrollmentLogin() {
           "
         />
 
-        {/* Dotted background */}
-
         <div
           className="
             pointer-events-none
@@ -1019,11 +1047,10 @@ export default function TutorEnrollmentLogin() {
           style={{
             backgroundImage:
               "radial-gradient(circle, #38bdf8 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
+            backgroundSize:
+              "24px 24px",
           }}
         />
-
-        {/* Success Card */}
 
         <motion.div
           initial={{
@@ -1053,8 +1080,12 @@ export default function TutorEnrollmentLogin() {
           "
         >
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
+            initial={{
+              scale: 0,
+            }}
+            animate={{
+              scale: 1,
+            }}
             transition={{
               delay: 0.15,
               type: "spring",
@@ -1090,13 +1121,7 @@ export default function TutorEnrollmentLogin() {
               : "Tutor login successful."}
           </p>
 
-          <div
-            className="
-              mt-4
-              text-xs
-              text-slate-500
-            "
-          >
+          <div className="mt-4 text-xs text-slate-500">
             {assignmentCount > 0
               ? `${assignmentCount} teaching assignment${
                   assignmentCount === 1
@@ -1143,9 +1168,7 @@ export default function TutorEnrollmentLogin() {
         text-white
       "
     >
-      {/* ===================================================
-          BACKGROUND
-      =================================================== */}
+      {/* BACKGROUND */}
 
       <div
         className="
@@ -1202,14 +1225,13 @@ export default function TutorEnrollmentLogin() {
           style={{
             backgroundImage:
               "radial-gradient(circle, #38bdf8 1px, transparent 1px)",
-            backgroundSize: "26px 26px",
+            backgroundSize:
+              "26px 26px",
           }}
         />
       </div>
 
-      {/* ===================================================
-          TOP NAV
-      =================================================== */}
+      {/* TOP NAV */}
 
       <div
         className="
@@ -1227,7 +1249,9 @@ export default function TutorEnrollmentLogin() {
       >
         <button
           type="button"
-          onClick={() => navigate("/academy")}
+          onClick={() =>
+            navigate("/academy")
+          }
           className="
             group
             flex
@@ -1272,9 +1296,7 @@ export default function TutorEnrollmentLogin() {
         </Link>
       </div>
 
-      {/* ===================================================
-          CONTENT
-      =================================================== */}
+      {/* CONTENT */}
 
       <main
         className="
@@ -1299,9 +1321,7 @@ export default function TutorEnrollmentLogin() {
             lg:gap-20
           "
         >
-          {/* =================================================
-              LEFT SIDE
-          ================================================= */}
+          {/* LEFT */}
 
           <motion.div
             initial={{
@@ -1447,9 +1467,7 @@ export default function TutorEnrollmentLogin() {
             </div>
           </motion.div>
 
-          {/* =================================================
-              LOGIN CARD
-          ================================================= */}
+          {/* LOGIN CARD */}
 
           <motion.div
             initial={{
@@ -1482,7 +1500,7 @@ export default function TutorEnrollmentLogin() {
                 sm:p-8
               "
             >
-              {/* Card Header */}
+              {/* CARD HEADER */}
 
               <div className="mb-8">
                 <div
@@ -1619,7 +1637,7 @@ export default function TutorEnrollmentLogin() {
                   autoComplete="current-password"
                 />
 
-                {/* Info */}
+                {/* INFO */}
 
                 <div
                   className="
@@ -1658,7 +1676,7 @@ export default function TutorEnrollmentLogin() {
                   </p>
                 </div>
 
-                {/* Submit */}
+                {/* SUBMIT */}
 
                 <motion.button
                   type="submit"
@@ -1794,3 +1812,4 @@ export default function TutorEnrollmentLogin() {
     </div>
   );
 }
+

@@ -15,13 +15,38 @@ import {
   Sparkles,
 } from "lucide-react";
 
+/* =========================================================
+   API
+========================================================= */
+
 const API_URL = (
   import.meta.env.VITE_API_URL ||
   "http://localhost:5000"
 ).replace(/\/$/, "");
 
-const AUTH_TOKEN_KEY = "scholiqen_auth_token";
-const AUTH_USER_KEY = "scholiqen_current_user";
+/* =========================================================
+   STORAGE KEYS
+========================================================= */
+
+const ACADEMY_TOKEN_KEY =
+  "scholiqen_academy_token";
+
+const ACADEMY_USER_KEY =
+  "scholiqen_academy_user";
+
+/*
+  Keep these because older Academy/student pages
+  may still use the general authentication keys.
+*/
+const AUTH_TOKEN_KEY =
+  "scholiqen_auth_token";
+
+const AUTH_USER_KEY =
+  "scholiqen_current_user";
+
+/* =========================================================
+   COMPONENT
+========================================================= */
 
 export default function StudentEnrollmentLogin() {
   const navigate = useNavigate();
@@ -37,14 +62,18 @@ export default function StudentEnrollmentLogin() {
   const [loading, setLoading] =
     useState(false);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
   /* =========================================================
      HANDLE INPUT
   ========================================================= */
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const {
+      name,
+      value,
+    } = e.target;
 
     setForm((prev) => ({
       ...prev,
@@ -65,8 +94,13 @@ export default function StudentEnrollmentLogin() {
 
     setError("");
 
-    const email = form.email.trim().toLowerCase();
-    const password = form.password;
+    const email =
+      form.email
+        .trim()
+        .toLowerCase();
+
+    const password =
+      form.password;
 
     /* -------------------------------------------------------
        VALIDATION
@@ -83,25 +117,31 @@ export default function StudentEnrollmentLogin() {
 
     try {
       /* -----------------------------------------------------
-         API REQUEST
+         LOGIN REQUEST
       ----------------------------------------------------- */
 
-      const response = await fetch(
-        `${API_URL}/api/academy/student-login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            password,
-          }),
-        }
-      );
+      const response =
+        await fetch(
+          `${API_URL}/api/academy/student-login`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              email,
+              password,
+            }),
+          }
+        );
 
       const data =
-        await response.json().catch(() => ({}));
+        await response
+          .json()
+          .catch(() => ({}));
 
       /* -----------------------------------------------------
          API ERROR
@@ -134,6 +174,10 @@ export default function StudentEnrollmentLogin() {
         data?.profile ||
         data?.data;
 
+      /* -----------------------------------------------------
+         TOKEN VALIDATION
+      ----------------------------------------------------- */
+
       if (!token) {
         throw new Error(
           "Login succeeded, but no authentication token was returned."
@@ -141,33 +185,71 @@ export default function StudentEnrollmentLogin() {
       }
 
       /* -----------------------------------------------------
-         SAVE TOKEN
+         USER VALIDATION
       ----------------------------------------------------- */
+
+      if (!user) {
+        throw new Error(
+          "Login succeeded, but no student account information was returned."
+        );
+      }
+
+      /* =====================================================
+         SAVE ACADEMY SESSION
+      ===================================================== */
+
+      localStorage.setItem(
+        ACADEMY_TOKEN_KEY,
+        token
+      );
+
+      localStorage.setItem(
+        ACADEMY_USER_KEY,
+        JSON.stringify(user)
+      );
+
+      /* =====================================================
+         SAVE BACKWARD-COMPATIBLE SESSION
+      ===================================================== */
 
       localStorage.setItem(
         AUTH_TOKEN_KEY,
         token
       );
 
-      /* -----------------------------------------------------
-         SAVE USER
-      ----------------------------------------------------- */
+      localStorage.setItem(
+        AUTH_USER_KEY,
+        JSON.stringify(user)
+      );
 
-      if (user) {
-        localStorage.setItem(
-          AUTH_USER_KEY,
-          JSON.stringify(user)
-        );
-      }
+      /* =====================================================
+         DEBUG
+      ===================================================== */
 
       console.log(
-        "✅ STUDENT LOGIN SUCCESS:",
+        "======================================"
+      );
+
+      console.log(
+        "STUDENT LOGIN SUCCESS"
+      );
+
+      console.log(
+        "STUDENT USER:",
         user
       );
 
-      /* -----------------------------------------------------
-         PORTAL
-      ----------------------------------------------------- */
+      console.log(
+        "STUDENT TOKEN SAVED"
+      );
+
+      console.log(
+        "======================================"
+      );
+
+      /* =====================================================
+         ENTER STUDENT LEARNING PORTAL
+      ===================================================== */
 
       navigate(
         "/academy/student-portal",
@@ -195,34 +277,30 @@ export default function StudentEnrollmentLogin() {
   ========================================================= */
 
   return (
-    <div className="min-h-screen bg-[#050816] text-white relative overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden bg-[#050816] text-white">
+
       {/* =====================================================
           BACKGROUND
       ===================================================== */}
 
-      <div className="absolute inset-0 pointer-events-none">
-        {/* Dots */}
+      <div className="pointer-events-none absolute inset-0">
 
         <div
           className="absolute inset-0 opacity-[0.08]"
           style={{
             backgroundImage:
               "radial-gradient(circle at 1px 1px, rgba(56,189,248,0.8) 1px, transparent 0)",
-            backgroundSize: "32px 32px",
+            backgroundSize:
+              "32px 32px",
           }}
         />
 
-        {/* Cyan Glow */}
+        <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-cyan-500/10 blur-[130px]" />
 
-        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[130px]" />
+        <div className="absolute -right-40 top-1/3 h-[500px] w-[500px] rounded-full bg-violet-600/10 blur-[140px]" />
 
-        {/* Violet Glow */}
+        <div className="absolute -bottom-40 left-1/3 h-[450px] w-[450px] rounded-full bg-blue-600/10 blur-[130px]" />
 
-        <div className="absolute top-1/3 -right-40 w-[500px] h-[500px] bg-violet-600/10 rounded-full blur-[140px]" />
-
-        {/* Blue Glow */}
-
-        <div className="absolute -bottom-40 left-1/3 w-[450px] h-[450px] bg-blue-600/10 rounded-full blur-[130px]" />
       </div>
 
       {/* =====================================================
@@ -230,7 +308,9 @@ export default function StudentEnrollmentLogin() {
       ===================================================== */}
 
       <header className="relative z-10 border-b border-white/10 bg-[#050816]/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
+
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+
           {/* BRAND */}
 
           <button
@@ -238,21 +318,25 @@ export default function StudentEnrollmentLogin() {
             onClick={() =>
               navigate("/academy")
             }
-            className="flex items-center gap-3 group"
+            className="group flex items-center gap-3"
           >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-6 h-6 text-white" />
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-lg shadow-cyan-500/20 transition-transform group-hover:scale-105">
+              <GraduationCap className="h-6 w-6 text-white" />
             </div>
 
             <div className="text-left">
-              <p className="font-black tracking-tight text-lg">
+
+              <p className="text-lg font-black tracking-tight">
                 SCHOLIQEN
               </p>
 
-              <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400 font-bold">
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-cyan-400">
                 Academy
               </p>
+
             </div>
+
           </button>
 
           {/* BACK */}
@@ -262,20 +346,23 @@ export default function StudentEnrollmentLogin() {
             onClick={() =>
               navigate("/academy")
             }
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition"
+            className="flex items-center gap-2 text-sm text-slate-400 transition hover:text-white"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="h-4 w-4" />
 
             Back to Academy
           </button>
+
         </div>
+
       </header>
 
       {/* =====================================================
           MAIN
       ===================================================== */}
 
-      <main className="relative z-10 min-h-[calc(100vh-81px)] flex items-center justify-center px-6 py-14">
+      <main className="relative z-10 flex min-h-[calc(100vh-81px)] items-center justify-center px-6 py-14">
+
         <motion.div
           initial={{
             opacity: 0,
@@ -290,12 +377,12 @@ export default function StudentEnrollmentLogin() {
           }}
           className="w-full max-w-md"
         >
+
           {/* =================================================
               HEADER CONTENT
           ================================================= */}
 
-          <div className="text-center mb-8">
-            {/* ICON */}
+          <div className="mb-8 text-center">
 
             <motion.div
               initial={{
@@ -310,44 +397,48 @@ export default function StudentEnrollmentLogin() {
                 delay: 0.1,
                 duration: 0.5,
               }}
-              className="mx-auto mb-6 w-20 h-20 rounded-3xl bg-gradient-to-br from-cyan-400/20 via-blue-500/20 to-violet-500/20 border border-cyan-400/20 flex items-center justify-center shadow-2xl shadow-cyan-500/10"
+              className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-cyan-400/20 bg-gradient-to-br from-cyan-400/20 via-blue-500/20 to-violet-500/20 shadow-2xl shadow-cyan-500/10"
             >
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
-                <LogIn className="w-7 h-7 text-white" />
+
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600">
+
+                <LogIn className="h-7 w-7 text-white" />
+
               </div>
+
             </motion.div>
 
             {/* BADGE */}
 
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-400/20 bg-cyan-400/5 text-cyan-300 text-xs font-bold mb-4">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1.5 text-xs font-bold text-cyan-300">
+
+              <Sparkles className="h-3.5 w-3.5" />
 
               STUDENT PORTAL
+
             </div>
 
             {/* TITLE */}
 
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
+            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
               Welcome Back
             </h1>
 
-            {/* DESCRIPTION */}
-
-            <p className="text-slate-400 mt-3 text-sm leading-6">
+            <p className="mt-3 text-sm leading-6 text-slate-400">
               Sign in with the email address and
               password assigned to you by
               Scholiqen Academy.
             </p>
+
           </div>
 
           {/* =================================================
               LOGIN CARD
           ================================================= */}
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-6 sm:p-8 shadow-2xl shadow-black/30">
-            {/* =================================================
-                ERROR
-            ================================================= */}
+          <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8">
+
+            {/* ERROR */}
 
             {error && (
               <motion.div
@@ -361,34 +452,37 @@ export default function StudentEnrollmentLogin() {
                 }}
                 className="mb-5 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3.5 text-sm text-red-300"
               >
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
 
-                <span>{error}</span>
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+
+                <span>
+                  {error}
+                </span>
+
               </motion.div>
             )}
 
-            {/* =================================================
-                FORM
-            ================================================= */}
+            {/* FORM */}
 
             <form
               onSubmit={handleSubmit}
               className="space-y-5"
             >
-              {/* =================================================
-                  EMAIL
-              ================================================= */}
+
+              {/* EMAIL */}
 
               <div>
+
                 <label
                   htmlFor="email"
-                  className="block text-sm font-bold text-slate-200 mb-2"
+                  className="mb-2 block text-sm font-bold text-slate-200"
                 >
                   Email Address
                 </label>
 
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none" />
+
+                  <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
 
                   <input
                     id="email"
@@ -396,27 +490,31 @@ export default function StudentEnrollmentLogin() {
                     type="email"
                     autoComplete="email"
                     value={form.email}
-                    onChange={handleChange}
+                    onChange={
+                      handleChange
+                    }
                     placeholder="Enter your email address"
-                    className="w-full h-14 rounded-2xl border border-white/10 bg-black/20 pl-12 pr-4 text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
+                    className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 pl-12 pr-4 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
                   />
+
                 </div>
+
               </div>
 
-              {/* =================================================
-                  PASSWORD
-              ================================================= */}
+              {/* PASSWORD */}
 
               <div>
+
                 <label
                   htmlFor="password"
-                  className="block text-sm font-bold text-slate-200 mb-2"
+                  className="mb-2 block text-sm font-bold text-slate-200"
                 >
                   Password
                 </label>
 
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none" />
+
+                  <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
 
                   <input
                     id="password"
@@ -427,49 +525,55 @@ export default function StudentEnrollmentLogin() {
                         : "password"
                     }
                     autoComplete="current-password"
-                    value={form.password}
-                    onChange={handleChange}
+                    value={
+                      form.password
+                    }
+                    onChange={
+                      handleChange
+                    }
                     placeholder="Enter your password"
-                    className="w-full h-14 rounded-2xl border border-white/10 bg-black/20 pl-12 pr-12 text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
+                    className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 pl-12 pr-12 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-400/10"
                   />
-
-                  {/* SHOW PASSWORD */}
 
                   <button
                     type="button"
                     onClick={() =>
                       setShowPassword(
-                        (prev) => !prev
+                        (prev) =>
+                          !prev
                       )
                     }
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 transition hover:text-white"
                     aria-label={
                       showPassword
                         ? "Hide password"
                         : "Show password"
                     }
                   >
+
                     {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
+                      <EyeOff className="h-5 w-5" />
                     ) : (
-                      <Eye className="w-5 h-5" />
+                      <Eye className="h-5 w-5" />
                     )}
+
                   </button>
+
                 </div>
+
               </div>
 
-              {/* =================================================
-                  LOGIN BUTTON
-              ================================================= */}
+              {/* LOGIN BUTTON */}
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-14 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-600 text-white font-black flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 hover:shadow-cyan-500/20 hover:scale-[1.01] active:scale-[0.99] transition disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-600 font-black text-white shadow-xl shadow-blue-500/20 transition hover:scale-[1.01] hover:shadow-cyan-500/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
               >
+
                 {loading ? (
                   <>
-                    <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
 
                     Signing in...
                   </>
@@ -477,37 +581,44 @@ export default function StudentEnrollmentLogin() {
                   <>
                     Enter Student Portal
 
-                    <ArrowRight className="w-5 h-5" />
+                    <ArrowRight className="h-5 w-5" />
                   </>
                 )}
+
               </button>
+
             </form>
 
-            {/* =================================================
-                SECURITY NOTICE
-            ================================================= */}
+            {/* SECURITY */}
 
             <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-400/10 bg-emerald-400/5 p-4">
-              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+
+              <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-400" />
 
               <div>
+
                 <p className="text-sm font-bold text-emerald-300">
                   Secure Student Access
                 </p>
 
-                <p className="text-xs text-slate-500 leading-5 mt-1">
-                  Your Academy account is protected
-                  by Scholiqen authentication.
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Your Academy account is
+                  protected by Scholiqen
+                  authentication.
                 </p>
+
               </div>
+
             </div>
+
           </div>
 
           {/* =================================================
               ENROLLMENT PROMPT
           ================================================= */}
 
-          <div className="text-center mt-7">
+          <div className="mt-7 text-center">
+
             <p className="text-sm text-slate-500">
               Not enrolled yet?
             </p>
@@ -519,23 +630,29 @@ export default function StudentEnrollmentLogin() {
                   "/academy/student-enrollment"
                 )
               }
-              className="mt-2 text-cyan-400 hover:text-cyan-300 font-bold text-sm transition"
+              className="mt-2 text-sm font-bold text-cyan-400 transition hover:text-cyan-300"
             >
+
               Start Student Enrollment
 
-              <ArrowRight className="inline-block w-4 h-4 ml-1" />
+              <ArrowRight className="ml-1 inline-block h-4 w-4" />
+
             </button>
+
           </div>
 
-          {/* =================================================
-              FOOTER
-          ================================================= */}
+          {/* FOOTER */}
 
-          <p className="text-center text-[11px] text-slate-600 mt-10">
-            © {new Date().getFullYear()} Scholiqen Academy
+          <p className="mt-10 text-center text-[11px] text-slate-600">
+            ©{" "}
+            {new Date().getFullYear()}{" "}
+            Scholiqen Academy
           </p>
+
         </motion.div>
+
       </main>
+
     </div>
   );
 }

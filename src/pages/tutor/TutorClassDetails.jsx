@@ -1,627 +1,1550 @@
-import React, { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, {
+useCallback,
+useEffect,
+useMemo,
+useState,
+} from "react";
+
 import {
-  ArrowLeft,
-  Award,
-  BookOpen,
-  CalendarDays,
-  CheckCircle2,
-  ChevronDown,
-  Clock3,
-  FileText,
-  GraduationCap,
-  HelpCircle,
-  Megaphone,
-  Play,
-  Plus,
-  Radio,
-  Sparkles,
-  Target,
-  Users,
-  Video,
-  X,
-  Zap,
+motion,
+AnimatePresence,
+} from "framer-motion";
+
+import {
+useLocation,
+useNavigate,
+useParams,
+} from "react-router-dom";
+
+import {
+AlertCircle,
+ArrowLeft,
+BookOpen,
+CalendarDays,
+CheckCircle2,
+ClipboardList,
+Clock3,
+FileText,
+Loader2,
+MessageSquare,
+Play,
+Plus,
+Radio,
+RefreshCw,
+School,
+User,
+Users,
+Video,
+X,
 } from "lucide-react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 /* =========================================================
-   HARD-CODED DATA FOR NOW
+CONFIG
 ========================================================= */
 
-const HARD_CODED_ACTIVITIES = [
-  {
-    id: 1,
-    type: "live",
-    title: "Started a Live Class",
-    description:
-      "Started a live Mathematics lesson covering Quadratic Equations.",
-    date: "Today",
-    time: "10:30 AM",
-    status: "Completed",
-    duration: "1h 12m",
-  },
-  {
-    id: 2,
-    type: "assignment",
-    title: "Created an Assignment",
-    description:
-      "Created an Algebra assignment containing 15 questions for the class.",
-    date: "Today",
-    time: "9:15 AM",
-    status: "Published",
-    duration: null,
-  },
-  {
-    id: 3,
-    type: "lesson",
-    title: "Uploaded Lesson Material",
-    description:
-      "Uploaded a new learning resource for the current Mathematics topic.",
-    date: "Yesterday",
-    time: "4:20 PM",
-    status: "Published",
-    duration: null,
-  },
-  {
-    id: 4,
-    type: "quiz",
-    title: "Created a Quiz",
-    description:
-      "Created a 20-question quiz to test students' understanding of the lesson.",
-    date: "Yesterday",
-    time: "1:45 PM",
-    status: "Published",
-    duration: null,
-  },
-  {
-    id: 5,
-    type: "announcement",
-    title: "Posted a Class Announcement",
-    description:
-      "Reminded students about the upcoming Mathematics assessment.",
-    date: "Sep 5, 2026",
-    time: "11:00 AM",
-    status: "Published",
-    duration: null,
-  },
-  {
-    id: 6,
-    type: "live",
-    title: "Completed a Live Class",
-    description:
-      "Completed a live lesson focused on simultaneous equations.",
-    date: "Sep 4, 2026",
-    time: "12:12 PM",
-    status: "Completed",
-    duration: "1h 05m",
-  },
-  {
-    id: 7,
-    type: "assignment",
-    title: "Reviewed Student Assignment",
-    description:
-      "Reviewed submitted Mathematics assignments and provided feedback.",
-    date: "Sep 3, 2026",
-    time: "3:40 PM",
-    status: "Completed",
-    duration: null,
-  },
-  {
-    id: 8,
-    type: "lesson",
-    title: "Added a New Lesson",
-    description:
-      "Added a new lesson covering equations, expressions and mathematical reasoning.",
-    date: "Sep 2, 2026",
-    time: "8:30 AM",
-    status: "Published",
-    duration: null,
-  },
-];
+const API_BASE_URL = (
+import.meta.env.VITE_API_URL ||
+"http://localhost:5000"
+).replace(/\/+$/, "");
 
 /* =========================================================
-   HELPERS
+HELPERS
 ========================================================= */
 
-const clean = (value) =>
-  typeof value === "string" ? value.trim() : value ?? "";
+const clean = (value) => {
+if (
+value === undefined ||
+value === null
+) {
+return "";
+}
+
+return String(value).trim();
+};
+
+const firstValue = (...values) => {
+for (const value of values) {
+const cleaned = clean(value);
+
+if (cleaned) {
+  return cleaned;
+}
+
+}
+
+return "";
+};
 
 const normalize = (value) =>
-  clean(value)
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+clean(value)
+.toLowerCase()
+.replace(/[_-]+/g, " ")
+.replace(/\s+/g, " ")
+.trim();
 
-function getActivityIcon(type) {
-  switch (type) {
-    case "live":
-      return Video;
-    case "assignment":
-      return FileText;
-    case "lesson":
-      return BookOpen;
-    case "quiz":
-      return HelpCircle;
-    case "announcement":
-      return Megaphone;
-    default:
-      return Zap;
-  }
+const getStoredTutor = () => {
+if (typeof window === "undefined") {
+return {};
 }
 
-function getActivityLabel(type) {
-  switch (type) {
-    case "live":
-      return "Live Class";
-    case "assignment":
-      return "Assignment";
-    case "lesson":
-      return "Lesson";
-    case "quiz":
-      return "Quiz";
-    case "announcement":
-      return "Announcement";
-    default:
-      return "Activity";
+const keys = [
+"tutor",
+"academyTutor",
+"scholiqen_user",
+"scholiqen_academy_user",
+];
+
+for (const key of keys) {
+try {
+const raw = localStorage.getItem(key);
+
+
+  if (!raw) {
+    continue;
   }
+
+  const parsed = JSON.parse(raw);
+
+  if (parsed && typeof parsed === "object") {
+    return parsed;
+  }
+} catch {
+  // Some keys may contain plain text instead of JSON.
 }
+
+}
+
+return {};
+};
+
+const getStoredTutorReference = () => {
+if (typeof window === "undefined") {
+return "";
+}
+
+const directKeys = [
+"tutorReference",
+"tutor_reference",
+];
+
+for (const key of directKeys) {
+const value = clean(
+localStorage.getItem(key)
+);
+
+if (value) {
+  return value;
+}
+
+}
+
+const tutor = getStoredTutor();
+
+return firstValue(
+tutor.tutorReference,
+tutor.tutor_reference,
+tutor.reference,
+tutor.applicationReference,
+tutor.application_reference,
+tutor.tutor?.tutorReference,
+tutor.tutor?.tutor_reference,
+tutor.tutor?.reference
+);
+};
+
+const getActivityIcon = (type) => {
+const value = normalize(type);
+
+if (
+value.includes("live") ||
+value.includes("class")
+) {
+return Radio;
+}
+
+if (
+value.includes("assignment") ||
+value.includes("task")
+) {
+return ClipboardList;
+}
+
+if (
+value.includes("lesson") ||
+value.includes("material") ||
+value.includes("resource")
+) {
+return BookOpen;
+}
+
+if (
+value.includes("quiz") ||
+value.includes("test")
+) {
+return FileText;
+}
+
+if (
+value.includes("chat") ||
+value.includes("message")
+) {
+return MessageSquare;
+}
+
+if (
+value.includes("student") ||
+value.includes("attendance")
+) {
+return Users;
+}
+
+return School;
+};
+
+const getActivityLabel = (type) => {
+const value = normalize(type);
+
+if (value.includes("live")) {
+return "Live Class";
+}
+
+if (
+value.includes("assignment") ||
+value.includes("task")
+) {
+return "Assignment";
+}
+
+if (
+value.includes("lesson")
+) {
+return "Lesson";
+}
+
+if (
+value.includes("material") ||
+value.includes("resource")
+) {
+return "Material";
+}
+
+if (
+value.includes("quiz") ||
+value.includes("test")
+) {
+return "Quiz";
+}
+
+if (
+value.includes("announcement")
+) {
+return "Announcement";
+}
+
+if (
+value.includes("attendance")
+) {
+return "Attendance";
+}
+
+if (
+value.includes("chat") ||
+value.includes("message")
+) {
+return "Message";
+}
+
+return "Activity";
+};
+
+const formatDateTime = (value) => {
+if (!value) {
+return "Date not available";
+}
+
+const date = new Date(value);
+
+if (Number.isNaN(date.getTime())) {
+return clean(value) || "Date not available";
+}
+
+return date.toLocaleString(
+undefined,
+{
+dateStyle: "medium",
+timeStyle: "short",
+}
+);
+};
+
+const formatDate = (value) => {
+if (!value) {
+return "Date not available";
+}
+
+const date = new Date(value);
+
+if (Number.isNaN(date.getTime())) {
+return clean(value) || "Date not available";
+}
+
+return date.toLocaleDateString(
+undefined,
+{
+dateStyle: "medium",
+}
+);
+};
+
+const formatDuration = (seconds) => {
+const value = Number(seconds);
+
+if (
+!Number.isFinite(value) ||
+value <= 0
+) {
+return "Not recorded";
+}
+
+const totalMinutes = Math.floor(
+value / 60
+);
+
+const hours = Math.floor(
+totalMinutes / 60
+);
+
+const minutes = totalMinutes % 60;
+
+if (hours > 0) {
+return `${hours}h ${minutes}m`;
+}
+
+return `${minutes}m`;
+};
+
+const extractSessions = (payload) => {
+if (Array.isArray(payload)) {
+return payload;
+}
+
+if (
+Array.isArray(payload?.sessions)
+) {
+return payload.sessions;
+}
+
+if (
+Array.isArray(payload?.data)
+) {
+return payload.data;
+}
+
+if (
+Array.isArray(payload?.liveClasses)
+) {
+return payload.liveClasses;
+}
+
+if (
+Array.isArray(payload?.live_classes)
+) {
+return payload.live_classes;
+}
+
+if (
+Array.isArray(payload?.data?.sessions)
+) {
+return payload.data.sessions;
+}
+
+return [];
+};
+
+const normalizeLiveActivity = (
+session,
+index
+) => {
+const id = firstValue(
+session.id,
+session.live_class_id,
+session.sessionId,
+`live-${index}`
+);
+
+const status = firstValue(
+session.status,
+"scheduled"
+);
+
+const title = firstValue(
+session.title,
+"Live Class"
+);
+
+const timestamp = firstValue(
+session.updated_at,
+session.started_at,
+session.actual_start,
+session.scheduled_at,
+session.scheduled_start,
+session.created_at
+);
+
+return {
+id,
+type: "live",
+label: "Live Class",
+title,
+description: firstValue(
+session.description,
+"Tutor live class activity."
+),
+status,
+grade: firstValue(
+session.grade,
+session.class_name
+),
+className: firstValue(
+session.class_name,
+session.grade
+),
+subject: firstValue(
+session.subject,
+Array.isArray(session.subjects)
+? session.subjects[0]
+: ""
+),
+roomCode: firstValue(
+session.room_code,
+session.room_id
+),
+joinUrl: firstValue(
+session.join_url,
+session.meeting_url
+),
+timestamp,
+createdAt: session.created_at,
+startedAt: firstValue(
+session.started_at,
+session.actual_start
+),
+endedAt: firstValue(
+session.ended_at,
+session.actual_end
+),
+durationSeconds:
+session.duration_seconds ??
+session.recording_duration ??
+null,
+raw: session,
+};
+};
 
 /* =========================================================
-   STAT CARD
+STAT CARD
 ========================================================= */
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  description,
-  delay = 0,
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, delay }}
-      className="
-        group relative overflow-hidden
-        rounded-2xl
-        border border-white/[0.08]
-        bg-white/[0.035]
-        p-5
-        backdrop-blur-xl
-        transition-all duration-300
-        hover:-translate-y-1
-        hover:border-white/[0.14]
-        hover:bg-white/[0.055]
-      "
+const StatCard = ({
+icon: Icon,
+label,
+value,
+description,
+active = false,
+}) => {
+return (
+<motion.div
+initial={{
+opacity: 0,
+y: 12,
+}}
+animate={{
+opacity: 1,
+y: 0,
+}}
+className={`rounded-2xl border p-5 ${
+        active
+          ? "border-cyan-500/30 bg-cyan-500/5"
+          : "border-slate-800 bg-slate-900/60"
+      }`}
+> <div className="flex items-start justify-between gap-4"> <div> <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+{label} </p>
+
+
+      <p className="mt-2 text-2xl font-bold text-white">
+        {value}
+      </p>
+
+      <p className="mt-1 text-xs text-slate-500">
+        {description}
+      </p>
+    </div>
+
+    <div
+      className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+        active
+          ? "bg-cyan-500/10 text-cyan-400"
+          : "bg-slate-800 text-slate-400"
+      }`}
     >
-      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl transition-all group-hover:bg-blue-500/20" />
+      <Icon size={19} />
+    </div>
+  </div>
+</motion.div>
 
-      <div className="relative flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-            {label}
-          </p>
-
-          <p className="mt-2 text-3xl font-bold tracking-tight text-white">
-            {value}
-          </p>
-
-          <p className="mt-1 text-xs text-slate-500">
-            {description}
-          </p>
-        </div>
-
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045]">
-          <Icon className="h-5 w-5 text-blue-400" />
-        </div>
-      </div>
-    </motion.div>
-  );
-}
+);
+};
 
 /* =========================================================
-   ACTIVITY ITEM
+ACTIVITY ITEM
 ========================================================= */
 
-function ActivityItem({
-  activity,
-  index,
-  onOpen,
-}) {
-  const Icon = getActivityIcon(activity.type);
+const ActivityItem = ({
+activity,
+onOpen,
+}) => {
+const Icon = getActivityIcon(
+activity.type
+);
 
-  return (
-    <motion.button
-      type="button"
-      onClick={() => onOpen(activity)}
-      initial={{ opacity: 0, x: -15 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{
-        duration: 0.35,
-        delay: index * 0.055,
-      }}
-      className="
-        group relative flex w-full
-        gap-4 text-left
-        rounded-2xl
-        border border-white/[0.06]
-        bg-white/[0.025]
-        p-4
-        transition-all duration-300
-        hover:border-blue-400/20
-        hover:bg-white/[0.045]
-      "
-    >
-      {/* timeline */}
-      <div className="absolute left-[31px] top-[60px] bottom-[-22px] w-px bg-white/[0.06] group-last:hidden" />
+const isLive =
+normalize(activity.status) === "live";
 
-      <div
-        className="
-          relative z-10 flex h-11 w-11 shrink-0
-          items-center justify-center
-          rounded-xl
-          border border-blue-400/15
-          bg-blue-500/[0.08]
-        "
-      >
-        <Icon className="h-5 w-5 text-blue-400" />
-      </div>
+return (
+<motion.button
+type="button"
+onClick={() => onOpen(activity)}
+initial={{
+opacity: 0,
+y: 10,
+}}
+animate={{
+opacity: 1,
+y: 0,
+}}
+whileHover={{
+y: -2,
+}}
+className="w-full rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-left transition hover:border-cyan-500/30 hover:bg-slate-900"
+> 
+  <div className="flex items-start gap-4">
+      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+            isLive
+              ? "bg-red-500/10 text-red-400"
+              : "bg-cyan-500/10 text-cyan-400"
+          }`}
+> 
+    <Icon size={19} /> </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-white">
-                {activity.title}
-              </h3>
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+          {getActivityLabel(
+            activity.type
+          )}
+        </span>
 
-              <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                {getActivityLabel(activity.type)}
-              </span>
-            </div>
-
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-              {activity.description}
-            </p>
-          </div>
-
-          <div className="shrink-0 text-right">
-            <p className="text-xs font-medium text-slate-300">
-              {activity.date}
-            </p>
-
-            <p className="mt-1 text-[11px] text-slate-600">
-              {activity.time}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        {activity.status && (
           <span
-            className={`
-              inline-flex items-center gap-1.5 rounded-full
-              border px-2.5 py-1 text-[11px] font-medium
-              ${
-                activity.status === "Completed"
-                  ? "border-emerald-400/15 bg-emerald-400/[0.07] text-emerald-400"
-                  : "border-blue-400/15 bg-blue-400/[0.07] text-blue-400"
-              }
-            `}
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+              isLive
+                ? "bg-red-500/10 text-red-400"
+                : "bg-slate-800 text-slate-400"
+            }`}
           >
-            <CheckCircle2 className="h-3 w-3" />
             {activity.status}
           </span>
-
-          {activity.duration && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-[11px] text-slate-500">
-              <Clock3 className="h-3 w-3" />
-              {activity.duration}
-            </span>
-          )}
-        </div>
+        )}
       </div>
 
-      <ChevronDown className="mt-3 h-4 w-4 shrink-0 -rotate-90 text-slate-700 transition-all group-hover:translate-x-1 group-hover:text-blue-400" />
-    </motion.button>
-  );
-}
+      <h3 className="mt-1 truncate text-sm font-semibold text-white">
+        {activity.title}
+      </h3>
+
+      <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+        {activity.description}
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-500">
+        <span className="flex items-center gap-1.5">
+          <CalendarDays size={13} />
+          {formatDateTime(
+            activity.timestamp
+          )}
+        </span>
+
+        {activity.subject && (
+          <span>
+            {activity.subject}
+          </span>
+        )}
+
+        {activity.grade && (
+          <span>
+            {activity.grade}
+          </span>
+        )}
+      </div>
+    </div>
+  </div>
+</motion.button>
+
+);
+};
 
 /* =========================================================
-   ACTIVITY MODAL
+ACTIVITY MODAL
 ========================================================= */
 
-function ActivityModal({ activity, onClose }) {
-  if (!activity) return null;
+const ActivityModal = ({
+activity,
+onClose,
+onOpenRoom,
+}) => {
+if (!activity) {
+return null;
+}
 
-  const Icon = getActivityIcon(activity.type);
+const isLive =
+normalize(activity.status) === "live";
 
-  return (
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onMouseDown={onClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, y: 25, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 15, scale: 0.98 }}
-          transition={{ duration: 0.25 }}
-          onMouseDown={(event) => event.stopPropagation()}
-          className="
-            w-full max-w-lg
-            overflow-hidden
-            rounded-3xl
-            border border-white/[0.09]
-            bg-[#0b1020]
-            shadow-2xl shadow-black/50
-          "
+return ( <AnimatePresence>
+<motion.div
+initial={{
+opacity: 0,
+}}
+animate={{
+opacity: 1,
+}}
+exit={{
+opacity: 0,
+}}
+className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+onMouseDown={(event) => {
+if (
+event.target ===
+event.currentTarget
+) {
+onClose();
+}
+}}
+>
+<motion.div
+initial={{
+opacity: 0,
+y: 20,
+scale: 0.98,
+}}
+animate={{
+opacity: 1,
+y: 0,
+scale: 1,
+}}
+exit={{
+opacity: 0,
+y: 20,
+scale: 0.98,
+}}
+className="w-full max-w-xl rounded-3xl border border-slate-800 bg-[#071426] shadow-2xl"
+> <div className="flex items-center justify-between border-b border-slate-800 p-5"> <div> <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+Activity Details </p>
+
+          <h2 className="mt-1 text-lg font-bold text-white">
+            {activity.title}
+          </h2>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-800 hover:text-white"
         >
-          <div className="relative overflow-hidden border-b border-white/[0.07] p-6">
-            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl" />
+          <X size={18} />
+        </button>
+      </div>
 
-            <div className="relative flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/15 bg-blue-500/10">
-                  <Icon className="h-6 w-6 text-blue-400" />
-                </div>
+      <div className="space-y-4 p-5">
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+          <p className="text-sm leading-6 text-slate-400">
+            {activity.description}
+          </p>
+        </div>
 
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-blue-400">
-                    {getActivityLabel(activity.type)}
-                  </p>
-
-                  <h2 className="mt-1 text-xl font-bold text-white">
-                    {activity.title}
-                  </h2>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-xl p-2 text-slate-500 transition hover:bg-white/[0.05] hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-600">
+              Activity
+            </p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {activity.label}
+            </p>
           </div>
 
-          <div className="space-y-5 p-6">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-600">
-                What happened
-              </p>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-600">
+              Status
+            </p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {activity.status ||
+                "Unknown"}
+            </p>
+          </div>
 
-              <p className="mt-2 text-sm leading-7 text-slate-300">
-                {activity.description}
-              </p>
-            </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-600">
+              Subject
+            </p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {activity.subject ||
+                "Not specified"}
+            </p>
+          </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
-                <p className="text-[11px] uppercase tracking-wider text-slate-600">
-                  Date
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-600">
+              Class
+            </p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {activity.grade ||
+                "Not specified"}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:col-span-2">
+            <p className="text-[10px] uppercase tracking-wider text-slate-600">
+              Time
+            </p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {formatDateTime(
+                activity.timestamp
+              )}
+            </p>
+          </div>
+
+          {activity.durationSeconds !==
+            null &&
+            activity.durationSeconds !==
+              undefined && (
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:col-span-2">
+                <p className="text-[10px] uppercase tracking-wider text-slate-600">
+                  Duration
                 </p>
-                <p className="mt-1 text-sm font-medium text-white">
-                  {activity.date}
+
+                <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-white">
+                  <Clock3 size={14} />
+                  {formatDuration(
+                    activity.durationSeconds
+                  )}
                 </p>
               </div>
+            )}
+        </div>
 
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
-                <p className="text-[11px] uppercase tracking-wider text-slate-600">
-                  Time
-                </p>
-                <p className="mt-1 text-sm font-medium text-white">
-                  {activity.time}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
-                <p className="text-[11px] uppercase tracking-wider text-slate-600">
-                  Status
-                </p>
-                <p className="mt-1 text-sm font-medium text-emerald-400">
-                  {activity.status}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
-                <p className="text-[11px] uppercase tracking-wider text-slate-600">
-                  Activity
-                </p>
-                <p className="mt-1 text-sm font-medium text-white">
-                  {getActivityLabel(activity.type)}
-                </p>
-              </div>
-            </div>
-
+        {isLive &&
+          activity.roomCode && (
             <button
               type="button"
-              onClick={onClose}
-              className="
-                flex w-full items-center justify-center
-                rounded-xl border border-white/[0.08]
-                bg-white/[0.04]
-                px-4 py-3
-                text-sm font-medium text-white
-                transition hover:bg-white/[0.07]
-              "
+              onClick={() =>
+                onOpenRoom(activity)
+              }
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
             >
-              Close
+              <Video size={17} />
+              Open Live Class
             </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+          )}
+      </div>
+    </motion.div>
+  </motion.div>
+</AnimatePresence>
+
+);
+};
+
+/* =========================================================
+MAIN COMPONENT
+========================================================= */
+
+const TutorClassDetails = () => {
+const location = useLocation();
+const navigate = useNavigate();
+const params = useParams();
+
+const classData =
+location.state?.classData ||
+location.state?.class ||
+location.state?.selectedClass ||
+{};
+
+const stateTutor =
+location.state?.tutor ||
+classData?.tutor ||
+{};
+
+const storedTutor =
+useMemo(
+() => getStoredTutor(),
+[]
+);
+
+const grade = useMemo(
+() =>
+firstValue(
+classData.grade,
+classData.className,
+classData.class_name,
+classData.gradeName,
+classData.grade_name,
+location.state?.grade,
+params.grade,
+"Senior Secondary"
+),
+[
+classData,
+location.state,
+params.grade,
+]
+);
+
+const subject = useMemo(
+() =>
+firstValue(
+classData.subject,
+classData.subject_name,
+classData.subjectName,
+location.state?.subject,
+params.subject,
+"Mathematics"
+),
+[
+classData,
+location.state,
+params.subject,
+]
+);
+
+const tutorReference = useMemo(
+() =>
+firstValue(
+location.state?.tutorReference,
+location.state?.tutor_reference,
+
+    stateTutor.tutorReference,
+    stateTutor.tutor_reference,
+    stateTutor.reference,
+
+    classData.tutorReference,
+    classData.tutor_reference,
+
+    storedTutor.tutorReference,
+    storedTutor.tutor_reference,
+    storedTutor.reference,
+
+    getStoredTutorReference()
+  ),
+[
+  location.state,
+  stateTutor,
+  classData,
+  storedTutor,
+]
+
+);
+
+const tutorName = firstValue(
+stateTutor.name,
+stateTutor.fullName,
+stateTutor.full_name,
+stateTutor.tutorName,
+storedTutor.name,
+storedTutor.fullName,
+"Tutor"
+);
+
+const tutorEmail = firstValue(
+stateTutor.email,
+stateTutor.emailAddress,
+storedTutor.email
+);
+
+const classId = firstValue(
+classData.id,
+classData.classId,
+classData.class_id,
+classData.grade_id,
+classData.gradeId,
+location.state?.classId,
+location.state?.class_id
+);
+
+const className = firstValue(
+classData.className,
+classData.class_name,
+classData.name,
+classData.gradeName,
+classData.grade_name,
+grade
+);
+
+const studentCount =
+Number(
+classData.studentCount ??
+classData.student_count ??
+classData.studentsCount ??
+(
+Array.isArray(
+classData.students
+)
+? classData.students.length
+: 0
+)
+) || 0;
+
+const [activities, setActivities] =
+useState([]);
+
+const [loading, setLoading] =
+useState(true);
+
+const [refreshing, setRefreshing] =
+useState(false);
+
+const [error, setError] =
+useState("");
+
+const [lastChecked, setLastChecked] =
+useState(null);
+
+const [selectedActivity, setSelectedActivity] =
+useState(null);
+
+const [startingLive, setStartingLive] =
+useState(false);
+
+const [actionError, setActionError] =
+useState("");
+
+const [activityFilter, setActivityFilter] =
+useState("all");
+
+/* =========================================================
+LOAD REAL LIVE CLASS ACTIVITIES
+========================================================= */
+
+const loadActivities = useCallback(
+async ({
+silent = false,
+} = {}) => {
+if (!tutorReference) {
+setLoading(false);
+setRefreshing(false);
+setError(
+"Tutor reference was not found. Please log in again."
+);
+return;
+}
+
+  if (silent) {
+    setRefreshing(true);
+  } else {
+    setLoading(true);
+  }
+
+  try {
+    const paramsObject =
+      new URLSearchParams();
+
+    paramsObject.set(
+      "tutorReference",
+      tutorReference
+    );
+
+    const response =
+      await fetch(
+        `${API_BASE_URL}/api/academy/tutor/live-classes?${paramsObject.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            Accept:
+              "application/json",
+            "x-tutor-reference":
+              tutorReference,
+          },
+        }
+      );
+
+    const contentType =
+      response.headers.get(
+        "content-type"
+      ) || "";
+
+    let payload;
+
+    if (
+      contentType.includes(
+        "application/json"
+      )
+    ) {
+      payload =
+        await response.json();
+    } else {
+      const text =
+        await response.text();
+
+      throw new Error(
+        text ||
+          `Request failed with status ${response.status}`
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        payload?.message ||
+          payload?.error ||
+          `Request failed with status ${response.status}`
+      );
+    }
+
+    const sessions =
+      extractSessions(payload);
+
+    const normalizedActivities =
+      sessions
+        .map(
+          normalizeLiveActivity
+        )
+        .sort((a, b) => {
+          const aTime =
+            new Date(
+              a.timestamp || 0
+            ).getTime();
+
+          const bTime =
+            new Date(
+              b.timestamp || 0
+            ).getTime();
+
+          return bTime - aTime;
+        });
+
+    setActivities(
+      normalizedActivities
+    );
+
+    setLastChecked(
+      new Date()
+    );
+
+    setError("");
+  } catch (requestError) {
+    console.error(
+      "Live activity connection error:",
+      requestError
+    );
+
+    setError(
+      requestError?.message ||
+        "Failed to check live class activity."
+    );
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+},
+[tutorReference]
+
+);
+
+/* =========================================================
+INITIAL LOAD + LIVE POLLING
+========================================================= */
+
+useEffect(() => {
+loadActivities();
+const interval =
+  window.setInterval(() => {
+    loadActivities({
+      silent: true,
+    });
+  }, 5000);
+
+return () => {
+  window.clearInterval(
+    interval
+  );
+};
+
+}, [loadActivities]);
+
+/* =========================================================
+ACTIVITY STATS
+========================================================= */
+
+const liveClasses =
+activities.length;
+
+const currentlyLive =
+activities.filter(
+(activity) =>
+normalize(
+activity.status
+) === "live"
+).length;
+
+const scheduledClasses =
+activities.filter(
+(activity) =>
+normalize(
+activity.status
+) === "scheduled"
+).length;
+
+const completedClasses =
+activities.filter(
+(activity) =>
+normalize(
+activity.status
+) === "ended" ||
+normalize(
+activity.status
+) === "completed"
+).length;
+
+const filteredActivities =
+useMemo(() => {
+if (
+activityFilter === "all"
+) {
+return activities;
+}
+
+  return activities.filter(
+    (activity) => {
+      if (
+        activityFilter ===
+        "live"
+      ) {
+        return (
+          normalize(
+            activity.status
+          ) === "live"
+        );
+      }
+
+      return (
+        normalize(
+          activity.type
+        ) ===
+        normalize(
+          activityFilter
+        )
+      );
+    }
+  );
+}, [
+  activities,
+  activityFilter,
+]);
+
+/* =========================================================
+RUN LIVE CLASS
+========================================================= */
+
+const handleRunLiveClass =
+useCallback(async () => {
+setActionError("");
+
+  if (!tutorReference) {
+    setActionError(
+      "Tutor reference was not found. Please log in again."
+    );
+    return;
+  }
+
+  if (!classId) {
+    setActionError(
+      "This class does not have a valid class ID. Go back to My Classes and open the class again."
+    );
+    return;
+  }
+
+  if (!grade) {
+    setActionError(
+      "Grade/class is required before starting a Live Class."
+    );
+    return;
+  }
+
+  if (!subject) {
+    setActionError(
+      "Subject is required before starting a Live Class."
+    );
+    return;
+  }
+
+  setStartingLive(true);
+
+  try {
+    /* -----------------------------------------------------
+       STEP 1: CREATE LIVE CLASS
+    ----------------------------------------------------- */
+
+    const createResponse =
+      await fetch(
+        `${API_BASE_URL}/api/academy/tutor/live-classes`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Accept:
+              "application/json",
+            "x-tutor-reference":
+              tutorReference,
+          },
+          body: JSON.stringify({
+            tutorReference,
+            tutor_reference:
+              tutorReference,
+
+            classId,
+            class_id: classId,
+
+            className,
+            class_name:
+              className,
+
+            grade,
+
+            subject,
+
+            title: `${subject} Live Class`,
+
+            description: `Live ${subject} class for ${grade}.`,
+          }),
+        }
+      );
+
+    const createContentType =
+      createResponse.headers.get(
+        "content-type"
+      ) || "";
+
+    let createPayload;
+
+    if (
+      createContentType.includes(
+        "application/json"
+      )
+    ) {
+      createPayload =
+        await createResponse.json();
+    } else {
+      const text =
+        await createResponse.text();
+
+      throw new Error(
+        text ||
+          `Failed to create Live Class (${createResponse.status})`
+      );
+    }
+
+    if (!createResponse.ok) {
+      throw new Error(
+        createPayload?.message ||
+          createPayload?.error ||
+          `Failed to create Live Class (${createResponse.status})`
+      );
+    }
+
+    const session =
+      createPayload?.session ||
+      createPayload?.data;
+
+    if (!session?.id) {
+      throw new Error(
+        "Live Class was created, but the server did not return a valid Live Class ID."
+      );
+    }
+
+    /* -----------------------------------------------------
+       STEP 2: START LIVE CLASS
+    ----------------------------------------------------- */
+
+    const startResponse =
+      await fetch(
+        `${API_BASE_URL}/api/academy/tutor/live-classes/${session.id}/start`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Accept:
+              "application/json",
+            "x-tutor-reference":
+              tutorReference,
+          },
+          body: JSON.stringify({
+            tutorReference,
+            tutor_reference:
+              tutorReference,
+          }),
+        }
+      );
+
+    const startContentType =
+      startResponse.headers.get(
+        "content-type"
+      ) || "";
+
+    let startPayload;
+
+    if (
+      startContentType.includes(
+        "application/json"
+      )
+    ) {
+      startPayload =
+        await startResponse.json();
+    } else {
+      const text =
+        await startResponse.text();
+
+      throw new Error(
+        text ||
+          `Failed to start Live Class (${startResponse.status})`
+      );
+    }
+
+    if (!startResponse.ok) {
+      throw new Error(
+        startPayload?.message ||
+          startPayload?.error ||
+          `Failed to start Live Class (${startResponse.status})`
+      );
+    }
+
+    const startedSession =
+      startPayload?.session ||
+      session;
+
+    const roomCode = firstValue(
+      startedSession.room_code,
+      startedSession.room_id,
+      session.room_code,
+      session.room_id
+    );
+
+    /* -----------------------------------------------------
+       STEP 3: REFRESH ACTIVITY DATA
+    ----------------------------------------------------- */
+
+    await loadActivities({
+      silent: true,
+    });
+
+    /* -----------------------------------------------------
+       STEP 4: OPEN THE ACTUAL LIVE ROOM
+    ----------------------------------------------------- */
+
+    if (roomCode) {
+      navigate(
+        `/academy/live-class/${encodeURIComponent(
+          roomCode
+        )}`,
+        {
+          state: {
+            liveClass:
+              startedSession,
+
+            session:
+              startedSession,
+
+            tutor: stateTutor,
+
+            tutorReference,
+
+            grade,
+
+            subject,
+
+            classData,
+          },
+        }
+      );
+
+      return;
+    }
+
+    /* -----------------------------------------------------
+       FALLBACK: OPEN TUTOR LIVE CLASS PAGE
+    ----------------------------------------------------- */
+
+    navigate(
+      "/academy/tutor/live",
+      {
+        state: {
+          liveClass:
+            startedSession,
+
+          session:
+            startedSession,
+
+          tutor: stateTutor,
+
+          tutorReference,
+
+          grade,
+
+          subject,
+
+          classData,
+        },
+      }
+    );
+  } catch (requestError) {
+    console.error(
+      "Run Live Class error:",
+      requestError
+    );
+
+    setActionError(
+      requestError?.message ||
+        "Unable to start Live Class."
+    );
+  } finally {
+    setStartingLive(false);
+  }
+}, [
+  tutorReference,
+  classId,
+  grade,
+  subject,
+  className,
+  stateTutor,
+  classData,
+  navigate,
+  loadActivities,
+]);
+
+/* =========================================================
+OPEN EXISTING LIVE ROOM
+========================================================= */
+
+const handleOpenRoom = (
+activity
+) => {
+if (!activity?.roomCode) {
+setActionError(
+"This Live Class does not have a room code."
+);
+return;
+}
+
+navigate(
+  `/academy/live-class/${encodeURIComponent(
+    activity.roomCode
+  )}`,
+  {
+    state: {
+      liveClass:
+        activity.raw,
+
+      session:
+        activity.raw,
+
+      tutor: stateTutor,
+
+      tutorReference,
+
+      grade:
+        activity.grade ||
+        grade,
+
+      subject:
+        activity.subject ||
+        subject,
+
+      classData,
+    },
+  }
+);
+
+};
+
+/* =========================================================
+QUICK ACTIONS
+========================================================= */
+
+const handleQuickAction = (
+action
+) => {
+if (action === "live") {
+handleRunLiveClass();
+return;
+}
+
+if (action === "assignment") {
+  navigate(
+    "/academy/tutor/assignments/create",
+    {
+      state: {
+        classData,
+        tutor: stateTutor,
+        tutorReference,
+        grade,
+        subject,
+      },
+    }
+  );
+  return;
+}
+
+if (action === "lesson") {
+  navigate(
+    "/academy/tutor/materials",
+    {
+      state: {
+        classData,
+        tutor: stateTutor,
+        tutorReference,
+        grade,
+        subject,
+      },
+    }
+  );
+  return;
+}
+
+if (action === "quiz") {
+  navigate(
+    "/academy/tutor/assignments/create",
+    {
+      state: {
+        classData,
+        tutor: stateTutor,
+        tutorReference,
+        grade,
+        subject,
+        createQuiz: true,
+      },
+    }
   );
 }
 
+};
+
 /* =========================================================
-   MAIN COMPONENT
+RENDER
 ========================================================= */
 
-export default function TutorClassDetails() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const params = useParams();
+return ( <div className="min-h-screen bg-[#020617] text-white">
+{/* =================== HEADER =========================== */}
 
-  const [selectedActivity, setSelectedActivity] =
-    useState(null);
-
-  const [activityFilter, setActivityFilter] =
-    useState("all");
-
-  /* -------------------------------------------------------
-     CLASS DATA
-  ------------------------------------------------------- */
-
-  const classData =
-    location.state?.classData ||
-    location.state?.class ||
-    {};
-
-  const grade =
-    clean(
-      classData.grade ||
-        location.state?.selectedClass ||
-        params.grade ||
-        "Senior Secondary"
-    ) || "Senior Secondary";
-
-  const subject =
-    clean(
-      classData.subject ||
-        location.state?.selectedSubject ||
-        params.subject ||
-        "Mathematics"
-    ) || "Mathematics";
-
-  const tutor =
-    location.state?.tutor ||
-    {};
-
-  const tutorName =
-    clean(
-      tutor.name ||
-        tutor.fullName ||
-        tutor.displayName ||
-        tutor.tutorName
-    ) || "Tutor";
-
-  const tutorEmail =
-    clean(tutor.email) || "tutor@scholiqen.com";
-
-  /* -------------------------------------------------------
-     ACTIVITY FILTERING
-  ------------------------------------------------------- */
-
-  const filteredActivities = useMemo(() => {
-    if (activityFilter === "all") {
-      return HARD_CODED_ACTIVITIES;
-    }
-
-    return HARD_CODED_ACTIVITIES.filter(
-      (activity) =>
-        normalize(activity.type) ===
-        normalize(activityFilter)
-    );
-  }, [activityFilter]);
-
-  /* -------------------------------------------------------
-     STATS
-  ------------------------------------------------------- */
-
-  const stats = useMemo(() => {
-    return {
-      lessons: HARD_CODED_ACTIVITIES.filter(
-        (item) => item.type === "lesson"
-      ).length,
-
-      assignments: HARD_CODED_ACTIVITIES.filter(
-        (item) => item.type === "assignment"
-      ).length,
-
-      quizzes: HARD_CODED_ACTIVITIES.filter(
-        (item) => item.type === "quiz"
-      ).length,
-
-      liveClasses: HARD_CODED_ACTIVITIES.filter(
-        (item) => item.type === "live"
-      ).length,
-    };
-  }, []);
-
-  /* -------------------------------------------------------
-     QUICK ACTION
-  ------------------------------------------------------- */
-
-  const handleQuickAction = (action) => {
-    if (action === "live") {
-      alert(
-        "Live Class is ready to be connected to your backend."
-      );
-      return;
-    }
-
-    if (action === "assignment") {
-      alert(
-        "Assignment creation is ready to be connected."
-      );
-      return;
-    }
-
-    if (action === "lesson") {
-      alert(
-        "Lesson creation is ready to be connected."
-      );
-      return;
-    }
-
-    if (action === "quiz") {
-      alert(
-        "Quiz creation is ready to be connected."
-      );
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#050814] text-white">
-      {/* ===================================================
-          BACKGROUND
-      =================================================== */}
-
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute left-[10%] top-[-10%] h-[350px] w-[350px] rounded-full bg-blue-600/[0.07] blur-[120px]" />
-
-        <div className="absolute right-[5%] top-[30%] h-[300px] w-[300px] rounded-full bg-indigo-600/[0.05] blur-[120px]" />
-
-        <div
-          className="
-            absolute inset-0 opacity-[0.035]
-            bg-[radial-gradient(circle_at_1px_1px,_white_1px,_transparent_0)]
-            [background-size:24px_24px]
-          "
-        />
-      </div>
-
-      {/* ===================================================
-          CONTENT
-      =================================================== */}
-
-      <main className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* =================================================
-            TOP NAV
-        ================================================= */}
-
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 flex items-center justify-between gap-4"
-        >
+  <div className="border-b border-slate-800 bg-[#071426]/90">
+    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() =>
@@ -629,544 +1552,689 @@ export default function TutorClassDetails() {
                 "/academy/tutor/classes"
               )
             }
-            className="
-              group inline-flex items-center gap-2
-              rounded-xl
-              border border-white/[0.07]
-              bg-white/[0.025]
-              px-3.5 py-2.5
-              text-sm font-medium text-slate-400
-              transition-all
-              hover:border-white/[0.12]
-              hover:bg-white/[0.05]
-              hover:text-white
-            "
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-400 transition hover:border-slate-700 hover:text-white"
           >
-            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-            Back to My Classes
+            <ArrowLeft size={18} />
           </button>
 
-          <div className="hidden items-center gap-2 sm:flex">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/30" />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
+              Tutor Class
+            </p>
 
-            <span className="text-xs text-slate-500">
-              Tutor workspace
-            </span>
+            <h1 className="mt-1 text-xl font-bold text-white">
+              {subject}
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-500">
+              {grade}
+              {className &&
+                className !==
+                  grade
+                ? ` • ${className}`
+                : ""}
+            </p>
           </div>
-        </motion.div>
+        </div>
 
-        {/* =================================================
-            HERO
-        ================================================= */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs font-semibold text-emerald-400">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+            Activity Checking Live
+          </div>
 
-        <motion.section
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="
-            relative overflow-hidden
-            rounded-3xl
-            border border-white/[0.08]
-            bg-gradient-to-br
-            from-blue-500/[0.10]
-            via-white/[0.035]
-            to-indigo-500/[0.06]
-            p-6
-            shadow-2xl shadow-black/10
-            sm:p-8
-          "
-        >
-          <div className="absolute right-[-80px] top-[-100px] h-72 w-72 rounded-full bg-blue-500/[0.08] blur-[80px]" />
+          <button
+            type="button"
+            onClick={() =>
+              loadActivities({
+                silent: true,
+              })
+            }
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-cyan-500/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RefreshCw
+              size={15}
+              className={
+                refreshing
+                  ? "animate-spin"
+                  : ""
+              }
+            />
+            Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-          <div className="relative flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div
-                className="
-                  flex h-16 w-16 shrink-0
-                  items-center justify-center
-                  rounded-2xl
-                  border border-blue-400/20
-                  bg-blue-500/10
-                  shadow-lg shadow-blue-950/20
-                "
+  {/* =====================================================
+      CONTENT
+  ===================================================== */}
+
+  <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    {/* HERO */}
+    <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-[#071426] via-[#081827] to-[#020617] p-6 sm:p-8">
+      <div className="relative z-10">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/5 px-3 py-1 text-xs font-semibold text-cyan-400">
+                {grade}
+              </span>
+
+              <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-400">
+                {subject}
+              </span>
+            </div>
+
+            <h2 className="mt-5 text-3xl font-black tracking-tight text-white sm:text-4xl">
+              Manage your class
+              <span className="text-cyan-400">
+                {" "}
+                in real time.
+              </span>
+            </h2>
+
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400">
+              Start a Live Class, manage
+              your teaching activities, and
+              monitor the activities recorded
+              for this class directly from the
+              backend.
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  handleQuickAction(
+                    "live"
+                  )
+                }
+                disabled={startingLive}
+                className="flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <GraduationCap className="h-8 w-8 text-blue-400" />
+                {startingLive ? (
+                  <>
+                    <Loader2
+                      size={17}
+                      className="animate-spin"
+                    />
+                    Starting Live Class...
+                  </>
+                ) : (
+                  <>
+                    <Play size={17} />
+                    Run Live Class
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm text-slate-400">
+                <User size={15} />
+                {tutorName}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:w-[420px]">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+              <Users
+                size={18}
+                className="text-cyan-400"
+              />
+
+              <p className="mt-3 text-2xl font-bold text-white">
+                {studentCount}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Students
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+              <Radio
+                size={18}
+                className="text-red-400"
+              />
+
+              <p className="mt-3 text-2xl font-bold text-white">
+                {currentlyLive}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Live Now
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+              <Video
+                size={18}
+                className="text-cyan-400"
+              />
+
+              <p className="mt-3 text-2xl font-bold text-white">
+                {liveClasses}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Live Classes
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {/* ACTION ERROR */}
+    <AnimatePresence>
+      {actionError && (
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: -8,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          exit={{
+            opacity: 0,
+            y: -8,
+          }}
+          className="mt-5 flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300"
+        >
+          <AlertCircle
+            size={18}
+            className="mt-0.5 shrink-0"
+          />
+
+          <div className="flex-1">
+            <p className="font-semibold">
+              Live Class error
+            </p>
+
+            <p className="mt-1 text-red-300/80">
+              {actionError}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              setActionError("")
+            }
+            className="text-red-400 hover:text-red-200"
+          >
+            <X size={16} />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* STATS */}
+    <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <StatCard
+        icon={Video}
+        label="Live Classes"
+        value={liveClasses}
+        description="Recorded in the backend"
+      />
+
+      <StatCard
+        icon={Radio}
+        label="Live Now"
+        value={currentlyLive}
+        description="Currently active"
+        active={
+          currentlyLive > 0
+        }
+      />
+
+      <StatCard
+        icon={CalendarDays}
+        label="Scheduled"
+        value={scheduledClasses}
+        description="Waiting to start"
+      />
+
+      <StatCard
+        icon={CheckCircle2}
+        label="Completed"
+        value={completedClasses}
+        description="Finished Live Classes"
+      />
+    </section>
+
+    {/* MAIN GRID */}
+    <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      {/* ACTIVITY */}
+      <div className="rounded-3xl border border-slate-800 bg-[#071426]/70">
+        <div className="border-b border-slate-800 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <Radio
+                  size={17}
+                  className="text-cyan-400"
+                />
+
+                <h2 className="text-lg font-bold text-white">
+                  Activity Overview
+                </h2>
               </div>
 
-              <div className="min-w-0">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-blue-400/15 bg-blue-400/[0.07] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-400">
-                    Tutor Class
-                  </span>
+              <p className="mt-1 text-xs text-slate-500">
+                Live activity is checked
+                automatically every 5 seconds.
+              </p>
+            </div>
 
-                  <span className="rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-400">
-                    Active
-                  </span>
-                </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                {
+                  key: "all",
+                  label: "All",
+                },
+                {
+                  key: "live",
+                  label: "Live",
+                },
+                {
+                  key: "ended",
+                  label: "Completed",
+                },
+                {
+                  key: "scheduled",
+                  label: "Scheduled",
+                },
+              ].map((filter) => (
+                <button
+                  key={filter.key}
+                  type="button"
+                  onClick={() =>
+                    setActivityFilter(
+                      filter.key
+                    )
+                  }
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    activityFilter ===
+                    filter.key
+                      ? "bg-cyan-500 text-slate-950"
+                      : "bg-slate-900 text-slate-500 hover:text-white"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-                <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                  {subject}
-                </h1>
+          {lastChecked && (
+            <div className="mt-4 flex items-center gap-2 text-[11px] text-slate-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Last checked{" "}
+              {formatDateTime(
+                lastChecked
+              )}
+            </div>
+          )}
+        </div>
 
-                <p className="mt-2 text-sm text-slate-400">
-                  {grade} · Tutor activity workspace
-                </p>
+        <div className="p-5 sm:p-6">
+          {loading ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center">
+              <Loader2
+                size={28}
+                className="animate-spin text-cyan-400"
+              />
 
-                <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5" />
-                    32 Students
-                  </span>
+              <p className="mt-4 text-sm font-semibold text-white">
+                Checking class activity...
+              </p>
 
-                  <span className="inline-flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    3 Classes / Week
-                  </span>
+              <p className="mt-1 text-xs text-slate-500">
+                Connecting to the Live Class
+                backend.
+              </p>
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
+              <div className="flex items-start gap-3">
+                <AlertCircle
+                  size={19}
+                  className="mt-0.5 shrink-0 text-red-400"
+                />
 
-                  <span className="inline-flex items-center gap-1.5">
-                    <Award className="h-3.5 w-3.5" />
-                    {tutorName}
-                  </span>
+                <div>
+                  <p className="text-sm font-semibold text-red-300">
+                    Activity connection error
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-red-300/70">
+                    {error}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      loadActivities()
+                    }
+                    className="mt-4 flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
+                  >
+                    <RefreshCw
+                      size={14}
+                    />
+                    Try Again
+                  </button>
                 </div>
               </div>
             </div>
+          ) : filteredActivities.length ===
+            0 ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-slate-950/20 px-6 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-slate-600">
+                <Radio size={24} />
+              </div>
 
-            <div className="rounded-2xl border border-white/[0.07] bg-black/10 p-4 lg:min-w-[230px]">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
+              <h3 className="mt-4 text-sm font-semibold text-white">
+                No Live Class activity yet
+              </h3>
+
+              <p className="mt-2 max-w-md text-xs leading-5 text-slate-500">
+                Start a Live Class and its
+                real backend activity will
+                appear here automatically.
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleRunLiveClass()
+                }
+                disabled={startingLive}
+                className="mt-5 flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-60"
+              >
+                <Play size={14} />
+                Start Live Class
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredActivities.map(
+                (activity) => (
+                  <ActivityItem
+                    key={`${activity.id}-${activity.timestamp}`}
+                    activity={
+                      activity
+                    }
+                    onOpen={
+                      setSelectedActivity
+                    }
+                  />
+                )
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* SIDEBAR */}
+      <aside className="space-y-6">
+        {/* QUICK ACTIONS */}
+        <div className="rounded-3xl border border-slate-800 bg-[#071426]/70 p-5">
+          <div className="flex items-center gap-2">
+            <Plus
+              size={17}
+              className="text-cyan-400"
+            />
+
+            <h2 className="text-sm font-bold text-white">
+              Quick Actions
+            </h2>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <button
+              type="button"
+              onClick={() =>
+                handleQuickAction(
+                  "live"
+                )
+              }
+              disabled={startingLive}
+              className="flex w-full items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-left transition hover:border-red-500/40 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
+                {startingLive ? (
+                  <Loader2
+                    size={17}
+                    className="animate-spin"
+                  />
+                ) : (
+                  <Video size={17} />
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-white">
+                  {startingLive
+                    ? "Starting..."
+                    : "Run Live Class"}
+                </p>
+
+                <p className="mt-0.5 text-[10px] text-slate-500">
+                  Open the real classroom
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                handleQuickAction(
+                  "assignment"
+                )
+              }
+              className="flex w-full items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-left transition hover:border-cyan-500/20 hover:bg-slate-900"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                <ClipboardList
+                  size={17}
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-white">
+                  Create Assignment
+                </p>
+
+                <p className="mt-0.5 text-[10px] text-slate-500">
+                  Give students new work
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                handleQuickAction(
+                  "lesson"
+                )
+              }
+              className="flex w-full items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-left transition hover:border-cyan-500/20 hover:bg-slate-900"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                <BookOpen
+                  size={17}
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-white">
+                  Add Lesson
+                </p>
+
+                <p className="mt-0.5 text-[10px] text-slate-500">
+                  Add learning material
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                handleQuickAction(
+                  "quiz"
+                )
+              }
+              className="flex w-full items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-left transition hover:border-cyan-500/20 hover:bg-slate-900"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                <FileText
+                  size={17}
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-white">
+                  Create Quiz
+                </p>
+
+                <p className="mt-0.5 text-[10px] text-slate-500">
+                  Test student knowledge
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* CLASS INFO */}
+        <div className="rounded-3xl border border-slate-800 bg-[#071426]/70 p-5">
+          <div className="flex items-center gap-2">
+            <School
+              size={17}
+              className="text-cyan-400"
+            />
+
+            <h2 className="text-sm font-bold text-white">
+              Class Information
+            </h2>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-slate-600">
+                Grade
+              </p>
+
+              <p className="mt-1 text-sm font-semibold text-white">
+                {grade}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-slate-600">
+                Subject
+              </p>
+
+              <p className="mt-1 text-sm font-semibold text-white">
+                {subject}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-slate-600">
                 Tutor
               </p>
 
-              <p className="mt-2 font-semibold text-white">
+              <p className="mt-1 text-sm font-semibold text-white">
                 {tutorName}
               </p>
 
-              <p className="mt-1 truncate text-xs text-slate-500">
-                {tutorEmail}
-              </p>
-
-              <div className="mt-3 flex items-center gap-2 text-xs text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                Active tutor
-              </div>
-            </div>
-          </div>
-        </motion.section>
-
-        {/* =================================================
-            STATS
-        ================================================= */}
-
-        <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard
-            icon={BookOpen}
-            label="Lessons"
-            value={stats.lessons}
-            description="Lessons added"
-            delay={0.05}
-          />
-
-          <StatCard
-            icon={FileText}
-            label="Assignments"
-            value={stats.assignments}
-            description="Assignments created"
-            delay={0.1}
-          />
-
-          <StatCard
-            icon={HelpCircle}
-            label="Quizzes"
-            value={stats.quizzes}
-            description="Quizzes created"
-            delay={0.15}
-          />
-
-          <StatCard
-            icon={Video}
-            label="Live Classes"
-            value={stats.liveClasses}
-            description="Live sessions"
-            delay={0.2}
-          />
-        </section>
-
-        {/* =================================================
-            MAIN GRID
-        ================================================= */}
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          {/* ===============================================
-              ACTIVITY
-          =============================================== */}
-
-          <section
-            className="
-              rounded-3xl
-              border border-white/[0.08]
-              bg-white/[0.025]
-              p-5
-              sm:p-6
-            "
-          >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <ActivityPulse />
-
-                  <h2 className="text-lg font-bold text-white">
-                    Tutor Activity
-                  </h2>
-                </div>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Everything the tutor has done in this class.
+              {tutorEmail && (
+                <p className="mt-1 truncate text-xs text-slate-500">
+                  {tutorEmail}
                 </p>
-              </div>
-
-              <div className="relative">
-                <select
-                  value={activityFilter}
-                  onChange={(event) =>
-                    setActivityFilter(
-                      event.target.value
-                    )
-                  }
-                  className="
-                    appearance-none
-                    rounded-xl
-                    border border-white/[0.08]
-                    bg-white/[0.035]
-                    py-2.5 pl-3 pr-9
-                    text-xs font-medium
-                    text-slate-300
-                    outline-none
-                    transition
-                    focus:border-blue-400/30
-                  "
-                >
-                  <option
-                    value="all"
-                    className="bg-[#0b1020]"
-                  >
-                    All Activity
-                  </option>
-
-                  <option
-                    value="live"
-                    className="bg-[#0b1020]"
-                  >
-                    Live Classes
-                  </option>
-
-                  <option
-                    value="assignment"
-                    className="bg-[#0b1020]"
-                  >
-                    Assignments
-                  </option>
-
-                  <option
-                    value="lesson"
-                    className="bg-[#0b1020]"
-                  >
-                    Lessons
-                  </option>
-
-                  <option
-                    value="quiz"
-                    className="bg-[#0b1020]"
-                  >
-                    Quizzes
-                  </option>
-
-                  <option
-                    value="announcement"
-                    className="bg-[#0b1020]"
-                  >
-                    Announcements
-                  </option>
-                </select>
-
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-600" />
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-3">
-              <AnimatePresence mode="popLayout">
-                {filteredActivities.map(
-                  (activity, index) => (
-                    <ActivityItem
-                      key={activity.id}
-                      activity={activity}
-                      index={index}
-                      onOpen={setSelectedActivity}
-                    />
-                  )
-                )}
-              </AnimatePresence>
-
-              {filteredActivities.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-white/[0.08] p-10 text-center">
-                  <Sparkles className="mx-auto h-7 w-7 text-slate-700" />
-
-                  <p className="mt-3 text-sm font-medium text-slate-400">
-                    No activity found
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-600">
-                    Try another activity filter.
-                  </p>
-                </div>
               )}
             </div>
-          </section>
 
-          {/* ===============================================
-              SIDEBAR
-          =============================================== */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-slate-600">
+                Students
+              </p>
 
-          <aside className="space-y-6">
-            {/* Class Overview */}
-            <motion.div
-              initial={{ opacity: 0, x: 15 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="
-                rounded-3xl
-                border border-white/[0.08]
-                bg-white/[0.025]
-                p-5
-              "
-            >
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-blue-400" />
-
-                <h3 className="font-semibold text-white">
-                  Class Overview
-                </h3>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                <OverviewRow
-                  icon={GraduationCap}
-                  label="Grade"
-                  value={grade}
-                />
-
-                <OverviewRow
-                  icon={BookOpen}
-                  label="Subject"
-                  value={subject}
-                />
-
-                <OverviewRow
-                  icon={Users}
-                  label="Students"
-                  value="32"
-                />
-
-                <OverviewRow
-                  icon={CalendarDays}
-                  label="Schedule"
-                  value="Mon · Wed · Fri"
-                />
-
-                <OverviewRow
-                  icon={Clock3}
-                  label="Duration"
-                  value="1 hour"
-                />
-              </div>
-            </motion.div>
-
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 15 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.28 }}
-              className="
-                rounded-3xl
-                border border-white/[0.08]
-                bg-white/[0.025]
-                p-5
-              "
-            >
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-blue-400" />
-
-                <h3 className="font-semibold text-white">
-                  Quick Actions
-                </h3>
-              </div>
-
-              <div className="mt-4 space-y-2">
-                <QuickAction
-                  icon={Radio}
-                  label="Start Live Class"
-                  onClick={() =>
-                    handleQuickAction("live")
-                  }
-                />
-
-                <QuickAction
-                  icon={FileText}
-                  label="Create Assignment"
-                  onClick={() =>
-                    handleQuickAction("assignment")
-                  }
-                />
-
-                <QuickAction
-                  icon={BookOpen}
-                  label="Add Lesson"
-                  onClick={() =>
-                    handleQuickAction("lesson")
-                  }
-                />
-
-                <QuickAction
-                  icon={HelpCircle}
-                  label="Create Quiz"
-                  onClick={() =>
-                    handleQuickAction("quiz")
-                  }
-                />
-              </div>
-            </motion.div>
-
-            {/* Activity summary */}
-            <motion.div
-              initial={{ opacity: 0, x: 15 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.34 }}
-              className="
-                relative overflow-hidden
-                rounded-3xl
-                border border-blue-400/10
-                bg-blue-500/[0.045]
-                p-5
-              "
-            >
-              <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-blue-500/10 blur-3xl" />
-
-              <div className="relative">
-                <Sparkles className="h-5 w-5 text-blue-400" />
-
-                <h3 className="mt-3 font-semibold text-white">
-                  Activity Overview
-                </h3>
-
-                <p className="mt-2 text-xs leading-5 text-slate-500">
-                  This section will eventually show real-time
-                  activity coming directly from the tutor
-                  dashboard.
-                </p>
-
-                <div className="mt-4 flex items-center gap-2 text-xs text-blue-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-                  Tracking enabled
-                </div>
-              </div>
-            </motion.div>
-          </aside>
+              <p className="mt-1 text-sm font-semibold text-white">
+                {studentCount}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* =================================================
-            FOOT NOTE
-        ================================================= */}
+        {/* BACKEND STATUS */}
+        <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+              <CheckCircle2
+                size={18}
+              />
+            </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-6 flex items-center justify-center gap-2 pb-8 text-[11px] text-slate-700"
-        >
-          <Sparkles className="h-3 w-3" />
-          Scholiqen Tutor Workspace
-        </motion.div>
-      </main>
+            <div>
+              <p className="text-sm font-bold text-emerald-300">
+                Backend Connected
+              </p>
 
-      {/* ===================================================
-          MODAL
-      =================================================== */}
+              <p className="mt-1 text-xs leading-5 text-emerald-300/60">
+                Live Class activity is
+                being read from the real
+                academy_live_classes table.
+              </p>
 
-      <ActivityModal
-        activity={selectedActivity}
-        onClose={() => setSelectedActivity(null)}
-      />
-    </div>
-  );
-}
+              {lastChecked && (
+                <p className="mt-2 text-[10px] text-emerald-300/40">
+                  Checked{" "}
+                  {formatDateTime(
+                    lastChecked
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
 
-/* =========================================================
-   SMALL COMPONENTS
-========================================================= */
+  {/* =====================================================
+      ACTIVITY MODAL
+  ===================================================== */}
 
-function ActivityPulse() {
-  return (
-    <span className="relative flex h-5 w-5 items-center justify-center">
-      <span className="absolute h-2.5 w-2.5 rounded-full bg-blue-400/30 animate-ping" />
+  <ActivityModal
+    activity={
+      selectedActivity
+    }
+    onClose={() =>
+      setSelectedActivity(
+        null
+      )
+    }
+    onOpenRoom={(activity) => {
+      setSelectedActivity(
+        null
+      );
 
-      <span className="relative h-2 w-2 rounded-full bg-blue-400" />
-    </span>
-  );
-}
+      handleOpenRoom(
+        activity
+      );
+    }}
+  />
+</div>
 
-function OverviewRow({
-  icon: Icon,
-  label,
-  value,
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-3">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <Icon className="h-4 w-4 shrink-0 text-slate-600" />
 
-        <span className="text-xs text-slate-500">
-          {label}
-        </span>
-      </div>
+);
+};
 
-      <span className="max-w-[150px] truncate text-right text-xs font-medium text-slate-300">
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function QuickAction({
-  icon: Icon,
-  label,
-  onClick,
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="
-        group flex w-full items-center
-        justify-between
-        rounded-xl
-        border border-white/[0.06]
-        bg-white/[0.02]
-        px-3 py-3
-        text-left
-        transition-all
-        hover:border-blue-400/15
-        hover:bg-blue-500/[0.05]
-      "
-    >
-      <span className="flex items-center gap-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04]">
-          <Icon className="h-4 w-4 text-slate-400 transition group-hover:text-blue-400" />
-        </span>
-
-        <span className="text-xs font-medium text-slate-300">
-          {label}
-        </span>
-      </span>
-
-      <Plus className="h-4 w-4 text-slate-700 transition group-hover:text-blue-400" />
-    </button>
-  );
-}
+export default TutorClassDetails;

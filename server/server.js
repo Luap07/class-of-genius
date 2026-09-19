@@ -355,6 +355,15 @@ app.use(
       "OPTIONS",
     ],
 
+    // IMPORTANT:
+    // x-academy-token was added here.
+    //
+    // StudentSubjects.jsx sends:
+    // x-academy-token
+    //
+    // Without this header being allowed, the browser
+    // blocks the OPTIONS preflight before the GET request
+    // reaches the Academy student subjects route.
     allowedHeaders: [
       "Origin",
       "Content-Type",
@@ -363,7 +372,10 @@ app.use(
       "X-Requested-With",
       "x-paystack-signature",
       "x-tutor-reference",
+      "x-academy-token",
     ],
+
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -397,7 +409,7 @@ app.use(
 
         res.setHeader(
           "Access-Control-Allow-Headers",
-          "Origin, Content-Type, Authorization, Accept, X-Requested-With"
+          "Origin, Content-Type, Authorization, Accept, X-Requested-With, x-academy-token"
         );
 
         if (
@@ -415,8 +427,15 @@ app.use(
   )
 );
 
+// ============================================================
+// ACADEMY ENROLLMENT ROUTES
+// ============================================================
 
-app.use( "/api/academy", academyEnrollmentRoutes );
+app.use(
+  "/api/academy",
+  academyEnrollmentRoutes
+);
+
 // ============================================================
 // PAYSTACK WEBHOOK RAW BODY
 // ============================================================
@@ -584,6 +603,9 @@ app.get(
 
         tutorApplicationByReference:
           "GET /api/academy/tutor-application/:reference",
+
+        studentSubjects:
+          "GET /api/academy/student/subjects",
 
         tutorTasks:
           "GET /api/academy/tutor/tasks",
@@ -1607,6 +1629,10 @@ const server = app.listen(
 
     console.log(
       "📚 Academy routes:"
+    );
+
+    console.log(
+      "   GET    /api/academy/student/subjects"
     );
 
     console.log(

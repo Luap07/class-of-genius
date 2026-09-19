@@ -1,5 +1,6 @@
 import React, {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -13,6 +14,11 @@ import {
   Search,
   RefreshCw,
   X,
+  GraduationCap,
+  BookOpen,
+  AlertCircle,
+  Pencil,
+  Save,
 } from "lucide-react";
 
 // ============================================================
@@ -26,6 +32,61 @@ const API_URL = (
 
 const AUTH_TOKEN_KEY =
   "scholiqen_auth_token";
+
+// ============================================================
+// CLASS OPTIONS
+// ============================================================
+
+const CLASS_OPTIONS = [
+  {
+    value: "Grade 1",
+    label: "Grade 1",
+  },
+  {
+    value: "Grade 2",
+    label: "Grade 2",
+  },
+  {
+    value: "Grade 3",
+    label: "Grade 3",
+  },
+  {
+    value: "Grade 4",
+    label: "Grade 4",
+  },
+  {
+    value: "Grade 5",
+    label: "Grade 5",
+  },
+  {
+    value: "Grade 6",
+    label: "Grade 6",
+  },
+  {
+    value: "JSS 1",
+    label: "JSS 1",
+  },
+  {
+    value: "JSS 2",
+    label: "JSS 2",
+  },
+  {
+    value: "JSS 3",
+    label: "JSS 3",
+  },
+  {
+    value: "SS 1",
+    label: "SS 1",
+  },
+  {
+    value: "SS 2",
+    label: "SS 2",
+  },
+  {
+    value: "SS 3",
+    label: "SS 3",
+  },
+];
 
 // ============================================================
 // AUTH HEADERS
@@ -51,14 +112,47 @@ const getAuthHeaders = () => {
 const getAssetUrl = (url) => {
   if (!url) return "";
 
+  const value = String(url);
+
   if (
-    url.startsWith("http://") ||
-    url.startsWith("https://")
+    value.startsWith("http://") ||
+    value.startsWith("https://")
   ) {
-    return url;
+    return value;
   }
 
-  return `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+  return `${API_URL}${
+    value.startsWith("/") ? "" : "/"
+  }${value}`;
+};
+
+// ============================================================
+// SAFE JSON
+// ============================================================
+
+const readJson = async (response) => {
+  const text =
+    await response.text();
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+};
+
+// ============================================================
+// NORMALIZE SUBJECT
+// ============================================================
+
+const normalizeSubject = (value) => {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
 };
 
 // ============================================================
@@ -66,6 +160,10 @@ const getAssetUrl = (url) => {
 // ============================================================
 
 const ResourcesAdmin = () => {
+  // ==========================================================
+  // FORM STATE
+  // ==========================================================
+
   const [title, setTitle] =
     useState("");
 
@@ -75,14 +173,32 @@ const ResourcesAdmin = () => {
   const [video, setVideo] =
     useState(null);
 
-  const [topicId, setTopicId] =
+  const [selectedClass, setSelectedClass] =
     useState("");
 
-  const [topics, setTopics] =
-    useState([]);
+  const [subject, setSubject] =
+    useState("");
+
+  // ==========================================================
+  // EDIT STATE
+  // ==========================================================
+
+  const [editingResource, setEditingResource] =
+    useState(null);
+
+  const [savingEdit, setSavingEdit] =
+    useState(false);
+
+  // ==========================================================
+  // DATA
+  // ==========================================================
 
   const [resources, setResources] =
     useState([]);
+
+  // ==========================================================
+  // LOADING
+  // ==========================================================
 
   const [uploading, setUploading] =
     useState(false);
@@ -90,65 +206,18 @@ const ResourcesAdmin = () => {
   const [loading, setLoading] =
     useState(true);
 
-  const [loadingTopics, setLoadingTopics] =
-    useState(true);
-
   const [deletingId, setDeletingId] =
     useState(null);
+
+  // ==========================================================
+  // UI
+  // ==========================================================
 
   const [search, setSearch] =
     useState("");
 
-  // ==========================================================
-  // FETCH TOPICS
-  // ==========================================================
-
-  const fetchTopics = async () => {
-    try {
-      setLoadingTopics(true);
-
-      const response =
-        await fetch(
-          `${API_URL}/api/resources/topics`,
-          {
-            method: "GET",
-            headers: {
-              ...getAuthHeaders(),
-            },
-          }
-        );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message ||
-            "Unable to fetch video categories."
-        );
-      }
-
-      setTopics(
-        Array.isArray(data?.topics)
-          ? data.topics
-          : []
-      );
-    } catch (error) {
-      console.error(
-        "TOPIC FETCH ERROR:",
-        error
-      );
-
-      setTopics([]);
-
-      alert(
-        error?.message ||
-          "Unable to load video categories."
-      );
-    } finally {
-      setLoadingTopics(false);
-    }
-  };
+  const [error, setError] =
+    useState("");
 
   // ==========================================================
   // FETCH VIDEOS
@@ -157,6 +226,7 @@ const ResourcesAdmin = () => {
   const fetchResources = async () => {
     try {
       setLoading(true);
+      setError("");
 
       const response =
         await fetch(
@@ -170,7 +240,7 @@ const ResourcesAdmin = () => {
         );
 
       const data =
-        await response.json();
+        await readJson(response);
 
       if (!response.ok) {
         throw new Error(
@@ -186,16 +256,16 @@ const ResourcesAdmin = () => {
           ? data.resources
           : []
       );
-    } catch (error) {
+    } catch (fetchError) {
       console.error(
         "RESOURCE FETCH ERROR:",
-        error
+        fetchError
       );
 
       setResources([]);
 
-      alert(
-        error?.message ||
+      setError(
+        fetchError?.message ||
           "Unable to load videos."
       );
     } finally {
@@ -209,25 +279,117 @@ const ResourcesAdmin = () => {
 
   useEffect(() => {
     fetchResources();
-    fetchTopics();
   }, []);
+
+  // ==========================================================
+  // RESET FORM
+  // ==========================================================
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setVideo(null);
+    setSelectedClass("");
+    setSubject("");
+    setEditingResource(null);
+
+    const fileInput =
+      document.getElementById(
+        "video-upload-input"
+      );
+
+    if (fileInput) {
+      fileInput.value = "";
+    }
+  };
+
+  // ==========================================================
+  // START EDIT
+  // ==========================================================
+
+  const startEdit = (resource) => {
+    setError("");
+
+    setEditingResource(resource);
+
+    setTitle(
+      resource?.title || ""
+    );
+
+    setDescription(
+      resource?.description || ""
+    );
+
+    setSelectedClass(
+      resource?.class_name ||
+        resource?.class ||
+        resource?.grade ||
+        ""
+    );
+
+    setSubject(
+      normalizeSubject(
+        resource?.subject ||
+          resource?.subject_name ||
+          resource?.subject_title ||
+          ""
+      )
+    );
+
+    setVideo(null);
+
+    const fileInput =
+      document.getElementById(
+        "video-upload-input"
+      );
+
+    if (fileInput) {
+      fileInput.value = "";
+    }
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
 
   // ==========================================================
   // UPLOAD VIDEO
   // ==========================================================
 
-  const uploadVideo = async (e) => {
-    e.preventDefault();
+  const uploadVideo = async (
+    event
+  ) => {
+    event.preventDefault();
+
+    setError("");
+
+    const cleanSubject =
+      normalizeSubject(subject);
+
+    if (!selectedClass) {
+      setError(
+        "Please select a class."
+      );
+      return;
+    }
+
+    if (!cleanSubject) {
+      setError(
+        "Please enter the subject."
+      );
+      return;
+    }
 
     if (!title.trim()) {
-      alert(
+      setError(
         "Video title is required."
       );
       return;
     }
 
     if (!video) {
-      alert(
+      setError(
         "Please select a video."
       );
       return;
@@ -249,12 +411,42 @@ const ResourcesAdmin = () => {
         description.trim()
       );
 
-      if (topicId) {
-        formData.append(
-          "topic_id",
-          topicId
-        );
-      }
+      // ------------------------------------------------------
+      // CLASS
+      // ------------------------------------------------------
+
+      formData.append(
+        "class",
+        selectedClass
+      );
+
+      formData.append(
+        "class_name",
+        selectedClass
+      );
+
+      formData.append(
+        "grade",
+        selectedClass
+      );
+
+      // ------------------------------------------------------
+      // SUBJECT
+      // ------------------------------------------------------
+
+      formData.append(
+        "subject",
+        cleanSubject
+      );
+
+      formData.append(
+        "subject_name",
+        cleanSubject
+      );
+
+      // ------------------------------------------------------
+      // VIDEO
+      // ------------------------------------------------------
 
       formData.append(
         "video",
@@ -274,7 +466,7 @@ const ResourcesAdmin = () => {
         );
 
       const data =
-        await response.json();
+        await readJson(response);
 
       if (!response.ok) {
         throw new Error(
@@ -283,37 +475,170 @@ const ResourcesAdmin = () => {
         );
       }
 
-      setTitle("");
-      setDescription("");
-      setVideo(null);
-      setTopicId("");
-
-      const fileInput =
-        document.getElementById(
-          "video-upload-input"
-        );
-
-      if (fileInput) {
-        fileInput.value = "";
-      }
+      resetForm();
 
       await fetchResources();
 
       alert(
         "Video uploaded successfully."
       );
-    } catch (error) {
+    } catch (uploadError) {
       console.error(
         "UPLOAD ERROR:",
-        error
+        uploadError
       );
 
-      alert(
-        error?.message ||
+      setError(
+        uploadError?.message ||
           "Video upload failed."
       );
     } finally {
       setUploading(false);
+    }
+  };
+
+  // ==========================================================
+  // UPDATE VIDEO
+  // ==========================================================
+
+  const updateVideo = async (
+    event
+  ) => {
+    event.preventDefault();
+
+    if (!editingResource) {
+      return;
+    }
+
+    setError("");
+
+    const cleanSubject =
+      normalizeSubject(subject);
+
+    if (!selectedClass) {
+      setError(
+        "Please select a class."
+      );
+      return;
+    }
+
+    if (!cleanSubject) {
+      setError(
+        "Please enter the subject."
+      );
+      return;
+    }
+
+    if (!title.trim()) {
+      setError(
+        "Video title is required."
+      );
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+
+      const formData =
+        new FormData();
+
+      formData.append(
+        "title",
+        title.trim()
+      );
+
+      formData.append(
+        "description",
+        description.trim()
+      );
+
+      // ------------------------------------------------------
+      // CLASS
+      // ------------------------------------------------------
+
+      formData.append(
+        "class",
+        selectedClass
+      );
+
+      formData.append(
+        "class_name",
+        selectedClass
+      );
+
+      formData.append(
+        "grade",
+        selectedClass
+      );
+
+      // ------------------------------------------------------
+      // SUBJECT
+      // ------------------------------------------------------
+
+      formData.append(
+        "subject",
+        cleanSubject
+      );
+
+      formData.append(
+        "subject_name",
+        cleanSubject
+      );
+
+      // ------------------------------------------------------
+      // OPTIONAL NEW VIDEO
+      // ------------------------------------------------------
+
+      if (video) {
+        formData.append(
+          "video",
+          video
+        );
+      }
+
+      const response =
+        await fetch(
+          `${API_URL}/api/resources/${encodeURIComponent(
+            editingResource.id
+          )}`,
+          {
+            method: "PUT",
+            headers: {
+              ...getAuthHeaders(),
+            },
+            body: formData,
+          }
+        );
+
+      const data =
+        await readJson(response);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            "Unable to update video."
+        );
+      }
+
+      resetForm();
+
+      await fetchResources();
+
+      alert(
+        "Video updated successfully."
+      );
+    } catch (updateError) {
+      console.error(
+        "UPDATE VIDEO ERROR:",
+        updateError
+      );
+
+      setError(
+        updateError?.message ||
+          "Unable to update video."
+      );
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -329,12 +654,16 @@ const ResourcesAdmin = () => {
         `Delete "${resource.title}"?`
       );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setDeletingId(
         resource.id
       );
+
+      setError("");
 
       const response =
         await fetch(
@@ -350,7 +679,7 @@ const ResourcesAdmin = () => {
         );
 
       const data =
-        await response.json();
+        await readJson(response);
 
       if (!response.ok) {
         throw new Error(
@@ -367,14 +696,22 @@ const ResourcesAdmin = () => {
               String(resource.id)
           )
       );
-    } catch (error) {
+
+      if (
+        editingResource &&
+        String(editingResource.id) ===
+          String(resource.id)
+      ) {
+        resetForm();
+      }
+    } catch (deleteError) {
       console.error(
         "DELETE VIDEO ERROR:",
-        error
+        deleteError
       );
 
-      alert(
-        error?.message ||
+      setError(
+        deleteError?.message ||
           "Unable to delete video."
       );
     } finally {
@@ -387,28 +724,75 @@ const ResourcesAdmin = () => {
   // ==========================================================
 
   const filteredResources =
-    resources.filter(
-      (resource) => {
-        const query =
-          search
-            .trim()
-            .toLowerCase();
+    useMemo(() => {
+      const query =
+        search
+          .trim()
+          .toLowerCase();
 
-        if (!query) return true;
-
-        return (
-          resource.title
-            ?.toLowerCase()
-            .includes(query) ||
-          resource.description
-            ?.toLowerCase()
-            .includes(query) ||
-          resource.topic_title
-            ?.toLowerCase()
-            .includes(query)
-        );
+      if (!query) {
+        return resources;
       }
-    );
+
+      return resources.filter(
+        (resource) => {
+          return (
+            resource.title
+              ?.toLowerCase()
+              .includes(query) ||
+            resource.description
+              ?.toLowerCase()
+              .includes(query) ||
+            resource.subject
+              ?.toLowerCase()
+              .includes(query) ||
+            resource.subject_name
+              ?.toLowerCase()
+              .includes(query) ||
+            resource.subject_title
+              ?.toLowerCase()
+              .includes(query) ||
+            resource.class
+              ?.toLowerCase()
+              .includes(query) ||
+            resource.class_name
+              ?.toLowerCase()
+              .includes(query) ||
+            resource.grade
+              ?.toLowerCase()
+              .includes(query)
+          );
+        }
+      );
+    }, [
+      resources,
+      search,
+    ]);
+
+  // ==========================================================
+  // CLASS COUNT
+  // ==========================================================
+
+  const classCount =
+    useMemo(() => {
+      const classes =
+        resources
+          .map(
+            (resource) =>
+              resource.class_name ||
+              resource.class ||
+              resource.grade
+          )
+          .filter(Boolean);
+
+      return new Set(
+        classes.map((value) =>
+          String(value)
+            .trim()
+            .toLowerCase()
+        )
+      ).size;
+    }, [resources]);
 
   // ==========================================================
   // RENDER
@@ -511,21 +895,16 @@ const ResourcesAdmin = () => {
                 text-slate-400
               "
             >
-              Upload and manage learning
-              videos for your students.
+              Upload, edit and organize
+              learning videos by class
+              and subject.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() => {
-              fetchResources();
-              fetchTopics();
-            }}
-            disabled={
-              loading ||
-              loadingTopics
-            }
+            onClick={fetchResources}
+            disabled={loading}
             className="
               flex
               items-center
@@ -543,13 +922,14 @@ const ResourcesAdmin = () => {
               transition
               hover:border-blue-500/40
               hover:bg-slate-800
+              disabled:cursor-not-allowed
+              disabled:opacity-50
             "
           >
             <RefreshCw
               size={17}
               className={
-                loading ||
-                loadingTopics
+                loading
                   ? "animate-spin"
                   : ""
               }
@@ -558,6 +938,50 @@ const ResourcesAdmin = () => {
             Refresh
           </button>
         </div>
+
+        {/* ==================================================
+            ERROR
+        ================================================== */}
+
+        {error && (
+          <div
+            className="
+              flex
+              items-start
+              gap-3
+              rounded-2xl
+              border
+              border-red-500/20
+              bg-red-500/10
+              p-4
+              text-sm
+              text-red-300
+            "
+          >
+            <AlertCircle
+              size={19}
+              className="mt-0.5 shrink-0"
+            />
+
+            <span>{error}</span>
+
+            <button
+              type="button"
+              onClick={() =>
+                setError("")
+              }
+              className="
+                ml-auto
+                shrink-0
+                text-red-400
+                transition
+                hover:text-white
+              "
+            >
+              <X size={17} />
+            </button>
+          </div>
+        )}
 
         {/* ==================================================
             STATS
@@ -629,40 +1053,44 @@ const ResourcesAdmin = () => {
                 justify-between
               "
             >
-                <span
-                  className="
-                    text-sm
-                    font-medium
-                    text-slate-400
-                  "
-                >
-                  Categories
-                </span>
-
-                <Video
-                  size={20}
-                  className="text-blue-400"
-                />
-              </div>
-
-              <p
+              <span
                 className="
-                  mt-2
-                  text-3xl
-                  font-black
+                  text-sm
+                  font-medium
+                  text-slate-400
                 "
               >
-                {topics.length}
-              </p>
+                Classes
+              </span>
+
+              <GraduationCap
+                size={20}
+                className="text-blue-400"
+              />
             </div>
+
+            <p
+              className="
+                mt-2
+                text-3xl
+                font-black
+              "
+            >
+              {classCount}
+            </p>
+          </div>
         </div>
 
         {/* ==================================================
-            UPLOAD FORM
+            UPLOAD / EDIT FORM
         ================================================== */}
 
         <form
-          onSubmit={uploadVideo}
+          onSubmit={
+            editingResource
+              ? updateVideo
+              : uploadVideo
+          }
           className="
             overflow-hidden
             rounded-3xl
@@ -683,25 +1111,70 @@ const ResourcesAdmin = () => {
               sm:px-8
             "
           >
-            <h2
+            <div
               className="
-                text-xl
-                font-black
+                flex
+                flex-col
+                gap-4
+                sm:flex-row
+                sm:items-center
+                sm:justify-between
               "
             >
-              Upload New Video
-            </h2>
+              <div>
+                <h2
+                  className="
+                    text-xl
+                    font-black
+                  "
+                >
+                  {editingResource
+                    ? "Edit Video"
+                    : "Upload New Video"}
+                </h2>
 
-            <p
-              className="
-                mt-1
-                text-sm
-                text-slate-400
-              "
-            >
-              Add a video lesson to
-              your resource library.
-            </p>
+                <p
+                  className="
+                    mt-1
+                    text-sm
+                    text-slate-400
+                  "
+                >
+                  {editingResource
+                    ? "Update the class, subject, title, description or replace the video file."
+                    : "Select the class and type the subject this video belongs to."}
+                </p>
+              </div>
+
+              {editingResource && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded-xl
+                    border
+                    border-slate-700
+                    bg-slate-800
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-bold
+                    text-slate-300
+                    transition
+                    hover:bg-slate-700
+                    hover:text-white
+                  "
+                >
+                  <X size={17} />
+
+                  Cancel Edit
+                </button>
+              )}
+            </div>
           </div>
 
           <div
@@ -712,7 +1185,201 @@ const ResourcesAdmin = () => {
               sm:p-8
             "
           >
-            {/* TITLE */}
+            {/* ==================================================
+                CLASS
+            ================================================== */}
+
+            <div>
+              <label
+                className="
+                  mb-2
+                  flex
+                  items-center
+                  gap-2
+                  text-sm
+                  font-semibold
+                  text-slate-200
+                "
+              >
+                <GraduationCap
+                  size={17}
+                  className="text-blue-400"
+                />
+
+                Class
+              </label>
+
+              <select
+                value={selectedClass}
+                onChange={(event) =>
+                  setSelectedClass(
+                    event.target.value
+                  )
+                }
+                className="
+                  w-full
+                  rounded-xl
+                  border
+                  border-slate-700
+                  bg-slate-800/80
+                  px-4
+                  py-3
+                  text-white
+                  outline-none
+                  transition
+                  focus:border-blue-500
+                  focus:ring-2
+                  focus:ring-blue-500/20
+                "
+              >
+                <option value="">
+                  Select Class
+                </option>
+
+                {CLASS_OPTIONS.map(
+                  (classOption) => (
+                    <option
+                      key={
+                        classOption.value
+                      }
+                      value={
+                        classOption.value
+                      }
+                    >
+                      {
+                        classOption.label
+                      }
+                    </option>
+                  )
+                )}
+              </select>
+
+              <p
+                className="
+                  mt-2
+                  text-xs
+                  text-slate-500
+                "
+              >
+                This determines which
+                class can see the video.
+              </p>
+            </div>
+
+            {/* ==================================================
+                SUBJECT
+            ================================================== */}
+
+            <div>
+              <label
+                className="
+                  mb-2
+                  flex
+                  items-center
+                  gap-2
+                  text-sm
+                  font-semibold
+                  text-slate-200
+                "
+              >
+                <BookOpen
+                  size={17}
+                  className="text-purple-400"
+                />
+
+                Subject
+              </label>
+
+              <input
+                type="text"
+                value={subject}
+                onChange={(event) =>
+                  setSubject(
+                    event.target.value
+                  )
+                }
+                disabled={!selectedClass}
+                placeholder={
+                  selectedClass
+                    ? "Example: English"
+                    : "Select a class first"
+                }
+                autoComplete="off"
+                className="
+                  w-full
+                  rounded-xl
+                  border
+                  border-slate-700
+                  bg-slate-800/80
+                  px-4
+                  py-3
+                  text-white
+                  outline-none
+                  transition
+                  placeholder:text-slate-500
+                  disabled:cursor-not-allowed
+                  disabled:opacity-50
+                  focus:border-blue-500
+                  focus:ring-2
+                  focus:ring-blue-500/20
+                "
+              />
+
+              {selectedClass &&
+                subject.trim() && (
+                  <div
+                    className="
+                      mt-3
+                      flex
+                      flex-wrap
+                      items-center
+                      gap-2
+                      text-xs
+                    "
+                  >
+                    <span className="text-slate-500">
+                      This video will belong
+                      to:
+                    </span>
+
+                    <span
+                      className="
+                        rounded-full
+                        bg-blue-500/10
+                        px-2.5
+                        py-1
+                        font-semibold
+                        text-blue-400
+                      "
+                    >
+                      {selectedClass}
+                    </span>
+
+                    <span className="text-slate-600">
+                      →
+                    </span>
+
+                    <span
+                      className="
+                        rounded-full
+                        bg-purple-500/10
+                        px-2.5
+                        py-1
+                        font-semibold
+                        text-purple-400
+                      "
+                    >
+                      {normalizeSubject(
+                        subject
+                      )}
+                    </span>
+                  </div>
+                )}
+            </div>
+
+            {/* ==================================================
+                TITLE
+            ================================================== */}
 
             <div>
               <label
@@ -728,13 +1395,14 @@ const ResourcesAdmin = () => {
               </label>
 
               <input
+                type="text"
                 value={title}
-                onChange={(e) =>
+                onChange={(event) =>
                   setTitle(
-                    e.target.value
+                    event.target.value
                   )
                 }
-                placeholder="Example: Newton's Laws of Motion"
+                placeholder="Example: Understanding Nouns"
                 className="
                   w-full
                   rounded-xl
@@ -754,7 +1422,9 @@ const ResourcesAdmin = () => {
               />
             </div>
 
-            {/* DESCRIPTION */}
+            {/* ==================================================
+                DESCRIPTION
+            ================================================== */}
 
             <div>
               <label
@@ -771,9 +1441,9 @@ const ResourcesAdmin = () => {
 
               <textarea
                 value={description}
-                onChange={(e) =>
+                onChange={(event) =>
                   setDescription(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 rows={4}
@@ -797,7 +1467,9 @@ const ResourcesAdmin = () => {
               />
             </div>
 
-            {/* CATEGORY */}
+            {/* ==================================================
+                VIDEO PICKER
+            ================================================== */}
 
             <div>
               <label
@@ -809,67 +1481,32 @@ const ResourcesAdmin = () => {
                   text-slate-200
                 "
               >
-                Video Category
+                {editingResource
+                  ? "Replace Video File (Optional)"
+                  : "Video File"}
               </label>
 
-              <select
-                value={topicId}
-                onChange={(e) =>
-                  setTopicId(
-                    e.target.value
-                  )
-                }
-                disabled={
-                  loadingTopics
-                }
-                className="
-                  w-full
-                  rounded-xl
-                  border
-                  border-slate-700
-                  bg-slate-800/80
-                  px-4
-                  py-3
-                  text-white
-                  outline-none
-                  transition
-                  focus:border-blue-500
-                  focus:ring-2
-                  focus:ring-blue-500/20
-                "
-              >
-                <option value="">
-                  Select Category
-                </option>
-
-                {topics.map(
-                  (topic) => (
-                    <option
-                      key={topic.id}
-                      value={topic.id}
-                    >
-                      {topic.title ||
-                        topic.name}
-                    </option>
-                  )
+              {editingResource &&
+                !video && (
+                  <div
+                    className="
+                      mb-3
+                      rounded-xl
+                      border
+                      border-blue-500/20
+                      bg-blue-500/5
+                      px-4
+                      py-3
+                      text-sm
+                      text-blue-300
+                    "
+                  >
+                    The existing video will
+                    remain unchanged unless
+                    you select a new video
+                    below.
+                  </div>
                 )}
-              </select>
-            </div>
-
-            {/* VIDEO PICKER */}
-
-            <div>
-              <label
-                className="
-                  mb-2
-                  block
-                  text-sm
-                  font-semibold
-                  text-slate-200
-                "
-              >
-                Video File
-              </label>
 
               <label
                 htmlFor="video-upload-input"
@@ -912,12 +1549,16 @@ const ResourcesAdmin = () => {
                 <p
                   className="
                     mt-4
+                    max-w-full
+                    truncate
                     font-bold
                     text-slate-200
                   "
                 >
                   {video
                     ? video.name
+                    : editingResource
+                    ? "Select replacement video"
                     : "Select Video"}
                 </p>
 
@@ -958,9 +1599,9 @@ const ResourcesAdmin = () => {
                   hidden
                   type="file"
                   accept="video/*"
-                  onChange={(e) =>
+                  onChange={(event) =>
                     setVideo(
-                      e.target.files?.[0] ||
+                      event.target.files?.[0] ||
                         null
                     )
                   }
@@ -968,11 +1609,22 @@ const ResourcesAdmin = () => {
               </label>
             </div>
 
-            {/* UPLOAD BUTTON */}
+            {/* ==================================================
+                SUBMIT BUTTON
+            ================================================== */}
 
             <button
               type="submit"
-              disabled={uploading}
+              disabled={
+                editingResource
+                  ? savingEdit ||
+                    !selectedClass ||
+                    !subject.trim()
+                  : uploading ||
+                    !selectedClass ||
+                    !subject.trim() ||
+                    !video
+              }
               className="
                 flex
                 w-full
@@ -995,17 +1647,36 @@ const ResourcesAdmin = () => {
                 disabled:opacity-50
               "
             >
-              {uploading ? (
+              {editingResource ? (
+                savingEdit ? (
+                  <>
+                    <Loader2
+                      size={19}
+                      className="animate-spin"
+                    />
+
+                    Saving Changes...
+                  </>
+                ) : (
+                  <>
+                    <Save size={19} />
+
+                    Save Changes
+                  </>
+                )
+              ) : uploading ? (
                 <>
                   <Loader2
                     size={19}
                     className="animate-spin"
                   />
+
                   Uploading Video...
                 </>
               ) : (
                 <>
                   <Upload size={19} />
+
                   Upload Video
                 </>
               )}
@@ -1069,9 +1740,9 @@ const ResourcesAdmin = () => {
 
             <input
               value={search}
-              onChange={(e) =>
+              onChange={(event) =>
                 setSearch(
-                  e.target.value
+                  event.target.value
                 )
               }
               placeholder="Search videos..."
@@ -1210,19 +1881,41 @@ const ResourcesAdmin = () => {
                     resource.file_url
                   );
 
+                const resourceClass =
+                  resource.class_name ||
+                  resource.class ||
+                  resource.grade ||
+                  "Class not assigned";
+
+                const resourceSubject =
+                  resource.subject ||
+                  resource.subject_name ||
+                  resource.subject_title ||
+                  "Subject not assigned";
+
+                const isEditing =
+                  editingResource &&
+                  String(
+                    editingResource.id
+                  ) ===
+                    String(resource.id);
+
                 return (
                   <div
                     key={resource.id}
-                    className="
+                    className={`
                       overflow-hidden
                       rounded-3xl
                       border
-                      border-slate-800
                       bg-slate-900
                       transition
                       hover:-translate-y-1
-                      hover:border-blue-500/30
-                    "
+                      ${
+                        isEditing
+                          ? "border-blue-500/60 ring-1 ring-blue-500/20"
+                          : "border-slate-800 hover:border-blue-500/30"
+                      }
+                    `}
                   >
                     {/* VIDEO PREVIEW */}
 
@@ -1283,16 +1976,19 @@ const ResourcesAdmin = () => {
                               text-white
                             "
                           >
-                            {
-                              resource.title
-                            }
+                            {resource.title}
                           </h3>
 
-                          {resource.topic_title && (
+                          <div
+                            className="
+                              mt-3
+                              flex
+                              flex-wrap
+                              gap-2
+                            "
+                          >
                             <span
                               className="
-                                mt-2
-                                inline-block
                                 rounded-full
                                 bg-blue-500/10
                                 px-2.5
@@ -1302,11 +1998,23 @@ const ResourcesAdmin = () => {
                                 text-blue-400
                               "
                             >
-                              {
-                                resource.topic_title
-                              }
+                              {resourceClass}
                             </span>
-                          )}
+
+                            <span
+                              className="
+                                rounded-full
+                                bg-purple-500/10
+                                px-2.5
+                                py-1
+                                text-xs
+                                font-semibold
+                                text-purple-400
+                              "
+                            >
+                              {resourceSubject}
+                            </span>
+                          </div>
                         </div>
 
                         <PlayCircle
@@ -1331,11 +2039,16 @@ const ResourcesAdmin = () => {
                           "No description provided."}
                       </p>
 
+                      {/* ==================================================
+                          ACTIONS
+                      ================================================== */}
+
                       <div
                         className="
                           mt-5
-                          flex
-                          gap-3
+                          grid
+                          grid-cols-3
+                          gap-2
                         "
                       >
                         <a
@@ -1344,13 +2057,12 @@ const ResourcesAdmin = () => {
                           rel="noreferrer"
                           className="
                             flex
-                            flex-1
                             items-center
                             justify-center
                             gap-2
                             rounded-xl
                             bg-blue-600
-                            px-4
+                            px-3
                             py-2.5
                             text-sm
                             font-bold
@@ -1361,14 +2073,53 @@ const ResourcesAdmin = () => {
                           <ExternalLink
                             size={16}
                           />
+
                           Watch
                         </a>
 
                         <button
                           type="button"
+                          onClick={() =>
+                            startEdit(
+                              resource
+                            )
+                          }
+                          disabled={
+                            savingEdit ||
+                            deletingId ===
+                              resource.id
+                          }
+                          className="
+                            flex
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            bg-amber-500/10
+                            px-3
+                            py-2.5
+                            text-sm
+                            font-bold
+                            text-amber-400
+                            transition
+                            hover:bg-amber-500/20
+                            disabled:cursor-not-allowed
+                            disabled:opacity-50
+                          "
+                        >
+                          <Pencil
+                            size={16}
+                          />
+
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
                           disabled={
                             deletingId ===
-                            resource.id
+                              resource.id ||
+                            savingEdit
                           }
                           onClick={() =>
                             deleteVideo(
@@ -1379,26 +2130,33 @@ const ResourcesAdmin = () => {
                             flex
                             items-center
                             justify-center
+                            gap-2
                             rounded-xl
                             bg-red-500/10
-                            px-4
+                            px-3
+                            py-2.5
+                            text-sm
+                            font-bold
                             text-red-400
                             transition
                             hover:bg-red-500/20
+                            disabled:cursor-not-allowed
                             disabled:opacity-50
                           "
                         >
                           {deletingId ===
                           resource.id ? (
                             <Loader2
-                              size={18}
+                              size={17}
                               className="animate-spin"
                             />
                           ) : (
                             <Trash2
-                              size={18}
+                              size={17}
                             />
                           )}
+
+                          Delete
                         </button>
                       </div>
                     </div>

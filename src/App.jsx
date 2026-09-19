@@ -45,10 +45,22 @@ import OurStory from "./pages/academy/OurStory";
 import TutorStudents from "./pages/academy/TutorStudents";
 
 /* ============================================================
-   STUDENT
+   STUDENT PORTAL
 ============================================================ */
 
 import StudentLearningPortal from "./pages/academy/StudentLearningPortal";
+import StudentOverview from "./pages/academy/StudentOverview";
+import StudentSubjects from "./pages/academy/StudentSubjects";
+import StudentLessons from "./pages/academy/StudentLessons";
+import StudentTextbooks from "./pages/academy/StudentTextbooks";
+import StudentTasks from "./pages/academy/StudentTasks";
+import StudentAssignments from "./pages/academy/StudentAssignments";
+import StudentCBT from "./pages/academy/StudentCBT";
+import StudentLiveClasses from "./pages/academy/StudentLiveClasses";
+import StudentMessages from "./pages/academy/StudentMessages";
+import StudentProgress from "./pages/academy/StudentProgress";
+import StudentAchievements from "./pages/academy/StudentAchievements";
+import StudentProfile from "./pages/academy/StudentProfile";
 
 /* ============================================================
    TUTOR
@@ -222,8 +234,11 @@ import DashboardLayout from "./layout/DashboardLayout";
    ACADEMY AUTH KEYS
 ============================================================ */
 
-const ACADEMY_TOKEN_KEY = "scholiqen_academy_token";
-const ACADEMY_USER_KEY = "scholiqen_academy_user";
+const ACADEMY_TOKEN_KEY =
+  "scholiqen_academy_token";
+
+const ACADEMY_USER_KEY =
+  "scholiqen_academy_user";
 
 /* ============================================================
    GET ACADEMY USER
@@ -231,7 +246,10 @@ const ACADEMY_USER_KEY = "scholiqen_academy_user";
 
 const getAcademyUser = () => {
   try {
-    const raw = localStorage.getItem(ACADEMY_USER_KEY);
+    const raw =
+      localStorage.getItem(
+        ACADEMY_USER_KEY
+      );
 
     if (!raw) {
       return null;
@@ -239,7 +257,11 @@ const getAcademyUser = () => {
 
     return JSON.parse(raw);
   } catch (error) {
-    console.error("Unable to read Academy user:", error);
+    console.error(
+      "Unable to read Academy user:",
+      error
+    );
+
     return null;
   }
 };
@@ -248,63 +270,86 @@ const getAcademyUser = () => {
    ACADEMY STUDENT PROTECTED ROUTE
 ============================================================ */
 
-const AcademyProtectedRoute = ({ children }) => {
-  const [checkingAuth, setCheckingAuth] = React.useState(true);
-  const [authenticated, setAuthenticated] = React.useState(false);
+const AcademyProtectedRoute = ({
+  children,
+}) => {
+  const [
+    checkingAuth,
+    setCheckingAuth,
+  ] = React.useState(true);
+
+  const [
+    authenticated,
+    setAuthenticated,
+  ] = React.useState(false);
 
   React.useEffect(() => {
     let mounted = true;
 
-    const checkAcademyAuthentication = () => {
-      try {
-        const token = localStorage.getItem(ACADEMY_TOKEN_KEY);
-        const user = getAcademyUser();
+    const checkAcademyAuthentication =
+      () => {
+        try {
+          const token =
+            localStorage.getItem(
+              ACADEMY_TOKEN_KEY
+            );
 
-        if (!token || !user) {
+          const user =
+            getAcademyUser();
+
+          if (!token || !user) {
+            if (mounted) {
+              setAuthenticated(false);
+              setCheckingAuth(false);
+            }
+
+            return;
+          }
+
+          const userType =
+            String(
+              user?.userType ||
+                user?.user_type ||
+                ""
+            )
+              .trim()
+              .toLowerCase();
+
+          if (
+            userType !== "student"
+          ) {
+            if (mounted) {
+              setAuthenticated(false);
+              setCheckingAuth(false);
+            }
+
+            return;
+          }
+
+          if (mounted) {
+            setAuthenticated(true);
+            setCheckingAuth(false);
+          }
+        } catch (error) {
+          console.error(
+            "Academy Student Authentication Error:",
+            error
+          );
+
+          localStorage.removeItem(
+            ACADEMY_TOKEN_KEY
+          );
+
+          localStorage.removeItem(
+            ACADEMY_USER_KEY
+          );
+
           if (mounted) {
             setAuthenticated(false);
             setCheckingAuth(false);
           }
-
-          return;
         }
-
-        const userType = String(
-          user?.userType ||
-            user?.user_type ||
-            ""
-        )
-          .trim()
-          .toLowerCase();
-
-        if (userType !== "student") {
-          if (mounted) {
-            setAuthenticated(false);
-            setCheckingAuth(false);
-          }
-
-          return;
-        }
-
-        if (mounted) {
-          setAuthenticated(true);
-          setCheckingAuth(false);
-        }
-      } catch (error) {
-        console.error(
-          "Academy Student Authentication Error:",
-          error
-        );
-
-        localStorage.removeItem(ACADEMY_TOKEN_KEY);
-        localStorage.removeItem(ACADEMY_USER_KEY);
-
-        if (mounted) {
-          setAuthenticated(false);
-          setCheckingAuth(false);
-        }
-      }
-    };
+      };
 
     checkAcademyAuthentication();
 
@@ -343,93 +388,121 @@ const AcademyProtectedRoute = ({ children }) => {
    ACADEMY TUTOR PROTECTED ROUTE
 ============================================================ */
 
-const TutorProtectedRoute = ({ children }) => {
-  const [checkingAuth, setCheckingAuth] = React.useState(true);
-  const [authenticated, setAuthenticated] = React.useState(false);
+const TutorProtectedRoute = ({
+  children,
+}) => {
+  const [
+    checkingAuth,
+    setCheckingAuth,
+  ] = React.useState(true);
+
+  const [
+    authenticated,
+    setAuthenticated,
+  ] = React.useState(false);
 
   React.useEffect(() => {
     let mounted = true;
 
-    const checkTutorAuthentication = () => {
-      try {
-        const token = localStorage.getItem(ACADEMY_TOKEN_KEY);
-        const user = getAcademyUser();
+    const checkTutorAuthentication =
+      () => {
+        try {
+          const token =
+            localStorage.getItem(
+              ACADEMY_TOKEN_KEY
+            );
 
-        if (!token || !user) {
-          console.warn(
-            "Tutor route: Academy session not found."
+          const user =
+            getAcademyUser();
+
+          if (!token || !user) {
+            console.warn(
+              "Tutor route: Academy session not found."
+            );
+
+            if (mounted) {
+              setAuthenticated(false);
+              setCheckingAuth(false);
+            }
+
+            return;
+          }
+
+          const userType =
+            String(
+              user?.userType ||
+                user?.user_type ||
+                ""
+            )
+              .trim()
+              .toLowerCase();
+
+          if (
+            userType !== "tutor"
+          ) {
+            console.warn(
+              "Tutor route: Current Academy user is not a tutor.",
+              userType
+            );
+
+            if (mounted) {
+              setAuthenticated(false);
+              setCheckingAuth(false);
+            }
+
+            return;
+          }
+
+          const tutorReference =
+            user?.reference ||
+            user?.tutorReference ||
+            user?.tutor?.reference ||
+            user?.tutor
+              ?.tutorReference ||
+            user?.user?.reference ||
+            "";
+
+          if (
+            !String(
+              tutorReference
+            ).trim()
+          ) {
+            console.warn(
+              "Tutor route: Tutor reference is missing."
+            );
+
+            if (mounted) {
+              setAuthenticated(false);
+              setCheckingAuth(false);
+            }
+
+            return;
+          }
+
+          if (mounted) {
+            setAuthenticated(true);
+            setCheckingAuth(false);
+          }
+        } catch (error) {
+          console.error(
+            "Tutor Authentication Error:",
+            error
+          );
+
+          localStorage.removeItem(
+            ACADEMY_TOKEN_KEY
+          );
+
+          localStorage.removeItem(
+            ACADEMY_USER_KEY
           );
 
           if (mounted) {
             setAuthenticated(false);
             setCheckingAuth(false);
           }
-
-          return;
         }
-
-        const userType = String(
-          user?.userType ||
-            user?.user_type ||
-            ""
-        )
-          .trim()
-          .toLowerCase();
-
-        if (userType !== "tutor") {
-          console.warn(
-            "Tutor route: Current Academy user is not a tutor.",
-            userType
-          );
-
-          if (mounted) {
-            setAuthenticated(false);
-            setCheckingAuth(false);
-          }
-
-          return;
-        }
-
-        const tutorReference =
-          user?.reference ||
-          user?.tutorReference ||
-          user?.tutor?.reference ||
-          user?.tutor?.tutorReference ||
-          user?.user?.reference ||
-          "";
-
-        if (!String(tutorReference).trim()) {
-          console.warn(
-            "Tutor route: Tutor reference is missing."
-          );
-
-          if (mounted) {
-            setAuthenticated(false);
-            setCheckingAuth(false);
-          }
-
-          return;
-        }
-
-        if (mounted) {
-          setAuthenticated(true);
-          setCheckingAuth(false);
-        }
-      } catch (error) {
-        console.error(
-          "Tutor Authentication Error:",
-          error
-        );
-
-        localStorage.removeItem(ACADEMY_TOKEN_KEY);
-        localStorage.removeItem(ACADEMY_USER_KEY);
-
-        if (mounted) {
-          setAuthenticated(false);
-          setCheckingAuth(false);
-        }
-      }
-    };
+      };
 
     checkTutorAuthentication();
 
@@ -476,7 +549,9 @@ const TutorProtectedRoute = ({ children }) => {
    PAGE WRAPPER
 ============================================================ */
 
-const PageWrapper = ({ children }) => {
+const PageWrapper = ({
+  children,
+}) => {
   return (
     <motion.div
       className="w-full"
@@ -525,7 +600,8 @@ const TutorFallback = () => {
         <button
           type="button"
           onClick={() => {
-            window.location.href = "/academy/tutor";
+            window.location.href =
+              "/academy/tutor";
           }}
           className="mt-6 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
         >
@@ -541,7 +617,8 @@ const TutorFallback = () => {
 ============================================================ */
 
 const AnimatedRoutes = () => {
-  const location = useLocation();
+  const location =
+    useLocation();
 
   return (
     <AnimatePresence mode="wait">
@@ -626,7 +703,9 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/reset-password"
-          element={<ResetPassword />}
+          element={
+            <ResetPassword />
+          }
         />
 
         <Route
@@ -719,17 +798,165 @@ const AnimatedRoutes = () => {
 
         {/* =====================================================
             STUDENT LEARNING PORTAL
-            ONLY STUDENT PORTAL ROUTE
+            PARENT LAYOUT
         ===================================================== */}
 
         <Route
-          path="/academy/student-portal"
+          path="/academy/student"
           element={
             <AcademyProtectedRoute>
               <PageWrapper>
                 <StudentLearningPortal />
               </PageWrapper>
             </AcademyProtectedRoute>
+          }
+        >
+
+          {/* ===================================================
+              STUDENT OVERVIEW
+          =================================================== */}
+
+          <Route
+            index
+            element={
+              <StudentOverview />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT SUBJECTS
+          =================================================== */}
+
+          <Route
+            path="subjects"
+            element={
+              <StudentSubjects />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT LESSONS
+          =================================================== */}
+
+          <Route
+            path="lessons"
+            element={
+              <StudentLessons />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT TEXTBOOKS
+          =================================================== */}
+
+          <Route
+            path="textbooks"
+            element={
+              <StudentTextbooks />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT TASKS
+          =================================================== */}
+
+          <Route
+            path="tasks"
+            element={
+              <StudentTasks />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT ASSIGNMENTS
+          =================================================== */}
+
+          <Route
+            path="assignments"
+            element={
+              <StudentAssignments />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT CBT
+          =================================================== */}
+
+          <Route
+            path="cbt"
+            element={
+              <StudentCBT />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT LIVE CLASSES
+          =================================================== */}
+
+          <Route
+            path="live"
+            element={
+              <StudentLiveClasses />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT MESSAGES
+          =================================================== */}
+
+          <Route
+            path="messages"
+            element={
+              <StudentMessages />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT PROGRESS
+          =================================================== */}
+
+          <Route
+            path="progress"
+            element={
+              <StudentProgress />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT ACHIEVEMENTS
+          =================================================== */}
+
+          <Route
+            path="achievements"
+            element={
+              <StudentAchievements />
+            }
+          />
+
+          {/* ===================================================
+              STUDENT PROFILE
+          =================================================== */}
+
+          <Route
+            path="profile"
+            element={
+              <StudentProfile />
+            }
+          />
+
+        </Route>
+
+        {/* =====================================================
+            LEGACY STUDENT PORTAL URL
+        ===================================================== */}
+
+        <Route
+          path="/academy/student-portal"
+          element={
+            <Navigate
+              to="/academy/student"
+              replace
+            />
           }
         />
 
@@ -1155,7 +1382,9 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/languages"
-          element={<LanguagesHome />}
+          element={
+            <LanguagesHome />
+          }
         />
 
         <Route
@@ -1184,17 +1413,23 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/support"
-          element={<SupportHome />}
+          element={
+            <SupportHome />
+          }
         />
 
         <Route
           path="/support/chat"
-          element={<ChatSupport />}
+          element={
+            <ChatSupport />
+          }
         />
 
         <Route
           path="/support/faq"
-          element={<FAQ />}
+          element={
+            <FAQ />
+          }
         />
 
         {/* =====================================================
@@ -1265,7 +1500,9 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/become-instructor"
-          element={<BecomeInstructorForm />}
+          element={
+            <BecomeInstructorForm />
+          }
         />
 
         {/* =====================================================
@@ -1274,7 +1511,9 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/verify/:certificate_number"
-          element={<VerifyCertificate />}
+          element={
+            <VerifyCertificate />
+          }
         />
 
         {/* =====================================================
@@ -1668,12 +1907,16 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/universities"
-          element={<Universities />}
+          element={
+            <Universities />
+          }
         />
 
         <Route
           path="/universities/:id"
-          element={<UniversityDetails />}
+          element={
+            <UniversityDetails />
+          }
         />
 
         {/* =====================================================
@@ -1682,12 +1925,16 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/colleges"
-          element={<Colleges />}
+          element={
+            <Colleges />
+          }
         />
 
         <Route
           path="/colleges/:id"
-          element={<CollegeDetails />}
+          element={
+            <CollegeDetails />
+          }
         />
 
         {/* =====================================================
@@ -1696,12 +1943,16 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/polytechnics"
-          element={<Polytechnics />}
+          element={
+            <Polytechnics />
+          }
         />
 
         <Route
           path="/polytechnics/:id"
-          element={<PolytechnicDetails />}
+          element={
+            <PolytechnicDetails />
+          }
         />
 
         {/* =====================================================

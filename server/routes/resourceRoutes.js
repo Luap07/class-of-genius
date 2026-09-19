@@ -19,20 +19,25 @@ const __filename =
 const __dirname =
   path.dirname(__filename);
 
-const UPLOADS_DIR = path.join(
-  __dirname,
-  "../uploads"
-);
+const UPLOADS_DIR =
+  path.join(
+    __dirname,
+    "../uploads"
+  );
 
-const VIDEOS_DIR = path.join(
-  UPLOADS_DIR,
-  "videos"
-);
+const VIDEOS_DIR =
+  path.join(
+    UPLOADS_DIR,
+    "videos"
+  );
 
-// Make sure directory exists
-fs.mkdirSync(VIDEOS_DIR, {
-  recursive: true,
-});
+// Make sure directory exists.
+fs.mkdirSync(
+  VIDEOS_DIR,
+  {
+    recursive: true,
+  }
+);
 
 // ============================================================
 // CONFIG
@@ -43,6 +48,38 @@ const JWT_SECRET =
 
 const MAX_VIDEO_SIZE =
   500 * 1024 * 1024;
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const clean = (
+  value
+) => {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return "";
+  }
+
+  return String(value)
+    .trim();
+};
+
+const normalizeClass = (
+  value
+) => {
+  return clean(value)
+    .replace(/\s+/g, " ");
+};
+
+const normalizeSubject = (
+  value
+) => {
+  return clean(value)
+    .replace(/\s+/g, " ");
+};
 
 // ============================================================
 // MULTER STORAGE
@@ -154,6 +191,7 @@ const upload =
   multer({
     storage,
     fileFilter,
+
     limits: {
       fileSize:
         MAX_VIDEO_SIZE,
@@ -174,6 +212,7 @@ const requireAdmin =
       if (!JWT_SECRET) {
         return res.status(500).json({
           success: false,
+
           message:
             "JWT_SECRET is not configured.",
         });
@@ -190,6 +229,7 @@ const requireAdmin =
       ) {
         return res.status(401).json({
           success: false,
+
           message:
             "Authentication required.",
         });
@@ -202,6 +242,7 @@ const requireAdmin =
       if (!token) {
         return res.status(401).json({
           success: false,
+
           message:
             "Authentication token missing.",
         });
@@ -216,6 +257,7 @@ const requireAdmin =
       if (!decoded?.id) {
         return res.status(401).json({
           success: false,
+
           message:
             "Invalid authentication token.",
         });
@@ -234,7 +276,9 @@ const requireAdmin =
           WHERE id = $1
           LIMIT 1
           `,
-          [decoded.id]
+          [
+            decoded.id,
+          ]
         );
 
       if (
@@ -243,6 +287,7 @@ const requireAdmin =
       ) {
         return res.status(401).json({
           success: false,
+
           message:
             "User account not found.",
         });
@@ -257,12 +302,14 @@ const requireAdmin =
       ) {
         return res.status(403).json({
           success: false,
+
           message:
             "Admin access required.",
         });
       }
 
-      req.user = user;
+      req.user =
+        user;
 
       next();
     } catch (error) {
@@ -273,6 +320,7 @@ const requireAdmin =
 
       return res.status(401).json({
         success: false,
+
         message:
           "Invalid or expired authentication token.",
       });
@@ -280,7 +328,7 @@ const requireAdmin =
   };
 
 // ============================================================
-// HELPER
+// BASE URL
 // ============================================================
 
 const getBaseUrl = (
@@ -302,12 +350,56 @@ const getBaseUrl = (
 };
 
 // ============================================================
+// FORMAT RESOURCE
+// ============================================================
+
+const formatResource = (
+  resource
+) => {
+  if (!resource) {
+    return null;
+  }
+
+  return {
+    ...resource,
+
+    // Class aliases for frontend compatibility.
+    class:
+      resource.class_name ||
+      "",
+
+    grade:
+      resource.class_name ||
+      "",
+
+    // Subject aliases for frontend compatibility.
+    subject_name:
+      resource.subject ||
+      "",
+
+    subject_title:
+      resource.subject ||
+      "",
+
+    // Video aliases.
+    videoUrl:
+      resource.file_url ||
+      "",
+
+    video_url:
+      resource.file_url ||
+      "",
+  };
+};
+
+// ============================================================
 // GET TOPICS
 // ============================================================
 
 router.get(
   "/topics",
   requireAdmin,
+
   async (
     req,
     res
@@ -329,6 +421,7 @@ router.get(
 
       return res.json({
         success: true,
+
         topics:
           result.rows,
       });
@@ -340,7 +433,9 @@ router.get(
 
       return res.status(500).json({
         success: false,
+
         topics: [],
+
         message:
           "Unable to fetch video categories.",
       });
@@ -355,6 +450,7 @@ router.get(
 router.get(
   "/",
   requireAdmin,
+
   async (
     req,
     res
@@ -370,26 +466,37 @@ router.get(
             r.resource_type,
             r.file_url,
             r.topic_id,
+            r.class_name,
+            r.subject,
             r.created_at,
+
             t.title AS topic_title
+
           FROM resources r
+
           LEFT JOIN course_topics t
             ON t.id = r.topic_id
+
           WHERE
             r.resource_type = 'video'
+
           ORDER BY
             r.created_at DESC
           `
         );
 
+      const resources =
+        result.rows.map(
+          formatResource
+        );
+
       return res.json({
         success: true,
 
-        resources:
-          result.rows,
+        resources,
 
         count:
-          result.rows.length,
+          resources.length,
       });
     } catch (error) {
       console.error(
@@ -418,6 +525,7 @@ router.get(
 router.get(
   "/:id",
   requireAdmin,
+
   async (
     req,
     res
@@ -433,17 +541,28 @@ router.get(
             r.resource_type,
             r.file_url,
             r.topic_id,
+            r.class_name,
+            r.subject,
             r.created_at,
+
             t.title AS topic_title
+
           FROM resources r
+
           LEFT JOIN course_topics t
             ON t.id = r.topic_id
+
           WHERE
             r.id = $1
-            AND r.resource_type = 'video'
+
+            AND r.resource_type =
+              'video'
+
           LIMIT 1
           `,
-          [req.params.id]
+          [
+            req.params.id,
+          ]
         );
 
       if (
@@ -452,6 +571,7 @@ router.get(
       ) {
         return res.status(404).json({
           success: false,
+
           message:
             "Video resource not found.",
         });
@@ -461,7 +581,9 @@ router.get(
         success: true,
 
         resource:
-          result.rows[0],
+          formatResource(
+            result.rows[0]
+          ),
       });
     } catch (error) {
       console.error(
@@ -471,6 +593,7 @@ router.get(
 
       return res.status(500).json({
         success: false,
+
         message:
           "Unable to fetch video resource.",
       });
@@ -480,14 +603,28 @@ router.get(
 
 // ============================================================
 // UPLOAD VIDEO
+//
+// Admin sends:
+//
+// title
+// description
+// class
+// class_name
+// grade
+// subject
+// subject_name
+// video
 // ============================================================
 
 router.post(
   "/",
+
   requireAdmin,
+
   upload.single(
     "video"
   ),
+
   async (
     req,
     res
@@ -496,16 +633,77 @@ router.post(
       req.file;
 
     try {
-      const {
-        title,
-        description,
-        topic_id,
-      } = req.body;
+      const title =
+        clean(
+          req.body.title
+        );
 
-      if (
-        !title ||
-        !title.trim()
-      ) {
+      const description =
+        clean(
+          req.body.description
+        );
+
+      const className =
+        normalizeClass(
+          req.body.class ||
+          req.body.class_name ||
+          req.body.grade
+        );
+
+      const subject =
+        normalizeSubject(
+          req.body.subject ||
+          req.body.subject_name
+        );
+
+      const topicId =
+        clean(
+          req.body.topic_id
+        ) ||
+        null;
+
+      console.log("");
+      console.log(
+        "=================================================="
+      );
+      console.log(
+        "🎥 SCHOLIQEN VIDEO UPLOAD"
+      );
+      console.log(
+        "=================================================="
+      );
+      console.log(
+        "Title:",
+        title
+      );
+      console.log(
+        "Class:",
+        className
+      );
+      console.log(
+        "Subject:",
+        subject
+      );
+      console.log(
+        "Topic:",
+        topicId ||
+          "NONE"
+      );
+      console.log(
+        "File:",
+        uploadedFile
+          ?.originalname ||
+          "NONE"
+      );
+      console.log(
+        "=================================================="
+      );
+
+      // --------------------------------------------------------
+      // TITLE
+      // --------------------------------------------------------
+
+      if (!title) {
         if (uploadedFile) {
           safeDelete(
             uploadedFile.path
@@ -514,24 +712,68 @@ router.post(
 
         return res.status(400).json({
           success: false,
+
           message:
             "Video title is required.",
         });
       }
 
+      // --------------------------------------------------------
+      // CLASS
+      // --------------------------------------------------------
+
+      if (!className) {
+        if (uploadedFile) {
+          safeDelete(
+            uploadedFile.path
+          );
+        }
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Class is required.",
+        });
+      }
+
+      // --------------------------------------------------------
+      // SUBJECT
+      // --------------------------------------------------------
+
+      if (!subject) {
+        if (uploadedFile) {
+          safeDelete(
+            uploadedFile.path
+          );
+        }
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Subject is required.",
+        });
+      }
+
+      // --------------------------------------------------------
+      // VIDEO
+      // --------------------------------------------------------
+
       if (!uploadedFile) {
         return res.status(400).json({
           success: false,
+
           message:
             "Video file is required.",
         });
       }
 
       // --------------------------------------------------------
-      // CHECK TOPIC
+      // CHECK TOPIC IF PROVIDED
       // --------------------------------------------------------
 
-      if (topic_id) {
+      if (topicId) {
         const topicResult =
           await pool.query(
             `
@@ -542,7 +784,9 @@ router.post(
             WHERE id = $1
             LIMIT 1
             `,
-            [topic_id]
+            [
+              topicId,
+            ]
           );
 
         if (
@@ -555,6 +799,7 @@ router.post(
 
           return res.status(400).json({
             success: false,
+
             message:
               "Selected video category does not exist.",
           });
@@ -574,7 +819,7 @@ router.post(
         )}`;
 
       // --------------------------------------------------------
-      // SAVE RESOURCE
+      // SAVE
       // --------------------------------------------------------
 
       const result =
@@ -585,15 +830,21 @@ router.post(
             description,
             resource_type,
             file_url,
-            topic_id
+            topic_id,
+            class_name,
+            subject
           )
+
           VALUES (
             $1,
             $2,
             $3,
             $4,
-            $5
+            $5,
+            $6,
+            $7
           )
+
           RETURNING
             id,
             title,
@@ -601,22 +852,50 @@ router.post(
             resource_type,
             file_url,
             topic_id,
+            class_name,
+            subject,
             created_at
           `,
           [
-            title.trim(),
+            title,
 
-            description?.trim() ||
-              "",
+            description,
 
             "video",
 
             videoUrl,
 
-            topic_id ||
-              null,
+            topicId,
+
+            className,
+
+            subject,
           ]
         );
+
+      const resource =
+        formatResource(
+          result.rows[0]
+        );
+
+      console.log(
+        "✅ VIDEO SAVED"
+      );
+
+      console.log(
+        "ID:",
+        resource.id
+      );
+
+      console.log(
+        "Class:",
+        resource.class_name
+      );
+
+      console.log(
+        "Subject:",
+        resource.subject
+      );
 
       return res.status(201).json({
         success: true,
@@ -624,8 +903,7 @@ router.post(
         message:
           "Video uploaded successfully.",
 
-        resource:
-          result.rows[0],
+        resource,
       });
     } catch (error) {
       console.error(
@@ -641,9 +919,424 @@ router.post(
 
       return res.status(500).json({
         success: false,
+
         message:
           error?.message ||
           "Video upload failed.",
+      });
+    }
+  }
+);
+
+// ============================================================
+// EDIT VIDEO RESOURCE
+//
+// PUT /api/resources/:id
+//
+// Allows admin to change:
+//
+// - title
+// - description
+// - class
+// - subject
+// - topic
+// - video file
+//
+// The existing video is kept if no replacement
+// video is selected.
+// ============================================================
+
+router.put(
+  "/:id",
+
+  requireAdmin,
+
+  upload.single(
+    "video"
+  ),
+
+  async (
+    req,
+    res
+  ) => {
+    const replacementFile =
+      req.file;
+
+    try {
+      const resourceId =
+        clean(
+          req.params.id
+        );
+
+      if (!resourceId) {
+        if (replacementFile) {
+          safeDelete(
+            replacementFile.path
+          );
+        }
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Video resource ID is required.",
+        });
+      }
+
+      // --------------------------------------------------------
+      // FIND EXISTING RESOURCE
+      // --------------------------------------------------------
+
+      const existingResult =
+        await pool.query(
+          `
+          SELECT
+            id,
+            title,
+            description,
+            resource_type,
+            file_url,
+            topic_id,
+            class_name,
+            subject,
+            created_at
+
+          FROM resources
+
+          WHERE
+            id = $1
+
+            AND resource_type =
+              'video'
+
+          LIMIT 1
+          `,
+          [
+            resourceId,
+          ]
+        );
+
+      if (
+        existingResult.rows.length ===
+        0
+      ) {
+        if (replacementFile) {
+          safeDelete(
+            replacementFile.path
+          );
+        }
+
+        return res.status(404).json({
+          success: false,
+
+          message:
+            "Video resource not found.",
+        });
+      }
+
+      const existing =
+        existingResult.rows[0];
+
+      // --------------------------------------------------------
+      // NEW VALUES
+      // --------------------------------------------------------
+
+      const title =
+        req.body.title !==
+        undefined
+          ? clean(
+              req.body.title
+            )
+          : existing.title;
+
+      const description =
+        req.body.description !==
+        undefined
+          ? clean(
+              req.body.description
+            )
+          : existing.description ||
+            "";
+
+      const className =
+        normalizeClass(
+          req.body.class ||
+          req.body.class_name ||
+          req.body.grade ||
+          existing.class_name
+        );
+
+      const subject =
+        normalizeSubject(
+          req.body.subject ||
+          req.body.subject_name ||
+          existing.subject
+        );
+
+      const topicId =
+        req.body.topic_id !==
+        undefined
+          ? clean(
+              req.body.topic_id
+            ) ||
+            null
+          : existing.topic_id;
+
+      // --------------------------------------------------------
+      // VALIDATION
+      // --------------------------------------------------------
+
+      if (!title) {
+        if (replacementFile) {
+          safeDelete(
+            replacementFile.path
+          );
+        }
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Video title is required.",
+        });
+      }
+
+      if (!className) {
+        if (replacementFile) {
+          safeDelete(
+            replacementFile.path
+          );
+        }
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Class is required.",
+        });
+      }
+
+      if (!subject) {
+        if (replacementFile) {
+          safeDelete(
+            replacementFile.path
+          );
+        }
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Subject is required.",
+        });
+      }
+
+      // --------------------------------------------------------
+      // CHECK TOPIC
+      // --------------------------------------------------------
+
+      if (topicId) {
+        const topicResult =
+          await pool.query(
+            `
+            SELECT
+              id
+            FROM course_topics
+            WHERE id = $1
+            LIMIT 1
+            `,
+            [
+              topicId,
+            ]
+          );
+
+        if (
+          topicResult.rows.length ===
+          0
+        ) {
+          if (replacementFile) {
+            safeDelete(
+              replacementFile.path
+            );
+          }
+
+          return res.status(400).json({
+            success: false,
+
+            message:
+              "Selected video category does not exist.",
+          });
+        }
+      }
+
+      // --------------------------------------------------------
+      // VIDEO
+      // --------------------------------------------------------
+
+      let videoUrl =
+        existing.file_url;
+
+      if (replacementFile) {
+        const baseUrl =
+          getBaseUrl(req);
+
+        videoUrl =
+          `${baseUrl}/uploads/videos/${encodeURIComponent(
+            replacementFile.filename
+          )}`;
+      }
+
+      // --------------------------------------------------------
+      // UPDATE DATABASE
+      // --------------------------------------------------------
+
+      const result =
+        await pool.query(
+          `
+          UPDATE resources
+
+          SET
+            title = $1,
+            description = $2,
+            topic_id = $3,
+            class_name = $4,
+            subject = $5,
+            file_url = $6
+
+          WHERE
+            id = $7
+
+            AND resource_type =
+              'video'
+
+          RETURNING
+            id,
+            title,
+            description,
+            resource_type,
+            file_url,
+            topic_id,
+            class_name,
+            subject,
+            created_at
+          `,
+          [
+            title,
+
+            description,
+
+            topicId,
+
+            className,
+
+            subject,
+
+            videoUrl,
+
+            resourceId,
+          ]
+        );
+
+      if (
+        result.rows.length ===
+        0
+      ) {
+        if (replacementFile) {
+          safeDelete(
+            replacementFile.path
+          );
+        }
+
+        return res.status(404).json({
+          success: false,
+
+          message:
+            "Video resource could not be updated.",
+        });
+      }
+
+      const updatedResource =
+        formatResource(
+          result.rows[0]
+        );
+
+      // --------------------------------------------------------
+      // DELETE OLD VIDEO
+      // --------------------------------------------------------
+
+      if (
+        replacementFile &&
+        existing.file_url
+      ) {
+        deleteStoredVideo(
+          existing.file_url
+        );
+      }
+
+      console.log("");
+      console.log(
+        "=================================================="
+      );
+      console.log(
+        "✏️ VIDEO RESOURCE UPDATED"
+      );
+      console.log(
+        "=================================================="
+      );
+      console.log(
+        "ID:",
+        updatedResource.id
+      );
+      console.log(
+        "Title:",
+        updatedResource.title
+      );
+      console.log(
+        "Class:",
+        updatedResource.class_name
+      );
+      console.log(
+        "Subject:",
+        updatedResource.subject
+      );
+      console.log(
+        "Replacement video:",
+        replacementFile
+          ? "YES"
+          : "NO"
+      );
+      console.log(
+        "=================================================="
+      );
+      console.log("");
+
+      return res.json({
+        success: true,
+
+        message:
+          "Video updated successfully.",
+
+        resource:
+          updatedResource,
+      });
+    } catch (error) {
+      console.error(
+        "RESOURCE UPDATE ERROR:",
+        error
+      );
+
+      if (replacementFile) {
+        safeDelete(
+          replacementFile.path
+        );
+      }
+
+      return res.status(500).json({
+        success: false,
+
+        message:
+          error?.message ||
+          "Unable to update video.",
       });
     }
   }
@@ -655,7 +1348,9 @@ router.post(
 
 router.delete(
   "/:id",
+
   requireAdmin,
+
   async (
     req,
     res
@@ -671,13 +1366,20 @@ router.delete(
             id,
             title,
             file_url
+
           FROM resources
+
           WHERE
             id = $1
-            AND resource_type = 'video'
+
+            AND resource_type =
+              'video'
+
           LIMIT 1
           `,
-          [resourceId]
+          [
+            resourceId,
+          ]
         );
 
       if (
@@ -686,6 +1388,7 @@ router.delete(
       ) {
         return res.status(404).json({
           success: false,
+
           message:
             "Video resource not found.",
         });
@@ -703,7 +1406,9 @@ router.delete(
         DELETE FROM resources
         WHERE id = $1
         `,
-        [resourceId]
+        [
+          resourceId,
+        ]
       );
 
       // --------------------------------------------------------
@@ -712,6 +1417,10 @@ router.delete(
 
       deleteStoredVideo(
         resource.file_url
+      );
+
+      console.log(
+        `🗑️ VIDEO DELETED: ${resourceId}`
       );
 
       return res.json({
@@ -728,6 +1437,7 @@ router.delete(
 
       return res.status(500).json({
         success: false,
+
         message:
           "Unable to delete video.",
       });
@@ -761,17 +1471,24 @@ function safeDelete(
   }
 }
 
+// ============================================================
+// DELETE STORED VIDEO
+// ============================================================
+
 function deleteStoredVideo(
   url
 ) {
   try {
-    if (!url) return;
+    if (!url) {
+      return;
+    }
 
     let pathname;
 
     try {
       pathname =
-        new URL(url).pathname;
+        new URL(url)
+          .pathname;
     } catch {
       pathname = url;
     }
@@ -791,7 +1508,9 @@ function deleteStoredVideo(
         )
       );
 
-    if (!filename) return;
+    if (!filename) {
+      return;
+    }
 
     const videoPath =
       path.resolve(
@@ -804,6 +1523,7 @@ function deleteStoredVideo(
         VIDEOS_DIR
       );
 
+    // Security check.
     if (
       !videoPath.startsWith(
         videosDirectory +
@@ -845,6 +1565,7 @@ router.use(
       ) {
         return res.status(400).json({
           success: false,
+
           message:
             "Video is too large. Maximum size is 500MB.",
         });
@@ -852,6 +1573,7 @@ router.use(
 
       return res.status(400).json({
         success: false,
+
         message:
           error.message ||
           "Video upload error.",
@@ -861,6 +1583,7 @@ router.use(
     if (error) {
       return res.status(400).json({
         success: false,
+
         message:
           error.message ||
           "Video upload error.",
@@ -870,5 +1593,9 @@ router.use(
     next();
   }
 );
+
+// ============================================================
+// EXPORT
+// ============================================================
 
 export default router;

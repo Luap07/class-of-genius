@@ -39,7 +39,7 @@ import academyTutorAttendanceRoutes from "./routes/academyTutorAttendance.js";
 import academyTutorMessages from "./routes/academyTutorMessages.js";
 import academyTutorAnnouncements from "./routes/academyTutorAnnouncements.js";
 import academyEnrollmentRoutes from "./routes/academyEnrollmentRoutes.js";
-
+import academyStudentMaterialsRoutes from "./routes/academyStudentMaterials.js";
 // ============================================================
 // PATH CONFIGURATION
 // ============================================================
@@ -382,6 +382,10 @@ app.use(
 // ============================================================
 // STATIC UPLOADS
 // ============================================================
+app.use(
+"/api/academy/student/materials",
+academyStudentMaterialsRoutes
+);
 
 app.use(
   "/uploads",

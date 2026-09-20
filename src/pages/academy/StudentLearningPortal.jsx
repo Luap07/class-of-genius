@@ -76,9 +76,7 @@ if (!value) {
 return null;
 }
 
-if (
-typeof value === "object"
-) {
+if (typeof value === "object") {
 return value;
 }
 
@@ -115,13 +113,12 @@ return "";
 };
 
 /* =========================================================
-STUDENT
+STORED STUDENT
 ========================================================= */
 
 const getStoredStudent = () => {
 if (
-typeof window ===
-"undefined"
+typeof window === "undefined"
 ) {
 return null;
 }
@@ -130,9 +127,7 @@ for (
 const key of STUDENT_STORAGE_KEYS
 ) {
 const stored =
-window.localStorage.getItem(
-key
-);
+window.localStorage.getItem(key);
 if (!stored) {
   continue;
 }
@@ -142,8 +137,7 @@ const parsed =
 
 if (
   parsed &&
-  typeof parsed ===
-    "object"
+  typeof parsed === "object"
 ) {
   return (
     parsed.student ||
@@ -158,13 +152,12 @@ return null;
 };
 
 /* =========================================================
-TOKEN
+STORED TOKEN
 ========================================================= */
 
 const getStoredToken = () => {
 if (
-typeof window ===
-"undefined"
+typeof window === "undefined"
 ) {
 return "";
 }
@@ -173,9 +166,7 @@ for (
 const key of TOKEN_STORAGE_KEYS
 ) {
 const token =
-window.localStorage.getItem(
-key
-);
+window.localStorage.getItem(key);
 
 if (token) {
   return token;
@@ -288,7 +279,7 @@ return `${parts[0].charAt(
 };
 
 /* =========================================================
-CLASS
+STUDENT CLASS
 ========================================================= */
 
 const getStudentClass = (
@@ -352,7 +343,7 @@ student?.reference
 };
 
 /* =========================================================
-NAVIGATION
+STUDENT NAVIGATION
 ========================================================= */
 
 const NAVIGATION = [
@@ -361,56 +352,79 @@ label: "Overview",
 path: "/academy/student",
 icon: LayoutDashboard,
 },
+
 {
 label: "Subjects",
 path: "/academy/student/subjects",
 icon: BookOpen,
 },
+
 {
 label: "Lessons",
 path: "/academy/student/lessons",
 icon: BookText,
 },
-{
-label: "Textbooks",
-path: "/academy/student/textbooks",
-icon: GraduationCap,
-},
+
+/*
+
+* IMPORTANT:
+*
+* The visible name is Materials.
+*
+* The actual student route remains /textbooks
+* because that is the student child route already
+* registered in App.jsx.
+*
+* This is NOT the tutor materials route.
+  */
+  {
+  label: "Materials",
+  path: "/academy/student/textbooks",
+  icon: GraduationCap,
+  },
+
 {
 label: "Tasks",
 path: "/academy/student/tasks",
 icon: Target,
 },
+
 {
 label: "Assignments",
 path: "/academy/student/assignments",
 icon: ClipboardCheck,
 },
+
 {
 label: "CBT Practice",
 path: "/academy/student/cbt",
 icon: Brain,
 },
+
 {
 label: "Live Classes",
 path: "/academy/student/live",
 icon: Users,
 },
+
 {
 label: "Messages",
 path: "/academy/student/messages",
 icon: MessageCircle,
 },
+
 {
 label: "Progress",
 path: "/academy/student/progress",
 icon: Zap,
 },
+
 {
 label: "Achievements",
 path: "/academy/student/achievements",
 icon: Award,
 },
+
 {
 label: "Profile",
 path: "/academy/student/profile",
@@ -429,8 +443,10 @@ useNavigate();
 const location =
 useLocation();
 
-const [student, setStudent] =
-useState(() =>
+const [
+student,
+setStudent,
+] = useState(() =>
 getStoredStudent()
 );
 
@@ -477,9 +493,7 @@ getStoredStudent();
     }
 
     try {
-      setLoadingStudent(
-        true
-      );
+      setLoadingStudent(true);
 
       const headers = {
         Accept:
@@ -563,9 +577,7 @@ getStoredStudent();
         error
       );
     } finally {
-      setLoadingStudent(
-        false
-      );
+      setLoadingStudent(false);
     }
   },
   []
@@ -580,9 +592,7 @@ loadStudent();
 }, [loadStudent]);
 
 useEffect(() => {
-setMobileSidebarOpen(
-false
-);
+setMobileSidebarOpen(false);
 }, [location.pathname]);
 
 useEffect(() => {
@@ -747,7 +757,8 @@ key
 }
 );
 }
-setStudent(null);
+
+  setStudent(null);
 
   navigate(
     "/academy/student-enrollment-login",
@@ -801,7 +812,10 @@ mobile
 : "",
 ].join(" ")}
 >
-{/* LOGO */}
+    {/* =================================================
+        LOGO
+    ================================================= */}
+
     <div className="flex h-[78px] shrink-0 items-center border-b border-white/[0.06] px-5">
       <button
         type="button"
@@ -860,7 +874,9 @@ mobile
       ) : null}
     </div>
 
-    {/* PROFILE */}
+    {/* =================================================
+        PROFILE
+    ================================================= */}
 
     <div
       className={[
@@ -904,7 +920,9 @@ mobile
       </button>
     </div>
 
-    {/* NAVIGATION */}
+    {/* =================================================
+        NAVIGATION
+    ================================================= */}
 
     <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
       <div className="mb-3 px-2">
@@ -998,7 +1016,9 @@ mobile
       </div>
     </nav>
 
-    {/* LOGOUT */}
+    {/* =================================================
+        LOGOUT
+    ================================================= */}
 
     <div className="shrink-0 border-t border-white/[0.06] p-3">
       <button
@@ -1042,9 +1062,11 @@ RETURN
 ======================================================= */
 
 return ( <div className="min-h-screen bg-[#020617] text-white">
-{/* ===================================================
-DESKTOP SIDEBAR
-=================================================== */}
+
+  {/* =================================================
+      DESKTOP SIDEBAR
+  ================================================= */}
+
   <aside
     className="fixed inset-y-0 left-0 z-40 hidden border-r border-white/[0.06] bg-[#050b16] lg:block"
     style={{
@@ -1057,9 +1079,9 @@ DESKTOP SIDEBAR
     <SidebarContent />
   </aside>
 
-  {/* ===================================================
+  {/* =================================================
       MOBILE SIDEBAR
-  =================================================== */}
+  ================================================= */}
 
   <AnimatePresence>
     {mobileSidebarOpen ? (
@@ -1107,9 +1129,9 @@ DESKTOP SIDEBAR
     ) : null}
   </AnimatePresence>
 
-  {/* ===================================================
+  {/* =================================================
       MAIN AREA
-  =================================================== */}
+  ================================================= */}
 
   <div
     className="flex min-h-screen flex-col"
@@ -1126,12 +1148,15 @@ DESKTOP SIDEBAR
         "margin-left 220ms ease",
     }}
   >
+
     {/* =================================================
         TOPBAR
     ================================================= */}
 
     <header className="sticky top-0 z-30 flex h-[78px] shrink-0 items-center border-b border-white/[0.06] bg-[#020617]/90 px-4 backdrop-blur-xl sm:px-6">
+
       <div className="flex min-w-0 flex-1 items-center gap-3">
+
         <button
           type="button"
           onClick={() =>
@@ -1179,6 +1204,7 @@ DESKTOP SIDEBAR
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+
         <button
           type="button"
           onClick={
@@ -1228,21 +1254,27 @@ DESKTOP SIDEBAR
     ================================================= */}
 
     <main className="flex flex-1 flex-col">
+
       {/* =================================================
           HERO
       ================================================= */}
 
       <section className="relative shrink-0 overflow-hidden border-b border-white/[0.06] bg-[#071426]">
+
         <div className="pointer-events-none absolute inset-0">
+
           <div className="absolute -right-24 -top-32 h-80 w-80 rounded-full bg-cyan-500/[0.07] blur-3xl" />
 
           <div className="absolute -bottom-32 left-1/3 h-80 w-80 rounded-full bg-blue-600/[0.06] blur-3xl" />
 
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(34,211,238,0.08),transparent_32%),linear-gradient(120deg,rgba(7,20,38,1),rgba(2,6,23,0.96))]" />
+
         </div>
 
         <div className="relative mx-auto max-w-[1600px] px-5 py-3 sm:px-7 sm:py-4 lg:px-9 lg:py-5">
+
           <div className="flex items-center justify-between gap-6">
+
             <motion.div
               initial={{
                 opacity: 0,
@@ -1257,7 +1289,9 @@ DESKTOP SIDEBAR
               }}
               className="min-w-0 max-w-3xl"
             >
+
               <div className="mb-1.5 inline-flex items-center gap-2 rounded-full border border-cyan-400/15 bg-cyan-400/[0.06] px-3 py-1">
+
                 <Sparkles
                   size={12}
                   className="text-cyan-300"
@@ -1266,6 +1300,7 @@ DESKTOP SIDEBAR
                 <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
                   Your Learning Space
                 </span>
+
               </div>
 
               <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-[32px]">
@@ -1280,7 +1315,9 @@ DESKTOP SIDEBAR
               </p>
 
               <div className="mt-2.5 flex flex-wrap gap-2">
+
                 <div className="inline-flex items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.025] px-2.5 py-1">
+
                   <GraduationCap
                     size={14}
                     className="text-cyan-300"
@@ -1289,10 +1326,12 @@ DESKTOP SIDEBAR
                   <span className="text-[11px] font-medium text-slate-300">
                     {heroSubtitle}
                   </span>
+
                 </div>
 
                 {studentReference ? (
                   <div className="hidden items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 sm:inline-flex">
+
                     <User
                       size={13}
                       className="text-slate-500"
@@ -1307,8 +1346,10 @@ DESKTOP SIDEBAR
                         studentReference
                       }
                     </span>
+
                   </div>
                 ) : null}
+
               </div>
             </motion.div>
 
@@ -1326,10 +1367,13 @@ DESKTOP SIDEBAR
               }}
               className="hidden shrink-0 lg:block"
             >
+
               <div className="relative flex h-24 w-52 items-center justify-center overflow-hidden rounded-2xl border border-white/[0.08] bg-slate-950/40">
+
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.11),transparent_60%)]" />
 
                 <div className="relative flex items-center gap-3">
+
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/[0.07]">
                     <GraduationCap
                       size={24}
@@ -1351,22 +1395,18 @@ DESKTOP SIDEBAR
                       Succeed
                     </div>
                   </div>
+
                 </div>
               </div>
+
             </motion.div>
+
           </div>
         </div>
       </section>
 
       {/* =================================================
-          OUTLET
-
-          IMPORTANT:
-          NO TOP PADDING.
-          NO EXTRA GAP.
-          
-          The child page begins directly beneath
-          the hero.
+          STUDENT CONTENT
       ================================================= */}
 
       <div className="mx-auto w-full max-w-[1600px] flex-1 px-5 sm:px-7 lg:px-9">
@@ -1383,17 +1423,23 @@ DESKTOP SIDEBAR
           }}
         />
       </div>
+
     </main>
 
-    {/* PROFILE LOADING */}
+    {/* =================================================
+        PROFILE LOADING
+    ================================================= */}
 
     {loadingStudent ? (
       <div className="pointer-events-none fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-[#071426]/95 px-3 py-2 text-xs text-slate-400 shadow-xl backdrop-blur-xl">
+
         <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-600 border-t-cyan-300" />
 
         Loading profile...
+
       </div>
     ) : null}
+
   </div>
 </div>
 

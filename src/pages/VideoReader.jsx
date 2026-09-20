@@ -5,12 +5,10 @@ import React, {
   useRef,
   useState,
 } from "react";
+
 import {
   ArrowLeft,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
   ExternalLink,
   Maximize,
   Minimize,
@@ -22,15 +20,21 @@ import {
   Volume2,
   VolumeX,
   X,
+  Clock,
 } from "lucide-react";
+
 import { useNavigate, useParams } from "react-router-dom";
 
+/* =========================================================
+   CONFIG
+========================================================= */
+
 const API_URL = (
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).replace(/\/+$/, "");
 
-const AUTH_TOKEN_KEY = "scholiqen_auth_token";
+const ACADEMY_TOKEN_KEY = "scholiqen_academy_token";
+const ACADEMY_USER_KEY = "scholiqen_academy_user";
 
 /* =========================================================
    HELPERS
@@ -105,14 +109,16 @@ const formatTime = (seconds) => {
   const secs = totalSeconds % 60;
 
   if (hours > 0) {
-    return `${String(hours).padStart(2, "0")}:${String(
-      minutes
-    ).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+      2,
+      "0"
+    )}:${String(secs).padStart(2, "0")}`;
   }
 
-  return `${String(minutes).padStart(2, "0")}:${String(
-    secs
-  ).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(
+    2,
+    "0"
+  )}`;
 };
 
 const getStorageKey = (id) =>
@@ -152,6 +158,40 @@ const VideoReader = () => {
   const [completed, setCompleted] = useState(false);
 
   /* =========================================================
+     ACADEMY AUTH
+  ========================================================= */
+
+  const getAcademyToken = useCallback(() => {
+    try {
+      const token = localStorage.getItem(ACADEMY_TOKEN_KEY);
+
+      if (!token) {
+        return "";
+      }
+
+      return token.trim();
+    } catch (err) {
+      console.warn("Unable to read Academy token:", err);
+      return "";
+    }
+  }, []);
+
+  const getAcademyUser = useCallback(() => {
+    try {
+      const rawUser = localStorage.getItem(ACADEMY_USER_KEY);
+
+      if (!rawUser) {
+        return null;
+      }
+
+      return JSON.parse(rawUser);
+    } catch (err) {
+      console.warn("Unable to read Academy user:", err);
+      return null;
+    }
+  }, []);
+
+  /* =========================================================
      RESOURCE TYPE
   ========================================================= */
 
@@ -163,6 +203,10 @@ const VideoReader = () => {
       Boolean(resource.youtube_url && !resource.file_url)
     );
   }, [resource]);
+
+  /* =========================================================
+     MEDIA URL
+  ========================================================= */
 
   const mediaUrl = useMemo(() => {
     if (!resource) return "";
@@ -183,7 +227,31 @@ const VideoReader = () => {
     setError("");
 
     try {
-      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (!id) {
+        throw new Error("No video resource ID was provided.");
+      }
+
+      const token = getAcademyToken();
+      const academyUser = getAcademyUser();
+
+      /*
+       * IMPORTANT:
+       * This reader now uses the Academy student token.
+       */
+
+      if (!token) {
+        throw new Error(
+          "Your student session has expired. Please log in again."
+        );
+      }
+
+      console.log("VIDEO READER AUTH", {
+        hasToken: Boolean(token),
+        userType: academyUser?.userType,
+        studentId: academyUser?.studentId,
+        email: academyUser?.email,
+        resourceId: id,
+      });
 
       const response = await fetch(
         `${API_URL}/api/resources/${encodeURIComponent(id)}`,
@@ -191,16 +259,32 @@ const VideoReader = () => {
           method: "GET",
           headers: {
             Accept: "application/json",
-            ...(token
-              ? {
-                  Authorization: `Bearer ${token}`,
-                }
-              : {}),
+            Authorization: `Bearer ${token}`,
           },
         }
       );
 
       const data = await response.json().catch(() => null);
+
+      /*
+       * Handle authentication specifically.
+       */
+      if (response.status === 401) {
+        console.error("Video resource authentication failed.", {
+          status: response.status,
+          data,
+        });
+
+        throw new Error(
+          "Your student authentication token is invalid or has expired. Please log in again."
+        );
+      }
+
+      if (response.status === 403) {
+        throw new Error(
+          "You are not authorized to access this video."
+        );
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -230,7 +314,7 @@ const VideoReader = () => {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, getAcademyToken, getAcademyUser]);
 
   useEffect(() => {
     fetchResource();
@@ -252,10 +336,7 @@ const VideoReader = () => {
 
       const parsed = Number(saved);
 
-      if (
-        Number.isFinite(parsed) &&
-        parsed > 0
-      ) {
+      if (Number.isFinite(parsed) && parsed > 0) {
         setSavedProgress(parsed);
         setCurrentTime(parsed);
       }
@@ -362,10 +443,25 @@ const VideoReader = () => {
   };
 
   /* =========================================================
+     VIDEO ERROR
+  ========================================================= */
+
+  const handleVideoError = (event) => {
+    console.error(
+      "HTML video playback error:",
+      event?.currentTarget?.error
+    );
+
+    setError(
+      "The video file could not be played. The video URL may be invalid or inaccessible."
+    );
+  };
+
+  /* =========================================================
      PLAY / PAUSE
   ========================================================= */
 
-  const togglePlay = async () => {
+  const togglePlay = useCallback(async () => {
     const video = videoRef.current;
 
     if (!video) return;
@@ -382,36 +478,39 @@ const VideoReader = () => {
         err
       );
     }
-  };
+  }, []);
 
   /* =========================================================
      SEEK
   ========================================================= */
 
-  const seekTo = (time) => {
-    const video = videoRef.current;
+  const seekTo = useCallback(
+    (time) => {
+      const video = videoRef.current;
 
-    if (!video) return;
+      if (!video) return;
 
-    const nextTime = Math.max(
-      0,
-      Math.min(time, video.duration || 0)
-    );
+      const nextTime = Math.max(
+        0,
+        Math.min(time, video.duration || 0)
+      );
 
-    video.currentTime = nextTime;
+      video.currentTime = nextTime;
 
-    setCurrentTime(nextTime);
+      setCurrentTime(nextTime);
 
-    saveProgress(nextTime);
-  };
+      saveProgress(nextTime);
+    },
+    [saveProgress]
+  );
 
-  const skipForward = () => {
+  const skipForward = useCallback(() => {
     seekTo(currentTime + 10);
-  };
+  }, [currentTime, seekTo]);
 
-  const skipBackward = () => {
+  const skipBackward = useCallback(() => {
     seekTo(currentTime - 10);
-  };
+  }, [currentTime, seekTo]);
 
   /* =========================================================
      VOLUME
@@ -431,7 +530,7 @@ const VideoReader = () => {
     }
   };
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     const video = videoRef.current;
 
     if (!video) return;
@@ -450,7 +549,7 @@ const VideoReader = () => {
       video.muted = true;
       setIsMuted(true);
     }
-  };
+  }, [volume]);
 
   /* =========================================================
      PLAYBACK SPEED
@@ -462,6 +561,7 @@ const VideoReader = () => {
     if (!video) return;
 
     video.playbackRate = rate;
+
     setPlaybackRate(rate);
     setShowSettings(false);
   };
@@ -470,7 +570,7 @@ const VideoReader = () => {
      FULLSCREEN
   ========================================================= */
 
-  const toggleFullscreen = async () => {
+  const toggleFullscreen = useCallback(async () => {
     const container =
       playerContainerRef.current;
 
@@ -490,7 +590,7 @@ const VideoReader = () => {
         err
       );
     }
-  };
+  }, []);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -522,7 +622,8 @@ const VideoReader = () => {
 
       if (
         target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
       ) {
         return;
       }
@@ -563,6 +664,9 @@ const VideoReader = () => {
   }, [
     currentTime,
     togglePlay,
+    seekTo,
+    toggleMute,
+    toggleFullscreen,
   ]);
 
   /* =========================================================
@@ -585,7 +689,7 @@ const VideoReader = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#050816] text-white flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#050816] text-white">
         <div className="text-center">
           <div className="mx-auto mb-5 h-12 w-12 animate-spin rounded-full border-2 border-white/10 border-t-blue-500" />
 
@@ -602,8 +706,13 @@ const VideoReader = () => {
   ========================================================= */
 
   if (error || !resource) {
+    const isAuthError =
+      error?.toLowerCase().includes("authentication") ||
+      error?.toLowerCase().includes("token") ||
+      error?.toLowerCase().includes("log in again");
+
     return (
-      <div className="min-h-screen bg-[#050816] text-white flex items-center justify-center px-6">
+      <div className="flex min-h-screen items-center justify-center bg-[#050816] px-6 text-white">
         <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center shadow-2xl">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10">
             <X className="h-8 w-8 text-red-400" />
@@ -618,6 +727,12 @@ const VideoReader = () => {
               "This video resource could not be found."}
           </p>
 
+          {isAuthError && (
+            <p className="mt-3 text-xs text-slate-500">
+              Your Academy student session may have expired.
+            </p>
+          )}
+
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <button
               onClick={() => navigate(-1)}
@@ -626,12 +741,26 @@ const VideoReader = () => {
               Go Back
             </button>
 
-            <button
-              onClick={fetchResource}
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
-            >
-              Try Again
-            </button>
+            {isAuthError ? (
+              <button
+                onClick={() =>
+                  navigate(
+                    "/academy/student-enrollment-login",
+                    { replace: true }
+                  )
+                }
+                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
+              >
+                Student Login
+              </button>
+            ) : (
+              <button
+                onClick={fetchResource}
+                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
+              >
+                Try Again
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -707,6 +836,7 @@ const VideoReader = () => {
               className="group relative overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl"
             >
               {/* VIDEO */}
+
               <div className="relative aspect-video w-full bg-black">
                 {isYouTube ? (
                   mediaUrl ? (
@@ -738,28 +868,30 @@ const VideoReader = () => {
                     onPlay={handlePlay}
                     onPause={handlePause}
                     onEnded={handleEnded}
+                    onError={handleVideoError}
                     onClick={togglePlay}
                   />
                 )}
 
                 {/* CENTER PLAY BUTTON */}
+
                 {!isYouTube &&
                   !isPlaying && (
                     <button
                       onClick={togglePlay}
                       className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-blue-600/90 shadow-2xl backdrop-blur-md transition hover:scale-105 hover:bg-blue-500"
                     >
-                      <Play
-                        className="ml-1 h-7 w-7 fill-current"
-                      />
+                      <Play className="ml-1 h-7 w-7 fill-current" />
                     </button>
                   )}
               </div>
 
-              {/* CONTROLS - LOCAL VIDEO ONLY */}
+              {/* CONTROLS */}
+
               {!isYouTube && (
                 <div className="border-t border-white/10 bg-[#080b16] px-4 py-3">
                   {/* PROGRESS */}
+
                   <div className="mb-3">
                     <input
                       type="range"
@@ -778,6 +910,7 @@ const VideoReader = () => {
 
                   <div className="flex items-center gap-2">
                     {/* PLAY */}
+
                     <button
                       onClick={togglePlay}
                       className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-200 transition hover:bg-white/10 hover:text-white"
@@ -790,6 +923,7 @@ const VideoReader = () => {
                     </button>
 
                     {/* BACKWARD */}
+
                     <button
                       onClick={skipBackward}
                       className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/10 hover:text-white sm:flex"
@@ -799,6 +933,7 @@ const VideoReader = () => {
                     </button>
 
                     {/* FORWARD */}
+
                     <button
                       onClick={skipForward}
                       className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/10 hover:text-white sm:flex"
@@ -808,6 +943,7 @@ const VideoReader = () => {
                     </button>
 
                     {/* TIME */}
+
                     <div className="ml-1 min-w-[100px] text-xs tabular-nums text-slate-400">
                       {formatTime(currentTime)}
                       {" / "}
@@ -817,6 +953,7 @@ const VideoReader = () => {
                     <div className="flex-1" />
 
                     {/* VOLUME */}
+
                     <button
                       onClick={toggleMute}
                       className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/10 hover:text-white"
@@ -834,9 +971,7 @@ const VideoReader = () => {
                       max="1"
                       step="0.05"
                       value={
-                        isMuted
-                          ? 0
-                          : volume
+                        isMuted ? 0 : volume
                       }
                       onChange={
                         handleVolumeChange
@@ -845,6 +980,7 @@ const VideoReader = () => {
                     />
 
                     {/* SETTINGS */}
+
                     <div className="relative">
                       <button
                         onClick={() =>
@@ -903,6 +1039,7 @@ const VideoReader = () => {
                     </div>
 
                     {/* FULLSCREEN */}
+
                     <button
                       onClick={
                         toggleFullscreen
@@ -920,6 +1057,7 @@ const VideoReader = () => {
               )}
 
               {/* YOUTUBE LABEL */}
+
               {isYouTube && (
                 <div className="flex items-center justify-between border-t border-white/10 bg-[#080b16] px-4 py-3">
                   <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -1040,6 +1178,7 @@ const VideoReader = () => {
 
           <aside className="space-y-5">
             {/* LESSON CARD */}
+
             <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-5">
               <div className="mb-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
@@ -1120,6 +1259,7 @@ const VideoReader = () => {
             </div>
 
             {/* COURSE / TOPIC */}
+
             {(resource.course_title ||
               resource.topic_title) && (
               <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-5">
@@ -1156,6 +1296,7 @@ const VideoReader = () => {
             )}
 
             {/* SHORTCUTS */}
+
             {!isYouTube && (
               <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-5">
                 <h2 className="mb-4 text-sm font-semibold text-white">
@@ -1205,6 +1346,7 @@ const VideoReader = () => {
             )}
 
             {/* BACK */}
+
             <button
               onClick={() => navigate(-1)}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.07] hover:text-white"

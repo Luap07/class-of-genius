@@ -13,38 +13,25 @@ const router = express.Router();
 // PATH CONFIGURATION
 // ============================================================
 
-const __filename =
-  fileURLToPath(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const __dirname =
-  path.dirname(__filename);
+const UPLOADS_DIR = path.join(__dirname, "../uploads");
 
-const UPLOADS_DIR =
-  path.join(
-    __dirname,
-    "../uploads"
-  );
-
-const VIDEOS_DIR =
-  path.join(
-    UPLOADS_DIR,
-    "videos"
-  );
-
-// Make sure directory exists.
-fs.mkdirSync(
-  VIDEOS_DIR,
-  {
-    recursive: true,
-  }
+const VIDEOS_DIR = path.join(
+  UPLOADS_DIR,
+  "videos"
 );
+
+fs.mkdirSync(VIDEOS_DIR, {
+  recursive: true,
+});
 
 // ============================================================
 // CONFIG
 // ============================================================
 
-const JWT_SECRET =
-  process.env.JWT_SECRET?.trim();
+const JWT_SECRET = process.env.JWT_SECRET?.trim();
 
 const MAX_VIDEO_SIZE =
   500 * 1024 * 1024;
@@ -53,9 +40,7 @@ const MAX_VIDEO_SIZE =
 // HELPERS
 // ============================================================
 
-const clean = (
-  value
-) => {
+const clean = (value) => {
   if (
     value === undefined ||
     value === null
@@ -63,82 +48,50 @@ const clean = (
     return "";
   }
 
-  return String(value)
-    .trim();
+  return String(value).trim();
 };
 
-const normalizeClass = (
-  value
-) => {
-  return clean(value)
-    .replace(/\s+/g, " ");
+const normalizeClass = (value) => {
+  return clean(value).replace(/\s+/g, " ");
 };
 
-const normalizeSubject = (
-  value
-) => {
-  return clean(value)
-    .replace(/\s+/g, " ");
+const normalizeSubject = (value) => {
+  return clean(value).replace(/\s+/g, " ");
 };
 
 // ============================================================
 // MULTER STORAGE
 // ============================================================
 
-const storage =
-  multer.diskStorage({
-    destination: (
-      req,
-      file,
-      cb
-    ) => {
-      cb(
-        null,
-        VIDEOS_DIR
-      );
-    },
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, VIDEOS_DIR);
+  },
 
-    filename: (
-      req,
-      file,
-      cb
-    ) => {
-      const extension =
-        path
-          .extname(
-            file.originalname
-          )
-          .toLowerCase();
+  filename: (req, file, cb) => {
+    const extension = path
+      .extname(file.originalname)
+      .toLowerCase();
 
-      const baseName =
-        path
-          .basename(
-            file.originalname,
-            extension
-          )
-          .replace(
-            /[^a-zA-Z0-9_-]/g,
-            "-"
-          )
-          .substring(
-            0,
-            80
-          );
+    const baseName = path
+      .basename(
+        file.originalname,
+        extension
+      )
+      .replace(
+        /[^a-zA-Z0-9_-]/g,
+        "-"
+      )
+      .substring(0, 80);
 
-      const uniqueName =
-        `${Date.now()}-${Math.random()
-          .toString(36)
-          .substring(
-            2,
-            10
-          )}-${baseName}${extension}`;
+    const uniqueName =
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 10)}-${baseName}${extension}`;
 
-      cb(
-        null,
-        uniqueName
-      );
-    },
-  });
+    cb(null, uniqueName);
+  },
+});
 
 // ============================================================
 // VIDEO FILE FILTER
@@ -162,22 +115,16 @@ const fileFilter = (
   file,
   cb
 ) => {
-  const extension =
-    path
-      .extname(
-        file.originalname
-      )
-      .toLowerCase();
+  const extension = path
+    .extname(file.originalname)
+    .toLowerCase();
 
   if (
     allowedVideoExtensions.includes(
       extension
     )
   ) {
-    return cb(
-      null,
-      true
-    );
+    return cb(null, true);
   }
 
   return cb(
@@ -187,153 +134,448 @@ const fileFilter = (
   );
 };
 
-const upload =
-  multer({
-    storage,
-    fileFilter,
+const upload = multer({
+  storage,
+  fileFilter,
 
-    limits: {
-      fileSize:
-        MAX_VIDEO_SIZE,
-    },
-  });
+  limits: {
+    fileSize: MAX_VIDEO_SIZE,
+  },
+});
 
 // ============================================================
-// AUTHENTICATION
+// GET TOKEN
 // ============================================================
 
-const requireAdmin =
-  async (
-    req,
-    res,
-    next
-  ) => {
+const getBearerToken = (req) => {
+  const authHeader =
+    req.headers.authorization;
+
+  if (
+    !authHeader ||
+    !authHeader.startsWith("Bearer ")
+  ) {
+    return "";
+  }
+
+  return authHeader
+    .slice(7)
+    .trim();
+};
+
+// ============================================================
+// ADMIN AUTHENTICATION
+// ============================================================
+
+const requireAdmin = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    if (!JWT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message:
+          "JWT_SECRET is not configured.",
+      });
+    }
+
+    const token =
+      getBearerToken(req);
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Authentication required.",
+      });
+    }
+
+    const decoded =
+      jwt.verify(
+        token,
+        JWT_SECRET
+      );
+
+    if (!decoded?.id) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid authentication token.",
+      });
+    }
+
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          username,
+          email,
+          role,
+          created_at
+        FROM users
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [decoded.id]
+      );
+
+    if (
+      result.rows.length === 0
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "User account not found.",
+      });
+    }
+
+    const user =
+      result.rows[0];
+
+    if (
+      user.role !== "admin"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Admin access required.",
+      });
+    }
+
+    req.user = user;
+    req.authType = "admin";
+
+    next();
+  } catch (error) {
+    console.error(
+      "Resource admin authentication error:",
+      error
+    );
+
+    return res.status(401).json({
+      success: false,
+      message:
+        "Invalid or expired authentication token.",
+    });
+  }
+};
+
+// ============================================================
+// STUDENT AUTHENTICATION
+//
+// Students use:
+//   scholiqen_academy_token
+//
+// The token itself is sent as:
+//   Authorization: Bearer <token>
+//
+// We intentionally keep this separate from admin auth.
+// ============================================================
+
+const requireStudent = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    if (!JWT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message:
+          "JWT_SECRET is not configured.",
+      });
+    }
+
+    const token =
+      getBearerToken(req);
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Student authentication required.",
+      });
+    }
+
+    let decoded;
+
     try {
-      if (!JWT_SECRET) {
-        return res.status(500).json({
-          success: false,
-
-          message:
-            "JWT_SECRET is not configured.",
-        });
-      }
-
-      const authHeader =
-        req.headers.authorization;
-
-      if (
-        !authHeader ||
-        !authHeader.startsWith(
-          "Bearer "
-        )
-      ) {
-        return res.status(401).json({
-          success: false,
-
-          message:
-            "Authentication required.",
-        });
-      }
-
-      const token =
-        authHeader
-          .split(" ")[1];
-
-      if (!token) {
-        return res.status(401).json({
-          success: false,
-
-          message:
-            "Authentication token missing.",
-        });
-      }
-
-      const decoded =
+      decoded =
         jwt.verify(
           token,
           JWT_SECRET
         );
-
-      if (!decoded?.id) {
-        return res.status(401).json({
-          success: false,
-
-          message:
-            "Invalid authentication token.",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-          SELECT
-            id,
-            username,
-            email,
-            role,
-            created_at
-          FROM users
-          WHERE id = $1
-          LIMIT 1
-          `,
-          [
-            decoded.id,
-          ]
-        );
-
-      if (
-        result.rows.length ===
-        0
-      ) {
-        return res.status(401).json({
-          success: false,
-
-          message:
-            "User account not found.",
-        });
-      }
-
-      const user =
-        result.rows[0];
-
-      if (
-        user.role !==
-        "admin"
-      ) {
-        return res.status(403).json({
-          success: false,
-
-          message:
-            "Admin access required.",
-        });
-      }
-
-      req.user =
-        user;
-
-      next();
     } catch (error) {
       console.error(
-        "Resource authentication error:",
-        error
+        "Student JWT verification failed:",
+        error.message
       );
 
       return res.status(401).json({
         success: false,
+        message:
+          "Invalid or expired student authentication token.",
+      });
+    }
 
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid student authentication token.",
+      });
+    }
+
+    /*
+     * Academy student tokens may identify the student
+     * using one of these fields depending on the login
+     * implementation.
+     */
+    const studentId =
+      decoded.studentId ||
+      decoded.student_id ||
+      decoded.userId ||
+      decoded.user_id ||
+      decoded.id ||
+      decoded.enrollmentId ||
+      decoded.enrollment_id ||
+      null;
+
+    const userType = clean(
+      decoded.userType ||
+      decoded.user_type ||
+      decoded.type ||
+      decoded.role
+    ).toLowerCase();
+
+    /*
+     * Accept explicit student tokens.
+     */
+    const isExplicitStudent =
+      userType === "student" ||
+      userType === "academy_student" ||
+      userType === "academystudent";
+
+    /*
+     * Some existing Academy tokens may not have
+     * userType but do contain a student identifier.
+     *
+     * We allow those tokens as student tokens while
+     * still requiring a valid signed JWT.
+     */
+    const looksLikeStudentToken =
+      Boolean(studentId);
+
+    if (
+      !isExplicitStudent &&
+      !looksLikeStudentToken
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Student access is required.",
+      });
+    }
+
+    req.student = {
+      ...decoded,
+      studentId,
+    };
+
+    req.authType = "student";
+
+    next();
+  } catch (error) {
+    console.error(
+      "Student resource authentication error:",
+      error
+    );
+
+    return res.status(401).json({
+      success: false,
+      message:
+        "Invalid or expired student authentication token.",
+    });
+  }
+};
+
+// ============================================================
+// ADMIN OR STUDENT AUTHENTICATION
+//
+// Used ONLY for reading a single video.
+//
+// Admins can view it.
+// Academy students can view it.
+// Nobody else can.
+// ============================================================
+
+const requireAdminOrStudent = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    if (!JWT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message:
+          "JWT_SECRET is not configured.",
+      });
+    }
+
+    const token =
+      getBearerToken(req);
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Authentication required.",
+      });
+    }
+
+    let decoded;
+
+    try {
+      decoded =
+        jwt.verify(
+          token,
+          JWT_SECRET
+        );
+    } catch (error) {
+      console.error(
+        "Resource JWT verification failed:",
+        error.message
+      );
+
+      return res.status(401).json({
+        success: false,
         message:
           "Invalid or expired authentication token.",
       });
     }
-  };
+
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid authentication token.",
+      });
+    }
+
+    // --------------------------------------------------------
+    // ADMIN CHECK
+    // --------------------------------------------------------
+
+    if (decoded.id) {
+      try {
+        const adminResult =
+          await pool.query(
+            `
+            SELECT
+              id,
+              username,
+              email,
+              role,
+              created_at
+            FROM users
+            WHERE id = $1
+            LIMIT 1
+            `,
+            [decoded.id]
+          );
+
+        if (
+          adminResult.rows.length > 0 &&
+          adminResult.rows[0].role ===
+            "admin"
+        ) {
+          req.user =
+            adminResult.rows[0];
+
+          req.authType =
+            "admin";
+
+          return next();
+        }
+      } catch (error) {
+        console.error(
+          "Admin lookup during resource access failed:",
+          error
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // STUDENT CHECK
+    // --------------------------------------------------------
+
+    const studentId =
+      decoded.studentId ||
+      decoded.student_id ||
+      decoded.userId ||
+      decoded.user_id ||
+      decoded.enrollmentId ||
+      decoded.enrollment_id ||
+      null;
+
+    const userType = clean(
+      decoded.userType ||
+      decoded.user_type ||
+      decoded.type ||
+      decoded.role
+    ).toLowerCase();
+
+    const isExplicitStudent =
+      userType === "student" ||
+      userType === "academy_student" ||
+      userType === "academystudent";
+
+    const looksLikeStudentToken =
+      Boolean(studentId);
+
+    if (
+      isExplicitStudent ||
+      looksLikeStudentToken
+    ) {
+      req.student = {
+        ...decoded,
+        studentId,
+      };
+
+      req.authType =
+        "student";
+
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      message:
+        "Student or admin access required.",
+    });
+  } catch (error) {
+    console.error(
+      "Resource access authentication error:",
+      error
+    );
+
+    return res.status(401).json({
+      success: false,
+      message:
+        "Invalid or expired authentication token.",
+    });
+  }
+};
 
 // ============================================================
 // BASE URL
 // ============================================================
 
-const getBaseUrl = (
-  req
-) => {
+const getBaseUrl = (req) => {
   const configured =
     process.env.BACKEND_URL?.trim();
 
@@ -363,32 +605,23 @@ const formatResource = (
   return {
     ...resource,
 
-    // Class aliases for frontend compatibility.
     class:
-      resource.class_name ||
-      "",
+      resource.class_name || "",
 
     grade:
-      resource.class_name ||
-      "",
+      resource.class_name || "",
 
-    // Subject aliases for frontend compatibility.
     subject_name:
-      resource.subject ||
-      "",
+      resource.subject || "",
 
     subject_title:
-      resource.subject ||
-      "",
+      resource.subject || "",
 
-    // Video aliases.
     videoUrl:
-      resource.file_url ||
-      "",
+      resource.file_url || "",
 
     video_url:
-      resource.file_url ||
-      "",
+      resource.file_url || "",
   };
 };
 
@@ -421,7 +654,6 @@ router.get(
 
       return res.json({
         success: true,
-
         topics:
           result.rows,
       });
@@ -433,9 +665,7 @@ router.get(
 
       return res.status(500).json({
         success: false,
-
         topics: [],
-
         message:
           "Unable to fetch video categories.",
       });
@@ -445,6 +675,13 @@ router.get(
 
 // ============================================================
 // GET ALL VIDEO RESOURCES
+// ============================================================
+//
+// ADMIN ONLY
+//
+// Students should receive their lessons through
+// the Academy student lesson endpoint instead
+// of exposing the entire video library.
 // ============================================================
 
 router.get(
@@ -492,9 +729,7 @@ router.get(
 
       return res.json({
         success: true,
-
         resources,
-
         count:
           resources.length,
       });
@@ -506,11 +741,8 @@ router.get(
 
       return res.status(500).json({
         success: false,
-
         resources: [],
-
         count: 0,
-
         message:
           "Unable to fetch video resources.",
       });
@@ -521,16 +753,50 @@ router.get(
 // ============================================================
 // GET SINGLE RESOURCE
 // ============================================================
+//
+// ADMIN + ACADEMY STUDENT
+//
+// THIS IS THE IMPORTANT FIX.
+//
+// Before:
+//
+//   requireAdmin
+//
+// That caused:
+//
+//   401 Invalid authentication token
+//
+// for Academy students.
+//
+// Now:
+//
+//   requireAdminOrStudent
+//
+// allows the logged-in student to open the video.
+// ============================================================
 
 router.get(
   "/:id",
-  requireAdmin,
+  requireAdminOrStudent,
 
   async (
     req,
     res
   ) => {
     try {
+      const resourceId =
+        clean(
+          req.params.id
+        );
+
+      if (!resourceId) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Video resource ID is required.",
+        });
+      }
+
       const result =
         await pool.query(
           `
@@ -560,9 +826,7 @@ router.get(
 
           LIMIT 1
           `,
-          [
-            req.params.id,
-          ]
+          [resourceId]
         );
 
       if (
@@ -571,19 +835,71 @@ router.get(
       ) {
         return res.status(404).json({
           success: false,
-
           message:
             "Video resource not found.",
         });
       }
 
+      const resource =
+        formatResource(
+          result.rows[0]
+        );
+
+      /*
+       * Log access for debugging.
+       *
+       * This does not expose the token.
+       */
+      console.log("");
+      console.log(
+        "=================================================="
+      );
+      console.log(
+        "🎥 VIDEO RESOURCE ACCESS"
+      );
+      console.log(
+        "=================================================="
+      );
+      console.log(
+        "Resource ID:",
+        resource.id
+      );
+      console.log(
+        "Title:",
+        resource.title
+      );
+      console.log(
+        "Class:",
+        resource.class_name
+      );
+      console.log(
+        "Subject:",
+        resource.subject
+      );
+      console.log(
+        "Access type:",
+        req.authType
+      );
+
+      if (
+        req.authType ===
+        "student"
+      ) {
+        console.log(
+          "Student ID:",
+          req.student?.studentId ||
+            "NOT PROVIDED"
+        );
+      }
+
+      console.log(
+        "=================================================="
+      );
+      console.log("");
+
       return res.json({
         success: true,
-
-        resource:
-          formatResource(
-            result.rows[0]
-          ),
+        resource,
       });
     } catch (error) {
       console.error(
@@ -593,7 +909,6 @@ router.get(
 
       return res.status(500).json({
         success: false,
-
         message:
           "Unable to fetch video resource.",
       });
@@ -603,17 +918,9 @@ router.get(
 
 // ============================================================
 // UPLOAD VIDEO
+// ============================================================
 //
-// Admin sends:
-//
-// title
-// description
-// class
-// class_name
-// grade
-// subject
-// subject_name
-// video
+// ADMIN ONLY
 // ============================================================
 
 router.post(
@@ -621,9 +928,7 @@ router.post(
 
   requireAdmin,
 
-  upload.single(
-    "video"
-  ),
+  upload.single("video"),
 
   async (
     req,
@@ -646,21 +951,20 @@ router.post(
       const className =
         normalizeClass(
           req.body.class ||
-          req.body.class_name ||
-          req.body.grade
+            req.body.class_name ||
+            req.body.grade
         );
 
       const subject =
         normalizeSubject(
           req.body.subject ||
-          req.body.subject_name
+            req.body.subject_name
         );
 
       const topicId =
         clean(
           req.body.topic_id
-        ) ||
-        null;
+        ) || null;
 
       console.log("");
       console.log(
@@ -699,10 +1003,6 @@ router.post(
         "=================================================="
       );
 
-      // --------------------------------------------------------
-      // TITLE
-      // --------------------------------------------------------
-
       if (!title) {
         if (uploadedFile) {
           safeDelete(
@@ -712,15 +1012,10 @@ router.post(
 
         return res.status(400).json({
           success: false,
-
           message:
             "Video title is required.",
         });
       }
-
-      // --------------------------------------------------------
-      // CLASS
-      // --------------------------------------------------------
 
       if (!className) {
         if (uploadedFile) {
@@ -731,15 +1026,10 @@ router.post(
 
         return res.status(400).json({
           success: false,
-
           message:
             "Class is required.",
         });
       }
-
-      // --------------------------------------------------------
-      // SUBJECT
-      // --------------------------------------------------------
 
       if (!subject) {
         if (uploadedFile) {
@@ -750,28 +1040,18 @@ router.post(
 
         return res.status(400).json({
           success: false,
-
           message:
             "Subject is required.",
         });
       }
 
-      // --------------------------------------------------------
-      // VIDEO
-      // --------------------------------------------------------
-
       if (!uploadedFile) {
         return res.status(400).json({
           success: false,
-
           message:
             "Video file is required.",
         });
       }
-
-      // --------------------------------------------------------
-      // CHECK TOPIC IF PROVIDED
-      // --------------------------------------------------------
 
       if (topicId) {
         const topicResult =
@@ -784,9 +1064,7 @@ router.post(
             WHERE id = $1
             LIMIT 1
             `,
-            [
-              topicId,
-            ]
+            [topicId]
           );
 
         if (
@@ -799,16 +1077,11 @@ router.post(
 
           return res.status(400).json({
             success: false,
-
             message:
               "Selected video category does not exist.",
           });
         }
       }
-
-      // --------------------------------------------------------
-      // VIDEO URL
-      // --------------------------------------------------------
 
       const baseUrl =
         getBaseUrl(req);
@@ -817,10 +1090,6 @@ router.post(
         `${baseUrl}/uploads/videos/${encodeURIComponent(
           uploadedFile.filename
         )}`;
-
-      // --------------------------------------------------------
-      // SAVE
-      // --------------------------------------------------------
 
       const result =
         await pool.query(
@@ -858,17 +1127,11 @@ router.post(
           `,
           [
             title,
-
             description,
-
             "video",
-
             videoUrl,
-
             topicId,
-
             className,
-
             subject,
           ]
         );
@@ -899,10 +1162,8 @@ router.post(
 
       return res.status(201).json({
         success: true,
-
         message:
           "Video uploaded successfully.",
-
         resource,
       });
     } catch (error) {
@@ -919,7 +1180,6 @@ router.post(
 
       return res.status(500).json({
         success: false,
-
         message:
           error?.message ||
           "Video upload failed.",
@@ -930,20 +1190,6 @@ router.post(
 
 // ============================================================
 // EDIT VIDEO RESOURCE
-//
-// PUT /api/resources/:id
-//
-// Allows admin to change:
-//
-// - title
-// - description
-// - class
-// - subject
-// - topic
-// - video file
-//
-// The existing video is kept if no replacement
-// video is selected.
 // ============================================================
 
 router.put(
@@ -951,9 +1197,7 @@ router.put(
 
   requireAdmin,
 
-  upload.single(
-    "video"
-  ),
+  upload.single("video"),
 
   async (
     req,
@@ -977,15 +1221,10 @@ router.put(
 
         return res.status(400).json({
           success: false,
-
           message:
             "Video resource ID is required.",
         });
       }
-
-      // --------------------------------------------------------
-      // FIND EXISTING RESOURCE
-      // --------------------------------------------------------
 
       const existingResult =
         await pool.query(
@@ -1011,9 +1250,7 @@ router.put(
 
           LIMIT 1
           `,
-          [
-            resourceId,
-          ]
+          [resourceId]
         );
 
       if (
@@ -1028,7 +1265,6 @@ router.put(
 
         return res.status(404).json({
           success: false,
-
           message:
             "Video resource not found.",
         });
@@ -1036,10 +1272,6 @@ router.put(
 
       const existing =
         existingResult.rows[0];
-
-      // --------------------------------------------------------
-      // NEW VALUES
-      // --------------------------------------------------------
 
       const title =
         req.body.title !==
@@ -1061,16 +1293,16 @@ router.put(
       const className =
         normalizeClass(
           req.body.class ||
-          req.body.class_name ||
-          req.body.grade ||
-          existing.class_name
+            req.body.class_name ||
+            req.body.grade ||
+            existing.class_name
         );
 
       const subject =
         normalizeSubject(
           req.body.subject ||
-          req.body.subject_name ||
-          existing.subject
+            req.body.subject_name ||
+            existing.subject
         );
 
       const topicId =
@@ -1078,13 +1310,8 @@ router.put(
         undefined
           ? clean(
               req.body.topic_id
-            ) ||
-            null
+            ) || null
           : existing.topic_id;
-
-      // --------------------------------------------------------
-      // VALIDATION
-      // --------------------------------------------------------
 
       if (!title) {
         if (replacementFile) {
@@ -1095,7 +1322,6 @@ router.put(
 
         return res.status(400).json({
           success: false,
-
           message:
             "Video title is required.",
         });
@@ -1110,7 +1336,6 @@ router.put(
 
         return res.status(400).json({
           success: false,
-
           message:
             "Class is required.",
         });
@@ -1125,15 +1350,10 @@ router.put(
 
         return res.status(400).json({
           success: false,
-
           message:
             "Subject is required.",
         });
       }
-
-      // --------------------------------------------------------
-      // CHECK TOPIC
-      // --------------------------------------------------------
 
       if (topicId) {
         const topicResult =
@@ -1145,9 +1365,7 @@ router.put(
             WHERE id = $1
             LIMIT 1
             `,
-            [
-              topicId,
-            ]
+            [topicId]
           );
 
         if (
@@ -1162,16 +1380,11 @@ router.put(
 
           return res.status(400).json({
             success: false,
-
             message:
               "Selected video category does not exist.",
           });
         }
       }
-
-      // --------------------------------------------------------
-      // VIDEO
-      // --------------------------------------------------------
 
       let videoUrl =
         existing.file_url;
@@ -1185,10 +1398,6 @@ router.put(
             replacementFile.filename
           )}`;
       }
-
-      // --------------------------------------------------------
-      // UPDATE DATABASE
-      // --------------------------------------------------------
 
       const result =
         await pool.query(
@@ -1222,17 +1431,11 @@ router.put(
           `,
           [
             title,
-
             description,
-
             topicId,
-
             className,
-
             subject,
-
             videoUrl,
-
             resourceId,
           ]
         );
@@ -1249,7 +1452,6 @@ router.put(
 
         return res.status(404).json({
           success: false,
-
           message:
             "Video resource could not be updated.",
         });
@@ -1259,10 +1461,6 @@ router.put(
         formatResource(
           result.rows[0]
         );
-
-      // --------------------------------------------------------
-      // DELETE OLD VIDEO
-      // --------------------------------------------------------
 
       if (
         replacementFile &&
@@ -1312,10 +1510,8 @@ router.put(
 
       return res.json({
         success: true,
-
         message:
           "Video updated successfully.",
-
         resource:
           updatedResource,
       });
@@ -1333,7 +1529,6 @@ router.put(
 
       return res.status(500).json({
         success: false,
-
         message:
           error?.message ||
           "Unable to update video.",
@@ -1377,9 +1572,7 @@ router.delete(
 
           LIMIT 1
           `,
-          [
-            resourceId,
-          ]
+          [resourceId]
         );
 
       if (
@@ -1388,7 +1581,6 @@ router.delete(
       ) {
         return res.status(404).json({
           success: false,
-
           message:
             "Video resource not found.",
         });
@@ -1397,23 +1589,13 @@ router.delete(
       const resource =
         existingResult.rows[0];
 
-      // --------------------------------------------------------
-      // DELETE DATABASE RECORD
-      // --------------------------------------------------------
-
       await pool.query(
         `
         DELETE FROM resources
         WHERE id = $1
         `,
-        [
-          resourceId,
-        ]
+        [resourceId]
       );
-
-      // --------------------------------------------------------
-      // DELETE LOCAL VIDEO
-      // --------------------------------------------------------
 
       deleteStoredVideo(
         resource.file_url
@@ -1425,7 +1607,6 @@ router.delete(
 
       return res.json({
         success: true,
-
         message:
           "Video deleted successfully.",
       });
@@ -1437,7 +1618,6 @@ router.delete(
 
       return res.status(500).json({
         success: false,
-
         message:
           "Unable to delete video.",
       });
@@ -1455,9 +1635,7 @@ function safeDelete(
   try {
     if (
       filePath &&
-      fs.existsSync(
-        filePath
-      )
+      fs.existsSync(filePath)
     ) {
       fs.unlinkSync(
         filePath
@@ -1487,8 +1665,7 @@ function deleteStoredVideo(
 
     try {
       pathname =
-        new URL(url)
-          .pathname;
+        new URL(url).pathname;
     } catch {
       pathname = url;
     }
@@ -1503,9 +1680,7 @@ function deleteStoredVideo(
 
     const filename =
       decodeURIComponent(
-        path.basename(
-          pathname
-        )
+        path.basename(pathname)
       );
 
     if (!filename) {
@@ -1523,7 +1698,6 @@ function deleteStoredVideo(
         VIDEOS_DIR
       );
 
-    // Security check.
     if (
       !videoPath.startsWith(
         videosDirectory +
@@ -1565,7 +1739,6 @@ router.use(
       ) {
         return res.status(400).json({
           success: false,
-
           message:
             "Video is too large. Maximum size is 500MB.",
         });
@@ -1573,7 +1746,6 @@ router.use(
 
       return res.status(400).json({
         success: false,
-
         message:
           error.message ||
           "Video upload error.",
@@ -1583,7 +1755,6 @@ router.use(
     if (error) {
       return res.status(400).json({
         success: false,
-
         message:
           error.message ||
           "Video upload error.",

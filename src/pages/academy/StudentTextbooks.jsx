@@ -1,1419 +1,709 @@
-import React, {
-useCallback,
-useEffect,
-useMemo,
-useState,
-} from "react";
-
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
-BookOpen,
-BookMarked,
-Search,
-RefreshCw,
-FileText,
-Eye,
-X,
-Loader2,
 AlertCircle,
-GraduationCap,
-Layers3,
+BookOpen,
 Download,
-Video,
-File,
+FileText,
+Loader2,
+PlayCircle,
+RefreshCw,
+Search,
+X,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-import { useOutletContext } from "react-router-dom";
-
-/* ============================================================
-CONSTANTS
-============================================================ */
-
-const API_URL =
-import.meta.env.VITE_API_URL ||
+const API_BASE_URL =
+import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
 "http://localhost:5000";
 
-const TOKEN_KEYS = [
-"scholiqen_academy_token",
-"academyToken",
-"scholiqen_student_token",
-"studentToken",
-];
+const MATERIALS_ENDPOINT =
+`${API_BASE_URL}/api/academy/student/materials`;
 
-/* ============================================================
-HELPERS
-============================================================ */
+const getAcademyToken = () =>
+localStorage.getItem("scholiqen_academy_token") ||
+localStorage.getItem("scholiqen_auth_token") ||
+"";
 
-const clean = (value) => {
-if (
-value === undefined ||
-value === null
-) {
-return "";
-}
-
-return String(value).trim();
-};
-
-const normalizeClass = (value) => {
-const text = clean(value);
-
-if (!text) {
-return "";
-}
-
-return text
-.replace(/\s+/g, " ")
-.trim()
-.toLowerCase();
-};
-
-const normalizeSubject = (value) => {
-const text = clean(value);
-
-if (!text) {
-return "";
-}
-
-return text
-.replace(/\s+/g, " ")
-.trim()
-.toLowerCase();
-};
-
-const safeParse = (value) => {
-if (!value) {
-return null;
-}
-
+const getAcademyUser = () => {
 try {
-return JSON.parse(value);
+return JSON.parse(
+localStorage.getItem("scholiqen_academy_user") ||
+localStorage.getItem("scholiqen_current_user") ||
+"{}"
+);
 } catch {
-return null;
+return {};
 }
 };
 
-const getToken = () => {
-for (const key of TOKEN_KEYS) {
-const token = clean(
-localStorage.getItem(key)
-);
+const normalizeFileUrl = (value) => {
+if (!value) return "";
 
-if (token) {
-  return token;
+const url = String(value).trim();
+
+if (!url) return "";
+
+if (/^https?:\/\//i.test(url)) {
+return url;
 }
 
+if (url.startsWith("/")) {
+return `${API_BASE_URL}${url}`;
 }
 
-return "";
+return `${API_BASE_URL}/${url}`;
 };
 
-const getStudentFromStorage = () => {
-const keys = [
-"scholiqen_academy_user",
-"academyStudent",
-"student",
-"scholiqen_user",
-"scholiqen_current_user",
-];
+const normalizeMaterial = (item, index) => {
+const material = item || {};
 
-for (const key of keys) {
-const stored =
-localStorage.getItem(key);
+const id =
+material.id ??
+material.material_id ??
+material.materialId ??
+index;
 
-if (!stored) {
-  continue;
-}
+const title =
+material.title ||
+material.name ||
+"Untitled Material";
 
-const parsed = safeParse(stored);
+const description =
+material.description ||
+material.summary ||
+"";
 
-if (parsed) {
-  return parsed;
-}
+const subject =
+material.subject ||
+material.subject_name ||
+material.subjectName ||
+"General";
 
-}
+const level =
+material.level ||
+material.class_name ||
+material.className ||
+material.class ||
+material.grade ||
+"All Classes";
 
-return null;
+const materialType =
+material.material_type ||
+material.materialType ||
+material.type ||
+material.file_type ||
+material.fileType ||
+"";
+
+const fileUrl =
+material.file_url ||
+material.fileUrl ||
+material.url ||
+material.download_url ||
+material.downloadUrl ||
+"";
+
+const coverUrl =
+material.cover_page_url ||
+material.coverPageUrl ||
+material.cover_url ||
+material.coverUrl ||
+material.thumbnail_url ||
+material.thumbnailUrl ||
+"";
+
+const fileName =
+material.file_name ||
+material.fileName ||
+"";
+
+const fileMimeType =
+material.file_mime_type ||
+material.fileMimeType ||
+material.mime_type ||
+material.mimeType ||
+"";
+
+return {
+...material,
+id,
+title,
+description,
+subject,
+level,
+material_type: materialType,
+file_url: fileUrl,
+cover_page_url: coverUrl,
+file_name: fileName,
+file_mime_type: fileMimeType,
+normalizedFileUrl: normalizeFileUrl(fileUrl),
+normalizedCoverUrl: normalizeFileUrl(coverUrl),
+};
 };
 
-const getStudentClass = (student) => {
-if (!student) {
-return "";
-}
-
-return clean(
-student.grade ||
-student.className ||
-student.class_name ||
-student.class ||
-student.currentClass ||
-student.current_class ||
-student.level
-);
-};
-
-const getStudentId = (student) => {
-if (!student) {
-return "";
-}
-
-return clean(
-student.studentId ||
-student.student_id ||
-student.id ||
-student.enrollmentId ||
-student.enrollment_id
-);
-};
-
-const getStudentEmail = (student) => {
-if (!student) {
-return "";
-}
-
-return clean(
-student.email ||
-student.emailAddress ||
-student.email_address
-);
-};
-
-const formatFileSize = (bytes) => {
-const size = Number(bytes);
-
-if (!Number.isFinite(size) || size <= 0) {
-return "File";
-}
-
-const sizes = [
-"Bytes",
-"KB",
-"MB",
-"GB",
-];
-
-const index = Math.min(
-Math.floor(
-Math.log(size) / Math.log(1024)
-),
-sizes.length - 1
-);
-
-return `${(
-    size / Math.pow(1024, index)
-  ).toFixed(index === 0 ? 0 : 1)} ${
-    sizes[index]
-  }`;
-};
-
-const getFileExtension = (
-fileName = "",
-fileType = ""
-) => {
-const name = clean(fileName);
-
-if (name.includes(".")) {
-return (
-name
-.split(".")
-.pop()
-?.toUpperCase() || "FILE"
-);
-}
-
-const type = clean(fileType);
-
-if (type.includes("/")) {
-return (
-type
-.split("/")
-.pop()
-?.toUpperCase() || "FILE"
-);
-}
-
-return "FILE";
-};
-
-const getMaterialUrl = (material) => {
-return clean(
-material?.file_url ||
-material?.fileUrl ||
-material?.url ||
-material?.download_url ||
-material?.downloadUrl
-);
-};
-
-const getMaterialType = (material) => {
-const mime = clean(
-material?.file_mime_type ||
-material?.fileMimeType ||
-material?.file_type ||
-material?.fileType ||
+const getMaterialKind = (material) => {
+const type = String(
 material?.material_type ||
-material?.materialType
-).toLowerCase();
-
-const fileName = clean(
+material?.file_mime_type ||
 material?.file_name ||
-material?.fileName
+material?.file_url ||
+""
 ).toLowerCase();
 
 if (
-mime.includes("video") ||
-/.(mp4|webm|mov|m4v)$/i.test(
-fileName
-)
+type.includes("video") ||
+type.includes("mp4") ||
+type.includes("webm") ||
+type.includes("mov")
 ) {
 return "video";
 }
 
 if (
-mime.includes("pdf") ||
-/.pdf$/i.test(fileName)
+type.includes("pdf") ||
+type.includes(".pdf")
 ) {
 return "pdf";
 }
 
-if (
-mime.includes("word") ||
-mime.includes("document") ||
-/.(doc|docx)$/i.test(
-fileName
-)
-) {
 return "document";
-}
-
-return "file";
 };
 
-const getMaterialClass = (material) => {
-return clean(
-material?.level ||
-material?.class_name ||
-material?.className ||
-material?.class ||
-material?.grade
-);
+const getInitials = (title) => {
+return String(title || "M")
+.split(/\s+/)
+.filter(Boolean)
+.slice(0, 2)
+.map((word) => word[0]?.toUpperCase())
+.join("");
 };
 
-/* ============================================================
-COMPONENT
-============================================================ */
+export default function StudentTextbooks() {
+const navigate = useNavigate();
 
-const StudentTextbooks = () => {
-const outletContext =
-useOutletContext() || {};
+const [materials, setMaterials] = useState([]);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState("");
+const [search, setSearch] = useState("");
+const [selectedLevel, setSelectedLevel] = useState("All");
 
-const contextStudent =
-outletContext?.student ||
-outletContext?.user ||
-outletContext?.currentUser ||
-null;
+const academyUser = useMemo(() => getAcademyUser(), []);
 
-const [student, setStudent] =
-useState(
-contextStudent ||
-getStudentFromStorage()
-);
+const loadMaterials = useCallback(async () => {
+setLoading(true);
+setError("");
+try {
+  const token = getAcademyToken();
 
-const [materials, setMaterials] =
-useState([]);
+  const params = new URLSearchParams();
 
-const [loading, setLoading] =
-useState(true);
+  const studentId =
+    academyUser?.studentId ||
+    academyUser?.student_id ||
+    academyUser?.id ||
+    "";
 
-const [refreshing, setRefreshing] =
-useState(false);
+  const email = academyUser?.email || "";
 
-const [error, setError] =
-useState("");
+  if (studentId) {
+    params.set("studentId", String(studentId));
+  }
 
-const [searchTerm, setSearchTerm] =
-useState("");
+  if (email) {
+    params.set("email", String(email));
+  }
 
-const [
-selectedSubject,
-setSelectedSubject,
-] = useState("All Subjects");
+  const url = params.toString()
+    ? `${MATERIALS_ENDPOINT}?${params.toString()}`
+    : MATERIALS_ENDPOINT;
 
-const [
-selectedMaterial,
-setSelectedMaterial,
-] = useState(null);
+  console.log("STUDENT MATERIALS REQUEST:", url);
+  console.log("STUDENT MATERIALS TOKEN EXISTS:", Boolean(token));
 
-/* ==========================================================
-KEEP STUDENT IN SYNC
-========================================================== */
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      ...(token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {}),
+    },
+    cache: "no-store",
+  });
 
-useEffect(() => {
-const storedStudent =
-getStudentFromStorage();
+  const rawText = await response.text();
 
-setStudent(
-  contextStudent ||
-    storedStudent ||
-    null
-);
-
-}, [contextStudent]);
-
-/* ==========================================================
-LOAD STUDENT MATERIALS
-========================================================== */
-
-const loadMaterials = useCallback(
-async ({
-showRefresh = false,
-} = {}) => {
-const token = getToken();
+  let payload = {};
 
   try {
-    if (showRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    setError("");
-
-    if (!token) {
-      throw new Error(
-        "Your Academy session has expired. Please log in again."
-      );
-    }
-
-    const currentStudent =
-      contextStudent ||
-      getStudentFromStorage();
-
-    const studentId =
-      getStudentId(
-        currentStudent
-      );
-
-    const email =
-      getStudentEmail(
-        currentStudent
-      );
-
-    const query = new URLSearchParams();
-
-    if (studentId) {
-      query.set(
-        "studentId",
-        studentId
-      );
-    }
-
-    if (email) {
-      query.set(
-        "email",
-        email
-      );
-    }
-
-    const queryString =
-      query.toString();
-
-    const endpoint =
-      `${API_URL}/api/academy/student/materials` +
-      (queryString
-        ? `?${queryString}`
-        : "");
-
-    const response =
-      await fetch(endpoint, {
-        method: "GET",
-        headers: {
-          Accept:
-            "application/json",
-          Authorization:
-            `Bearer ${token}`,
-        },
-      });
-
-    let payload = null;
-
-    try {
-      payload =
-        await response.json();
-    } catch {
-      payload = null;
-    }
-
-    if (!response.ok) {
-      const message =
-        payload?.message ||
-        payload?.error ||
-        `Unable to load materials (${response.status}).`;
-
-      throw new Error(message);
-    }
-
-    const rows =
-      Array.isArray(
-        payload?.materials
-      )
-        ? payload.materials
-        : Array.isArray(
-            payload?.data
-          )
-          ? payload.data
-          : Array.isArray(
-              payload?.results
-            )
-            ? payload.results
-            : Array.isArray(
-                payload
-              )
-              ? payload
-              : [];
-
-    setMaterials(rows);
-  } catch (loadError) {
-    console.error(
-      "Student materials fetch error:",
-      loadError
-    );
-
-    setMaterials([]);
-
-    setError(
-      loadError?.message ||
-        "Unable to load learning materials."
-    );
-  } finally {
-    setLoading(false);
-    setRefreshing(false);
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    payload = {
+      message: rawText,
+    };
   }
-},
-[contextStudent]
 
-);
+  console.log("STUDENT MATERIALS STATUS:", response.status);
+  console.log("STUDENT MATERIALS RESPONSE:", payload);
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.message ||
+        payload?.error ||
+        `Materials request failed with status ${response.status}`
+    );
+  }
+
+  if (payload?.success === false) {
+    throw new Error(
+      payload?.message ||
+        payload?.error ||
+        "The server could not load the materials."
+    );
+  }
+
+  const rows =
+    Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.materials)
+      ? payload.materials
+      : Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload?.results)
+      ? payload.results
+      : [];
+
+  const normalized = rows.map(normalizeMaterial);
+
+  setMaterials(normalized);
+} catch (err) {
+  console.error("STUDENT MATERIALS ERROR:", err);
+
+  let message = err?.message || "Failed to fetch";
+
+  if (
+    message === "Failed to fetch" ||
+    message.includes("NetworkError") ||
+    message.includes("Load failed")
+  ) {
+    message =
+      `Unable to connect to the Scholiqen server at ${API_BASE_URL}. ` +
+      `Make sure your backend is running and VITE_API_URL is correct.`;
+  }
+
+  setError(message);
+  setMaterials([]);
+} finally {
+  setLoading(false);
+}
+
+}, [academyUser]);
 
 useEffect(() => {
 loadMaterials();
 }, [loadMaterials]);
 
-/* ==========================================================
-STUDENT CLASS
-========================================================== */
-
-const studentClass = useMemo(() => {
-return getStudentClass(student);
-}, [student]);
-
-const normalizedStudentClass =
-useMemo(() => {
-return normalizeClass(
-studentClass
-);
-}, [studentClass]);
-
-/* ==========================================================
-FILTER BY CLASS
-========================================================== */
-
-const classMaterials = useMemo(() => {
-if (!normalizedStudentClass) {
-return materials;
-}
-
-return materials.filter(
-  (material) => {
-    const materialClass =
-      normalizeClass(
-        getMaterialClass(
-          material
-        )
-      );
-
-    /*
-     * If backend has no class/level
-     * attached to a material, keep it
-     * visible instead of hiding it.
-     */
-
-    if (!materialClass) {
-      return true;
-    }
-
-    return (
-      materialClass ===
-      normalizedStudentClass
-    );
-  }
-);
-
-}, [
-materials,
-normalizedStudentClass,
-]);
-
-/* ==========================================================
-AVAILABLE SUBJECTS
-========================================================== */
-
-const availableSubjects =
-useMemo(() => {
-const subjects =
-classMaterials
-.map((material) =>
-clean(material.subject)
-)
+const levels = useMemo(() => {
+const values = materials
+.map((material) => material.level)
 .filter(Boolean);
 
-  return [
-    ...new Set(subjects),
-  ].sort((a, b) =>
-    a.localeCompare(b)
+return ["All", ...Array.from(new Set(values))];
+
+}, [materials]);
+
+const filteredMaterials = useMemo(() => {
+const query = search.trim().toLowerCase();
+
+return materials.filter((material) => {
+  const matchesSearch =
+    !query ||
+    String(material.title || "")
+      .toLowerCase()
+      .includes(query) ||
+    String(material.subject || "")
+      .toLowerCase()
+      .includes(query) ||
+    String(material.description || "")
+      .toLowerCase()
+      .includes(query) ||
+    String(material.level || "")
+      .toLowerCase()
+      .includes(query);
+
+  const matchesLevel =
+    selectedLevel === "All" ||
+    String(material.level) === String(selectedLevel);
+
+  return matchesSearch && matchesLevel;
+});
+
+}, [materials, search, selectedLevel]);
+
+const handleOpenMaterial = (material) => {
+if (!material?.id) return;
+const kind = getMaterialKind(material);
+
+if (kind === "video") {
+  navigate(
+    `/video/${encodeURIComponent(String(material.id))}`
   );
-}, [classMaterials]);
-
-/* ==========================================================
-FILTER MATERIALS
-========================================================== */
-
-const filteredMaterials =
-useMemo(() => {
-const search =
-clean(searchTerm)
-.toLowerCase();
-
-return classMaterials.filter(
-    (material) => {
-      const searchableText = [
-        material.title,
-        material.description,
-        material.subject,
-        material.level,
-        material.class_name,
-        material.chapter,
-        material.topic,
-        material.material_type,
-        material.file_name,
-      ]
-        .map(clean)
-        .join(" ")
-        .toLowerCase();
-
-      const matchesSearch =
-        !search ||
-        searchableText.includes(
-          search
-        );
-
-      const matchesSubject =
-        selectedSubject ===
-          "All Subjects" ||
-        normalizeSubject(
-          material.subject
-        ) ===
-          normalizeSubject(
-            selectedSubject
-          );
-
-      return (
-        matchesSearch &&
-        matchesSubject
-      );
-    }
-  );
-}, [
-  classMaterials,
-  searchTerm,
-  selectedSubject,
-]);
-
-/* ==========================================================
-STATISTICS
-========================================================== */
-
-const totalMaterials =
-classMaterials.length;
-
-const totalSubjects =
-availableSubjects.length;
-
-const totalChapters = useMemo(() => {
-return new Set(
-classMaterials
-.map((material) =>
-clean(material.chapter)
-)
-.filter(Boolean)
-).size;
-}, [classMaterials]);
-
-/* ==========================================================
-OPEN MATERIAL
-========================================================== */
-
-const openMaterial = (
-material
-) => {
-const fileUrl =
-getMaterialUrl(material);
-
-if (!fileUrl) {
-  setSelectedMaterial(
-    material
-  );
-
   return;
 }
 
-window.open(
-  fileUrl,
-  "_blank",
-  "noopener,noreferrer"
+navigate(
+  `/pdf/${encodeURIComponent(String(material.id))}`
 );
 
 };
 
-/* ==========================================================
-FILE ICON
-========================================================== */
-
-const MaterialIcon = ({
-material,
-size = 25,
-}) => {
-const type =
-getMaterialType(
-material
-);
-
-if (type === "video") {
-  return (
-    <Video
-      size={size}
-      className="text-blue-400"
-    />
-  );
+const handleDownload = async (material) => {
+if (!material?.normalizedFileUrl) {
+return;
 }
 
-if (type === "pdf") {
-  return (
-    <FileText
-      size={size}
-      className="text-red-400"
-    />
+try {
+  const token = getAcademyToken();
+
+  const response = await fetch(material.normalizedFileUrl, {
+    headers: {
+      ...(token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Download failed with status ${response.status}`
+    );
+  }
+
+  const blob = await response.blob();
+
+  const blobUrl = URL.createObjectURL(blob);
+
+  const anchor = document.createElement("a");
+  anchor.href = blobUrl;
+  anchor.download =
+    material.file_name ||
+    `${material.title || "material"}.pdf`;
+
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  URL.revokeObjectURL(blobUrl);
+} catch (err) {
+  console.error("MATERIAL DOWNLOAD ERROR:", err);
+
+  window.open(
+    material.normalizedFileUrl,
+    "_blank",
+    "noopener,noreferrer"
   );
 }
-
-if (type === "document") {
-  return (
-    <FileText
-      size={size}
-      className="text-purple-400"
-    />
-  );
-}
-
-return (
-  <File
-    size={size}
-    className="text-slate-400"
-  />
-);
 
 };
 
-/* ==========================================================
-RENDER
-========================================================== */
+const clearSearch = () => {
+setSearch("");
+setSelectedLevel("All");
+};
 
-return ( <div className="min-h-full bg-slate-950 px-4 py-6 text-white sm:px-6 lg:px-8"> <div className="mx-auto max-w-7xl">
-
-    {/* HEADER */}
-
-    <div className="mb-7 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-      <div>
-        <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-500/20 bg-blue-500/10">
-            <BookMarked
-              size={24}
-              className="text-blue-400"
-            />
-          </div>
-
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">
-              Materials
-            </h1>
-
-            <p className="text-xs text-slate-500">
-              Academy Learning Materials
-            </p>
-          </div>
-        </div>
-
-        <p className="max-w-2xl text-sm leading-6 text-slate-400">
-          Access learning materials,
-          documents and videos provided
-          for your class and subjects.
-        </p>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <div className="hidden items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 sm:flex">
-          <GraduationCap
-            size={17}
-            className="text-blue-400"
-          />
-
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-slate-600">
-              Your Class
-            </p>
-
-            <p className="text-xs font-semibold text-slate-300">
-              {studentClass ||
-                "Class not set"}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            loadMaterials({
-              showRefresh: true,
-            })
-          }
-          disabled={
-            loading ||
-            refreshing
-          }
-          className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-slate-700 hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <RefreshCw
-            size={17}
-            className={
-              refreshing
-                ? "animate-spin"
-                : ""
-            }
-          />
-
-          <span className="hidden sm:inline">
-            Refresh
-          </span>
-        </button>
+if (loading) {
+return ( <div className="min-h-[70vh] bg-[#050816] text-white flex items-center justify-center"> <div className="flex flex-col items-center gap-4"> <div className="w-12 h-12 rounded-full border-4 border-white/10 border-t-cyan-400 animate-spin" />
+      <div className="flex items-center gap-2 text-slate-300">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading materials...
       </div>
     </div>
+  </div>
+);
+}
 
-    {/* CLASS NOTICE */}
+if (error) {
+return ( <div className="min-h-[70vh] bg-[#050816] text-white px-4 py-10"> <div className="max-w-3xl mx-auto"> <div className="rounded-3xl border border-red-500/20 bg-red-500/5 p-7"> <div className="flex items-start gap-4"> <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center shrink-0"> <AlertCircle className="w-6 h-6 text-red-400" /> </div>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-white">
+              Unable to load materials
+            </h2>
 
-    <div className="mb-6 flex items-center gap-3 rounded-2xl border border-blue-500/10 bg-blue-500/[0.04] px-4 py-3">
-      <BookOpen
-        size={18}
-        className="shrink-0 text-blue-400"
-      />
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              {error}
+            </p>
 
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-slate-300">
-          {studentClass
-            ? `Showing materials for ${studentClass}`
-            : "Showing Academy learning materials"}
-        </p>
+            <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-xs uppercase tracking-wider text-slate-500">
+                Materials API
+              </p>
 
-        <p className="mt-0.5 text-[11px] text-slate-600">
-          Materials are managed by the
-          Academy administration.
-        </p>
+              <p className="mt-2 break-all text-sm text-slate-300">
+                {MATERIALS_ENDPOINT}
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={loadMaterials}
+                className="inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-300 transition"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Try Again
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  navigate("/academy/student")
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/[0.08] transition"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
+);
 
-    {/* ERROR */}
+}
 
-    {error && (
-      <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-4">
-        <AlertCircle
-          size={19}
-          className="mt-0.5 shrink-0 text-red-400"
+return ( <div className="min-h-screen bg-[#050816] text-white px-4 py-6 sm:px-6 lg:px-8"> <div className="max-w-7xl mx-auto">
+<motion.div
+initial={{ opacity: 0, y: 12 }}
+animate={{ opacity: 1, y: 0 }}
+className="mb-7"
+> <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"> <div> <div className="flex items-center gap-3"> <div className="w-11 h-11 rounded-2xl bg-cyan-400/10 flex items-center justify-center"> <BookOpen className="w-5 h-5 text-cyan-400" /> </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-400/80">
+                Student Library
+              </p>
+
+              <h1 className="text-2xl sm:text-3xl font-bold">
+                Materials
+              </h1>
+            </div>
+          </div>
+
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+            Access your class learning materials, documents,
+            textbooks and video resources.
+          </p>
+        </div>
+
+        <div className="text-sm text-slate-400">
+          {materials.length}{" "}
+          {materials.length === 1
+            ? "material"
+            : "materials"}
+        </div>
+      </div>
+    </motion.div>
+
+    <div className="mb-7 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+
+        <input
+          type="text"
+          value={search}
+          onChange={(event) =>
+            setSearch(event.target.value)
+          }
+          placeholder="Search materials..."
+          className="w-full rounded-2xl border border-white/10 bg-white/[0.035] py-3.5 pl-11 pr-11 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40"
         />
 
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-red-300">
-            Unable to load materials
-          </p>
-
-          <p className="mt-1 text-xs leading-5 text-red-400/80">
-            {error}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            loadMaterials()
-          }
-          className="rounded-lg border border-red-500/20 px-3 py-2 text-xs font-medium text-red-300 transition hover:bg-red-500/10"
-        >
-          Retry
-        </button>
-      </div>
-    )}
-
-    {/* STAT CARDS */}
-
-    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-            <BookOpen
-              size={19}
-              className="text-blue-400"
-            />
-          </div>
-
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-            Library
-          </span>
-        </div>
-
-        <p className="text-2xl font-bold text-white">
-          {totalMaterials}
-        </p>
-
-        <p className="mt-1 text-xs text-slate-500">
-          Available materials
-        </p>
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
-            <GraduationCap
-              size={19}
-              className="text-purple-400"
-            />
-          </div>
-
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-            Subjects
-          </span>
-        </div>
-
-        <p className="text-2xl font-bold text-white">
-          {totalSubjects}
-        </p>
-
-        <p className="mt-1 text-xs text-slate-500">
-          Subjects available
-        </p>
-      </div>
-
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
-            <Layers3
-              size={19}
-              className="text-amber-400"
-            />
-          </div>
-
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-            Chapters
-          </span>
-        </div>
-
-        <p className="text-2xl font-bold text-white">
-          {totalChapters}
-        </p>
-
-        <p className="mt-1 text-xs text-slate-500">
-          Chapters represented
-        </p>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {levels.map((level) => (
+          <button
+            key={level}
+            type="button"
+            onClick={() => setSelectedLevel(level)}
+            className={`whitespace-nowrap rounded-2xl px-4 py-3 text-sm font-medium transition ${
+              selectedLevel === level
+                ? "bg-cyan-400 text-slate-950"
+                : "border border-white/10 bg-white/[0.035] text-slate-300 hover:bg-white/[0.07]"
+            }`}
+          >
+            {level}
+          </button>
+        ))}
       </div>
     </div>
 
-    {/* SEARCH */}
-
-    <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_230px]">
-        <div className="relative">
-          <Search
-            size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
-          />
-
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(event) =>
-              setSearchTerm(
-                event.target.value
-              )
-            }
-            placeholder="Search materials, subjects, chapters, topics..."
-            className="w-full rounded-xl border border-slate-800 bg-slate-950 py-3 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500/50"
-          />
+    {filteredMaterials.length === 0 ? (
+      <div className="rounded-3xl border border-white/10 bg-white/[0.025] py-16 text-center">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04]">
+          <FileText className="w-6 h-6 text-slate-500" />
         </div>
 
-        <select
-          value={selectedSubject}
-          onChange={(event) =>
-            setSelectedSubject(
-              event.target.value
-            )
-          }
-          className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-300 outline-none focus:border-blue-500/50"
-        >
-          <option>
-            All Subjects
-          </option>
-
-          {availableSubjects.map(
-            (subject) => (
-              <option
-                key={subject}
-                value={subject}
-              >
-                {subject}
-              </option>
-            )
-          )}
-        </select>
-      </div>
-    </div>
-
-    {/* LOADING */}
-
-    {loading ? (
-      <div className="flex min-h-[380px] items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/50">
-        <div className="text-center">
-          <Loader2
-            size={32}
-            className="mx-auto animate-spin text-blue-400"
-          />
-
-          <p className="mt-4 text-sm text-slate-400">
-            Loading your materials...
-          </p>
-
-          <p className="mt-1 text-xs text-slate-600">
-            Connecting to the Academy
-            library
-          </p>
-        </div>
-      </div>
-    ) : filteredMaterials.length ===
-      0 ? (
-      /* EMPTY STATE */
-
-      <div className="flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 px-6 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/10">
-          <BookOpen
-            size={28}
-            className="text-blue-400"
-          />
-        </div>
-
-        <h2 className="mt-5 text-lg font-semibold text-white">
+        <h2 className="text-lg font-semibold text-white">
           No materials found
         </h2>
 
-        <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-          {searchTerm ||
-          selectedSubject !==
-            "All Subjects"
-            ? "No learning materials match your current search or subject filter."
-            : studentClass
-              ? `There are currently no materials available for ${studentClass}.`
-              : "There are currently no Academy materials available."}
+        <p className="mt-2 text-sm text-slate-500">
+          {search || selectedLevel !== "All"
+            ? "Try changing your search or class filter."
+            : "No learning materials have been added yet."}
         </p>
 
-        {(searchTerm ||
-          selectedSubject !==
-            "All Subjects") && (
+        {(search || selectedLevel !== "All") && (
           <button
             type="button"
-            onClick={() => {
-              setSearchTerm("");
-              setSelectedSubject(
-                "All Subjects"
-              );
-            }}
-            className="mt-6 rounded-xl border border-slate-800 bg-slate-900 px-5 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
+            onClick={clearSearch}
+            className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.08]"
           >
             Clear Filters
           </button>
         )}
       </div>
     ) : (
-      /* MATERIAL CARDS */
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        {filteredMaterials.map((material, index) => {
+          const kind = getMaterialKind(material);
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {filteredMaterials.map(
-          (material) => {
-            const fileUrl =
-              getMaterialUrl(
-                material
-              );
-
-            const type =
-              getMaterialType(
-                material
-              );
-
-            return (
-              <div
-                key={material.id}
-                className="group rounded-2xl border border-slate-800 bg-slate-900/60 p-5 transition hover:border-slate-700 hover:bg-slate-900"
+          return (
+            <motion.article
+              key={material.id ?? index}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                delay: Math.min(index * 0.04, 0.3),
+              }}
+              className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.025] hover:border-cyan-400/20 transition"
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  handleOpenMaterial(material)
+                }
+                className="group block w-full text-left"
               >
-                <div className="flex gap-4">
-
-                  {/* FILE ICON */}
-
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-blue-500/10 bg-blue-500/10">
-                    <MaterialIcon
-                      material={material}
+                <div className="relative aspect-[16/10] overflow-hidden bg-[#0b1220]">
+                  {material.normalizedCoverUrl ? (
+                    <img
+                      src={material.normalizedCoverUrl}
+                      alt={material.title}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                      onError={(event) => {
+                        event.currentTarget.style.display =
+                          "none";
+                      }}
                     />
-                  </div>
-
-                  {/* CONTENT */}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="min-w-0">
-                      <h3 className="text-base font-semibold text-white">
-                        {material.title ||
-                          "Untitled Material"}
-                      </h3>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {material.subject && (
-                          <span className="rounded-md border border-blue-500/10 bg-blue-500/10 px-2 py-1 text-[10px] font-medium text-blue-400">
-                            {
-                              material.subject
-                            }
-                          </span>
-                        )}
-
-                        {getMaterialClass(
-                          material
-                        ) && (
-                          <span className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[10px] font-medium text-slate-400">
-                            {getMaterialClass(
-                              material
-                            )}
-                          </span>
-                        )}
-
-                        {material.material_type && (
-                          <span className="rounded-md bg-purple-500/10 px-2 py-1 text-[10px] font-medium capitalize text-purple-400">
-                            {clean(
-                              material.material_type
-                            ).replace(
-                              /_/g,
-                              " "
-                            )}
-                          </span>
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-500/10 via-blue-500/5 to-transparent">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/[0.05]">
+                        {kind === "video" ? (
+                          <PlayCircle className="h-9 w-9 text-cyan-400" />
+                        ) : (
+                          <FileText className="h-9 w-9 text-cyan-400" />
                         )}
                       </div>
                     </div>
+                  )}
 
-                    {material.description && (
-                      <p className="mt-4 line-clamp-2 text-xs leading-5 text-slate-500">
-                        {
-                          material.description
-                        }
-                      </p>
-                    )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4">
+                    <div className="flex items-end justify-between gap-3">
+                      <span className="rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white backdrop-blur">
+                        {material.subject}
+                      </span>
 
-                    <div className="mt-4 flex flex-wrap gap-4 text-[11px] text-slate-500">
-                      {material.chapter && (
-                        <span>
-                          Chapter:{" "}
-                          <span className="text-slate-300">
-                            {
-                              material.chapter
-                            }
-                          </span>
-                        </span>
-                      )}
-
-                      {material.topic && (
-                        <span>
-                          Topic:{" "}
-                          <span className="text-slate-300">
-                            {
-                              material.topic
-                            }
-                          </span>
-                        </span>
-                      )}
-
-                      {material.file_size && (
-                        <span>
-                          {formatFileSize(
-                            material.file_size
-                          )}
-                        </span>
-                      )}
-
-                      {material.file_name && (
-                        <span>
-                          {
-                            getFileExtension(
-                              material.file_name,
-                              material.file_mime_type ||
-                                material.file_type
-                            )
-                          }
-                        </span>
-                      )}
-                    </div>
-
-                    {/* ACTIONS */}
-
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openMaterial(
-                            material
-                          )
-                        }
-                        className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-500"
-                      >
-                        <Eye
-                          size={15}
-                        />
-
-                        {type ===
-                        "video"
-                          ? "Watch Material"
-                          : "Open Material"}
-                      </button>
-
-                      {fileUrl && (
-                        <a
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download={
-                            material.file_name ||
-                            undefined
-                          }
-                          className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 hover:text-white"
-                        >
-                          <Download
-                            size={15}
-                          />
-
-                          Download
-                        </a>
-                      )}
+                      <span className="rounded-full bg-black/50 px-3 py-1 text-xs text-slate-200 backdrop-blur">
+                        {material.level}
+                      </span>
                     </div>
                   </div>
                 </div>
+              </button>
+
+              <div className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-400">
+                    {kind === "video" ? (
+                      <PlayCircle className="h-5 w-5" />
+                    ) : (
+                      <span className="text-xs font-bold">
+                        {getInitials(material.title)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="min-w-0">
+                    <h2 className="line-clamp-2 text-base font-semibold text-white">
+                      {material.title}
+                    </h2>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      {kind === "video"
+                        ? "Video lesson"
+                        : kind === "pdf"
+                        ? "PDF document"
+                        : "Learning material"}
+                    </p>
+                  </div>
+                </div>
+
+                {material.description && (
+                  <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-500">
+                    {material.description}
+                  </p>
+                )}
+
+                <div className="mt-5 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleOpenMaterial(material)
+                    }
+                    className="flex-1 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+                  >
+                    {kind === "video"
+                      ? "Watch Lesson"
+                      : "Read Material"}
+                  </button>
+
+                  {material.normalizedFileUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDownload(material)
+                      }
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                      title="Download"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
-            );
-          }
-        )}
+            </motion.article>
+          );
+        })}
       </div>
     )}
   </div>
-
-  {/* MATERIAL DETAILS MODAL */}
-
-  {selectedMaterial && (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
-
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
-          <div>
-            <h2 className="text-lg font-bold text-white">
-              Material Information
-            </h2>
-
-            <p className="mt-1 text-xs text-slate-500">
-              Academy learning material
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              setSelectedMaterial(
-                null
-              )
-            }
-            className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-800 hover:text-white"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="space-y-5 p-6">
-          <div className="flex gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-blue-500/10">
-              <MaterialIcon
-                material={
-                  selectedMaterial
-                }
-              />
-            </div>
-
-            <div className="min-w-0">
-              <h3 className="text-base font-semibold text-white">
-                {
-                  selectedMaterial.title ||
-                  "Untitled Material"
-                }
-              </h3>
-
-              <p className="mt-1 text-xs text-slate-500">
-                {
-                  selectedMaterial.file_name ||
-                  "Academy material"
-                }
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-              <p className="text-[10px] uppercase tracking-wider text-slate-600">
-                Subject
-              </p>
-
-              <p className="mt-1 text-sm font-medium text-slate-200">
-                {
-                  selectedMaterial.subject ||
-                  "Not specified"
-                }
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-              <p className="text-[10px] uppercase tracking-wider text-slate-600">
-                Class / Level
-              </p>
-
-              <p className="mt-1 text-sm font-medium text-slate-200">
-                {getMaterialClass(
-                  selectedMaterial
-                ) ||
-                  "Not specified"}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-              <p className="text-[10px] uppercase tracking-wider text-slate-600">
-                Type
-              </p>
-
-              <p className="mt-1 text-sm font-medium capitalize text-slate-200">
-                {clean(
-                  selectedMaterial.material_type ||
-                    getMaterialType(
-                      selectedMaterial
-                    )
-                ).replace(
-                  /_/g,
-                  " "
-                )}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-              <p className="text-[10px] uppercase tracking-wider text-slate-600">
-                File
-              </p>
-
-              <p className="mt-1 text-sm font-medium text-slate-200">
-                {getFileExtension(
-                  selectedMaterial.file_name,
-                  selectedMaterial.file_mime_type ||
-                    selectedMaterial.file_type
-                )}
-              </p>
-            </div>
-          </div>
-
-          {selectedMaterial.description && (
-            <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-                Description
-              </p>
-
-              <p className="text-sm leading-6 text-slate-400">
-                {
-                  selectedMaterial.description
-                }
-              </p>
-            </div>
-          )}
-
-          <div className="flex gap-3 border-t border-slate-800 pt-5">
-            {getMaterialUrl(
-              selectedMaterial
-            ) && (
-              <button
-                type="button"
-                onClick={() => {
-                  openMaterial(
-                    selectedMaterial
-                  );
-
-                  setSelectedMaterial(
-                    null
-                  );
-                }}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
-              >
-                <Eye size={17} />
-
-                Open Material
-              </button>
-            )}
-
-            {getMaterialUrl(
-              selectedMaterial
-            ) && (
-              <a
-                href={getMaterialUrl(
-                  selectedMaterial
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                download={
-                  selectedMaterial.file_name ||
-                  undefined
-                }
-                className="flex items-center justify-center gap-2 rounded-xl border border-slate-800 px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-slate-800 hover:text-white"
-              >
-                <Download
-                  size={17}
-                />
-              </a>
-            )}
-
-            <button
-              type="button"
-              onClick={() =>
-                setSelectedMaterial(
-                  null
-                )
-              }
-              className="rounded-xl border border-slate-800 px-5 py-3 text-sm font-medium text-slate-400 transition hover:bg-slate-800 hover:text-white"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
 </div>
-
 );
-};
-
-export default StudentTextbooks;
+}

@@ -10,6 +10,12 @@ const router = express.Router();
 ========================================================= */
 
 const createToken = (user) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error(
+      "JWT_SECRET is missing from the server environment."
+    );
+  }
+
   return jwt.sign(
     {
       id: user.id,
@@ -73,6 +79,18 @@ const requireAuth = async (req, res, next) => {
       });
     }
 
+    if (!process.env.JWT_SECRET) {
+      console.error(
+        "❌ JWT_SECRET is missing from server environment."
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Authentication is not configured correctly on the server.",
+      });
+    }
+
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET
@@ -104,21 +122,29 @@ const requireAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("Auth middleware error:", error);
+    console.error(
+      "❌ Auth middleware error:",
+      error
+    );
 
     if (
-      error.name === "JsonWebTokenError" ||
-      error.name === "TokenExpiredError"
+      error?.name === "JsonWebTokenError" ||
+      error?.name === "TokenExpiredError"
     ) {
       return res.status(401).json({
         success: false,
-        message: "Your session has expired. Please login again.",
+        message:
+          "Your session has expired. Please login again.",
       });
     }
 
     return res.status(500).json({
       success: false,
       message: "Authentication failed.",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error?.message
+          : undefined,
     });
   }
 };
@@ -138,11 +164,15 @@ const requireAdmin = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("Admin authorization error:", error);
+    console.error(
+      "❌ Admin authorization error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Unable to verify administrator access.",
+      message:
+        "Unable to verify administrator access.",
     });
   }
 };
@@ -163,26 +193,48 @@ router.post("/signup", async (req, res) => {
     if (!username || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Username, email and password are required.",
+        message:
+          "Username, email and password are required.",
       });
     }
 
     const cleanUsername = String(username).trim();
-    const cleanEmail = String(email).trim().toLowerCase();
+
+    const cleanEmail = String(email)
+      .trim()
+      .toLowerCase();
 
     if (cleanUsername.length < 2) {
       return res.status(400).json({
         success: false,
-        message: "Username must be at least 2 characters.",
+        message:
+          "Username must be at least 2 characters.",
       });
     }
 
     if (password.length < 6) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 6 characters.",
+        message:
+          "Password must be at least 6 characters.",
       });
     }
+
+    if (!process.env.JWT_SECRET) {
+      console.error(
+        "❌ SIGNUP ERROR: JWT_SECRET is missing."
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Authentication is not configured correctly on the server.",
+      });
+    }
+
+    /* -----------------------------------------
+       CHECK EXISTING ACCOUNT
+    ----------------------------------------- */
 
     const existingUser = await pool.query(
       `
@@ -197,14 +249,23 @@ router.post("/signup", async (req, res) => {
     if (existingUser.rows.length > 0) {
       return res.status(409).json({
         success: false,
-        message: "An account with this email already exists.",
+        message:
+          "An account with this email already exists.",
       });
     }
+
+    /* -----------------------------------------
+       HASH PASSWORD
+    ----------------------------------------- */
 
     const passwordHash = await bcrypt.hash(
       password,
       12
     );
+
+    /* -----------------------------------------
+       CREATE USER
+    ----------------------------------------- */
 
     const result = await pool.query(
       `
@@ -232,23 +293,81 @@ router.post("/signup", async (req, res) => {
 
     const user = result.rows[0];
 
+    /* -----------------------------------------
+       CREATE TOKEN
+    ----------------------------------------- */
+
     const token = createToken(user);
+
+    console.log(
+      "================================================"
+    );
+
+    console.log(
+      "✅ SIGNUP SUCCESSFUL"
+    );
+
+    console.log(
+      "Email:",
+      user.email
+    );
+
+    console.log(
+      "Role:",
+      user.role
+    );
+
+    console.log(
+      "User ID:",
+      user.id
+    );
+
+    console.log(
+      "================================================"
+    );
 
     return res.status(201).json({
       success: true,
-      message: "Account created successfully.",
+      message:
+        "Account created successfully.",
       token,
       user: formatUser(user),
     });
   } catch (error) {
-    console.error("Signup error:", error);
+    console.error(
+      "================================================"
+    );
+
+    console.error(
+      "❌ SIGNUP ERROR"
+    );
+
+    console.error(
+      "Message:",
+      error?.message
+    );
+
+    console.error(
+      "Code:",
+      error?.code
+    );
+
+    console.error(
+      "Stack:",
+      error?.stack
+    );
+
+    console.error(
+      "================================================"
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Unable to create account.",
+      message:
+        "Unable to create account.",
       error:
         process.env.NODE_ENV === "development"
-          ? error.message
+          ? error?.message
           : undefined,
     });
   }
@@ -266,16 +385,72 @@ router.post("/login", async (req, res) => {
       password,
     } = req.body;
 
+    console.log(
+      "================================================"
+    );
+
+    console.log(
+      "🔐 LOGIN REQUEST"
+    );
+
+    console.log(
+      "Email received:",
+      email
+    );
+
+    console.log(
+      "Password received:",
+      Boolean(password)
+    );
+
+    console.log(
+      "JWT_SECRET loaded:",
+      Boolean(process.env.JWT_SECRET)
+    );
+
+    console.log(
+      "================================================"
+    );
+
+    /* -----------------------------------------
+       VALIDATE REQUEST
+    ----------------------------------------- */
+
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email and password are required.",
+        message:
+          "Email and password are required.",
       });
     }
+
+    /* -----------------------------------------
+       CHECK JWT SECRET
+    ----------------------------------------- */
+
+    if (!process.env.JWT_SECRET) {
+      console.error(
+        "❌ JWT_SECRET IS MISSING."
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Authentication is not configured correctly on the server.",
+      });
+    }
+
+    /* -----------------------------------------
+       CLEAN EMAIL
+    ----------------------------------------- */
 
     const cleanEmail = String(email)
       .trim()
       .toLowerCase();
+
+    /* -----------------------------------------
+       FIND USER
+    ----------------------------------------- */
 
     const result = await pool.query(
       `
@@ -293,16 +468,53 @@ router.post("/login", async (req, res) => {
       [cleanEmail]
     );
 
+    console.log(
+      "LOGIN USER LOOKUP:",
+      result.rows.length
+    );
+
+    /* -----------------------------------------
+       USER NOT FOUND
+    ----------------------------------------- */
+
     if (result.rows.length === 0) {
+      console.log(
+        "❌ LOGIN FAILED: USER NOT FOUND"
+      );
+
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password.",
+        message:
+          "Invalid email or password.",
       });
     }
 
     const user = result.rows[0];
 
+    console.log(
+      "User found:",
+      user.email
+    );
+
+    console.log(
+      "User ID:",
+      user.id
+    );
+
+    console.log(
+      "User role:",
+      user.role
+    );
+
+    /* -----------------------------------------
+       PASSWORD HASH CHECK
+    ----------------------------------------- */
+
     if (!user.password_hash) {
+      console.error(
+        "❌ PASSWORD HASH IS MISSING"
+      );
+
       return res.status(500).json({
         success: false,
         message:
@@ -310,20 +522,93 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const passwordMatches =
-      await bcrypt.compare(
-        password,
-        user.password_hash
+    /* -----------------------------------------
+       COMPARE PASSWORD
+    ----------------------------------------- */
+
+    let passwordMatches = false;
+
+    try {
+      passwordMatches =
+        await bcrypt.compare(
+          String(password),
+          String(user.password_hash)
+        );
+    } catch (passwordError) {
+      console.error(
+        "❌ PASSWORD COMPARISON ERROR:",
+        passwordError
       );
 
-    if (!passwordMatches) {
-      return res.status(401).json({
+      return res.status(500).json({
         success: false,
-        message: "Invalid email or password.",
+        message:
+          "Unable to verify your password.",
+        error:
+          process.env.NODE_ENV === "development"
+            ? passwordError?.message
+            : undefined,
       });
     }
 
-    const token = createToken(user);
+    console.log(
+      "Password matches:",
+      passwordMatches
+    );
+
+    /* -----------------------------------------
+       INVALID PASSWORD
+    ----------------------------------------- */
+
+    if (!passwordMatches) {
+      console.log(
+        `❌ INVALID PASSWORD: ${user.email}`
+      );
+
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid email or password.",
+      });
+    }
+
+    /* -----------------------------------------
+       CREATE JWT
+    ----------------------------------------- */
+
+    let token;
+
+    try {
+      token = createToken(user);
+    } catch (tokenError) {
+      console.error(
+        "❌ JWT TOKEN CREATION ERROR"
+      );
+
+      console.error(
+        "Message:",
+        tokenError?.message
+      );
+
+      console.error(
+        "Stack:",
+        tokenError?.stack
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Login verification could not be completed.",
+        error:
+          process.env.NODE_ENV === "development"
+            ? tokenError?.message
+            : undefined,
+      });
+    }
+
+    /* -----------------------------------------
+       SAFE USER
+    ----------------------------------------- */
 
     const safeUser = {
       id: user.id,
@@ -333,25 +618,94 @@ router.post("/login", async (req, res) => {
       created_at: user.created_at,
     };
 
+    /* -----------------------------------------
+       LOGIN SUCCESS
+    ----------------------------------------- */
+
     console.log(
-      `✅ Login successful: ${user.email} (${user.role})`
+      "================================================"
+    );
+
+    console.log(
+      "✅ LOGIN SUCCESSFUL"
+    );
+
+    console.log(
+      "Email:",
+      user.email
+    );
+
+    console.log(
+      "User ID:",
+      user.id
+    );
+
+    console.log(
+      "Role:",
+      user.role
+    );
+
+    console.log(
+      "JWT created:",
+      Boolean(token)
+    );
+
+    console.log(
+      "================================================"
     );
 
     return res.status(200).json({
       success: true,
-      message: "Login successful.",
+      message:
+        "Login successful.",
       token,
       user: safeUser,
     });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error(
+      "================================================"
+    );
+
+    console.error(
+      "❌ LOGIN DATABASE/SERVER ERROR"
+    );
+
+    console.error(
+      "Message:",
+      error?.message
+    );
+
+    console.error(
+      "Name:",
+      error?.name
+    );
+
+    console.error(
+      "Code:",
+      error?.code
+    );
+
+    console.error(
+      "Detail:",
+      error?.detail
+    );
+
+    console.error(
+      "Stack:",
+      error?.stack
+    );
+
+    console.error(
+      "================================================"
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Unable to login.",
+      message:
+        "Unable to login.",
       error:
         process.env.NODE_ENV === "development"
-          ? error.message
+          ? error?.message
           : undefined,
     });
   }
@@ -362,21 +716,29 @@ router.post("/login", async (req, res) => {
    GET /api/auth/me
 ========================================================= */
 
-router.get("/me", requireAuth, async (req, res) => {
-  try {
-    return res.status(200).json({
-      success: true,
-      user: formatUser(req.user),
-    });
-  } catch (error) {
-    console.error("Get current user error:", error);
+router.get(
+  "/me",
+  requireAuth,
+  async (req, res) => {
+    try {
+      return res.status(200).json({
+        success: true,
+        user: formatUser(req.user),
+      });
+    } catch (error) {
+      console.error(
+        "❌ Get current user error:",
+        error
+      );
 
-    return res.status(500).json({
-      success: false,
-      message: "Unable to retrieve user information.",
-    });
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to retrieve user information.",
+      });
+    }
   }
-});
+);
 
 /* =========================================================
    GET ALL ADMINS
@@ -415,11 +777,15 @@ router.get(
         count: result.rows.length,
       });
     } catch (error) {
-      console.error("Get admins error:", error);
+      console.error(
+        "❌ Get admins error:",
+        error
+      );
 
       return res.status(500).json({
         success: false,
-        message: "Unable to load administrators.",
+        message:
+          "Unable to load administrators.",
       });
     }
   }
@@ -456,12 +822,16 @@ router.post(
         });
       }
 
-      const cleanUsername = String(username).trim();
-      const cleanEmail = String(email)
-        .trim()
-        .toLowerCase();
+      const cleanUsername =
+        String(username).trim();
 
-      const cleanRole = String(role).trim();
+      const cleanEmail =
+        String(email)
+          .trim()
+          .toLowerCase();
+
+      const cleanRole =
+        String(role).trim();
 
       if (cleanUsername.length < 2) {
         return res.status(400).json({
@@ -487,15 +857,16 @@ router.post(
         });
       }
 
-      const existing = await pool.query(
-        `
-        SELECT id
-        FROM users
-        WHERE LOWER(email) = LOWER($1)
-        LIMIT 1
-        `,
-        [cleanEmail]
-      );
+      const existing =
+        await pool.query(
+          `
+          SELECT id
+          FROM users
+          WHERE LOWER(email) = LOWER($1)
+          LIMIT 1
+          `,
+          [cleanEmail]
+        );
 
       if (existing.rows.length > 0) {
         return res.status(409).json({
@@ -506,43 +877,52 @@ router.post(
       }
 
       const passwordHash =
-        await bcrypt.hash(password, 12);
+        await bcrypt.hash(
+          password,
+          12
+        );
 
-      const result = await pool.query(
-        `
-        INSERT INTO users (
-          username,
-          email,
-          password_hash,
-          role
-        )
-        VALUES ($1, $2, $3, $4)
-        RETURNING
-          id,
-          username,
-          email,
-          role,
-          created_at
-        `,
-        [
-          cleanUsername,
-          cleanEmail,
-          passwordHash,
-          cleanRole,
-        ]
-      );
+      const result =
+        await pool.query(
+          `
+          INSERT INTO users (
+            username,
+            email,
+            password_hash,
+            role
+          )
+          VALUES ($1, $2, $3, $4)
+          RETURNING
+            id,
+            username,
+            email,
+            role,
+            created_at
+          `,
+          [
+            cleanUsername,
+            cleanEmail,
+            passwordHash,
+            cleanRole,
+          ]
+        );
 
       return res.status(201).json({
         success: true,
-        message: "Administrator created successfully.",
+        message:
+          "Administrator created successfully.",
         admin: result.rows[0],
       });
     } catch (error) {
-      console.error("Create admin error:", error);
+      console.error(
+        "❌ Create admin error:",
+        error
+      );
 
       return res.status(500).json({
         success: false,
-        message: "Unable to create administrator.",
+        message:
+          "Unable to create administrator.",
       });
     }
   }
@@ -568,30 +948,33 @@ router.patch(
         password,
       } = req.body;
 
-      const existing = await pool.query(
-        `
-        SELECT
-          id,
-          username,
-          email,
-          role,
-          password_hash,
-          created_at
-        FROM users
-        WHERE id = $1
-        LIMIT 1
-        `,
-        [id]
-      );
+      const existing =
+        await pool.query(
+          `
+          SELECT
+            id,
+            username,
+            email,
+            role,
+            password_hash,
+            created_at
+          FROM users
+          WHERE id = $1
+          LIMIT 1
+          `,
+          [id]
+        );
 
       if (existing.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message: "Administrator not found.",
+          message:
+            "Administrator not found.",
         });
       }
 
-      const current = existing.rows[0];
+      const current =
+        existing.rows[0];
 
       const newUsername =
         username !== undefined
@@ -600,7 +983,9 @@ router.patch(
 
       const newEmail =
         email !== undefined
-          ? String(email).trim().toLowerCase()
+          ? String(email)
+              .trim()
+              .toLowerCase()
           : current.email;
 
       const newRole =
@@ -624,16 +1009,17 @@ router.patch(
         });
       }
 
-      const duplicate = await pool.query(
-        `
-        SELECT id
-        FROM users
-        WHERE LOWER(email) = LOWER($1)
-          AND id <> $2
-        LIMIT 1
-        `,
-        [newEmail, id]
-      );
+      const duplicate =
+        await pool.query(
+          `
+          SELECT id
+          FROM users
+          WHERE LOWER(email) = LOWER($1)
+            AND id <> $2
+          LIMIT 1
+          `,
+          [newEmail, id]
+        );
 
       if (duplicate.rows.length > 0) {
         return res.status(409).json({
@@ -643,7 +1029,8 @@ router.patch(
         });
       }
 
-      let passwordHash = current.password_hash;
+      let passwordHash =
+        current.password_hash;
 
       if (password) {
         if (password.length < 6) {
@@ -655,45 +1042,54 @@ router.patch(
         }
 
         passwordHash =
-          await bcrypt.hash(password, 12);
+          await bcrypt.hash(
+            password,
+            12
+          );
       }
 
-      const result = await pool.query(
-        `
-        UPDATE users
-        SET
-          username = $1,
-          email = $2,
-          role = $3,
-          password_hash = $4
-        WHERE id = $5
-        RETURNING
-          id,
-          username,
-          email,
-          role,
-          created_at
-        `,
-        [
-          newUsername,
-          newEmail,
-          newRole,
-          passwordHash,
-          id,
-        ]
-      );
+      const result =
+        await pool.query(
+          `
+          UPDATE users
+          SET
+            username = $1,
+            email = $2,
+            role = $3,
+            password_hash = $4
+          WHERE id = $5
+          RETURNING
+            id,
+            username,
+            email,
+            role,
+            created_at
+          `,
+          [
+            newUsername,
+            newEmail,
+            newRole,
+            passwordHash,
+            id,
+          ]
+        );
 
       return res.status(200).json({
         success: true,
-        message: "Administrator updated successfully.",
+        message:
+          "Administrator updated successfully.",
         admin: result.rows[0],
       });
     } catch (error) {
-      console.error("Edit admin error:", error);
+      console.error(
+        "❌ Edit admin error:",
+        error
+      );
 
       return res.status(500).json({
         success: false,
-        message: "Unable to update administrator.",
+        message:
+          "Unable to update administrator.",
       });
     }
   }
@@ -713,7 +1109,11 @@ router.patch(
       const { id } = req.params;
       const { status } = req.body;
 
-      if (!["active", "inactive"].includes(status)) {
+      if (
+        !["active", "inactive"].includes(
+          status
+        )
+      ) {
         return res.status(400).json({
           success: false,
           message:
@@ -721,29 +1121,31 @@ router.patch(
         });
       }
 
-      const result = await pool.query(
-        `
-        UPDATE users
-        SET role = CASE
-          WHEN $1 = 'inactive'
-            THEN 'inactive_admin'
-          ELSE 'admin'
-        END
-        WHERE id = $2
-        RETURNING
-          id,
-          username,
-          email,
-          role,
-          created_at
-        `,
-        [status, id]
-      );
+      const result =
+        await pool.query(
+          `
+          UPDATE users
+          SET role = CASE
+            WHEN $1 = 'inactive'
+              THEN 'inactive_admin'
+            ELSE 'admin'
+          END
+          WHERE id = $2
+          RETURNING
+            id,
+            username,
+            email,
+            role,
+            created_at
+          `,
+          [status, id]
+        );
 
       if (result.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message: "Administrator not found.",
+          message:
+            "Administrator not found.",
         });
       }
 
@@ -756,7 +1158,10 @@ router.patch(
         admin: result.rows[0],
       });
     } catch (error) {
-      console.error("Admin status error:", error);
+      console.error(
+        "❌ Admin status error:",
+        error
+      );
 
       return res.status(500).json({
         success: false,
@@ -784,7 +1189,10 @@ router.delete(
          PREVENT SELF DELETE
       ----------------------------------------- */
 
-      if (String(req.user.id) === String(id)) {
+      if (
+        String(req.user.id) ===
+        String(id)
+      ) {
         return res.status(400).json({
           success: false,
           message:
@@ -792,34 +1200,52 @@ router.delete(
         });
       }
 
-      const existing = await pool.query(
-        `
-        SELECT
-          id,
-          username,
-          email,
-          role
-        FROM users
-        WHERE id = $1
-        LIMIT 1
-        `,
-        [id]
-      );
+      /* -----------------------------------------
+         FIND ADMIN
+      ----------------------------------------- */
+
+      const existing =
+        await pool.query(
+          `
+          SELECT
+            id,
+            username,
+            email,
+            role
+          FROM users
+          WHERE id = $1
+          LIMIT 1
+          `,
+          [id]
+        );
 
       if (existing.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message: "Administrator not found.",
+          message:
+            "Administrator not found.",
         });
       }
 
-      if (!isAdminRole(existing.rows[0].role)) {
+      /* -----------------------------------------
+         VERIFY ADMIN ROLE
+      ----------------------------------------- */
+
+      if (
+        !isAdminRole(
+          existing.rows[0].role
+        )
+      ) {
         return res.status(400).json({
           success: false,
           message:
             "This account is not an administrator.",
         });
       }
+
+      /* -----------------------------------------
+         DELETE
+      ----------------------------------------- */
 
       await pool.query(
         `
@@ -835,7 +1261,10 @@ router.delete(
           "Administrator removed successfully.",
       });
     } catch (error) {
-      console.error("Delete admin error:", error);
+      console.error(
+        "❌ Delete admin error:",
+        error
+      );
 
       return res.status(500).json({
         success: false,
@@ -848,24 +1277,37 @@ router.delete(
 
 /* =========================================================
    AUTH TEST
+   GET /api/auth/test
 ========================================================= */
 
-router.get("/test", (req, res) => {
-  res.json({
-    success: true,
-    message: "Auth routes are working.",
-    routes: [
-      "POST /api/auth/signup",
-      "POST /api/auth/login",
-      "GET /api/auth/me",
-      "GET /api/auth/admins",
-      "POST /api/auth/admins",
-      "PATCH /api/auth/admins/:id",
-      "PATCH /api/auth/admins/:id/status",
-      "DELETE /api/auth/admins/:id",
-    ],
-  });
-});
+router.get(
+  "/test",
+  (req, res) => {
+    res.json({
+      success: true,
+      message:
+        "Auth routes are working.",
+      jwtConfigured:
+        Boolean(
+          process.env.JWT_SECRET
+        ),
+      databaseConfigured:
+        Boolean(
+          process.env.DATABASE_URL
+        ),
+      routes: [
+        "POST /api/auth/signup",
+        "POST /api/auth/login",
+        "GET /api/auth/me",
+        "GET /api/auth/admins",
+        "POST /api/auth/admins",
+        "PATCH /api/auth/admins/:id",
+        "PATCH /api/auth/admins/:id/status",
+        "DELETE /api/auth/admins/:id",
+      ],
+    });
+  }
+);
 
 /* =========================================================
    EXPORT

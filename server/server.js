@@ -22,6 +22,7 @@ import tutorRoutes from "./routes/tutorRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import novelRoutes from "./routes/novelRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
+import learningMaterialsRouter from "./routes/learningMaterials.js";
 
 // ============================================================
 // SCHOLIQEN ACADEMY ROUTES
@@ -33,13 +34,31 @@ import academyRoutes from "./routes/academyRoutes.js";
 import academyTeachingRoutes from "./routes/academyTeaching.js";
 import academyAssignmentRoutes from "./routes/academyAssignmentRoutes.js";
 import academyLessonRoutes from "./routes/academyLessonRoutes.js";
-import materialRoutes from "./routes/materialRoutes.js";
 import academyLiveClassRoutes from "./routes/academyLiveClassRoutes.js";
 import academyTutorAttendanceRoutes from "./routes/academyTutorAttendance.js";
 import academyTutorMessages from "./routes/academyTutorMessages.js";
 import academyTutorAnnouncements from "./routes/academyTutorAnnouncements.js";
 import academyEnrollmentRoutes from "./routes/academyEnrollmentRoutes.js";
 import academyStudentMaterialsRoutes from "./routes/academyStudentMaterials.js";
+
+// ============================================================
+// NOTE
+// ============================================================
+// materialRoutes.js is intentionally NOT imported/mounted here.
+//
+// Previously you had:
+//
+// app.use("/api/admin/lms/materials", learningMaterialsRouter);
+// app.use("/api/admin/lms/materials", materialRoutes);
+//
+// That creates two routers on the same endpoint and can cause
+// requests to reach the wrong handler.
+//
+// learningMaterials.js is now the ADMIN material router.
+// academyStudentMaterials.js is the STUDENT material router.
+// ============================================================
+
+
 // ============================================================
 // PATH CONFIGURATION
 // ============================================================
@@ -63,10 +82,7 @@ if (envResult.error) {
   console.warn("");
   console.warn("⚠️ Could not load .env");
   console.warn("📁 Expected:", ENV_PATH);
-  console.warn(
-    "Reason:",
-    envResult.error.message
-  );
+  console.warn("Reason:", envResult.error.message);
   console.warn("");
 } else {
   console.log(
@@ -109,6 +125,7 @@ const VIDEOS_DIR = path.join(
   "videos"
 );
 
+// Keep these variables available for future upload handling.
 void NOVEL_COVERS_DIR;
 void DOCUMENTS_DIR;
 void THUMBNAILS_DIR;
@@ -184,42 +201,32 @@ const PREMIUM_PRICE_KOBO =
 const PREMIUM_PRODUCTS = {
   cbt: {
     name: "CBT Practice",
-    priceNaira:
-      PREMIUM_PRICE_NAIRA,
-    priceKobo:
-      PREMIUM_PRICE_KOBO,
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
   },
 
   novel: {
     name: "Premium Novels",
-    priceNaira:
-      PREMIUM_PRICE_NAIRA,
-    priceKobo:
-      PREMIUM_PRICE_KOBO,
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
   },
 
   multilingual: {
     name: "Multilingual Access",
-    priceNaira:
-      PREMIUM_PRICE_NAIRA,
-    priceKobo:
-      PREMIUM_PRICE_KOBO,
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
   },
 
   lms: {
     name: "LMS Premium Access",
-    priceNaira:
-      PREMIUM_PRICE_NAIRA,
-    priceKobo:
-      PREMIUM_PRICE_KOBO,
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
   },
 
   virtual_lab: {
     name: "Virtual Laboratory",
-    priceNaira:
-      PREMIUM_PRICE_NAIRA,
-    priceKobo:
-      PREMIUM_PRICE_KOBO,
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
   },
 };
 
@@ -287,9 +294,7 @@ console.log(
 
 console.log(
   `📦 Products:        ${
-    Object.keys(
-      PREMIUM_PRODUCTS
-    ).length
+    Object.keys(PREMIUM_PRODUCTS).length
   }`
 );
 
@@ -315,33 +320,19 @@ const allowedOrigins = [
 
 app.use(
   cors({
-    origin: (
-      origin,
-      callback
-    ) => {
+    origin: (origin, callback) => {
       if (!origin) {
-        return callback(
-          null,
-          true
-        );
+        return callback(null, true);
       }
 
       if (
-        allowedOrigins.includes(
-          origin
-        )
+        allowedOrigins.includes(origin)
       ) {
-        return callback(
-          null,
-          true
-        );
+        return callback(null, true);
       }
 
-      // Keep existing permissive CORS behavior.
-      return callback(
-        null,
-        true
-      );
+      // Preserve existing permissive behavior.
+      return callback(null, true);
     },
 
     credentials: true,
@@ -355,15 +346,6 @@ app.use(
       "OPTIONS",
     ],
 
-    // IMPORTANT:
-    // x-academy-token was added here.
-    //
-    // StudentSubjects.jsx sends:
-    // x-academy-token
-    //
-    // Without this header being allowed, the browser
-    // blocks the OPTIONS preflight before the GET request
-    // reaches the Academy student subjects route.
     allowedHeaders: [
       "Origin",
       "Content-Type",
@@ -373,6 +355,7 @@ app.use(
       "x-paystack-signature",
       "x-tutor-reference",
       "x-academy-token",
+      "x-material-access-token",
     ],
 
     optionsSuccessStatus: 204,
@@ -380,68 +363,10 @@ app.use(
 );
 
 // ============================================================
-// STATIC UPLOADS
-// ============================================================
-app.use(
-"/api/academy/student/materials",
-academyStudentMaterialsRoutes
-);
-
-app.use(
-  "/uploads",
-  express.static(
-    UPLOADS_DIR,
-    {
-      setHeaders: (
-        res,
-        filePath
-      ) => {
-        res.setHeader(
-          "Access-Control-Allow-Origin",
-          FRONTEND_URL
-        );
-
-        res.setHeader(
-          "Access-Control-Allow-Credentials",
-          "true"
-        );
-
-        res.setHeader(
-          "Access-Control-Allow-Methods",
-          "GET, OPTIONS"
-        );
-
-        res.setHeader(
-          "Access-Control-Allow-Headers",
-          "Origin, Content-Type, Authorization, Accept, X-Requested-With, x-academy-token"
-        );
-
-        if (
-          filePath
-            .toLowerCase()
-            .endsWith(".pdf")
-        ) {
-          res.setHeader(
-            "Content-Type",
-            "application/pdf"
-          );
-        }
-      },
-    }
-  )
-);
-
-// ============================================================
-// ACADEMY ENROLLMENT ROUTES
-// ============================================================
-
-app.use(
-  "/api/academy",
-  academyEnrollmentRoutes
-);
-
-// ============================================================
 // PAYSTACK WEBHOOK RAW BODY
+// ============================================================
+// IMPORTANT:
+// This MUST remain BEFORE express.json().
 // ============================================================
 
 app.use(
@@ -453,8 +378,15 @@ app.use(
 );
 
 // ============================================================
-// JSON BODY
-// IMPORTANT: This comes BEFORE POST announcement routes.
+// JSON BODY PARSER
+// ============================================================
+// IMPORTANT:
+// This MUST come BEFORE ALL API ROUTES that use req.body.
+//
+// This fixes:
+//
+// Cannot destructure property 'title'
+// of 'req.body' as it is undefined
 // ============================================================
 
 app.use(
@@ -484,8 +416,169 @@ app.use(
       `➡️ ${req.method} ${req.originalUrl}`
     );
 
+    if (
+      ["POST", "PUT", "PATCH"].includes(
+        req.method
+      )
+    ) {
+      console.log(
+        "📦 Request body:",
+        req.body
+      );
+    }
+
     next();
   }
+);
+
+// ============================================================
+// STATIC UPLOADS
+// ============================================================
+//
+// IMPORTANT SECURITY NOTE:
+//
+// This currently exposes everything inside /uploads.
+//
+// If your protected textbooks are stored inside:
+//   server/uploads/materials
+//
+// they can potentially be opened directly without the
+// textbook access code.
+//
+// We will move protected textbook files behind the student
+// material route after the body-parser problem is fixed.
+//
+// For now this keeps your existing upload behavior working.
+// ============================================================
+
+app.use(
+  "/uploads",
+  express.static(
+    UPLOADS_DIR,
+    {
+      setHeaders: (
+        res,
+        filePath
+      ) => {
+        res.setHeader(
+          "Access-Control-Allow-Origin",
+          FRONTEND_URL
+        );
+
+        res.setHeader(
+          "Access-Control-Allow-Credentials",
+          "true"
+        );
+
+        res.setHeader(
+          "Access-Control-Allow-Methods",
+          "GET, OPTIONS"
+        );
+
+        res.setHeader(
+          "Access-Control-Allow-Headers",
+          [
+            "Origin",
+            "Content-Type",
+            "Authorization",
+            "Accept",
+            "X-Requested-With",
+            "x-academy-token",
+            "x-material-access-token",
+          ].join(", ")
+        );
+
+        const lowerPath =
+          filePath.toLowerCase();
+
+        if (
+          lowerPath.endsWith(".pdf")
+        ) {
+          res.setHeader(
+            "Content-Type",
+            "application/pdf"
+          );
+        }
+
+        if (
+          lowerPath.endsWith(".mp4")
+        ) {
+          res.setHeader(
+            "Content-Type",
+            "video/mp4"
+          );
+        }
+
+        if (
+          lowerPath.endsWith(".webm")
+        ) {
+          res.setHeader(
+            "Content-Type",
+            "video/webm"
+          );
+        }
+
+        if (
+          lowerPath.endsWith(".mov")
+        ) {
+          res.setHeader(
+            "Content-Type",
+            "video/quicktime"
+          );
+        }
+      },
+    }
+  )
+);
+
+// ============================================================
+// ADMIN MATERIAL ROUTES
+// ============================================================
+//
+// ONLY ONE ADMIN MATERIAL ROUTER.
+//
+// This handles:
+//
+// GET    /api/admin/lms/materials
+// GET    /api/admin/lms/materials/:id
+// POST   /api/admin/lms/materials
+// PUT    /api/admin/lms/materials/:id
+// DELETE /api/admin/lms/materials/:id
+//
+// The route is mounted AFTER express.json(), so req.body
+// will be available.
+// ============================================================
+
+app.use(
+  "/api/admin/lms/materials",
+  learningMaterialsRouter
+);
+
+// ============================================================
+// STUDENT MATERIAL ROUTES
+// ============================================================
+//
+// Handles:
+//
+// GET  /api/academy/student/materials
+// POST /api/academy/student/materials/:id/unlock
+// GET  /api/academy/student/materials/:id/access
+//
+// Also mounted AFTER express.json().
+// ============================================================
+
+app.use(
+  "/api/academy/student/materials",
+  academyStudentMaterialsRoutes
+);
+
+// ============================================================
+// ACADEMY ENROLLMENT ROUTES
+// ============================================================
+
+app.use(
+  "/api/academy",
+  academyEnrollmentRoutes
 );
 
 // ============================================================
@@ -526,6 +619,12 @@ app.get(
 
         adminDashboard:
           "GET /api/admin/dashboard",
+
+        adminMaterials:
+          "/api/admin/lms/materials",
+
+        studentMaterials:
+          "/api/academy/student/materials",
 
         courses:
           "/api/courses",
@@ -695,10 +794,6 @@ app.get(
         saveWhiteboard:
           "POST /api/academy/tutor/live-classes/:id/whiteboard",
 
-        // ======================================================
-        // TUTOR STUDENT MESSAGES
-        // ======================================================
-
         tutorStudentMessages:
           "GET /api/academy/tutor/messages",
 
@@ -710,10 +805,6 @@ app.get(
 
         startTutorStudentConversation:
           "POST /api/academy/tutor/messages/start",
-
-        // ======================================================
-        // TUTOR ANNOUNCEMENTS
-        // ======================================================
 
         tutorAnnouncements:
           "GET /api/academy/tutor/announcements",
@@ -820,6 +911,13 @@ app.get(
 
         academyTutorAnnouncements:
           databaseConfigured,
+
+        studentMaterials:
+          databaseConfigured,
+
+        adminMaterials:
+          databaseConfigured &&
+          jwtConfigured,
       },
     });
   }
@@ -1326,11 +1424,6 @@ app.use(
   adminRoutes
 );
 
-app.use(
-  "/api/admin/lms/materials",
-  materialRoutes
-);
-
 // ============================================================
 // COURSE ROUTES
 // ============================================================
@@ -1478,8 +1571,6 @@ app.use(
 
 // ============================================================
 // SCHOLIQEN ACADEMY TUTOR ANNOUNCEMENTS
-// IMPORTANT:
-// This is AFTER express.json() and BEFORE 404.
 // ============================================================
 
 app.use(
@@ -1640,6 +1731,18 @@ const server = app.listen(
     );
 
     console.log(
+      "   GET    /api/academy/student/materials"
+    );
+
+    console.log(
+      "   POST   /api/academy/student/materials/:id/unlock"
+    );
+
+    console.log(
+      "   GET    /api/academy/student/materials/:id/access"
+    );
+
+    console.log(
       "   GET    /api/academy/tutor/tasks"
     );
 
@@ -1673,6 +1776,58 @@ const server = app.listen(
 
     console.log(
       "   GET    /api/academy/tutor/attendance"
+    );
+
+    console.log("");
+
+    console.log(
+      "📚 Admin material routes:"
+    );
+
+    console.log(
+      "   GET    /api/admin/lms/materials"
+    );
+
+    console.log(
+      "   GET    /api/admin/lms/materials/:id"
+    );
+
+    console.log(
+      "   POST   /api/admin/lms/materials"
+    );
+
+    console.log(
+      "   PUT    /api/admin/lms/materials/:id"
+    );
+
+    console.log(
+      "   DELETE /api/admin/lms/materials/:id"
+    );
+
+    console.log("");
+
+    console.log(
+      "🔐 Material access:"
+    );
+
+    console.log(
+      "   Admin generates access code."
+    );
+
+    console.log(
+      "   Backend stores only the hashed code."
+    );
+
+    console.log(
+      "   Student submits the code."
+    );
+
+    console.log(
+      "   Backend verifies the code."
+    );
+
+    console.log(
+      "   Student receives temporary material access."
     );
 
     console.log("");

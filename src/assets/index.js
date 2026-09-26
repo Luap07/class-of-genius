@@ -74,7 +74,6 @@ import norwegianImg from './norwegianImg.jpeg';
 import czechImg from './czechImg.jpeg';
 import labhero from './labhero.jpg';
 import school from './school.jpg';
-import hero from './hero.png';
 import student from './student.jpeg';
 import connect from './connect.png';
 import heroImg from './heroImg.jpeg';
@@ -158,7 +157,6 @@ norwegianImg,
 czechImg,
 labhero,
 school,
-hero,
 student,
 connect,
 heroImg,

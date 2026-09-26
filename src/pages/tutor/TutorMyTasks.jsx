@@ -22,6 +22,7 @@ import {
   Save,
   Eye,
   ClipboardList,
+  Users,
 } from "lucide-react";
 
 import {
@@ -33,13 +34,30 @@ import {
    API
 ========================================================= */
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000"
-).replace(/\/+$/, "");
+function buildApiBaseUrl() {
+  const raw = String(
+    import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_API_BASE_URL ||
+      "http://localhost:5000"
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+  if (raw.endsWith("/api/academy")) {
+    return raw;
+  }
+
+  if (raw.endsWith("/api")) {
+    return `${raw}/academy`;
+  }
+
+  return `${raw}/api/academy`;
+}
+
+const API_BASE_URL = buildApiBaseUrl();
 
 const TASKS_URL =
-  `${API_BASE_URL}/api/academy/tutor/tasks`;
+  `${API_BASE_URL}/tutor/class-activities`;
 
 /* =========================================================
    STORAGE
@@ -56,8 +74,19 @@ function getStoredTutor() {
       return {};
     }
 
-    return JSON.parse(stored);
-  } catch {
+    const parsed =
+      JSON.parse(stored);
+
+    return parsed &&
+      typeof parsed === "object"
+      ? parsed
+      : {};
+  } catch (error) {
+    console.error(
+      "Unable to read academy tutor:",
+      error
+    );
+
     return {};
   }
 }
@@ -76,6 +105,18 @@ function getTutorReference() {
   );
 }
 
+function getAcademyToken() {
+  try {
+    return (
+      localStorage.getItem(
+        "scholiqen_academy_token"
+      ) || ""
+    );
+  } catch {
+    return "";
+  }
+}
+
 /* =========================================================
    DATE HELPERS
 ========================================================= */
@@ -85,9 +126,14 @@ function formatDate(value) {
     return "No date";
   }
 
-  const date = new Date(value);
+  const date =
+    new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return String(value);
   }
 
@@ -106,9 +152,14 @@ function formatDateTime(value) {
     return "No date";
   }
 
-  const date = new Date(value);
+  const date =
+    new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return String(value);
   }
 
@@ -129,14 +180,22 @@ function formatDateForInput(value) {
     return "";
   }
 
-  const date = new Date(value);
+  const date =
+    new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return "";
   }
 
   const pad = (number) =>
-    String(number).padStart(2, "0");
+    String(number).padStart(
+      2,
+      "0"
+    );
 
   return `${date.getFullYear()}-${pad(
     date.getMonth() + 1
@@ -250,17 +309,31 @@ function normalizeTask(task) {
     metadata?.max_score ??
     "";
 
+  const submissionCount =
+    Number(
+      task?.submissionCount ??
+        task?.submission_count ??
+        0
+    );
+
   return {
     ...task,
 
     id:
-      task?.id ||
-      task?.taskId ||
+      task?.id ??
+      task?.activityId ??
+      task?.activity_id ??
+      task?.taskId ??
       task?.task_id,
 
+    activityId:
+      task?.activityId ??
+      task?.activity_id ??
+      task?.id,
+
     taskId:
-      task?.taskId ||
-      task?.task_id ||
+      task?.taskId ??
+      task?.task_id ??
       task?.id,
 
     title:
@@ -281,6 +354,9 @@ function normalizeTask(task) {
     class:
       grade,
 
+    className:
+      grade,
+
     subject,
 
     dueDate,
@@ -290,14 +366,28 @@ function normalizeTask(task) {
     attachments,
 
     metadata,
+
+    submissionCount,
+
+    createdAt:
+      task?.createdAt ||
+      task?.created_at ||
+      null,
+
+    updatedAt:
+      task?.updatedAt ||
+      task?.updated_at ||
+      null,
   };
 }
 
 /* =========================================================
-   API RESPONSE HELPER
+   API RESPONSE
 ========================================================= */
 
-async function readResponse(response) {
+async function readResponse(
+  response
+) {
   const contentType =
     response.headers.get(
       "content-type"
@@ -358,7 +448,40 @@ export default function TutorMyTasks() {
 
   const tutorReference =
     useMemo(
-      () => getTutorReference(),
+      () =>
+        getTutorReference(),
+      []
+    );
+
+  /* =======================================================
+     AUTH HEADERS
+  ======================================================= */
+
+  const getHeaders =
+    useCallback(
+      (includeJson = false) => {
+        const token =
+          getAcademyToken();
+
+        const headers = {
+          Accept:
+            "application/json",
+        };
+
+        if (includeJson) {
+          headers[
+            "Content-Type"
+          ] =
+            "application/json";
+        }
+
+        if (token) {
+          headers.Authorization =
+            `Bearer ${token}`;
+        }
+
+        return headers;
+      },
       []
     );
 
@@ -396,16 +519,18 @@ export default function TutorMyTasks() {
               tutorReference
             )}`;
 
+          console.log(
+            "Loading tutor tasks:",
+            url
+          );
+
           const response =
             await fetch(
               url,
               {
                 method: "GET",
-
-                headers: {
-                  Accept:
-                    "application/json",
-                },
+                headers:
+                  getHeaders(),
               }
             );
 
@@ -413,6 +538,15 @@ export default function TutorMyTasks() {
             await readResponse(
               response
             );
+
+          console.log(
+            "Tutor tasks response:",
+            {
+              status:
+                response.status,
+              data,
+            }
+          );
 
           if (!response.ok) {
             throw new Error(
@@ -432,10 +566,14 @@ export default function TutorMyTasks() {
                 )
                 ? data.activities
                 : Array.isArray(
-                    data
+                    data?.results
                   )
-                  ? data
-                  : [];
+                  ? data.results
+                  : Array.isArray(
+                      data
+                    )
+                    ? data
+                    : [];
 
           setTasks(
             rawTasks.map(
@@ -466,7 +604,10 @@ export default function TutorMyTasks() {
           setRefreshing(false);
         }
       },
-      [tutorReference]
+      [
+        tutorReference,
+        getHeaders,
+      ]
     );
 
   useEffect(() => {
@@ -474,43 +615,219 @@ export default function TutorMyTasks() {
   }, [fetchTasks]);
 
   /* =======================================================
+     OPEN VIEW
+  ======================================================= */
+
+  const openView =
+    useCallback(
+      async (task) => {
+        if (!task?.id) {
+          setSelectedTask(
+            task
+          );
+
+          return;
+        }
+
+        setSelectedTask(
+          normalizeTask(task)
+        );
+
+        try {
+          const url =
+            `${TASKS_URL}/${encodeURIComponent(
+              task.id
+            )}?reference=${encodeURIComponent(
+              tutorReference
+            )}`;
+
+          const response =
+            await fetch(
+              url,
+              {
+                method: "GET",
+                headers:
+                  getHeaders(),
+              }
+            );
+
+          const data =
+            await readResponse(
+              response
+            );
+
+          if (!response.ok) {
+            return;
+          }
+
+          const freshTask =
+            data?.task ||
+            data?.activity ||
+            data?.result ||
+            data;
+
+          if (
+            freshTask &&
+            typeof freshTask ===
+              "object"
+          ) {
+            setSelectedTask(
+              normalizeTask(
+                freshTask
+              )
+            );
+          }
+        } catch (err) {
+          console.error(
+            "View task error:",
+            err
+          );
+        }
+      },
+      [
+        tutorReference,
+        getHeaders,
+      ]
+    );
+
+  /* =======================================================
      OPEN EDIT
   ======================================================= */
 
   const openEdit =
-    (task) => {
-      setSelectedTask(null);
+    async (task) => {
+      if (!task?.id) {
+        setSaveError(
+          "This task could not be identified."
+        );
+
+        return;
+      }
+
+      setSelectedTask(
+        null
+      );
+
       setSaveError("");
 
+      const normalized =
+        normalizeTask(task);
+
       setEditingTask({
-        ...task,
+        ...normalized,
 
         title:
-          task.title || "",
+          normalized.title ||
+          "",
 
         description:
-          task.description || "",
+          normalized.description ||
+          "",
 
         instructions:
-          task.instructions || "",
+          normalized.instructions ||
+          "",
 
         dueDate:
-          task.dueDate
+          normalized.dueDate
             ? formatDateForInput(
-                task.dueDate
+                normalized.dueDate
               )
             : "",
 
         maxScore:
-          task.maxScore ===
+          normalized.maxScore ===
             null ||
-          task.maxScore ===
+          normalized.maxScore ===
             undefined
             ? ""
             : String(
-                task.maxScore
+                normalized.maxScore
               ),
       });
+
+      try {
+        const url =
+          `${TASKS_URL}/${encodeURIComponent(
+            task.id
+          )}?reference=${encodeURIComponent(
+            tutorReference
+          )}`;
+
+        const response =
+          await fetch(
+            url,
+            {
+              method: "GET",
+              headers:
+                getHeaders(),
+            }
+          );
+
+        const data =
+          await readResponse(
+            response
+          );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const freshTask =
+          data?.task ||
+          data?.activity ||
+          data?.result ||
+          data;
+
+        if (
+          freshTask &&
+          typeof freshTask ===
+            "object"
+        ) {
+          const fresh =
+            normalizeTask(
+              freshTask
+            );
+
+          setEditingTask({
+            ...fresh,
+
+            title:
+              fresh.title ||
+              "",
+
+            description:
+              fresh.description ||
+              "",
+
+            instructions:
+              fresh.instructions ||
+              "",
+
+            dueDate:
+              fresh.dueDate
+                ? formatDateForInput(
+                    fresh.dueDate
+                  )
+                : "",
+
+            maxScore:
+              fresh.maxScore ===
+                null ||
+              fresh.maxScore ===
+                undefined
+                ? ""
+                : String(
+                    fresh.maxScore
+                  ),
+          });
+        }
+      } catch (err) {
+        console.error(
+          "Load task for editing error:",
+          err
+        );
+      }
     };
 
   /* =======================================================
@@ -538,7 +855,10 @@ export default function TutorMyTasks() {
       }
 
       const title =
-        editingTask.title.trim();
+        String(
+          editingTask.title ||
+            ""
+        ).trim();
 
       if (!title) {
         setSaveError(
@@ -546,6 +866,37 @@ export default function TutorMyTasks() {
         );
 
         return;
+      }
+
+      let numericMaxScore =
+        null;
+
+      if (
+        editingTask.maxScore !==
+          "" &&
+        editingTask.maxScore !==
+          null &&
+        editingTask.maxScore !==
+          undefined
+      ) {
+        numericMaxScore =
+          Number(
+            editingTask.maxScore
+          );
+
+        if (
+          Number.isNaN(
+            numericMaxScore
+          ) ||
+          numericMaxScore <
+            0
+        ) {
+          setSaveError(
+            "Maximum score must be a valid number."
+          );
+
+          return;
+        }
       }
 
       setSaving(true);
@@ -567,24 +918,37 @@ export default function TutorMyTasks() {
           title,
 
           description:
-            editingTask.description?.trim() ||
-            "",
+            String(
+              editingTask.description ||
+                ""
+            ).trim(),
 
           instructions:
-            editingTask.instructions?.trim() ||
-            "",
+            String(
+              editingTask.instructions ||
+                ""
+            ).trim(),
 
           dueDate:
             editingTask.dueDate ||
-            "",
+            null,
 
           maxScore:
-            editingTask.maxScore ===
-              ""
-              ? null
-              : Number(
-                  editingTask.maxScore
-                ),
+            numericMaxScore,
+
+          grade:
+            editingTask.grade ||
+            editingTask.class ||
+            "",
+
+          subject:
+            editingTask.subject ||
+            "",
+
+          activityType:
+            editingTask.activityType ||
+            editingTask.type ||
+            "task",
         };
 
         console.log(
@@ -602,12 +966,8 @@ export default function TutorMyTasks() {
             {
               method: "PATCH",
 
-              headers: {
-                "Content-Type":
-                  "application/json",
-                Accept:
-                  "application/json",
-              },
+              headers:
+                getHeaders(true),
 
               body:
                 JSON.stringify(
@@ -638,6 +998,37 @@ export default function TutorMyTasks() {
           );
         }
 
+        const updatedTask =
+          data?.task ||
+          data?.activity ||
+          data?.result;
+
+        if (
+          updatedTask &&
+          typeof updatedTask ===
+            "object"
+        ) {
+          const normalizedUpdated =
+            normalizeTask(
+              updatedTask
+            );
+
+          setTasks(
+            (current) =>
+              current.map(
+                (existing) =>
+                  String(
+                    existing.id
+                  ) ===
+                  String(
+                    normalizedUpdated.id
+                  )
+                    ? normalizedUpdated
+                    : existing
+              )
+          );
+        }
+
         setEditingTask(
           null
         );
@@ -656,7 +1047,7 @@ export default function TutorMyTasks() {
           "TypeError"
         ) {
           setSaveError(
-            "The browser could not connect to the backend while updating this task. This is usually a backend/CORS connection problem. Check that the server is running and that PATCH requests are allowed."
+            "The browser could not connect to the backend while updating this task. Check that the server is running and that PATCH requests are allowed."
           );
         } else {
           setSaveError(
@@ -688,6 +1079,7 @@ export default function TutorMyTasks() {
       }
 
       setDeleting(true);
+      setError("");
 
       try {
         const url =
@@ -697,16 +1089,19 @@ export default function TutorMyTasks() {
             tutorReference
           )}`;
 
+        console.log(
+          "Deleting tutor task:",
+          url
+        );
+
         const response =
           await fetch(
             url,
             {
               method: "DELETE",
 
-              headers: {
-                Accept:
-                  "application/json",
-              },
+              headers:
+                getHeaders(),
             }
           );
 
@@ -714,6 +1109,15 @@ export default function TutorMyTasks() {
           await readResponse(
             response
           );
+
+        console.log(
+          "Delete task response:",
+          {
+            status:
+              response.status,
+            data,
+          }
+        );
 
         if (!response.ok) {
           throw new Error(
@@ -735,6 +1139,20 @@ export default function TutorMyTasks() {
                 )
             )
         );
+
+        if (
+          selectedTask &&
+          String(
+            selectedTask.id
+          ) ===
+            String(
+              deleteTarget.id
+            )
+        ) {
+          setSelectedTask(
+            null
+          );
+        }
 
         setDeleteTarget(
           null
@@ -772,19 +1190,35 @@ export default function TutorMyTasks() {
   ======================================================= */
 
   const activeCount =
-    tasks.filter(
-      (task) => {
-        const status =
-          getDueStatus(
-            task.dueDate
-          );
+    useMemo(
+      () =>
+        tasks.filter(
+          (task) =>
+            getDueStatus(
+              task.dueDate
+            ).label ===
+            "Active"
+        ).length,
+      [tasks]
+    );
 
-        return (
-          status.label ===
-          "Active"
-        );
-      }
-    ).length;
+  const totalSubmissions =
+    useMemo(
+      () =>
+        tasks.reduce(
+          (
+            total,
+            task
+          ) =>
+            total +
+            Number(
+              task.submissionCount ||
+                0
+            ),
+          0
+        ),
+      [tasks]
+    );
 
   /* =======================================================
      RENDER
@@ -812,8 +1246,9 @@ export default function TutorMyTasks() {
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
               Manage the tasks you have created for your
-              classes. Edit task details, update deadlines,
-              or remove tasks you no longer need.
+              classes. View task details, edit instructions
+              and deadlines, or remove tasks you no longer
+              need.
             </p>
           </div>
 
@@ -847,43 +1282,44 @@ export default function TutorMyTasks() {
 
         {!loading &&
           !error && (
-            <div className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
 
-              <div className="rounded-2xl border border-slate-800 bg-[#071426] p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
-                      Total Tasks
-                    </p>
+              <SummaryCard
+                label="Total Tasks"
+                value={
+                  tasks.length
+                }
+                icon={
+                  <ClipboardList
+                    size={20}
+                  />
+                }
+                iconClass="border-cyan-500/20 bg-cyan-500/10 text-cyan-400"
+              />
 
-                    <p className="mt-1 text-2xl font-bold text-white">
-                      {tasks.length}
-                    </p>
-                  </div>
+              <SummaryCard
+                label="Active Tasks"
+                value={
+                  activeCount
+                }
+                icon={
+                  <CheckCircle2
+                    size={20}
+                  />
+                }
+                iconClass="border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+              />
 
-                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-cyan-400">
-                    <ClipboardList size={20} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-[#071426] p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
-                      Active Tasks
-                    </p>
-
-                    <p className="mt-1 text-2xl font-bold text-white">
-                      {activeCount}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-400">
-                    <CheckCircle2 size={20} />
-                  </div>
-                </div>
-              </div>
+              <SummaryCard
+                label="Submissions"
+                value={
+                  totalSubmissions
+                }
+                icon={
+                  <Users size={20} />
+                }
+                iconClass="border-violet-500/20 bg-violet-500/10 text-violet-400"
+              />
 
             </div>
           )}
@@ -959,7 +1395,9 @@ export default function TutorMyTasks() {
           tasks.length === 0 && (
             <div className="flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-[#071426] px-6 text-center">
               <div className="mb-5 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-cyan-400">
-                <ClipboardList size={30} />
+                <ClipboardList
+                  size={30}
+                />
               </div>
 
               <h2 className="text-xl font-semibold text-white">
@@ -976,10 +1414,14 @@ export default function TutorMyTasks() {
         {/* TASKS */}
 
         {!loading &&
+          !error &&
           tasks.length > 0 && (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               {tasks.map(
-                (task, index) => {
+                (
+                  task,
+                  index
+                ) => {
                   const dueStatus =
                     getDueStatus(
                       task.dueDate
@@ -1016,24 +1458,32 @@ export default function TutorMyTasks() {
 
                             <div className="mb-2 flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-300">
-                                <ClipboardList size={12} />
+                                <ClipboardList
+                                  size={12}
+                                />
                                 Task
                               </span>
 
                               <span
                                 className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-[11px] font-semibold ${dueStatus.className}`}
                               >
-                                {dueStatus.label}
+                                {
+                                  dueStatus.label
+                                }
                               </span>
                             </div>
 
                             <h2 className="truncate text-lg font-bold text-white">
-                              {task.title}
+                              {
+                                task.title
+                              }
                             </h2>
 
                             {task.description && (
                               <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">
-                                {task.description}
+                                {
+                                  task.description
+                                }
                               </p>
                             )}
                           </div>
@@ -1045,7 +1495,9 @@ export default function TutorMyTasks() {
 
                           <div className="rounded-xl border border-slate-800 bg-[#020b18] p-3">
                             <div className="flex items-center gap-2 text-slate-500">
-                              <GraduationCap size={15} />
+                              <GraduationCap
+                                size={15}
+                              />
 
                               <span className="text-[11px] font-semibold uppercase tracking-wider">
                                 Class
@@ -1060,7 +1512,9 @@ export default function TutorMyTasks() {
 
                           <div className="rounded-xl border border-slate-800 bg-[#020b18] p-3">
                             <div className="flex items-center gap-2 text-slate-500">
-                              <BookOpen size={15} />
+                              <BookOpen
+                                size={15}
+                              />
 
                               <span className="text-[11px] font-semibold uppercase tracking-wider">
                                 Subject
@@ -1081,7 +1535,9 @@ export default function TutorMyTasks() {
 
                           <div className="rounded-xl border border-slate-800/80 bg-[#020b18] px-3 py-2.5">
                             <div className="flex items-center gap-2 text-slate-500">
-                              <CalendarDays size={14} />
+                              <CalendarDays
+                                size={14}
+                              />
 
                               <span className="text-[11px]">
                                 Due
@@ -1099,7 +1555,9 @@ export default function TutorMyTasks() {
 
                           <div className="rounded-xl border border-slate-800/80 bg-[#020b18] px-3 py-2.5">
                             <div className="flex items-center gap-2 text-slate-500">
-                              <Clock3 size={14} />
+                              <Clock3
+                                size={14}
+                              />
 
                               <span className="text-[11px]">
                                 Created
@@ -1108,15 +1566,16 @@ export default function TutorMyTasks() {
 
                             <p className="mt-1 truncate text-xs font-medium text-slate-300">
                               {formatDate(
-                                task.createdAt ||
-                                  task.created_at
+                                task.createdAt
                               )}
                             </p>
                           </div>
 
                           <div className="rounded-xl border border-slate-800/80 bg-[#020b18] px-3 py-2.5">
                             <div className="flex items-center gap-2 text-slate-500">
-                              <Paperclip size={14} />
+                              <Paperclip
+                                size={14}
+                              />
 
                               <span className="text-[11px]">
                                 Files
@@ -1124,12 +1583,36 @@ export default function TutorMyTasks() {
                             </div>
 
                             <p className="mt-1 text-xs font-medium text-slate-300">
-                              {task.attachments?.length ||
-                                0}{" "}
+                              {
+                                task
+                                  .attachments
+                                  ?.length
+                              }{" "}
                               attached
                             </p>
                           </div>
 
+                        </div>
+
+                        {/* SUBMISSIONS */}
+
+                        <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-800 bg-[#020b18] px-3 py-2.5">
+                          <div className="flex items-center gap-2 text-slate-500">
+                            <Users
+                              size={14}
+                            />
+
+                            <span className="text-[11px]">
+                              Student submissions
+                            </span>
+                          </div>
+
+                          <span className="text-xs font-bold text-cyan-300">
+                            {
+                              task.submissionCount ||
+                              0
+                            }
+                          </span>
                         </div>
 
                         {/* ACTIONS */}
@@ -1139,13 +1622,15 @@ export default function TutorMyTasks() {
                           <button
                             type="button"
                             onClick={() =>
-                              setSelectedTask(
+                              openView(
                                 task
                               )
                             }
                             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-[#0b1729] px-3.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-500/30 hover:text-cyan-300"
                           >
-                            <Eye size={15} />
+                            <Eye
+                              size={15}
+                            />
                             View
                           </button>
 
@@ -1158,7 +1643,9 @@ export default function TutorMyTasks() {
                             }
                             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3.5 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/15"
                           >
-                            <Edit3 size={15} />
+                            <Edit3
+                              size={15}
+                            />
                             Edit
                           </button>
 
@@ -1171,7 +1658,9 @@ export default function TutorMyTasks() {
                             }
                             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/15"
                           >
-                            <Trash2 size={15} />
+                            <Trash2
+                              size={15}
+                            />
                             Delete
                           </button>
 
@@ -1193,7 +1682,9 @@ export default function TutorMyTasks() {
         {selectedTask && (
           <ModalOverlay
             onClose={() =>
-              setSelectedTask(null)
+              setSelectedTask(
+                null
+              )
             }
           >
             <div className="max-h-[90vh] overflow-y-auto">
@@ -1201,7 +1692,9 @@ export default function TutorMyTasks() {
               <ModalHeader
                 title="Task Details"
                 onClose={() =>
-                  setSelectedTask(null)
+                  setSelectedTask(
+                    null
+                  )
                 }
               />
 
@@ -1213,7 +1706,9 @@ export default function TutorMyTasks() {
                   </p>
 
                   <h2 className="mt-1 text-2xl font-bold text-white">
-                    {selectedTask.title}
+                    {
+                      selectedTask.title
+                    }
                   </h2>
                 </div>
 
@@ -1221,7 +1716,9 @@ export default function TutorMyTasks() {
 
                   <InfoBox
                     icon={
-                      <GraduationCap size={16} />
+                      <GraduationCap
+                        size={16}
+                      />
                     }
                     label="Class"
                     value={
@@ -1232,7 +1729,9 @@ export default function TutorMyTasks() {
 
                   <InfoBox
                     icon={
-                      <BookOpen size={16} />
+                      <BookOpen
+                        size={16}
+                      />
                     }
                     label="Subject"
                     value={
@@ -1243,7 +1742,9 @@ export default function TutorMyTasks() {
 
                   <InfoBox
                     icon={
-                      <CalendarDays size={16} />
+                      <CalendarDays
+                        size={16}
+                      />
                     }
                     label="Due Date"
                     value={
@@ -1257,7 +1758,9 @@ export default function TutorMyTasks() {
 
                   <InfoBox
                     icon={
-                      <ClipboardList size={16} />
+                      <ClipboardList
+                        size={16}
+                      />
                     }
                     label="Maximum Score"
                     value={
@@ -1270,6 +1773,14 @@ export default function TutorMyTasks() {
                         ? "Not set"
                         : `${selectedTask.maxScore} marks`
                     }
+                  />
+
+                  <InfoBox
+                    icon={
+                      <Users size={16} />
+                    }
+                    label="Submissions"
+                    value={`${selectedTask.submissionCount || 0}`}
                   />
 
                 </div>
@@ -1307,22 +1818,47 @@ export default function TutorMyTasks() {
                           <div
                             key={
                               file?.id ||
+                              file?.url ||
                               index
                             }
                             className="flex items-center gap-3 rounded-xl border border-slate-800 bg-[#020b18] p-3"
                           >
                             <div className="rounded-lg bg-cyan-500/10 p-2 text-cyan-400">
-                              <FileText size={16} />
+                              <FileText
+                                size={16}
+                              />
                             </div>
 
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium text-slate-200">
                                 {file?.name ||
                                   file?.fileName ||
                                   file?.file_name ||
                                   "Attached file"}
                               </p>
+
+                              {file?.size && (
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                  {
+                                    file.size
+                                  }{" "}
+                                  bytes
+                                </p>
+                              )}
                             </div>
+
+                            {file?.url && (
+                              <a
+                                href={
+                                  file.url
+                                }
+                                target="_blank"
+                                rel="noreferrer"
+                                className="shrink-0 rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition hover:border-cyan-500/40"
+                              >
+                                Open
+                              </a>
+                            )}
                           </div>
                         )
                       )}
@@ -1344,7 +1880,9 @@ export default function TutorMyTasks() {
                     }
                     className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-500 px-4 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
                   >
-                    <Edit3 size={15} />
+                    <Edit3
+                      size={15}
+                    />
                     Edit Task
                   </button>
                 </div>
@@ -1433,7 +1971,9 @@ export default function TutorMyTasks() {
                       "Not specified"
                     }
                     icon={
-                      <GraduationCap size={15} />
+                      <GraduationCap
+                        size={15}
+                      />
                     }
                   />
 
@@ -1444,7 +1984,9 @@ export default function TutorMyTasks() {
                       "Not specified"
                     }
                     icon={
-                      <BookOpen size={15} />
+                      <BookOpen
+                        size={15}
+                      />
                     }
                   />
 
@@ -1538,6 +2080,32 @@ export default function TutorMyTasks() {
 
                 </div>
 
+                <div className="rounded-xl border border-slate-800 bg-[#020b18] p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-cyan-500/10 p-2 text-cyan-400">
+                      <Paperclip
+                        size={16}
+                      />
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-semibold text-slate-200">
+                        Existing attachments
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {
+                          editingTask
+                            .attachments
+                            ?.length ||
+                          0
+                        }{" "}
+                        file(s) attached to this task
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex flex-col-reverse gap-2 border-t border-slate-800 pt-4 sm:flex-row sm:justify-end">
 
                   <button
@@ -1572,7 +2140,9 @@ export default function TutorMyTasks() {
                       </>
                     ) : (
                       <>
-                        <Save size={16} />
+                        <Save
+                          size={16}
+                        />
                         Save Changes
                       </>
                     )}
@@ -1605,7 +2175,9 @@ export default function TutorMyTasks() {
               <div className="flex items-start gap-4">
 
                 <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-red-400">
-                  <Trash2 size={22} />
+                  <Trash2
+                    size={22}
+                  />
                 </div>
 
                 <div className="min-w-0">
@@ -1616,7 +2188,11 @@ export default function TutorMyTasks() {
                   <p className="mt-2 text-sm leading-6 text-slate-400">
                     You are about to delete{" "}
                     <span className="font-semibold text-slate-200">
-                      "{deleteTarget.title}"
+                      "
+                      {
+                        deleteTarget.title
+                      }
+                      "
                     </span>
                     . This action cannot be undone.
                   </p>
@@ -1661,7 +2237,9 @@ export default function TutorMyTasks() {
                     </>
                   ) : (
                     <>
-                      <Trash2 size={16} />
+                      <Trash2
+                        size={16}
+                      />
                       Delete Task
                     </>
                   )}
@@ -1672,6 +2250,39 @@ export default function TutorMyTasks() {
           </ModalOverlay>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/* =========================================================
+   SUMMARY CARD
+========================================================= */
+
+function SummaryCard({
+  label,
+  value,
+  icon,
+  iconClass,
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-[#071426] p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            {label}
+          </p>
+
+          <p className="mt-1 text-2xl font-bold text-white">
+            {value}
+          </p>
+        </div>
+
+        <div
+          className={`rounded-xl border p-3 ${iconClass}`}
+        >
+          {icon}
+        </div>
+      </div>
     </div>
   );
 }

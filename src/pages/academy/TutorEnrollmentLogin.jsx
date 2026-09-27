@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
@@ -59,6 +58,18 @@ const clean = (value) => {
   return String(value).trim();
 };
 
+const firstValue = (...values) => {
+  for (const value of values) {
+    const cleaned = clean(value);
+
+    if (cleaned) {
+      return cleaned;
+    }
+  }
+
+  return "";
+};
+
 /* =========================================================
    ARRAY HELPER
 ========================================================= */
@@ -99,7 +110,7 @@ const arrayFromValue = (value) => {
 };
 
 /* =========================================================
-   NORMALIZE ASSIGNMENTS
+   NORMALIZE ASSIGNMENT CLASS
 ========================================================= */
 
 const normalizeAssignmentClass = (value) => {
@@ -108,11 +119,19 @@ const normalizeAssignmentClass = (value) => {
     .trim();
 };
 
+/* =========================================================
+   NORMALIZE ASSIGNMENT SUBJECT
+========================================================= */
+
 const normalizeAssignmentSubject = (value) => {
   return clean(value)
     .replace(/\s+/g, " ")
     .trim();
 };
+
+/* =========================================================
+   NORMALIZE ASSIGNMENTS
+========================================================= */
 
 const normalizeAssignments = (value) => {
   const source = arrayFromValue(value);
@@ -173,9 +192,9 @@ const normalizeAssignments = (value) => {
     }
 
     if (typeof item === "string") {
-      const value = item.trim();
+      const valueText = item.trim();
 
-      if (!value) {
+      if (!valueText) {
         return;
       }
 
@@ -187,8 +206,8 @@ const normalizeAssignments = (value) => {
       ];
 
       for (const separator of separators) {
-        if (value.includes(separator)) {
-          const parts = value
+        if (valueText.includes(separator)) {
+          const parts = valueText
             .split(separator)
             .map((part) => part.trim())
             .filter(Boolean);
@@ -227,12 +246,25 @@ const normalizeAssignments = (value) => {
     }
 
     seen.add(key);
+
     return true;
   });
 };
 
 /* =========================================================
-   GET TUTOR REFERENCE
+   GET REAL TUTOR REFERENCE
+=========================================================
+
+   IMPORTANT:
+
+   academy_tutor_applications has:
+
+      id         = BIGINT
+      reference  = SQA-677281-6D34
+
+   The BIGINT id must NEVER be used as the
+   tutor reference.
+
 ========================================================= */
 
 const getTutorReference = (tutor) => {
@@ -240,13 +272,12 @@ const getTutorReference = (tutor) => {
     return "";
   }
 
-  return clean(
-    tutor.reference ??
-      tutor.tutorReference ??
-      tutor.tutor_reference ??
-      tutor.referenceId ??
-      tutor.reference_id ??
-      ""
+  return firstValue(
+    tutor.reference,
+    tutor.tutorReference,
+    tutor.tutor_reference,
+    tutor.referenceId,
+    tutor.reference_id
   );
 };
 
@@ -279,7 +310,8 @@ const getAssignmentsFromResponse = (
   ];
 
   for (const source of possibleSources) {
-    const normalized = normalizeAssignments(source);
+    const normalized =
+      normalizeAssignments(source);
 
     if (normalized.length > 0) {
       return normalized;
@@ -502,8 +534,35 @@ export default function TutorEnrollmentLogin() {
   ======================================================= */
 
   const saveTutorSession = (session) => {
+    const tutorReference =
+      getTutorReference(session);
+
+    if (!tutorReference) {
+      throw new Error(
+        "Cannot save tutor session because the tutor reference is missing."
+      );
+    }
+
+    const normalizedSession = {
+      ...session,
+
+      /*
+        ALWAYS store the actual tutor reference.
+
+        Example:
+
+        SQA-677281-6D34
+      */
+      reference: tutorReference,
+      tutorReference: tutorReference,
+      tutor_reference: tutorReference,
+
+      userType: "tutor",
+      user_type: "tutor",
+    };
+
     const serialized =
-      JSON.stringify(session);
+      JSON.stringify(normalizedSession);
 
     localStorage.setItem(
       ACADEMY_USER_KEY,
@@ -517,29 +576,16 @@ export default function TutorEnrollmentLogin() {
       );
     });
 
-    /*
-      Save the reference separately too.
-      This is useful for pages that only need
-      the tutor reference.
-    */
-    const tutorReference =
-      getTutorReference(session);
+    localStorage.setItem(
+      "tutorReference",
+      tutorReference
+    );
 
-    if (tutorReference) {
-      localStorage.setItem(
-        "tutorReference",
-        tutorReference
-      );
+    localStorage.setItem(
+      "tutor_reference",
+      tutorReference
+    );
 
-      localStorage.setItem(
-        "tutor_reference",
-        tutorReference
-      );
-    }
-
-    /*
-      Save aliases used by older Academy pages.
-    */
     localStorage.setItem(
       "academyTutor",
       serialized
@@ -554,6 +600,8 @@ export default function TutorEnrollmentLogin() {
       "tutorUser",
       serialized
     );
+
+    return normalizedSession;
   };
 
   /* =======================================================
@@ -582,18 +630,15 @@ export default function TutorEnrollmentLogin() {
         controller.abort();
       }, REQUEST_TIMEOUT);
 
-    /*
-      IMPORTANT:
-      Backend expects:
-
-        name
-        reference
-
-      NOT:
-
-        referenceId
-    */
     const fullName = clean(form.name);
+
+    /*
+      THIS IS THE REAL TUTOR REFERENCE.
+
+      Example:
+
+      SQA-677281-6D34
+    */
     const tutorReference =
       clean(form.referenceId);
 
@@ -609,17 +654,12 @@ export default function TutorEnrollmentLogin() {
             Accept: "application/json",
           },
 
-          /*
-            THIS IS THE MAIN FIX.
-
-            Before:
-              referenceId: tutorReference
-
-            Now:
-              reference: tutorReference
-          */
           body: JSON.stringify({
             name: fullName,
+
+            /*
+              Backend expects `reference`.
+            */
             reference: tutorReference,
           }),
 
@@ -647,12 +687,12 @@ export default function TutorEnrollmentLogin() {
           data = {};
         }
       } else {
-        const text =
+        const responseText =
           await response.text();
 
         data = {
           message:
-            text ||
+            responseText ||
             `Server returned HTTP ${response.status}.`,
         };
       }
@@ -696,20 +736,40 @@ export default function TutorEnrollmentLogin() {
       }
 
       /* ===================================================
-         GET REFERENCE
+         GET REAL REFERENCE
       =================================================== */
 
+      /*
+        IMPORTANT:
+
+        The backend/database reference has priority.
+
+        We NEVER use tutorData.id here.
+
+        academy_tutor_applications.id is BIGINT.
+
+        academy_tutor_applications.reference is:
+
+        SQA-677281-6D34
+      */
+
       const returnedTutorReference =
-        getTutorReference(tutorData) ||
-        clean(data?.reference) ||
-        clean(data?.tutorReference) ||
-        clean(data?.tutor_reference) ||
-        clean(data?.data?.reference) ||
-        tutorReference;
+        firstValue(
+          tutorData?.reference,
+          tutorData?.tutorReference,
+          tutorData?.tutor_reference,
+          data?.reference,
+          data?.tutorReference,
+          data?.tutor_reference,
+          data?.data?.reference,
+          data?.data?.tutorReference,
+          data?.data?.tutor_reference,
+          tutorReference
+        );
 
       if (!returnedTutorReference) {
         console.error(
-          "Tutor login succeeded but backend did not return a tutor reference.",
+          "❌ Tutor login succeeded but no tutor reference was returned.",
           {
             response: data,
             tutor: tutorData,
@@ -734,7 +794,7 @@ export default function TutorEnrollmentLogin() {
         );
 
       /* ===================================================
-         BUILD CLASS / SUBJECT ARRAYS
+         BUILD CLASS ARRAY
       =================================================== */
 
       const assignmentClasses =
@@ -744,12 +804,20 @@ export default function TutorEnrollmentLogin() {
           )
         );
 
+      /* ===================================================
+         BUILD SUBJECT ARRAY
+      =================================================== */
+
       const assignmentSubjects =
         uniqueArray(
           assignments.map(
             (item) => item.subject
           )
         );
+
+      /* ===================================================
+         BACKEND CLASSES
+      =================================================== */
 
       const backendClasses =
         uniqueArray(
@@ -759,6 +827,10 @@ export default function TutorEnrollmentLogin() {
             []
         );
 
+      /* ===================================================
+         BACKEND SUBJECTS
+      =================================================== */
+
       const backendSubjects =
         uniqueArray(
           tutorData?.subjects ??
@@ -767,10 +839,18 @@ export default function TutorEnrollmentLogin() {
             []
         );
 
+      /* ===================================================
+         FINAL CLASSES
+      =================================================== */
+
       const classes = uniqueArray([
         ...assignmentClasses,
         ...backendClasses,
       ]);
+
+      /* ===================================================
+         FINAL SUBJECTS
+      =================================================== */
 
       const subjects = uniqueArray([
         ...assignmentSubjects,
@@ -784,6 +864,13 @@ export default function TutorEnrollmentLogin() {
       const tutorSession = {
         ...tutorData,
 
+        /*
+          IMPORTANT:
+
+          Force the correct database reference.
+
+          NEVER overwrite this with `id`.
+        */
         reference:
           returnedTutorReference,
 
@@ -793,6 +880,9 @@ export default function TutorEnrollmentLogin() {
         tutor_reference:
           returnedTutorReference,
 
+        /*
+          Make it explicitly a tutor session.
+        */
         userType: "tutor",
         user_type: "tutor",
 
@@ -822,16 +912,57 @@ export default function TutorEnrollmentLogin() {
       =================================================== */
 
       console.log(
-        "TUTOR LOGIN SUCCESS:",
-        {
-          name: fullName,
-          reference:
-            returnedTutorReference,
-          classes,
-          subjects,
-          assignments,
-          tutorSession,
-        }
+        "================================================="
+      );
+
+      console.log(
+        "✅ TUTOR LOGIN SUCCESS"
+      );
+
+      console.log(
+        "Tutor database ID:",
+        tutorData?.id
+      );
+
+      console.log(
+        "Tutor reference:",
+        returnedTutorReference
+      );
+
+      console.log(
+        "Tutor name:",
+        `${tutorData?.first_name || ""} ${
+          tutorData?.last_name || ""
+        }`.trim()
+      );
+
+      console.log(
+        "Tutor status:",
+        tutorData?.application_status
+      );
+
+      console.log(
+        "Tutor classes:",
+        classes
+      );
+
+      console.log(
+        "Tutor subjects:",
+        subjects
+      );
+
+      console.log(
+        "Tutor assignments:",
+        assignments
+      );
+
+      console.log(
+        "Final tutor session:",
+        tutorSession
+      );
+
+      console.log(
+        "================================================="
       );
 
       /* ===================================================
@@ -849,9 +980,10 @@ export default function TutorEnrollmentLogin() {
          SAVE COMPLETE SESSION
       =================================================== */
 
-      saveTutorSession(
-        tutorSession
-      );
+      const savedTutorSession =
+        saveTutorSession(
+          tutorSession
+        );
 
       /* ===================================================
          VERIFY STORAGE
@@ -877,19 +1009,71 @@ export default function TutorEnrollmentLogin() {
           );
 
         console.log(
-          "SAVED TUTOR SESSION:",
-          parsedSession
+          "================================================="
         );
 
         console.log(
-          "SAVED TUTOR REFERENCE:",
+          "✅ SAVED TUTOR SESSION"
+        );
+
+        console.log(
+          "Database ID:",
+          parsedSession?.id
+        );
+
+        console.log(
+          "Tutor reference:",
           parsedSession?.reference
         );
 
         console.log(
-          "SAVED TUTOR ASSIGNMENTS:",
+          "Tutor reference alias:",
+          parsedSession?.tutorReference
+        );
+
+        console.log(
+          "Tutor type:",
+          parsedSession?.userType
+        );
+
+        console.log(
+          "Assignments:",
           parsedSession?.assignments || []
         );
+
+        console.log(
+          "================================================="
+        );
+
+        /*
+          Safety check.
+
+          If somehow the stored reference is not
+          the actual reference, stop here.
+        */
+
+        if (
+          clean(
+            parsedSession?.reference
+          ) !==
+          returnedTutorReference
+        ) {
+          console.error(
+            "❌ STORED TUTOR REFERENCE MISMATCH",
+            {
+              expected:
+                returnedTutorReference,
+              stored:
+                parsedSession?.reference,
+            }
+          );
+
+          setSubmitError(
+            "Tutor login completed, but the tutor session reference was stored incorrectly. Please log in again."
+          );
+
+          return;
+        }
       } catch (
         storageError
       ) {
@@ -903,7 +1087,10 @@ export default function TutorEnrollmentLogin() {
          SUCCESS
       =================================================== */
 
-      setTutor(tutorSession);
+      setTutor(
+        savedTutorSession
+      );
+
       setSuccess(true);
 
       /* ===================================================
@@ -915,10 +1102,14 @@ export default function TutorEnrollmentLogin() {
           "/academy/tutor",
           {
             replace: true,
+
             state: {
-              tutor: tutorSession,
+              tutor:
+                savedTutorSession,
+
               reference:
                 returnedTutorReference,
+
               assignments,
             },
           }
@@ -926,7 +1117,7 @@ export default function TutorEnrollmentLogin() {
       }, 1200);
     } catch (error) {
       console.error(
-        "TUTOR LOGIN ERROR:",
+        "❌ TUTOR LOGIN ERROR:",
         error
       );
 
@@ -969,7 +1160,8 @@ export default function TutorEnrollmentLogin() {
       }
 
       setSubmitError(
-        "Unable to connect to the Academy server. Please try again."
+        errorMessage ||
+          "Unable to connect to the Academy server. Please try again."
       );
     } finally {
       window.clearTimeout(
@@ -1812,4 +2004,3 @@ export default function TutorEnrollmentLogin() {
     </div>
   );
 }
-

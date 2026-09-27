@@ -55,6 +55,7 @@ import StudentLessons from "./pages/academy/StudentLessons";
 import StudentTextbooks from "./pages/academy/StudentTextbooks";
 import StudentTasks from "./pages/academy/StudentTasks";
 import StudentAssignments from "./pages/academy/StudentAssignments";
+import StudentAssignmentDetails from "./pages/academy/StudentAssignmentDetails";
 import StudentCBT from "./pages/academy/StudentCBT";
 import StudentLiveClasses from "./pages/academy/StudentLiveClasses";
 import StudentMessages from "./pages/academy/StudentMessages";
@@ -72,7 +73,10 @@ import TutorTaskSubmissions from "./pages/tutor/TutorTaskSubmissions";
 
 import TutorCreateAssignment from "./pages/tutor/TutorCreateAssignment";
 import TutorAssignments from "./pages/tutor/TutorAssignments";
+import TutorAssignmentSubmissionGrade from "./pages/tutor/TutorAssignmentSubmissionGrade";
+
 import TutorAssignmentSubmissions from "./pages/tutor/TutorAssignmentSubmissions";
+import TutorAssignmentDetails from "./pages/tutor/TutorAssignmentDetails";
 import TutorAttendance from "./pages/tutor/TutorAttendance";
 import TutorLiveClasses from "./pages/tutor/TutorLiveClasses";
 import TutorLiveClassroom from "./pages/tutor/TutorLiveClassroom";
@@ -877,6 +881,32 @@ const AnimatedRoutes = () => {
               <StudentAssignments />
             }
           />
+<Route
+  path="/academy/tutor/assignments/:id/submissions/:submissionId"
+  element={
+    <AcademyProtectedRoute>
+      <PageWrapper>
+        <TutorAssignmentSubmissionGrade />
+      </PageWrapper>
+    </AcademyProtectedRoute>
+  }
+/>
+
+<Route
+  path="/academy/tutor/assignments/:id"
+  element={
+    <AcademyProtectedRoute>
+      <PageWrapper>
+        <TutorAssignmentDetails />
+      </PageWrapper>
+    </AcademyProtectedRoute>
+  }
+/>
+
+<Route
+  path="assignments/:id"
+  element={<StudentAssignmentDetails />}
+/>
 
           {/* ===================================================
               STUDENT CBT

@@ -48,7 +48,10 @@ const SUBMISSIONS_URL =
 ========================================================= */
 
 function clean(value) {
-  if (value === undefined || value === null) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
     return "";
   }
 
@@ -70,33 +73,240 @@ function firstValue(...values) {
 }
 
 /* =========================================================
-   TUTOR STORAGE
+   SAFE JSON
 ========================================================= */
 
-function getStoredTutor() {
-  if (typeof window === "undefined") {
+function safeParse(value) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+/* =========================================================
+   ACADEMY AUTH
+========================================================= */
+
+/*
+  IMPORTANT
+
+  The academy tutor login uses:
+
+    scholiqen_academy_token
+    scholiqen_academy_user
+
+  We use those as the PRIMARY authentication source.
+
+  Older tutorReference/tutor/academyTutor storage is only
+  used as a fallback.
+*/
+
+function getAcademyUser() {
+  if (
+    typeof window === "undefined"
+  ) {
     return null;
   }
 
   const keys = [
     "scholiqen_academy_user",
-    "tutorReference",
-    "tutor_reference",
-    "tutor",
     "academyTutor",
+    "tutor",
+    "scholiqen_user",
   ];
 
   for (const key of keys) {
     try {
-      const raw = localStorage.getItem(key);
+      const raw =
+        localStorage.getItem(key);
 
-      if (!raw) continue;
+      if (!raw) {
+        continue;
+      }
 
-      try {
-        return JSON.parse(raw);
-      } catch {
+      const parsed =
+        safeParse(raw);
+
+      if (
+        parsed &&
+        typeof parsed === "object"
+      ) {
+        return parsed;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/*
+  Get every useful tutor identifier from the authenticated
+  tutor session.
+
+  We DO NOT assume that the identifier must begin with SQA-.
+
+  Your current academy authentication can contain a UUID
+  reference, while older tutor application records can use
+  an SQA reference.
+*/
+
+function getTutorIdentifiers(tutor) {
+  if (!tutor) {
+    return {
+      reference: "",
+      tutorReference: "",
+      tutorId: "",
+      applicationReference: "",
+      id: "",
+    };
+  }
+
+  const reference = clean(
+    firstValue(
+      tutor?.reference,
+      tutor?.tutorReference,
+      tutor?.tutor_reference,
+      tutor?.applicationReference,
+      tutor?.application_reference,
+      tutor?.referenceId,
+      tutor?.reference_id
+    )
+  );
+
+  const tutorReference = clean(
+    firstValue(
+      tutor?.tutorReference,
+      tutor?.tutor_reference,
+      tutor?.reference,
+      tutor?.applicationReference,
+      tutor?.application_reference
+    )
+  );
+
+  const applicationReference =
+    clean(
+      firstValue(
+        tutor?.applicationReference,
+        tutor?.application_reference,
+        tutor?.reference
+      )
+    );
+
+  const tutorId = clean(
+    firstValue(
+      tutor?.tutorId,
+      tutor?.tutor_id,
+      tutor?.id,
+      tutor?.userId,
+      tutor?.user_id
+    )
+  );
+
+  const id = clean(
+    firstValue(
+      tutor?.id,
+      tutor?.userId,
+      tutor?.user_id,
+      tutor?.tutorId,
+      tutor?.tutor_id
+    )
+  );
+
+  return {
+    reference,
+    tutorReference,
+    tutorId,
+    applicationReference,
+    id,
+  };
+}
+
+/*
+  Get the best available reference.
+
+  Priority is the actual `reference` stored in the academy
+  user object.
+
+  If it is absent, we fall back through the known fields.
+*/
+
+function getTutorReference(tutor) {
+  const identifiers =
+    getTutorIdentifiers(tutor);
+
+  return clean(
+    firstValue(
+      identifiers.reference,
+      identifiers.tutorReference,
+      identifiers.applicationReference,
+      identifiers.tutorId,
+      identifiers.id
+    )
+  );
+}
+
+/*
+  Older code may have stored a plain tutor reference instead
+  of an object.
+*/
+
+function getStoredTutor() {
+  if (
+    typeof window === "undefined"
+  ) {
+    return null;
+  }
+
+  /*
+    ALWAYS prefer the current academy user.
+  */
+  const academyUser =
+    getAcademyUser();
+
+  if (academyUser) {
+    return academyUser;
+  }
+
+  /*
+    Fallback for older sessions.
+  */
+  const fallbackKeys = [
+    "tutorReference",
+    "tutor_reference",
+  ];
+
+  for (const key of fallbackKeys) {
+    try {
+      const raw =
+        localStorage.getItem(key);
+
+      if (!raw) {
+        continue;
+      }
+
+      const parsed =
+        safeParse(raw);
+
+      if (
+        parsed &&
+        typeof parsed === "object"
+      ) {
+        return parsed;
+      }
+
+      const value =
+        clean(raw);
+
+      if (value) {
         return {
-          reference: raw,
+          reference: value,
         };
       }
     } catch {
@@ -107,28 +317,20 @@ function getStoredTutor() {
   return null;
 }
 
-function getTutorReference(tutor) {
-  return clean(
-    firstValue(
-      tutor?.reference,
-      tutor?.tutor_reference,
-      tutor?.tutorReference,
-      tutor?.reference_id,
-      tutor?.referenceId,
-      tutor?.applicationReference,
-      tutor?.application_reference,
-      tutor?.id
-    )
-  );
-}
-
 function getTutorName(tutor) {
+  if (!tutor) {
+    return "";
+  }
+
   const direct = clean(
     firstValue(
       tutor?.name,
       tutor?.full_name,
       tutor?.fullName,
-      tutor?.tutorName
+      tutor?.tutorName,
+      tutor?.tutor_name,
+      tutor?.displayName,
+      tutor?.display_name
     )
   );
 
@@ -137,9 +339,12 @@ function getTutorName(tutor) {
   }
 
   return [
-    tutor?.first_name || tutor?.firstName,
-    tutor?.middle_name || tutor?.middleName,
-    tutor?.last_name || tutor?.lastName,
+    tutor?.first_name ||
+      tutor?.firstName,
+    tutor?.middle_name ||
+      tutor?.middleName,
+    tutor?.last_name ||
+      tutor?.lastName,
   ]
     .map(clean)
     .filter(Boolean)
@@ -147,10 +352,15 @@ function getTutorName(tutor) {
 }
 
 function getAcademyToken() {
-  if (typeof window === "undefined") {
+  if (
+    typeof window === "undefined"
+  ) {
     return "";
   }
 
+  /*
+    The first key is the real academy auth token.
+  */
   const keys = [
     "scholiqen_academy_token",
     "academy_token",
@@ -160,9 +370,13 @@ function getAcademyToken() {
   ];
 
   for (const key of keys) {
-    const value = localStorage.getItem(key);
+    const value =
+      localStorage.getItem(key);
 
-    if (value && value.trim()) {
+    if (
+      value &&
+      value.trim()
+    ) {
       return value.trim();
     }
   }
@@ -170,20 +384,65 @@ function getAcademyToken() {
   return "";
 }
 
-function getAuthHeaders(tutorReference = "") {
-  const token = getAcademyToken();
+/* =========================================================
+   AUTH HEADERS
+========================================================= */
+
+function getAuthHeaders(
+  tutorReference = "",
+  tutor = null
+) {
+  const token =
+    getAcademyToken();
+
+  const identifiers =
+    getTutorIdentifiers(tutor);
 
   const headers = {
     Accept: "application/json",
   };
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    headers.Authorization =
+      `Bearer ${token}`;
   }
 
-  if (tutorReference) {
+  /*
+    Send all known identifiers.
+
+    This keeps the frontend compatible with the backend whether
+    it resolves the tutor using reference, tutorReference,
+    applicationReference, or tutorId.
+  */
+
+  const finalReference =
+    clean(
+      firstValue(
+        tutorReference,
+        identifiers.reference,
+        identifiers.tutorReference
+      )
+    );
+
+  if (finalReference) {
     headers["x-tutor-reference"] =
-      tutorReference;
+      finalReference;
+  }
+
+  if (
+    identifiers.tutorId
+  ) {
+    headers["x-tutor-id"] =
+      identifiers.tutorId;
+  }
+
+  if (
+    identifiers.applicationReference
+  ) {
+    headers[
+      "x-application-reference"
+    ] =
+      identifiers.applicationReference;
   }
 
   return headers;
@@ -193,20 +452,29 @@ function getAuthHeaders(tutorReference = "") {
    RESPONSE
 ========================================================= */
 
-async function readResponse(response) {
+async function readResponse(
+  response
+) {
   const contentType =
-    response.headers.get("content-type") || "";
+    response.headers.get(
+      "content-type"
+    ) || "";
 
   if (
-    contentType.includes("application/json")
+    contentType.includes(
+      "application/json"
+    )
   ) {
     return response.json();
   }
 
-  const text = await response.text();
+  const text =
+    await response.text();
 
   try {
-    return text ? JSON.parse(text) : {};
+    return text
+      ? JSON.parse(text)
+      : {};
   } catch {
     return {
       message: text,
@@ -242,7 +510,9 @@ function getFileUrl(value) {
     return "";
   }
 
-  if (/^https?:\/\//i.test(url)) {
+  if (
+    /^https?:\/\//i.test(url)
+  ) {
     return url;
   }
 
@@ -253,8 +523,13 @@ function getFileUrl(value) {
   return `${API_BASE_URL}/${url}`;
 }
 
-function getAttachmentName(file, index = 0) {
-  if (typeof file === "string") {
+function getAttachmentName(
+  file,
+  index = 0
+) {
+  if (
+    typeof file === "string"
+  ) {
     return (
       file
         .split("/")
@@ -292,23 +567,33 @@ function parseAttachments(value) {
     return value.filter(Boolean);
   }
 
-  if (typeof value === "object") {
+  if (
+    typeof value === "object"
+  ) {
     return Object.values(value);
   }
 
-  if (typeof value === "string") {
+  if (
+    typeof value === "string"
+  ) {
     try {
-      const parsed = JSON.parse(value);
+      const parsed =
+        JSON.parse(value);
 
-      if (Array.isArray(parsed)) {
+      if (
+        Array.isArray(parsed)
+      ) {
         return parsed;
       }
 
       if (
         parsed &&
-        typeof parsed === "object"
+        typeof parsed ===
+          "object"
       ) {
-        return Object.values(parsed);
+        return Object.values(
+          parsed
+        );
       }
     } catch {
       return [];
@@ -330,10 +615,13 @@ function getAttachmentType(file) {
   ).toLowerCase();
 
   const name =
-    getAttachmentName(file).toLowerCase();
+    getAttachmentName(file)
+      .toLowerCase();
 
   if (
-    type.startsWith("image/") ||
+    type.startsWith(
+      "image/"
+    ) ||
     /\.(jpg|jpeg|png|webp|gif|svg|avif)$/i.test(
       name
     )
@@ -342,8 +630,12 @@ function getAttachmentType(file) {
   }
 
   if (
-    type.startsWith("video/") ||
-    /\.(mp4|webm|mov)$/i.test(name)
+    type.startsWith(
+      "video/"
+    ) ||
+    /\.(mp4|webm|mov)$/i.test(
+      name
+    )
   ) {
     return "video";
   }
@@ -357,8 +649,12 @@ function getAttachmentType(file) {
 
   if (
     type.includes("word") ||
-    type.includes("officedocument") ||
-    /\.(doc|docx)$/i.test(name)
+    type.includes(
+      "officedocument"
+    ) ||
+    /\.(doc|docx)$/i.test(
+      name
+    )
   ) {
     return "document";
   }
@@ -375,9 +671,14 @@ function parseDate(value) {
     return null;
   }
 
-  const date = new Date(value);
+  const date =
+    new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return null;
   }
 
@@ -385,78 +686,75 @@ function parseDate(value) {
 }
 
 function formatDate(value) {
-  const date = parseDate(value);
+  const date =
+    parseDate(value);
 
   if (!date) {
     return "—";
   }
 
-  return date.toLocaleDateString("en-NG", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return date.toLocaleDateString(
+    "en-NG",
+    {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }
+  );
 }
 
 function formatDateTime(value) {
-  const date = parseDate(value);
+  const date =
+    parseDate(value);
 
   if (!date) {
     return "—";
   }
 
-  return date.toLocaleString("en-NG", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return date.toLocaleString(
+    "en-NG",
+    {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }
+  );
 }
 
 function isLateSubmission(
   submittedAt,
   dueAt
 ) {
-  const submitted = parseDate(
-    submittedAt
-  );
+  const submitted =
+    parseDate(
+      submittedAt
+    );
 
-  const due = parseDate(dueAt);
+  const due =
+    parseDate(dueAt);
 
-  if (!submitted || !due) {
+  if (
+    !submitted ||
+    !due
+  ) {
     return false;
   }
 
-  return submitted.getTime() > due.getTime();
-}
-
-function isDueOverdueWithoutSubmission(
-  submittedAt,
-  dueAt
-) {
-  const submitted = parseDate(
-    submittedAt
+  return (
+    submitted.getTime() >
+    due.getTime()
   );
-
-  const due = parseDate(dueAt);
-
-  if (!due) {
-    return false;
-  }
-
-  if (submitted) {
-    return submitted.getTime() > due.getTime();
-  }
-
-  return false;
 }
 
 /* =========================================================
-   STATUS HELPERS
+   STATUS
 ========================================================= */
 
-function getRawStatus(submission) {
+function getRawStatus(
+  submission
+) {
   return clean(
     firstValue(
       submission?.status,
@@ -466,10 +764,13 @@ function getRawStatus(submission) {
   ).toLowerCase();
 }
 
-function isGraded(submission) {
-  const status = getRawStatus(
-    submission
-  );
+function isGraded(
+  submission
+) {
+  const status =
+    getRawStatus(
+      submission
+    );
 
   return (
     status === "reviewed" ||
@@ -478,30 +779,50 @@ function isGraded(submission) {
   );
 }
 
-function getStatusLabel(submission) {
-  if (isGraded(submission)) {
+function getStatusLabel(
+  submission
+) {
+  if (
+    isGraded(
+      submission
+    )
+  ) {
     return "Graded";
   }
 
   const status =
-    getRawStatus(submission);
+    getRawStatus(
+      submission
+    );
 
-  if (status === "returned") {
+  if (
+    status === "returned"
+  ) {
     return "Returned";
   }
 
   return "Awaiting review";
 }
 
-function getStatusClass(submission) {
-  if (isGraded(submission)) {
+function getStatusClass(
+  submission
+) {
+  if (
+    isGraded(
+      submission
+    )
+  ) {
     return "border-emerald-400/20 bg-emerald-400/10 text-emerald-300";
   }
 
   const status =
-    getRawStatus(submission);
+    getRawStatus(
+      submission
+    );
 
-  if (status === "returned") {
+  if (
+    status === "returned"
+  ) {
     return "border-amber-400/20 bg-amber-400/10 text-amber-300";
   }
 
@@ -513,7 +834,11 @@ function getStatusClass(submission) {
 ========================================================= */
 
 function normalizeTask(task) {
-  if (!task || typeof task !== "object") {
+  if (
+    !task ||
+    typeof task !==
+      "object"
+  ) {
     return null;
   }
 
@@ -603,15 +928,16 @@ function normalizeTask(task) {
         )
       ) || 100,
 
-    attachments: parseAttachments(
-      firstValue(
-        task?.attachments,
-        task?.task_attachments,
-        task?.taskAttachments,
-        task?.task_files,
-        task?.taskFiles
-      )
-    ),
+    attachments:
+      parseAttachments(
+        firstValue(
+          task?.attachments,
+          task?.task_attachments,
+          task?.taskAttachments,
+          task?.task_files,
+          task?.taskFiles
+        )
+      ),
   };
 }
 
@@ -624,7 +950,8 @@ function normalizeSubmission(
 ) {
   if (
     !submission ||
-    typeof submission !== "object"
+    typeof submission !==
+      "object"
   ) {
     return null;
   }
@@ -635,9 +962,10 @@ function normalizeSubmission(
     submission?.activity ||
     null;
 
-  const task = normalizeTask(
-    nestedTask
-  );
+  const task =
+    normalizeTask(
+      nestedTask
+    );
 
   const normalized = {
     ...submission,
@@ -648,11 +976,12 @@ function normalizeSubmission(
       submission?.submissionId
     ),
 
-    submissionId: firstValue(
-      submission?.submissionId,
-      submission?.submission_id,
-      submission?.id
-    ),
+    submissionId:
+      firstValue(
+        submission?.submissionId,
+        submission?.submission_id,
+        submission?.id
+      ),
 
     taskId: firstValue(
       submission?.taskId,
@@ -666,10 +995,11 @@ function normalizeSubmission(
       task?.id
     ),
 
-    studentId: firstValue(
-      submission?.studentId,
-      submission?.student_id
-    ),
+    studentId:
+      firstValue(
+        submission?.studentId,
+        submission?.student_id
+      ),
 
     studentName:
       clean(
@@ -681,13 +1011,14 @@ function normalizeSubmission(
         )
       ) || "Student",
 
-    studentEmail: clean(
-      firstValue(
-        submission?.studentEmail,
-        submission?.student_email,
-        submission?.email
-      )
-    ),
+    studentEmail:
+      clean(
+        firstValue(
+          submission?.studentEmail,
+          submission?.student_email,
+          submission?.email
+        )
+      ),
 
     taskTitle:
       clean(
@@ -701,23 +1032,25 @@ function normalizeSubmission(
         )
       ) || "Task",
 
-    taskDescription: clean(
-      firstValue(
-        submission?.taskDescription,
-        submission?.task_description,
-        submission?.description,
-        task?.description
-      )
-    ),
+    taskDescription:
+      clean(
+        firstValue(
+          submission?.taskDescription,
+          submission?.task_description,
+          submission?.description,
+          task?.description
+        )
+      ),
 
-    taskInstructions: clean(
-      firstValue(
-        submission?.taskInstructions,
-        submission?.task_instructions,
-        submission?.instructions,
-        task?.instructions
-      )
-    ),
+    taskInstructions:
+      clean(
+        firstValue(
+          submission?.taskInstructions,
+          submission?.task_instructions,
+          submission?.instructions,
+          task?.instructions
+        )
+      ),
 
     subject:
       clean(
@@ -769,36 +1102,39 @@ function normalizeSubmission(
         )
       ) || 100,
 
-    responseText: clean(
-      firstValue(
-        submission?.responseText,
-        submission?.response_text,
-        submission?.answer,
-        submission?.answer_text,
-        submission?.studentResponse,
-        submission?.student_response
-      )
-    ),
+    responseText:
+      clean(
+        firstValue(
+          submission?.responseText,
+          submission?.response_text,
+          submission?.answer,
+          submission?.answer_text,
+          submission?.studentResponse,
+          submission?.student_response
+        )
+      ),
 
-    attachments: parseAttachments(
-      firstValue(
-        submission?.attachments,
-        submission?.submissionAttachments,
-        submission?.submission_attachments,
-        submission?.studentAttachments,
-        submission?.student_attachments
-      )
-    ),
+    attachments:
+      parseAttachments(
+        firstValue(
+          submission?.attachments,
+          submission?.submissionAttachments,
+          submission?.submission_attachments,
+          submission?.studentAttachments,
+          submission?.student_attachments
+        )
+      ),
 
-    taskAttachments: parseAttachments(
-      firstValue(
-        submission?.taskAttachments,
-        submission?.task_attachments,
-        submission?.taskFiles,
-        submission?.task_files,
-        task?.attachments
-      )
-    ),
+    taskAttachments:
+      parseAttachments(
+        firstValue(
+          submission?.taskAttachments,
+          submission?.task_attachments,
+          submission?.taskFiles,
+          submission?.task_files,
+          task?.attachments
+        )
+      ),
 
     status:
       clean(
@@ -810,41 +1146,50 @@ function normalizeSubmission(
       ) || "submitted",
 
     score:
-      submission?.score !== null &&
-      submission?.score !== undefined &&
-      submission?.score !== ""
-        ? Number(submission.score)
+      submission?.score !==
+        null &&
+      submission?.score !==
+        undefined &&
+      submission?.score !==
+        ""
+        ? Number(
+            submission.score
+          )
         : null,
 
-    feedback: clean(
+    feedback:
+      clean(
+        firstValue(
+          submission?.feedback,
+          submission?.tutorFeedback,
+          submission?.tutor_feedback,
+          submission?.review_feedback
+        )
+      ),
+
+    submittedAt:
       firstValue(
-        submission?.feedback,
-        submission?.tutorFeedback,
-        submission?.tutor_feedback,
-        submission?.review_feedback
-      )
-    ),
+        submission?.submittedAt,
+        submission?.submitted_at,
+        submission?.submissionDate,
+        submission?.submission_date,
+        submission?.createdAt,
+        submission?.created_at
+      ),
 
-    submittedAt: firstValue(
-      submission?.submittedAt,
-      submission?.submitted_at,
-      submission?.submissionDate,
-      submission?.submission_date,
-      submission?.createdAt,
-      submission?.created_at
-    ),
-
-    reviewedAt: firstValue(
-      submission?.reviewedAt,
-      submission?.reviewed_at
-    ),
-
-    reviewedBy: clean(
+    reviewedAt:
       firstValue(
-        submission?.reviewedBy,
-        submission?.reviewed_by
-      )
-    ),
+        submission?.reviewedAt,
+        submission?.reviewed_at
+      ),
+
+    reviewedBy:
+      clean(
+        firstValue(
+          submission?.reviewedBy,
+          submission?.reviewed_by
+        )
+      ),
 
     explicitOverdue:
       submission?.overdue ??
@@ -887,8 +1232,10 @@ export default function TutorTaskSubmissions() {
   const [loading, setLoading] =
     useState(true);
 
-  const [refreshing, setRefreshing] =
-    useState(false);
+  const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
 
   const [error, setError] =
     useState("");
@@ -917,8 +1264,10 @@ export default function TutorTaskSubmissions() {
   const [reviewing, setReviewing] =
     useState(false);
 
-  const [reviewError, setReviewError] =
-    useState("");
+  const [
+    reviewError,
+    setReviewError,
+  ] = useState("");
 
   const [
     reviewSuccess,
@@ -933,6 +1282,11 @@ export default function TutorTaskSubmissions() {
     const storedTutor =
       getStoredTutor();
 
+    console.log(
+      "👨‍🏫 Academy tutor session:",
+      storedTutor
+    );
+
     if (!storedTutor) {
       setError(
         "Tutor information was not found. Please log in again."
@@ -942,7 +1296,50 @@ export default function TutorTaskSubmissions() {
       return;
     }
 
-    setTutor(storedTutor);
+    const identifiers =
+      getTutorIdentifiers(
+        storedTutor
+      );
+
+    const reference =
+      getTutorReference(
+        storedTutor
+      );
+
+    console.log(
+      "👨‍🏫 Tutor identifiers:",
+      {
+        ...identifiers,
+        resolvedReference:
+          reference,
+      }
+    );
+
+    if (!reference) {
+      setError(
+        "Your tutor reference could not be found. Please log out and log in again."
+      );
+
+      setLoading(false);
+      return;
+    }
+
+    /*
+      Normalize the tutor object but preserve every field
+      returned by the login system.
+    */
+    setTutor({
+      ...storedTutor,
+
+      reference,
+
+      tutorReference:
+        firstValue(
+          storedTutor?.tutorReference,
+          storedTutor?.tutor_reference,
+          reference
+        ),
+    });
   }, []);
 
   /* =======================================================
@@ -951,7 +1348,9 @@ export default function TutorTaskSubmissions() {
 
   const fetchSubmissions =
     useCallback(
-      async (showLoader = true) => {
+      async (
+        showLoader = true
+      ) => {
         try {
           if (showLoader) {
             setLoading(true);
@@ -961,8 +1360,31 @@ export default function TutorTaskSubmissions() {
 
           setError("");
 
+          /*
+            Re-read the current academy session each time.
+
+            This prevents stale React state from causing the
+            wrong tutor reference to be sent.
+          */
+          const currentTutor =
+            getStoredTutor() ||
+            tutor;
+
+          if (!currentTutor) {
+            throw new Error(
+              "Tutor information was not found. Please log in again."
+            );
+          }
+
+          const identifiers =
+            getTutorIdentifiers(
+              currentTutor
+            );
+
           const tutorReference =
-            getTutorReference(tutor);
+            getTutorReference(
+              currentTutor
+            );
 
           if (!tutorReference) {
             throw new Error(
@@ -970,10 +1392,27 @@ export default function TutorTaskSubmissions() {
             );
           }
 
-          const url = new URL(
-            SUBMISSIONS_URL
+          console.log(
+            "👨‍🏫 Loading submissions",
+            {
+              tutorReference,
+              tutorId:
+                identifiers.tutorId,
+              applicationReference:
+                identifiers.applicationReference,
+              reference:
+                identifiers.reference,
+            }
           );
 
+          const url =
+            new URL(
+              SUBMISSIONS_URL
+            );
+
+          /*
+            Send the resolved reference.
+          */
           url.searchParams.set(
             "tutorReference",
             tutorReference
@@ -989,15 +1428,54 @@ export default function TutorTaskSubmissions() {
             tutorReference
           );
 
+          /*
+            If the authenticated tutor has a separate ID,
+            send that too.
+
+            This is important because the backend may identify
+            the tutor by database ID instead of application
+            reference.
+          */
+          if (
+            identifiers.tutorId
+          ) {
+            url.searchParams.set(
+              "tutorId",
+              identifiers.tutorId
+            );
+
+            url.searchParams.set(
+              "tutor_id",
+              identifiers.tutorId
+            );
+          }
+
+          if (
+            identifiers.applicationReference
+          ) {
+            url.searchParams.set(
+              "applicationReference",
+              identifiers.applicationReference
+            );
+
+            url.searchParams.set(
+              "application_reference",
+              identifiers.applicationReference
+            );
+          }
+
           const response =
             await fetch(
               url.toString(),
               {
                 method: "GET",
+
                 headers:
                   getAuthHeaders(
-                    tutorReference
+                    tutorReference,
+                    currentTutor
                   ),
+
                 credentials:
                   "include",
               }
@@ -1008,6 +1486,17 @@ export default function TutorTaskSubmissions() {
               response
             );
 
+          console.log(
+            "📥 Task submissions response:",
+            {
+              status:
+                response.status,
+              ok:
+                response.ok,
+              data,
+            }
+          );
+
           if (!response.ok) {
             throw new Error(
               data?.message ||
@@ -1016,15 +1505,14 @@ export default function TutorTaskSubmissions() {
             );
           }
 
-          const rows = Array.isArray(
-            data
-          )
-            ? data
-            : data?.submissions ||
-              data?.rows ||
-              data?.data ||
-              data?.results ||
-              [];
+          const rows =
+            Array.isArray(data)
+              ? data
+              : data?.submissions ||
+                data?.rows ||
+                data?.data ||
+                data?.results ||
+                [];
 
           const normalizedRows =
             rows
@@ -1044,7 +1532,7 @@ export default function TutorTaskSubmissions() {
           );
         } catch (err) {
           console.error(
-            "Tutor task submissions error:",
+            "❌ Tutor task submissions error:",
             err
           );
 
@@ -1089,11 +1577,13 @@ export default function TutorTaskSubmissions() {
 
     const overdue =
       submissions.filter(
-        (item) => item.isLate
+        (item) =>
+          item.isLate
       ).length;
 
     return {
-      total: submissions.length,
+      total:
+        submissions.length,
       awaiting,
       graded,
       overdue,
@@ -1107,29 +1597,34 @@ export default function TutorTaskSubmissions() {
   const filteredSubmissions =
     useMemo(() => {
       const query =
-        clean(search).toLowerCase();
+        clean(search)
+          .toLowerCase();
 
       return submissions.filter(
         (submission) => {
           if (
             statusFilter ===
-            "awaiting" &&
-            isGraded(submission)
+              "awaiting" &&
+            isGraded(
+              submission
+            )
           ) {
             return false;
           }
 
           if (
             statusFilter ===
-            "graded" &&
-            !isGraded(submission)
+              "graded" &&
+            !isGraded(
+              submission
+            )
           ) {
             return false;
           }
 
           if (
             statusFilter ===
-            "overdue" &&
+              "overdue" &&
             !submission.isLate
           ) {
             return false;
@@ -1192,7 +1687,8 @@ export default function TutorTaskSubmissions() {
     );
 
     setReviewFeedback(
-      normalized?.feedback || ""
+      normalized?.feedback ||
+        ""
     );
 
     setReviewError("");
@@ -1220,15 +1716,28 @@ export default function TutorTaskSubmissions() {
 
   const reviewSubmission =
     async () => {
-      if (!selectedSubmission) {
+      if (
+        !selectedSubmission
+      ) {
         return;
       }
 
       setReviewError("");
       setReviewSuccess("");
 
+      const currentTutor =
+        getStoredTutor() ||
+        tutor;
+
+      const identifiers =
+        getTutorIdentifiers(
+          currentTutor
+        );
+
       const tutorReference =
-        getTutorReference(tutor);
+        getTutorReference(
+          currentTutor
+        );
 
       if (!tutorReference) {
         setReviewError(
@@ -1252,7 +1761,9 @@ export default function TutorTaskSubmissions() {
       const score =
         Number(rawScore);
 
-      if (!Number.isFinite(score)) {
+      if (
+        !Number.isFinite(score)
+      ) {
         setReviewError(
           "Score must be a valid number."
         );
@@ -1274,7 +1785,9 @@ export default function TutorTaskSubmissions() {
         return;
       }
 
-      if (score > maxScore) {
+      if (
+        score > maxScore
+      ) {
         setReviewError(
           `Score cannot be greater than ${maxScore}.`
         );
@@ -1307,8 +1820,10 @@ export default function TutorTaskSubmissions() {
 
               headers: {
                 ...getAuthHeaders(
-                  tutorReference
+                  tutorReference,
+                  currentTutor
                 ),
+
                 "Content-Type":
                   "application/json",
               },
@@ -1333,6 +1848,22 @@ export default function TutorTaskSubmissions() {
 
                 reference:
                   tutorReference,
+
+                tutorId:
+                  identifiers.tutorId ||
+                  undefined,
+
+                tutor_id:
+                  identifiers.tutorId ||
+                  undefined,
+
+                applicationReference:
+                  identifiers.applicationReference ||
+                  undefined,
+
+                application_reference:
+                  identifiers.applicationReference ||
+                  undefined,
               }),
             }
           );
@@ -1378,7 +1909,9 @@ export default function TutorTaskSubmissions() {
                   item.submissionId;
 
                 if (
-                  String(itemId) !==
+                  String(
+                    itemId
+                  ) !==
                   String(
                     submissionId
                   )
@@ -1483,14 +2016,10 @@ export default function TutorTaskSubmissions() {
     <div className="min-h-screen bg-[#020617] text-slate-100">
       <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
 
-        {/* HEADER */}
-
         <div className="mb-7 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2 text-cyan-400">
-              <ClipboardList
-                size={19}
-              />
+              <ClipboardList size={19} />
 
               <span className="text-xs font-semibold uppercase tracking-[0.2em]">
                 Academy
@@ -1529,15 +2058,11 @@ export default function TutorTaskSubmissions() {
           </button>
         </div>
 
-        {/* TUTOR */}
-
         {tutor && (
           <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#071426] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
-                <GraduationCap
-                  size={21}
-                />
+                <GraduationCap size={21} />
               </div>
 
               <div>
@@ -1565,8 +2090,6 @@ export default function TutorTaskSubmissions() {
           </div>
         )}
 
-        {/* ERROR */}
-
         {error && (
           <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
             <AlertCircle
@@ -1587,9 +2110,7 @@ export default function TutorTaskSubmissions() {
             <button
               type="button"
               onClick={() =>
-                fetchSubmissions(
-                  true
-                )
+                fetchSubmissions(true)
               }
               className="rounded-lg border border-red-400/20 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-400/10"
             >
@@ -1598,14 +2119,10 @@ export default function TutorTaskSubmissions() {
           </div>
         )}
 
-        {/* STATS */}
-
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             icon={
-              <ClipboardList
-                size={19}
-              />
+              <ClipboardList size={19} />
             }
             label="Total submissions"
             value={counts.total}
@@ -1621,9 +2138,7 @@ export default function TutorTaskSubmissions() {
 
           <StatCard
             icon={
-              <CheckCircle2
-                size={19}
-              />
+              <CheckCircle2 size={19} />
             }
             label="Graded"
             value={counts.graded}
@@ -1631,16 +2146,12 @@ export default function TutorTaskSubmissions() {
 
           <StatCard
             icon={
-              <AlertCircle
-                size={19}
-              />
+              <AlertCircle size={19} />
             }
             label="Overdue / Late"
             value={counts.overdue}
           />
         </div>
-
-        {/* FILTERS */}
 
         <div className="mb-5 rounded-2xl border border-slate-800 bg-[#071426] p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -1696,8 +2207,6 @@ export default function TutorTaskSubmissions() {
             </div>
           </div>
         </div>
-
-        {/* LIST */}
 
         {loading ? (
           <div className="flex min-h-[400px] items-center justify-center rounded-2xl border border-slate-800 bg-[#071426]">
@@ -1756,8 +2265,6 @@ export default function TutorTaskSubmissions() {
           </div>
         )}
       </div>
-
-      {/* MODAL */}
 
       <AnimatePresence>
         {selectedSubmission && (
@@ -1848,7 +2355,8 @@ function SubmissionCard({
     "Class";
 
   const score =
-    submission.score !== null &&
+    submission.score !==
+      null &&
     submission.score !==
       undefined
       ? submission.score
@@ -1876,7 +2384,6 @@ function SubmissionCard({
       className="group w-full rounded-2xl border border-slate-800 bg-[#071426] p-4 text-left transition hover:border-cyan-500/30 hover:bg-[#0a192d] sm:p-5"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-cyan-300">
             <User size={19} />
@@ -1911,23 +2418,17 @@ function SubmissionCard({
 
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
               <span className="inline-flex items-center gap-1.5">
-                <BookOpen
-                  size={13}
-                />
+                <BookOpen size={13} />
                 {subject}
               </span>
 
               <span className="inline-flex items-center gap-1.5">
-                <GraduationCap
-                  size={13}
-                />
+                <GraduationCap size={13} />
                 {grade}
               </span>
 
               <span className="inline-flex items-center gap-1.5">
-                <CalendarDays
-                  size={13}
-                />
+                <CalendarDays size={13} />
                 Submitted{" "}
                 {formatDate(
                   submission.submittedAt
@@ -1936,9 +2437,7 @@ function SubmissionCard({
 
               {submission.dueAt && (
                 <span className="inline-flex items-center gap-1.5">
-                  <Clock3
-                    size={13}
-                  />
+                  <Clock3 size={13} />
                   Due{" "}
                   {formatDate(
                     submission.dueAt
@@ -1983,9 +2482,7 @@ function EmptyState({
   return (
     <div className="flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-[#071426] px-6 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-slate-500">
-        <ClipboardList
-          size={25}
-        />
+        <ClipboardList size={25} />
       </div>
 
       <h3 className="mt-4 text-base font-semibold text-white">
@@ -2034,11 +2531,13 @@ function ReviewModal({
     [];
 
   const submittedAttachments =
-    submission.attachments || [];
+    submission.attachments ||
+    [];
 
   const maxScore =
     Number(
-      submission.maxScore || 100
+      submission.maxScore ||
+        100
     ) || 100;
 
   return (
@@ -2080,9 +2579,6 @@ function ReviewModal({
         }}
         className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-[#071426] shadow-2xl"
       >
-
-        {/* HEADER */}
-
         <div className="flex items-start justify-between gap-4 border-b border-slate-800 px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -2108,13 +2604,17 @@ function ReviewModal({
             </div>
 
             <h2 className="mt-2 truncate text-lg font-bold text-white sm:text-xl">
-              {submission.taskTitle}
+              {
+                submission.taskTitle
+              }
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
               Submitted by{" "}
               <span className="text-slate-300">
-                {submission.studentName}
+                {
+                  submission.studentName
+                }
               </span>
             </p>
           </div>
@@ -2122,25 +2622,19 @@ function ReviewModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={reviewing}
+            disabled={
+              reviewing
+            }
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-50"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* BODY */}
-
         <div className="flex-1 overflow-y-auto">
           <div className="grid xl:grid-cols-[1fr_390px]">
 
-            {/* LEFT */}
-
             <div className="space-y-6 p-4 sm:p-6">
-
-              {/* =================================================
-                  TASK RECEIVED
-              ================================================= */}
 
               <section>
                 <div className="mb-3 flex items-center gap-2">
@@ -2155,13 +2649,10 @@ function ReviewModal({
                 </div>
 
                 <div className="rounded-2xl border border-cyan-500/10 bg-[#020617] p-5">
-
                   <div className="flex flex-wrap gap-2">
                     <InfoBadge
                       icon={
-                        <BookOpen
-                          size={13}
-                        />
+                        <BookOpen size={13} />
                       }
                       text={
                         submission.subject ||
@@ -2171,9 +2662,7 @@ function ReviewModal({
 
                     <InfoBadge
                       icon={
-                        <GraduationCap
-                          size={13}
-                        />
+                        <GraduationCap size={13} />
                       }
                       text={
                         submission.grade ||
@@ -2183,9 +2672,7 @@ function ReviewModal({
 
                     <InfoBadge
                       icon={
-                        <Award
-                          size={13}
-                        />
+                        <Award size={13} />
                       }
                       text={`Max score: ${maxScore}`}
                     />
@@ -2193,9 +2680,7 @@ function ReviewModal({
                     {submission.taskId && (
                       <InfoBadge
                         icon={
-                          <Hash
-                            size={13}
-                          />
+                          <Hash size={13} />
                         }
                         text={`Task ${submission.taskId}`}
                       />
@@ -2208,16 +2693,16 @@ function ReviewModal({
                     </p>
 
                     <h4 className="mt-1 text-xl font-bold text-white">
-                      {submission.taskTitle}
+                      {
+                        submission.taskTitle
+                      }
                     </h4>
                   </div>
 
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <TaskMeta
                       icon={
-                        <CalendarDays
-                          size={15}
-                        />
+                        <CalendarDays size={15} />
                       }
                       label="Due date"
                       value={
@@ -2231,9 +2716,7 @@ function ReviewModal({
 
                     <TaskMeta
                       icon={
-                        <Clock3
-                          size={15}
-                        />
+                        <Clock3 size={15} />
                       }
                       label="Submitted"
                       value={
@@ -2296,10 +2779,6 @@ function ReviewModal({
                 </div>
               </section>
 
-              {/* =================================================
-                  TASK MATERIALS
-              ================================================= */}
-
               <section>
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -2314,7 +2793,9 @@ function ReviewModal({
                   </div>
 
                   <span className="text-xs text-slate-600">
-                    {taskAttachments.length}{" "}
+                    {
+                      taskAttachments.length
+                    }{" "}
                     {taskAttachments.length ===
                     1
                       ? "file"
@@ -2347,19 +2828,13 @@ function ReviewModal({
                             index
                           )}`}
                           file={file}
-                          index={
-                            index
-                          }
+                          index={index}
                         />
                       )
                     )}
                   </div>
                 )}
               </section>
-
-              {/* =================================================
-                  STUDENT
-              ================================================= */}
 
               <section>
                 <div className="mb-3 flex items-center gap-2">
@@ -2376,9 +2851,7 @@ function ReviewModal({
                 <div className="rounded-2xl border border-slate-800 bg-[#020617] p-4">
                   <div className="flex items-start gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
-                      <User
-                        size={19}
-                      />
+                      <User size={19} />
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -2390,9 +2863,7 @@ function ReviewModal({
 
                       {submission.studentEmail && (
                         <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                          <Mail
-                            size={12}
-                          />
+                          <Mail size={12} />
 
                           {
                             submission.studentEmail
@@ -2403,9 +2874,7 @@ function ReviewModal({
                       <div className="mt-3 flex flex-wrap gap-2">
                         <InfoBadge
                           icon={
-                            <BookOpen
-                              size={13}
-                            />
+                            <BookOpen size={13} />
                           }
                           text={
                             submission.subject
@@ -2414,9 +2883,7 @@ function ReviewModal({
 
                         <InfoBadge
                           icon={
-                            <GraduationCap
-                              size={13}
-                            />
+                            <GraduationCap size={13} />
                           }
                           text={
                             submission.grade
@@ -2427,10 +2894,6 @@ function ReviewModal({
                   </div>
                 </div>
               </section>
-
-              {/* =================================================
-                  STUDENT RESPONSE
-              ================================================= */}
 
               <section>
                 <div className="mb-3 flex items-center gap-2">
@@ -2445,39 +2908,32 @@ function ReviewModal({
                 </div>
 
                 <div className="rounded-2xl border border-slate-800 bg-[#020617] p-5">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                    Written response
+                  </p>
 
-                  <div>
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                      Written response
+                  {submission.responseText ? (
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                      {
+                        submission.responseText
+                      }
                     </p>
+                  ) : (
+                    <div className="flex min-h-[120px] items-center justify-center rounded-xl border border-dashed border-slate-800 text-center">
+                      <div>
+                        <MessageSquare
+                          size={27}
+                          className="mx-auto text-slate-700"
+                        />
 
-                    {submission.responseText ? (
-                      <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                        {
-                          submission.responseText
-                        }
-                      </p>
-                    ) : (
-                      <div className="flex min-h-[120px] items-center justify-center rounded-xl border border-dashed border-slate-800 text-center">
-                        <div>
-                          <MessageSquare
-                            size={27}
-                            className="mx-auto text-slate-700"
-                          />
-
-                          <p className="mt-2 text-sm text-slate-600">
-                            No written response was submitted.
-                          </p>
-                        </div>
+                        <p className="mt-2 text-sm text-slate-600">
+                          No written response was submitted.
+                        </p>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </section>
-
-              {/* =================================================
-                  STUDENT FILES
-              ================================================= */}
 
               <section>
                 <div className="mb-3 flex items-center justify-between">
@@ -2528,9 +2984,7 @@ function ReviewModal({
                             index
                           )}`}
                           file={file}
-                          index={
-                            index
-                          }
+                          index={index}
                         />
                       )
                     )}
@@ -2539,13 +2993,8 @@ function ReviewModal({
               </section>
             </div>
 
-            {/* =================================================
-                GRADING SIDEBAR
-            ================================================= */}
-
             <aside className="border-t border-slate-800 bg-[#061121] p-4 sm:p-6 xl:border-l xl:border-t-0">
               <div className="xl:sticky xl:top-0">
-
                 <div className="mb-5">
                   <div className="mb-2 flex items-center gap-2">
                     <Award
@@ -2563,8 +3012,6 @@ function ReviewModal({
                     and optional feedback.
                   </p>
                 </div>
-
-                {/* CURRENT STATUS */}
 
                 <div className="mb-5 rounded-2xl border border-slate-800 bg-[#020617] p-4">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
@@ -2590,8 +3037,6 @@ function ReviewModal({
                   </div>
                 </div>
 
-                {/* SCORE */}
-
                 <label className="block">
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Score
@@ -2601,9 +3046,7 @@ function ReviewModal({
                     <input
                       type="number"
                       min="0"
-                      max={
-                        maxScore
-                      }
+                      max={maxScore}
                       step="0.01"
                       value={score}
                       onChange={(
@@ -2624,17 +3067,13 @@ function ReviewModal({
                   </div>
                 </label>
 
-                {/* FEEDBACK */}
-
                 <label className="mt-5 block">
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Feedback
                   </span>
 
                   <textarea
-                    value={
-                      feedback
-                    }
+                    value={feedback}
                     onChange={(
                       event
                     ) =>
@@ -2648,8 +3087,6 @@ function ReviewModal({
                     className="w-full resize-none rounded-xl border border-slate-700 bg-[#020617] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-700 focus:border-cyan-500/50"
                   />
                 </label>
-
-                {/* EXISTING GRADE */}
 
                 {submission.score !==
                   null &&
@@ -2681,8 +3118,6 @@ function ReviewModal({
                     </div>
                   )}
 
-                {/* ERROR */}
-
                 {error && (
                   <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3">
                     <div className="flex gap-2">
@@ -2698,8 +3133,6 @@ function ReviewModal({
                   </div>
                 )}
 
-                {/* SUCCESS */}
-
                 {success && (
                   <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
                     <div className="flex gap-2">
@@ -2714,8 +3147,6 @@ function ReviewModal({
                     </div>
                   </div>
                 )}
-
-                {/* SAVE */}
 
                 <button
                   type="button"
@@ -2738,9 +3169,7 @@ function ReviewModal({
                     </>
                   ) : (
                     <>
-                      <Send
-                        size={17}
-                      />
+                      <Send size={17} />
 
                       Save grade
                     </>
@@ -2844,7 +3273,6 @@ function AttachmentCard({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#020617]">
-
       {image && url ? (
         <a
           href={url}
@@ -2919,9 +3347,7 @@ function AttachmentCard({
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-cyan-300"
             title="Open / download file"
           >
-            <Download
-              size={16}
-            />
+            <Download size={16} />
           </a>
         )}
       </div>

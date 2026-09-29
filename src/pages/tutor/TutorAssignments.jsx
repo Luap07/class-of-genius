@@ -129,10 +129,7 @@ function getSubjectsForClass(grade = "") {
 }
 
 function clean(value) {
-  if (
-    value === undefined ||
-    value === null
-  ) {
+  if (value === undefined || value === null) {
     return "";
   }
 
@@ -191,44 +188,105 @@ function getTutorReference() {
 
   for (const key of keys) {
     try {
-      const raw =
-        localStorage.getItem(key);
+      const raw = localStorage.getItem(key);
 
-      if (!raw) continue;
+      if (!raw) {
+        continue;
+      }
 
-      const parsed =
-        JSON.parse(raw);
+      const parsed = JSON.parse(raw);
 
       const references = [
         parsed?.reference,
         parsed?.tutorReference,
         parsed?.tutor_reference,
+
+        parsed?.tutor?.reference,
+        parsed?.tutor?.tutorReference,
+        parsed?.tutor?.tutor_reference,
+
         parsed?.user?.reference,
         parsed?.user?.tutorReference,
         parsed?.user?.tutor_reference,
+
         parsed?.user?.tutor?.reference,
         parsed?.user?.tutor?.tutorReference,
         parsed?.user?.tutor?.tutor_reference,
       ];
 
-      const found =
-        references.find(
-          (value) =>
-            value !== undefined &&
-            value !== null &&
-            String(value).trim() !== ""
-        );
+      const found = references.find(
+        (value) =>
+          value !== undefined &&
+          value !== null &&
+          String(value).trim() &&
+          String(value)
+            .trim()
+            .toUpperCase()
+            .startsWith("SQA-")
+      );
 
       if (found) {
         return String(found).trim();
       }
     } catch {
-      // Continue checking other keys.
+      // Continue checking other localStorage keys.
     }
   }
 
   return "";
 }
+
+/* =========================================================
+   ACADEMY TOKEN
+========================================================= */
+
+function getAcademyToken() {
+  const keys = [
+    "scholiqen_academy_token",
+    "academy_token",
+    "scholiqen_token",
+    "access_token",
+    "token",
+  ];
+
+  for (const key of keys) {
+    const token = clean(
+      localStorage.getItem(key)
+    );
+
+    if (token) {
+      return token;
+    }
+  }
+
+  return "";
+}
+
+/* =========================================================
+   REQUEST HEADERS
+========================================================= */
+
+function getTutorHeaders(reference = "") {
+  const token = getAcademyToken();
+
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  if (reference) {
+    headers["x-tutor-reference"] = reference;
+  }
+
+  return headers;
+}
+
+/* =========================================================
+   DATE HELPERS
+========================================================= */
 
 function formatDate(value) {
   if (!value) {
@@ -241,14 +299,11 @@ function formatDate(value) {
     return "No date";
   }
 
-  return date.toLocaleDateString(
-    "en-NG",
-    {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }
-  );
+  return date.toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function formatDateTime(value) {
@@ -262,28 +317,23 @@ function formatDateTime(value) {
     return "";
   }
 
-  const year =
-    date.getFullYear();
+  const year = date.getFullYear();
 
-  const month =
-    String(
-      date.getMonth() + 1
-    ).padStart(2, "0");
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, "0");
 
-  const day =
-    String(
-      date.getDate()
-    ).padStart(2, "0");
+  const day = String(
+    date.getDate()
+  ).padStart(2, "0");
 
-  const hours =
-    String(
-      date.getHours()
-    ).padStart(2, "0");
+  const hours = String(
+    date.getHours()
+  ).padStart(2, "0");
 
-  const minutes =
-    String(
-      date.getMinutes()
-    ).padStart(2, "0");
+  const minutes = String(
+    date.getMinutes()
+  ).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
@@ -387,6 +437,11 @@ export default function TutorAssignments() {
     const reference =
       getTutorReference();
 
+    console.log(
+      "Tutor reference detected:",
+      reference
+    );
+
     setTutorReference(reference);
   }, []);
 
@@ -403,9 +458,11 @@ export default function TutorAssignments() {
 
         if (!reference) {
           setLoading(false);
+
           setError(
             "Your tutor reference could not be found. Please log in again."
           );
+
           return;
         }
 
@@ -424,7 +481,12 @@ export default function TutorAssignments() {
             )}`;
 
           const response =
-            await fetch(url);
+            await fetch(url, {
+              headers:
+                getTutorHeaders(
+                  reference
+                ),
+            });
 
           let data = null;
 
@@ -527,31 +589,30 @@ export default function TutorAssignments() {
         setSelectedAssignment(null);
 
         setForm({
-          title:
-            clean(
-              assignment?.title
-            ),
-          description:
-            clean(
-              assignment?.description
-            ),
-          instructions:
-            clean(
-              assignment?.instructions
-            ),
-          grade:
-            clean(
-              assignment?.grade
-            ),
-          subject:
-            clean(
-              assignment?.subject
-            ),
-          dueDate:
-            formatDateTime(
-              assignment?.due_date ??
-                assignment?.dueDate
-            ),
+          title: clean(
+            assignment?.title
+          ),
+
+          description: clean(
+            assignment?.description
+          ),
+
+          instructions: clean(
+            assignment?.instructions
+          ),
+
+          grade: clean(
+            assignment?.grade
+          ),
+
+          subject: clean(
+            assignment?.subject
+          ),
+
+          dueDate: formatDateTime(
+            assignment?.due_date ??
+              assignment?.dueDate
+          ),
         });
 
         setError("");
@@ -595,6 +656,7 @@ export default function TutorAssignments() {
         setForm((current) => ({
           ...current,
           [field]: value,
+
           ...(field === "grade"
             ? {
                 subject: "",
@@ -622,6 +684,7 @@ export default function TutorAssignments() {
           setError(
             "Assignment title must be at least 3 characters."
           );
+
           return;
         }
 
@@ -629,6 +692,7 @@ export default function TutorAssignments() {
           setError(
             "Please select a class."
           );
+
           return;
         }
 
@@ -636,6 +700,19 @@ export default function TutorAssignments() {
           setError(
             "Please select a subject."
           );
+
+          return;
+        }
+
+        const reference =
+          tutorReference ||
+          getTutorReference();
+
+        if (!reference) {
+          setError(
+            "Your tutor reference could not be found. Please log in again."
+          );
+
           return;
         }
 
@@ -646,30 +723,42 @@ export default function TutorAssignments() {
         try {
           const response =
             await fetch(
-              `${ASSIGNMENTS_URL}/${editingId}`,
+              `${ASSIGNMENTS_URL}/${encodeURIComponent(
+                editingId
+              )}`,
               {
                 method: "PATCH",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
+
+                headers:
+                  getTutorHeaders(
+                    reference
+                  ),
+
                 body: JSON.stringify({
-                  reference:
-                    tutorReference,
+                  reference,
                   tutorReference:
-                    tutorReference,
+                    reference,
                   tutor_reference:
-                    tutorReference,
+                    reference,
+
                   title:
                     form.title.trim(),
+
                   description:
                     form.description.trim(),
+
                   instructions:
                     form.instructions.trim(),
-                  class: form.grade,
-                  grade: form.grade,
+
+                  class:
+                    form.grade,
+
+                  grade:
+                    form.grade,
+
                   subject:
                     form.subject,
+
                   dueDate:
                     form.dueDate || "",
                 }),
@@ -710,16 +799,22 @@ export default function TutorAssignments() {
                     ? updatedAssignment ||
                       {
                         ...assignment,
+
                         title:
                           form.title.trim(),
+
                         description:
                           form.description.trim(),
+
                         instructions:
                           form.instructions.trim(),
+
                         grade:
                           form.grade,
+
                         subject:
                           form.subject,
+
                         due_date:
                           form.dueDate ||
                           null,
@@ -760,7 +855,7 @@ export default function TutorAssignments() {
     );
 
   /* =======================================================
-     DELETE
+     DELETE TARGET
   ======================================================= */
 
   const confirmDelete =
@@ -787,10 +882,16 @@ export default function TutorAssignments() {
         setDeleteTarget(
           assignment
         );
+
         setError("");
+        setSuccess("");
       },
       []
     );
+
+  /* =======================================================
+     CANCEL DELETE
+  ======================================================= */
 
   const cancelDelete =
     useCallback(() => {
@@ -800,6 +901,10 @@ export default function TutorAssignments() {
 
       setDeleteTarget(null);
     }, [deletingId]);
+
+  /* =======================================================
+     DELETE ASSIGNMENT
+  ======================================================= */
 
   const deleteAssignment =
     useCallback(
@@ -817,7 +922,42 @@ export default function TutorAssignments() {
           setError(
             "This assignment does not have a valid ID."
           );
+
           setDeleteTarget(null);
+
+          return;
+        }
+
+        /*
+         * Get the real SQA tutor reference.
+         */
+        const reference =
+          tutorReference ||
+          getTutorReference();
+
+        if (!reference) {
+          setError(
+            "Your tutor reference could not be found. Please log in again."
+          );
+
+          setDeleteTarget(null);
+
+          return;
+        }
+
+        /*
+         * Get the academy authentication token.
+         */
+        const token =
+          getAcademyToken();
+
+        if (!token) {
+          setError(
+            "Your academy login session could not be found. Please log in again."
+          );
+
+          setDeleteTarget(null);
+
           return;
         }
 
@@ -826,17 +966,49 @@ export default function TutorAssignments() {
         setSuccess("");
 
         try {
+          /*
+           * IMPORTANT:
+           *
+           * The DELETE request must contain:
+           *
+           * 1. Bearer academy token
+           * 2. x-tutor-reference header
+           * 3. reference query parameter
+           *
+           * This prevents the backend from returning 401.
+           */
+          const url =
+            `${ASSIGNMENTS_URL}/${encodeURIComponent(
+              id
+            )}?reference=${encodeURIComponent(
+              reference
+            )}`;
+
+          console.log(
+            "Deleting tutor assignment:",
+            {
+              assignmentId: id,
+              tutorReference:
+                reference,
+              url,
+            }
+          );
+
           const response =
-            await fetch(
-              `${ASSIGNMENTS_URL}/${id}`,
-              {
-                method: "DELETE",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-              }
-            );
+            await fetch(url, {
+              method: "DELETE",
+
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+
+                "Content-Type":
+                  "application/json",
+
+                "x-tutor-reference":
+                  reference,
+              },
+            });
 
           let data = null;
 
@@ -848,6 +1020,28 @@ export default function TutorAssignments() {
           }
 
           if (!response.ok) {
+            /*
+             * Give a much clearer message
+             * for authentication failures.
+             */
+            if (
+              response.status ===
+              401
+            ) {
+              throw new Error(
+                "The tutor session is not authorized to delete this assignment. Please log out and log in again."
+              );
+            }
+
+            if (
+              response.status ===
+              403
+            ) {
+              throw new Error(
+                "You are not authorized to delete this assignment."
+              );
+            }
+
             throw new Error(
               data?.details ||
                 data?.error ||
@@ -856,6 +1050,15 @@ export default function TutorAssignments() {
             );
           }
 
+          console.log(
+            "Assignment deleted successfully:",
+            data
+          );
+
+          /*
+           * Remove the assignment immediately
+           * from the current UI.
+           */
           setAssignments(
             (current) =>
               current.filter(
@@ -869,6 +1072,21 @@ export default function TutorAssignments() {
               )
           );
 
+          /*
+           * Close expanded assignment
+           * if it was open.
+           */
+          if (
+            String(expandedId) ===
+            String(id)
+          ) {
+            setExpandedId(null);
+          }
+
+          /*
+           * Cancel editing if the deleted
+           * assignment was being edited.
+           */
           if (
             String(editingId) ===
             String(id)
@@ -902,6 +1120,8 @@ export default function TutorAssignments() {
       },
       [
         deleteTarget,
+        tutorReference,
+        expandedId,
         editingId,
         cancelEdit,
       ]
@@ -924,6 +1144,7 @@ export default function TutorAssignments() {
             "Cannot expand assignment because ID is missing:",
             assignment
           );
+
           return;
         }
 
@@ -992,10 +1213,10 @@ export default function TutorAssignments() {
           {
             assignment,
             assignmentId: id,
-            target:
-              id
-                ? `/academy/tutor/assignments/${id}/submissions`
-                : null,
+
+            target: id
+              ? `/academy/tutor/assignments/${id}/submissions`
+              : null,
           }
         );
 
@@ -1006,18 +1227,6 @@ export default function TutorAssignments() {
 
           return;
         }
-
-        /*
-         * IMPORTANT:
-         *
-         * Every grading page MUST contain the assignment ID.
-         *
-         * Correct:
-         * /academy/tutor/assignments/17/submissions
-         *
-         * Incorrect:
-         * /academy/tutor/assignments/grading
-         */
 
         navigate(
           `/academy/tutor/assignments/${encodeURIComponent(
@@ -1059,18 +1268,14 @@ export default function TutorAssignments() {
             }
             className="mb-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-[#071426] px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-cyan-400/30 hover:bg-[#0b1b31] hover:text-white"
           >
-            <ArrowLeft
-              size={17}
-            />
+            <ArrowLeft size={17} />
             Back
           </button>
 
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-cyan-300">
-                <ClipboardList
-                  size={14}
-                />
+                <ClipboardList size={14} />
                 Academy Assignments
               </div>
 
@@ -1115,9 +1320,7 @@ export default function TutorAssignments() {
                 }
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-[#020617] transition hover:bg-cyan-400"
               >
-                <FileText
-                  size={17}
-                />
+                <FileText size={17} />
                 Create Assignment
               </button>
             </div>
@@ -1159,9 +1362,8 @@ export default function TutorAssignments() {
 
         {success && (
           <div className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-            <CheckCircle2
-              size={19}
-            />
+            <CheckCircle2 size={19} />
+
             <span>
               {success}
             </span>
@@ -1386,9 +1588,7 @@ export default function TutorAssignments() {
                     </>
                   ) : (
                     <>
-                      <Save
-                        size={17}
-                      />
+                      <Save size={17} />
                       Save Changes
                     </>
                   )}
@@ -1407,9 +1607,7 @@ export default function TutorAssignments() {
             <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-[#071426] p-5">
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
-                  <ClipboardList
-                    size={20}
-                  />
+                  <ClipboardList size={20} />
                 </div>
 
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -1423,9 +1621,7 @@ export default function TutorAssignments() {
 
               <div className="rounded-2xl border border-white/10 bg-[#071426] p-5">
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-400/10 text-blue-300">
-                  <BookOpen
-                    size={20}
-                  />
+                  <BookOpen size={20} />
                 </div>
 
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -1446,9 +1642,7 @@ export default function TutorAssignments() {
 
               <div className="rounded-2xl border border-white/10 bg-[#071426] p-5">
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">
-                  <GraduationCap
-                    size={20}
-                  />
+                  <GraduationCap size={20} />
                 </div>
 
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -1502,9 +1696,7 @@ export default function TutorAssignments() {
           assignments.length === 0 && (
             <div className="rounded-2xl border border-white/10 bg-[#071426] px-6 py-16 text-center">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/5 text-cyan-300">
-                <ClipboardList
-                  size={28}
-                />
+                <ClipboardList size={28} />
               </div>
 
               <h2 className="mt-5 text-xl font-bold text-white">
@@ -1524,9 +1716,7 @@ export default function TutorAssignments() {
                 }
                 className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-[#020617] transition hover:bg-cyan-400"
               >
-                <FileText
-                  size={17}
-                />
+                <FileText size={17} />
                 Create Assignment
               </button>
             </div>
@@ -1571,12 +1761,6 @@ export default function TutorAssignments() {
                       dueDate
                     );
 
-                  /*
-                   * If the backend somehow sends an
-                   * assignment without an ID, give the
-                   * React row a temporary key, but DO NOT
-                   * use that temporary key as the real ID.
-                   */
                   const rowKey =
                     id ||
                     `assignment-${index}`;
@@ -1595,9 +1779,8 @@ export default function TutorAssignments() {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/20 bg-cyan-400/5 px-2.5 py-1 text-xs font-semibold text-cyan-300">
-                                <BookOpen
-                                  size={13}
-                                />
+                                <BookOpen size={13} />
+
                                 {clean(
                                   assignment.subject
                                 ) ||
@@ -1605,9 +1788,8 @@ export default function TutorAssignments() {
                               </span>
 
                               <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-semibold text-slate-300">
-                                <GraduationCap
-                                  size={13}
-                                />
+                                <GraduationCap size={13} />
+
                                 {clean(
                                   assignment.grade
                                 ) ||
@@ -1618,9 +1800,8 @@ export default function TutorAssignments() {
                                 assignment.status
                               ) && (
                                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-2.5 py-1 text-xs font-semibold capitalize text-emerald-300">
-                                  <CheckCircle2
-                                    size={13}
-                                  />
+                                  <CheckCircle2 size={13} />
+
                                   {clean(
                                     assignment.status
                                   )}
@@ -1647,9 +1828,8 @@ export default function TutorAssignments() {
 
                             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
                               <span className="inline-flex items-center gap-1.5">
-                                <FileText
-                                  size={14}
-                                />
+                                <FileText size={14} />
+
                                 {questionCount}{" "}
                                 {questionCount ===
                                 1
@@ -1660,9 +1840,8 @@ export default function TutorAssignments() {
                               {totalMarks !==
                                 null && (
                                 <span className="inline-flex items-center gap-1.5">
-                                  <CheckCircle2
-                                    size={14}
-                                  />
+                                  <CheckCircle2 size={14} />
+
                                   {totalMarks}{" "}
                                   {totalMarks ===
                                   1
@@ -1672,9 +1851,8 @@ export default function TutorAssignments() {
                               )}
 
                               <span className="inline-flex items-center gap-1.5">
-                                <CalendarDays
-                                  size={14}
-                                />
+                                <CalendarDays size={14} />
+
                                 Created{" "}
                                 {formatDate(
                                   assignment.created_at
@@ -1689,9 +1867,8 @@ export default function TutorAssignments() {
                                       : "text-slate-500"
                                   }`}
                                 >
-                                  <Clock3
-                                    size={14}
-                                  />
+                                  <Clock3 size={14} />
+
                                   Due{" "}
                                   {formatDate(
                                     dueDate
@@ -1715,9 +1892,7 @@ export default function TutorAssignments() {
                               }
                               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#020b18] px-3.5 py-2.5 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/30 hover:text-white sm:text-sm"
                             >
-                              <FileText
-                                size={16}
-                              />
+                              <FileText size={16} />
                               View
                             </button>
 
@@ -1734,9 +1909,7 @@ export default function TutorAssignments() {
                               }
                               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#020b18] px-3.5 py-2.5 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
                             >
-                              <Edit3
-                                size={16}
-                              />
+                              <Edit3 size={16} />
                               Edit
                             </button>
 
@@ -1755,9 +1928,7 @@ export default function TutorAssignments() {
                               }
                               className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-3.5 py-2.5 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
                             >
-                              <Users
-                                size={16}
-                              />
+                              <Users size={16} />
                               Submissions
                             </button>
 
@@ -1774,9 +1945,7 @@ export default function TutorAssignments() {
                               }
                               className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/5 px-3.5 py-2.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
                             >
-                              <Trash2
-                                size={16}
-                              />
+                              <Trash2 size={16} />
                               Delete
                             </button>
 
@@ -1795,13 +1964,9 @@ export default function TutorAssignments() {
                               }
                             >
                               {expanded ? (
-                                <ChevronUp
-                                  size={16}
-                                />
+                                <ChevronUp size={16} />
                               ) : (
-                                <ChevronDown
-                                  size={16}
-                                />
+                                <ChevronDown size={16} />
                               )}
                             </button>
                           </div>
@@ -1882,9 +2047,7 @@ export default function TutorAssignments() {
                               }
                               className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-bold text-[#020617] transition hover:bg-cyan-400"
                             >
-                              <FileText
-                                size={16}
-                              />
+                              <FileText size={16} />
                               Open Assignment
                             </button>
 
@@ -1898,9 +2061,7 @@ export default function TutorAssignments() {
                               disabled={!id}
                               className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-4 py-2.5 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                              <Users
-                                size={16}
-                              />
+                              <Users size={16} />
                               Grade Submissions
                             </button>
                           </div>
@@ -1924,9 +2085,7 @@ export default function TutorAssignments() {
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-300">
-                  <Trash2
-                    size={19}
-                  />
+                  <Trash2 size={19} />
                 </div>
 
                 <div>
@@ -2027,9 +2186,7 @@ export default function TutorAssignments() {
                     </>
                   ) : (
                     <>
-                      <Trash2
-                        size={17}
-                      />
+                      <Trash2 size={17} />
                       Delete Assignment
                     </>
                   )}

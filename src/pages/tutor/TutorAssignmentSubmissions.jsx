@@ -4,24 +4,24 @@ import React, {
   useMemo,
   useState,
 } from "react";
+
 import {
   useNavigate,
   useParams,
 } from "react-router-dom";
+
 import {
   ArrowLeft,
-  BookOpen,
   CheckCircle2,
   Clock3,
+  Eye,
   FileText,
-  GraduationCap,
   Loader2,
   RefreshCw,
   User,
   Users,
   AlertCircle,
   X,
-  Eye,
 } from "lucide-react";
 
 const API_BASE_URL = (
@@ -29,11 +29,12 @@ const API_BASE_URL = (
   "http://localhost:5000"
 ).replace(/\/$/, "");
 
-const SUBMISSIONS_URL =
-  `${API_BASE_URL}/api/academy/tutor/task-submissions`;
-
 const ASSIGNMENTS_URL =
   `${API_BASE_URL}/api/academy/tutor/assignments`;
+
+/* ============================================================
+   HELPERS
+============================================================ */
 
 function clean(value) {
   if (
@@ -59,7 +60,9 @@ function getTutorReference() {
       const raw =
         localStorage.getItem(key);
 
-      if (!raw) continue;
+      if (!raw) {
+        continue;
+      }
 
       const parsed =
         JSON.parse(raw);
@@ -68,9 +71,15 @@ function getTutorReference() {
         parsed?.reference,
         parsed?.tutorReference,
         parsed?.tutor_reference,
+
         parsed?.user?.reference,
         parsed?.user?.tutorReference,
         parsed?.user?.tutor_reference,
+
+        parsed?.tutor?.reference,
+        parsed?.tutor?.tutorReference,
+        parsed?.tutor?.tutor_reference,
+
         parsed?.user?.tutor?.reference,
         parsed?.user?.tutor?.tutorReference,
         parsed?.user?.tutor?.tutor_reference,
@@ -78,17 +87,24 @@ function getTutorReference() {
 
       const found =
         references.find(
-          (value) =>
-            value !== undefined &&
-            value !== null &&
-            String(value).trim() !== ""
+          (value) => {
+            const reference =
+              clean(value);
+
+            return (
+              reference !== "" &&
+              reference
+                .toUpperCase()
+                .startsWith("SQA-")
+            );
+          }
         );
 
       if (found) {
-        return String(found).trim();
+        return clean(found);
       }
     } catch {
-      // Continue.
+      // Continue checking the next storage key.
     }
   }
 
@@ -145,10 +161,10 @@ function getStudentReference(
       submission?.student?.reference
     ) ||
     clean(
-      submission?.student_id
+      submission?.enrollment_id
     ) ||
     clean(
-      submission?.studentId
+      submission?.enrollmentId
     )
   );
 }
@@ -209,7 +225,18 @@ function getScore(
     return null;
   }
 
-  return Number(score);
+  const numericScore =
+    Number(score);
+
+  if (
+    Number.isNaN(
+      numericScore
+    )
+  ) {
+    return null;
+  }
+
+  return numericScore;
 }
 
 function getStatus(
@@ -228,20 +255,35 @@ function getStatus(
   }
 
   if (
+    status === "returned"
+  ) {
+    return "Returned";
+  }
+
+  if (
     status === "submitted" ||
     status === "completed"
   ) {
     return "Submitted";
   }
 
-  return status
-    ? status.charAt(0).toUpperCase() +
-        status.slice(1)
-    : "Submitted";
+  if (!status) {
+    return "Submitted";
+  }
+
+  return (
+    status.charAt(0).toUpperCase() +
+    status.slice(1)
+  );
 }
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function TutorAssignmentSubmissions() {
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
   const { id } =
     useParams();
@@ -268,9 +310,9 @@ export default function TutorAssignmentSubmissions() {
   const [error, setError] =
     useState("");
 
-  /* =======================================================
+  /* ============================================================
      LOAD ASSIGNMENT
-  ======================================================= */
+  ============================================================ */
 
   const loadAssignment =
     useCallback(
@@ -288,36 +330,50 @@ export default function TutorAssignmentSubmissions() {
               "reference",
               tutorReference
             );
-
-            params.set(
-              "tutorReference",
-              tutorReference
-            );
-
-            params.set(
-              "tutor_reference",
-              tutorReference
-            );
           }
 
+          const query =
+            params.toString();
+
+          const url =
+            `${ASSIGNMENTS_URL}/${encodeURIComponent(
+              id
+            )}${query ? `?${query}` : ""}`;
+
           const response =
-            await fetch(
-              `${ASSIGNMENTS_URL}/${encodeURIComponent(
-                id
-              )}?${params.toString()}`
-            );
+            await fetch(url, {
+              method: "GET",
+              headers: {
+                Accept:
+                  "application/json",
+              },
+            });
+
+          let data = null;
+
+          try {
+            data =
+              await response.json();
+          } catch {
+            data = null;
+          }
 
           if (!response.ok) {
+            console.warn(
+              "Unable to load assignment:",
+              data
+            );
+
             return;
           }
 
-          const data =
-            await response.json();
+          const loadedAssignment =
+            data?.assignment ??
+            data?.data ??
+            data;
 
           setAssignment(
-            data?.assignment ??
-              data?.data ??
-              data
+            loadedAssignment
           );
         } catch (err) {
           console.warn(
@@ -332,9 +388,22 @@ export default function TutorAssignmentSubmissions() {
       ]
     );
 
-  /* =======================================================
-     LOAD SUBMISSIONS
-  ======================================================= */
+  /* ============================================================
+     LOAD ASSIGNMENT SUBMISSIONS
+     
+     IMPORTANT:
+     This uses the assignment-specific endpoint:
+     
+     GET
+     /api/academy/tutor/assignments/:id/submissions
+     
+     It does NOT use:
+     
+     /api/academy/tutor/task-submissions
+     
+     That prevents this page from hitting the old
+     class_activities / academy_task_submissions query.
+  ============================================================ */
 
   const loadSubmissions =
     useCallback(
@@ -345,7 +414,9 @@ export default function TutorAssignmentSubmissions() {
           setError(
             "Assignment ID is missing."
           );
+
           setLoading(false);
+
           return;
         }
 
@@ -361,42 +432,38 @@ export default function TutorAssignmentSubmissions() {
           const params =
             new URLSearchParams();
 
-          params.set(
-            "assignmentId",
-            id
-          );
-
-          params.set(
-            "assignment_id",
-            id
-          );
-
-          params.set(
-            "id",
-            id
-          );
-
           if (tutorReference) {
             params.set(
               "reference",
               tutorReference
             );
-
-            params.set(
-              "tutorReference",
-              tutorReference
-            );
-
-            params.set(
-              "tutor_reference",
-              tutorReference
-            );
           }
 
+          const query =
+            params.toString();
+
+          const url =
+            `${ASSIGNMENTS_URL}/${encodeURIComponent(
+              id
+            )}/submissions${
+              query
+                ? `?${query}`
+                : ""
+            }`;
+
+          console.log(
+            "Loading assignment submissions:",
+            url
+          );
+
           const response =
-            await fetch(
-              `${SUBMISSIONS_URL}?${params.toString()}`
-            );
+            await fetch(url, {
+              method: "GET",
+              headers: {
+                Accept:
+                  "application/json",
+              },
+            });
 
           let data = null;
 
@@ -448,37 +515,21 @@ export default function TutorAssignmentSubmissions() {
           }
 
           /*
-           * The endpoint can return submissions
-           * belonging to several assignments.
-           * Keep only this assignment.
+           * The assignment-specific backend already filters
+           * by assignment ID, so no second broad task filter
+           * is required here.
            */
 
-          const filtered =
-            loaded.filter(
-              (submission) => {
-                const submissionAssignmentId =
-                  clean(
-                    submission?.assignment_id ??
-                      submission?.assignmentId ??
-                      submission?.assignment?.id
-                  );
-
-                return (
-                  !submissionAssignmentId ||
-                  submissionAssignmentId ===
-                    String(id)
-                );
-              }
-            );
-
           setSubmissions(
-            filtered
+            loaded
           );
         } catch (err) {
           console.error(
-            "Load submissions error:",
+            "Load assignment submissions error:",
             err
           );
+
+          setSubmissions([]);
 
           setError(
             err?.message ||
@@ -495,6 +546,10 @@ export default function TutorAssignmentSubmissions() {
       ]
     );
 
+  /* ============================================================
+     INITIAL LOAD
+  ============================================================ */
+
   useEffect(() => {
     loadAssignment();
   }, [
@@ -507,9 +562,9 @@ export default function TutorAssignmentSubmissions() {
     loadSubmissions,
   ]);
 
-  /* =======================================================
-     GRADE
-  ======================================================= */
+  /* ============================================================
+     OPEN GRADING PAGE
+  ============================================================ */
 
   const openGradePage =
     useCallback(
@@ -519,10 +574,19 @@ export default function TutorAssignmentSubmissions() {
             submission
           );
 
-        if (!submissionId) {
+        if (
+          submissionId ===
+          undefined ||
+          submissionId ===
+          null ||
+          clean(
+            submissionId
+          ) === ""
+        ) {
           setError(
             "This submission does not have a valid submission ID."
           );
+
           return;
         }
 
@@ -534,23 +598,56 @@ export default function TutorAssignmentSubmissions() {
           )}`
         );
       },
-      [id, navigate]
+      [
+        id,
+        navigate,
+      ]
     );
+
+  /* ============================================================
+     STATS
+  ============================================================ */
 
   const gradedCount =
     submissions.filter(
-      (submission) =>
-        getStatus(
-          submission
-        ).toLowerCase() ===
-        "graded"
+      (submission) => {
+        const status =
+          clean(
+            submission?.status
+          ).toLowerCase();
+
+        return (
+          status === "graded" ||
+          status === "reviewed"
+        );
+      }
     ).length;
+
+  const returnedCount =
+    submissions.filter(
+      (submission) =>
+        clean(
+          submission?.status
+        ).toLowerCase() ===
+        "returned"
+    ).length;
+
+  const waitingCount =
+    submissions.length -
+    gradedCount -
+    returnedCount;
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <div className="min-h-screen bg-[#020617] text-white">
       <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 
-        {/* HEADER */}
+        {/* ======================================================
+            HEADER
+        ====================================================== */}
 
         <div className="mb-8">
           <button
@@ -558,16 +655,22 @@ export default function TutorAssignmentSubmissions() {
             onClick={() =>
               navigate(-1)
             }
-            className="mb-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-[#071426] px-4 py-2.5 text-sm font-semibold text-slate-300 hover:border-cyan-400/30 hover:text-white"
+            className="mb-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-[#071426] px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-cyan-400/30 hover:text-white"
           >
-            <ArrowLeft size={17} />
+            <ArrowLeft
+              size={17}
+            />
+
             Back
           </button>
 
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-cyan-300">
-                <Users size={14} />
+                <Users
+                  size={14}
+                />
+
                 Assignment Grading
               </div>
 
@@ -582,18 +685,43 @@ export default function TutorAssignmentSubmissions() {
                 Review students who have submitted
                 this assignment and grade their work.
               </p>
+
+              {clean(
+                assignment?.subject
+              ) && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="rounded-lg border border-white/10 bg-[#071426] px-3 py-1.5 text-xs font-semibold text-slate-300">
+                    {clean(
+                      assignment?.subject
+                    )}
+                  </span>
+
+                  {clean(
+                    assignment?.grade
+                  ) && (
+                    <span className="rounded-lg border border-white/10 bg-[#071426] px-3 py-1.5 text-xs font-semibold text-slate-300">
+                      Grade{" "}
+                      {clean(
+                        assignment?.grade
+                      )}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             <button
               type="button"
               onClick={() =>
-                loadSubmissions(true)
+                loadSubmissions(
+                  true
+                )
               }
               disabled={
                 loading ||
                 refreshing
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#071426] px-4 py-3 text-sm font-semibold text-slate-200 hover:border-cyan-400/30 hover:bg-[#0b1b31] disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#071426] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-cyan-400/30 hover:bg-[#0b1b31] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw
                 size={17}
@@ -603,12 +731,15 @@ export default function TutorAssignmentSubmissions() {
                     : ""
                 }
               />
+
               Refresh
             </button>
           </div>
         </div>
 
-        {/* ERROR */}
+        {/* ======================================================
+            ERROR
+        ====================================================== */}
 
         {error && (
           <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-200">
@@ -622,9 +753,17 @@ export default function TutorAssignmentSubmissions() {
                 Unable to load submissions
               </p>
 
-              <p className="mt-1 text-red-200/80">
+              <p className="mt-1 break-words text-red-200/80">
                 {error}
               </p>
+
+              {!tutorReference && (
+                <p className="mt-2 text-xs text-red-200/70">
+                  Your tutor reference could not be
+                  found in the current Academy login.
+                  Please log out and log in again.
+                </p>
+              )}
             </div>
 
             <button
@@ -632,15 +771,23 @@ export default function TutorAssignmentSubmissions() {
               onClick={() =>
                 setError("")
               }
+              className="shrink-0 text-red-200/70 transition hover:text-white"
             >
-              <X size={17} />
+              <X
+                size={17}
+              />
             </button>
           </div>
         )}
 
-        {/* STATS */}
+        {/* ======================================================
+            STATS
+        ====================================================== */}
 
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+
+          {/* SUBMITTED */}
+
           <div className="rounded-2xl border border-white/10 bg-[#071426] p-5">
             <Users
               size={21}
@@ -655,6 +802,8 @@ export default function TutorAssignmentSubmissions() {
               {submissions.length}
             </p>
           </div>
+
+          {/* GRADED */}
 
           <div className="rounded-2xl border border-white/10 bg-[#071426] p-5">
             <CheckCircle2
@@ -671,6 +820,8 @@ export default function TutorAssignmentSubmissions() {
             </p>
           </div>
 
+          {/* WAITING */}
+
           <div className="rounded-2xl border border-white/10 bg-[#071426] p-5">
             <Clock3
               size={21}
@@ -682,13 +833,17 @@ export default function TutorAssignmentSubmissions() {
             </p>
 
             <p className="mt-1 text-2xl font-bold">
-              {submissions.length -
-                gradedCount}
+              {Math.max(
+                0,
+                waitingCount
+              )}
             </p>
           </div>
         </div>
 
-        {/* LOADING */}
+        {/* ======================================================
+            LOADING
+        ====================================================== */}
 
         {loading && (
           <div className="flex min-h-[350px] items-center justify-center rounded-2xl border border-white/10 bg-[#071426]">
@@ -701,18 +856,26 @@ export default function TutorAssignmentSubmissions() {
               <p className="mt-4 text-sm font-semibold">
                 Loading student submissions...
               </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Fetching submissions for this assignment
+              </p>
             </div>
           </div>
         )}
 
-        {/* EMPTY */}
+        {/* ======================================================
+            EMPTY
+        ====================================================== */}
 
         {!loading &&
           !error &&
           submissions.length === 0 && (
             <div className="rounded-2xl border border-white/10 bg-[#071426] px-6 py-16 text-center">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-400/5 text-cyan-300">
-                <Users size={28} />
+                <Users
+                  size={28}
+                />
               </div>
 
               <h2 className="mt-5 text-xl font-bold">
@@ -726,7 +889,9 @@ export default function TutorAssignmentSubmissions() {
             </div>
           )}
 
-        {/* SUBMISSIONS */}
+        {/* ======================================================
+            SUBMISSIONS
+        ====================================================== */}
 
         {!loading &&
           submissions.length > 0 && (
@@ -761,18 +926,36 @@ export default function TutorAssignmentSubmissions() {
                       submission
                     );
 
+                  const normalizedStatus =
+                    status.toLowerCase();
+
+                  const isGraded =
+                    normalizedStatus ===
+                      "graded" ||
+                    normalizedStatus ===
+                      "reviewed";
+
+                  const isReturned =
+                    normalizedStatus ===
+                    "returned";
+
                   return (
                     <article
                       key={
-                        submissionId ||
+                        submissionId ??
                         `${studentReference}-${index}`
                       }
                       className="rounded-2xl border border-white/10 bg-[#071426] p-5 transition hover:border-cyan-400/20 sm:p-6"
                     >
                       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+
+                        {/* STUDENT */}
+
                         <div className="flex min-w-0 items-start gap-4">
                           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/5 text-cyan-300">
-                            <User size={21} />
+                            <User
+                              size={21}
+                            />
                           </div>
 
                           <div className="min-w-0">
@@ -781,7 +964,7 @@ export default function TutorAssignmentSubmissions() {
                             </h2>
 
                             {studentReference && (
-                              <p className="mt-1 text-xs text-slate-500">
+                              <p className="mt-1 break-all text-xs text-slate-500">
                                 Reference:{" "}
                                 {
                                   studentReference
@@ -790,10 +973,12 @@ export default function TutorAssignmentSubmissions() {
                             )}
 
                             <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500">
+
                               <span className="inline-flex items-center gap-1.5">
                                 <Clock3
                                   size={14}
                                 />
+
                                 Submitted{" "}
                                 {formatDate(
                                   getSubmissionDate(
@@ -806,27 +991,44 @@ export default function TutorAssignmentSubmissions() {
                                 <FileText
                                   size={14}
                                 />
+
                                 Submission{" "}
                                 {index + 1}
                               </span>
+
                             </div>
                           </div>
                         </div>
 
+                        {/* ACTIONS */}
+
                         <div className="flex flex-wrap items-center gap-3">
+
+                          {/* STATUS */}
+
                           <span
                             className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold ${
-                              status.toLowerCase() ===
-                              "graded"
+                              isGraded
                                 ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300"
+                                : isReturned
+                                ? "border-orange-400/20 bg-orange-400/5 text-orange-300"
                                 : "border-amber-400/20 bg-amber-400/5 text-amber-300"
                             }`}
                           >
-                            <CheckCircle2
-                              size={14}
-                            />
+                            {isGraded ? (
+                              <CheckCircle2
+                                size={14}
+                              />
+                            ) : (
+                              <Clock3
+                                size={14}
+                              />
+                            )}
+
                             {status}
                           </span>
+
+                          {/* SCORE */}
 
                           {score !==
                             null && (
@@ -836,6 +1038,8 @@ export default function TutorAssignmentSubmissions() {
                             </span>
                           )}
 
+                          {/* GRADE */}
+
                           <button
                             type="button"
                             onClick={() =>
@@ -844,13 +1048,21 @@ export default function TutorAssignmentSubmissions() {
                               )
                             }
                             disabled={
-                              !submissionId
+                              submissionId ===
+                                undefined ||
+                              submissionId ===
+                                null ||
+                              clean(
+                                submissionId
+                              ) === ""
                             }
                             className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-[#020617] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            <Eye size={17} />
-                            {status.toLowerCase() ===
-                            "graded"
+                            <Eye
+                              size={17}
+                            />
+
+                            {isGraded
                               ? "Review Grade"
                               : "Grade"}
                           </button>

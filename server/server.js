@@ -23,6 +23,8 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import novelRoutes from "./routes/novelRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 import learningMaterialsRouter from "./routes/learningMaterials.js";
+import tutorAssignmentsRouter from "./routes/academyTutorAssignments.js";
+
 
 // ============================================================
 // SCHOLIQEN ACADEMY ROUTES
@@ -393,6 +395,10 @@ app.use(
   express.json({
     limit: "2mb",
   })
+);
+app.use(
+  "/api/academy/tutor/assignments",
+  tutorAssignmentsRouter
 );
 
 // ============================================================

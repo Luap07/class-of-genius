@@ -106,6 +106,10 @@ const SS_SUBJECTS = [
 ========================================================= */
 
 function getSubjectsForClass(grade) {
+  if (!grade) {
+    return [];
+  }
+
   if (grade.startsWith("Primary")) {
     return PRIMARY_SUBJECTS;
   }
@@ -122,7 +126,7 @@ function getSubjectsForClass(grade) {
 }
 
 /* =========================================================
-   QUESTION CREATOR
+   CREATE QUESTION
 ========================================================= */
 
 function createQuestion() {
@@ -138,13 +142,19 @@ function createQuestion() {
 
   return {
     id,
+
     question: "",
+
     optionA: "",
     optionB: "",
     optionC: "",
     optionD: "",
+
     correctAnswer: "A",
+
     explanation: "",
+
+    marks: 1,
   };
 }
 
@@ -160,10 +170,22 @@ const TUTOR_STORAGE_KEYS = [
 ];
 
 /* =========================================================
-   GET TUTOR REFERENCE
+   TOKEN KEYS
 ========================================================= */
 
-function getTutorReference() {
+const TUTOR_TOKEN_KEYS = [
+  "scholiqen_academy_token",
+  "academy_token",
+  "scholiqen_token",
+  "access_token",
+  "token",
+];
+
+/* =========================================================
+   GET TUTOR USER
+========================================================= */
+
+function getTutorUser() {
   for (const key of TUTOR_STORAGE_KEYS) {
     try {
       const raw = localStorage.getItem(key);
@@ -174,36 +196,215 @@ function getTutorReference() {
 
       const parsed = JSON.parse(raw);
 
-      const possibleReferences = [
+      if (parsed && typeof parsed === "object") {
+        return parsed;
+      }
+    } catch {
+      // Ignore invalid storage
+    }
+  }
+
+  return null;
+}
+
+/* =========================================================
+   GET TUTOR REFERENCE
+========================================================= */
+
+function getTutorReference() {
+  const tutor = getTutorUser();
+
+  const possibleReferences = [
+    tutor?.reference,
+    tutor?.tutorReference,
+    tutor?.tutor_reference,
+
+    tutor?.user?.reference,
+    tutor?.user?.tutorReference,
+    tutor?.user?.tutor_reference,
+
+    tutor?.tutor?.reference,
+    tutor?.tutor?.tutorReference,
+    tutor?.tutor?.tutor_reference,
+
+    tutor?.applicationReference,
+    tutor?.application_reference,
+  ];
+
+  const found = possibleReferences.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      String(value).trim() !== ""
+  );
+
+  if (found) {
+    return String(found).trim();
+  }
+
+  /*
+   * Search all known storage keys again.
+   */
+  for (const key of TUTOR_STORAGE_KEYS) {
+    try {
+      const raw = localStorage.getItem(key);
+
+      if (!raw) {
+        continue;
+      }
+
+      const parsed = JSON.parse(raw);
+
+      const references = [
         parsed?.reference,
         parsed?.tutorReference,
         parsed?.tutor_reference,
+        parsed?.applicationReference,
+        parsed?.application_reference,
 
         parsed?.user?.reference,
         parsed?.user?.tutorReference,
         parsed?.user?.tutor_reference,
 
-        parsed?.user?.tutor?.reference,
-        parsed?.user?.tutor?.tutorReference,
-        parsed?.user?.tutor?.tutor_reference,
+        parsed?.tutor?.reference,
+        parsed?.tutor?.tutorReference,
+        parsed?.tutor?.tutor_reference,
       ];
 
-      const found = possibleReferences.find(
+      const reference = references.find(
         (value) =>
           value !== undefined &&
           value !== null &&
           String(value).trim() !== ""
       );
 
-      if (found) {
-        return String(found).trim();
+      if (reference) {
+        return String(reference).trim();
       }
     } catch {
-      // Ignore invalid localStorage JSON
+      // Ignore invalid JSON
     }
   }
 
   return "";
+}
+
+/* =========================================================
+   GET ACADEMY TOKEN
+========================================================= */
+
+function getAcademyToken() {
+  for (const key of TUTOR_TOKEN_KEYS) {
+    try {
+      const token = localStorage.getItem(key);
+
+      if (
+        token &&
+        String(token).trim() !== ""
+      ) {
+        return String(token).trim();
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }
+
+  return "";
+}
+
+/* =========================================================
+   CLEAN QUESTION FOR API
+========================================================= */
+
+function prepareQuestion(question, index) {
+  const questionText =
+    question.question.trim();
+
+  const optionA =
+    question.optionA.trim();
+
+  const optionB =
+    question.optionB.trim();
+
+  const optionC =
+    question.optionC.trim();
+
+  const optionD =
+    question.optionD.trim();
+
+  const correctAnswer =
+    String(
+      question.correctAnswer || "A"
+    )
+      .trim()
+      .toUpperCase();
+
+  const marks =
+    Number(question.marks) > 0
+      ? Number(question.marks)
+      : 1;
+
+  const explanation =
+    question.explanation.trim();
+
+  return {
+    /*
+     * Question number
+     */
+    questionNumber: index + 1,
+    question_number: index + 1,
+
+    /*
+     * Main question
+     */
+    question: questionText,
+    text: questionText,
+
+    /*
+     * CamelCase options
+     */
+    optionA,
+    optionB,
+    optionC,
+    optionD,
+
+    /*
+     * Snake_case options
+     */
+    option_a: optionA,
+    option_b: optionB,
+    option_c: optionC,
+    option_d: optionD,
+
+    /*
+     * Object form
+     */
+    options: {
+      A: optionA,
+      B: optionB,
+      C: optionC,
+      D: optionD,
+    },
+
+    /*
+     * Correct answer
+     */
+    correctAnswer,
+    correct_answer: correctAnswer,
+    answer: correctAnswer,
+
+    /*
+     * Explanation
+     */
+    explanation,
+
+    /*
+     * Marks
+     */
+    marks,
+    maxMarks: marks,
+    max_marks: marks,
+  };
 }
 
 /* =========================================================
@@ -213,16 +414,19 @@ function getTutorReference() {
 export default function TutorCreateAssignment() {
   const navigate = useNavigate();
 
-  /* -------------------------------------------------------
+  /* =======================================================
      STATE
-  ------------------------------------------------------- */
+  ======================================================= */
 
   const [tutorReference, setTutorReference] =
     useState("");
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] =
+    useState("");
+
   const [description, setDescription] =
     useState("");
+
   const [instructions, setInstructions] =
     useState("");
 
@@ -247,60 +451,81 @@ export default function TutorCreateAssignment() {
   const [success, setSuccess] =
     useState("");
 
-  /* -------------------------------------------------------
+  /* =======================================================
      SUBJECTS
-  ------------------------------------------------------- */
+  ======================================================= */
 
   const availableSubjects = useMemo(
-    () => getSubjectsForClass(selectedClass),
+    () =>
+      getSubjectsForClass(
+        selectedClass
+      ),
     [selectedClass]
   );
 
-  /* -------------------------------------------------------
+  /* =======================================================
+     TOTAL MARKS
+  ======================================================= */
+
+  const totalMarks = useMemo(() => {
+    return questions.reduce(
+      (total, question) =>
+        total +
+        (Number(question.marks) > 0
+          ? Number(question.marks)
+          : 1),
+      0
+    );
+  }, [questions]);
+
+  /* =======================================================
      LOAD TUTOR REFERENCE
-  ------------------------------------------------------- */
+  ======================================================= */
 
   useEffect(() => {
     const reference =
       getTutorReference();
 
     setTutorReference(reference);
+
+    console.log(
+      "Tutor reference loaded:",
+      reference
+    );
   }, []);
 
-  /* -------------------------------------------------------
+  /* =======================================================
      CHANGE CLASS
-  ------------------------------------------------------- */
+  ======================================================= */
 
-  const handleClassChange = useCallback(
-    (event) => {
+  const handleClassChange =
+    useCallback((event) => {
       const value =
         event.target.value;
 
       setSelectedClass(value);
-
       setSubject("");
       setError("");
-    },
-    []
-  );
+    }, []);
 
-  /* -------------------------------------------------------
+  /* =======================================================
      ADD QUESTION
-  ------------------------------------------------------- */
+  ======================================================= */
 
-  const addQuestion = useCallback(() => {
-    setQuestions((current) => [
-      ...current,
-      createQuestion(),
-    ]);
-  }, []);
+  const addQuestion =
+    useCallback(() => {
+      setQuestions((current) => [
+        ...current,
+        createQuestion(),
+      ]);
+    }, []);
 
-  /* -------------------------------------------------------
+  /* =======================================================
      REMOVE QUESTION
-  ------------------------------------------------------- */
+  ======================================================= */
 
-  const removeQuestion = useCallback(
-    (questionId) => {
+  const removeQuestion =
+    useCallback((questionId) => {
       setQuestions((current) => {
         if (current.length <= 1) {
           return current;
@@ -311,33 +536,32 @@ export default function TutorCreateAssignment() {
             question.id !== questionId
         );
       });
-    },
-    []
-  );
+    }, []);
 
-  /* -------------------------------------------------------
+  /* =======================================================
      UPDATE QUESTION
-  ------------------------------------------------------- */
+  ======================================================= */
 
-  const updateQuestion = useCallback(
-    (questionId, field, value) => {
-      setQuestions((current) =>
-        current.map((question) =>
-          question.id === questionId
-            ? {
-                ...question,
-                [field]: value,
-              }
-            : question
-        )
-      );
-    },
-    []
-  );
+  const updateQuestion =
+    useCallback(
+      (questionId, field, value) => {
+        setQuestions((current) =>
+          current.map((question) =>
+            question.id === questionId
+              ? {
+                  ...question,
+                  [field]: value,
+                }
+              : question
+          )
+        );
+      },
+      []
+    );
 
-  /* -------------------------------------------------------
+  /* =======================================================
      REFRESH TUTOR REFERENCE
-  ------------------------------------------------------- */
+  ======================================================= */
 
   const refreshTutorReference =
     useCallback(() => {
@@ -349,89 +573,117 @@ export default function TutorCreateAssignment() {
       return reference;
     }, []);
 
-  /* -------------------------------------------------------
-     VALIDATE
-  ------------------------------------------------------- */
+  /* =======================================================
+     VALIDATE FORM
+  ======================================================= */
 
-  const validateForm = useCallback(() => {
-    const reference =
-      tutorReference ||
-      refreshTutorReference();
+  const validateForm =
+    useCallback(() => {
+      const reference =
+        tutorReference ||
+        refreshTutorReference();
 
-    if (!reference) {
-      return "Your tutor reference could not be found. Please log in again.";
-    }
-
-    if (title.trim().length < 3) {
-      return "Assignment title must be at least 3 characters.";
-    }
-
-    if (!selectedClass) {
-      return "Please select a class.";
-    }
-
-    if (!subject) {
-      return "Please select a subject.";
-    }
-
-    if (!questions.length) {
-      return "Please add at least one question.";
-    }
-
-    for (
-      let index = 0;
-      index < questions.length;
-      index++
-    ) {
-      const question =
-        questions[index];
-
-      const number = index + 1;
-
-      if (!question.question.trim()) {
-        return `Question ${number} is required.`;
-      }
-
-      if (!question.optionA.trim()) {
-        return `Option A for question ${number} is required.`;
-      }
-
-      if (!question.optionB.trim()) {
-        return `Option B for question ${number} is required.`;
-      }
-
-      if (!question.optionC.trim()) {
-        return `Option C for question ${number} is required.`;
-      }
-
-      if (!question.optionD.trim()) {
-        return `Option D for question ${number} is required.`;
+      if (!reference) {
+        return "Your tutor reference could not be found. Please log in again.";
       }
 
       if (
-        !["A", "B", "C", "D"].includes(
-          question.correctAnswer
-        )
+        title.trim().length < 3
       ) {
-        return `Please select the correct answer for question ${number}.`;
+        return "Assignment title must be at least 3 characters.";
       }
-    }
 
-    return "";
-  }, [
-    tutorReference,
-    refreshTutorReference,
-    title,
-    selectedClass,
-    subject,
-    questions,
-  ]);
+      if (!selectedClass) {
+        return "Please select a class.";
+      }
 
-  /* -------------------------------------------------------
+      if (!subject) {
+        return "Please select a subject.";
+      }
+
+      if (!questions.length) {
+        return "Please add at least one question.";
+      }
+
+      for (
+        let index = 0;
+        index < questions.length;
+        index++
+      ) {
+        const question =
+          questions[index];
+
+        const number = index + 1;
+
+        if (
+          !question.question.trim()
+        ) {
+          return `Question ${number} is required.`;
+        }
+
+        if (
+          !question.optionA.trim()
+        ) {
+          return `Option A for question ${number} is required.`;
+        }
+
+        if (
+          !question.optionB.trim()
+        ) {
+          return `Option B for question ${number} is required.`;
+        }
+
+        if (
+          !question.optionC.trim()
+        ) {
+          return `Option C for question ${number} is required.`;
+        }
+
+        if (
+          !question.optionD.trim()
+        ) {
+          return `Option D for question ${number} is required.`;
+        }
+
+        if (
+          ![
+            "A",
+            "B",
+            "C",
+            "D",
+          ].includes(
+            String(
+              question.correctAnswer
+            ).toUpperCase()
+          )
+        ) {
+          return `Please select the correct answer for question ${number}.`;
+        }
+
+        if (
+          Number(question.marks) <= 0
+        ) {
+          return `Marks for question ${number} must be greater than 0.`;
+        }
+      }
+
+      return "";
+    }, [
+      tutorReference,
+      refreshTutorReference,
+      title,
+      selectedClass,
+      subject,
+      questions,
+    ]);
+
+  /* =======================================================
      CREATE ASSIGNMENT
-  ------------------------------------------------------- */
+  ======================================================= */
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (
+    event
+  ) => {
     event.preventDefault();
 
     setError("");
@@ -456,98 +708,144 @@ export default function TutorCreateAssignment() {
       return;
     }
 
+    const token =
+      getAcademyToken();
+
+    /*
+     * Prepare questions before sending.
+     */
+    const preparedQuestions =
+      questions.map(
+        prepareQuestion
+      );
+
+    /*
+     * IMPORTANT:
+     *
+     * This is the exact data sent to the
+     * backend. The questions array is never
+     * omitted.
+     */
+    const payload = {
+      /*
+       * Tutor identification
+       */
+      reference,
+      tutorReference: reference,
+      tutor_reference: reference,
+
+      /*
+       * Assignment details
+       */
+      title: title.trim(),
+
+      description:
+        description.trim(),
+
+      instructions:
+        instructions.trim(),
+
+      class: selectedClass,
+      grade: selectedClass,
+
+      subject,
+
+      dueDate: dueDate || "",
+      due_date: dueDate || "",
+
+      activityType: "assignment",
+      activity_type: "assignment",
+
+      /*
+       * Assignment totals
+       */
+      totalQuestions:
+        preparedQuestions.length,
+
+      total_questions:
+        preparedQuestions.length,
+
+      totalMarks,
+      total_marks: totalMarks,
+
+      /*
+       * ACTUAL QUESTIONS
+       */
+      questions:
+        preparedQuestions,
+    };
+
+    console.log(
+      "================================================"
+    );
+
+    console.log(
+      "CREATING ASSIGNMENT"
+    );
+
+    console.log(
+      "Endpoint:",
+      ASSIGNMENT_URL
+    );
+
+    console.log(
+      "Tutor reference:",
+      reference
+    );
+
+    console.log(
+      "Question count:",
+      preparedQuestions.length
+    );
+
+    console.log(
+      "Questions:",
+      preparedQuestions
+    );
+
+    console.log(
+      "Full payload:",
+      payload
+    );
+
+    console.log(
+      "================================================"
+    );
+
     setSaving(true);
 
     try {
-      const payload = {
-        reference,
+      const headers = {
+        "Content-Type":
+          "application/json",
 
-        tutorReference: reference,
+        "Accept":
+          "application/json",
 
-        tutor_reference: reference,
+        "x-tutor-reference":
+          reference,
 
-        title: title.trim(),
-
-        description:
-          description.trim(),
-
-        instructions:
-          instructions.trim(),
-
-        class: selectedClass,
-
-        grade: selectedClass,
-
-        subject,
-
-        dueDate: dueDate || "",
-
-        activityType:
-          "assignment",
-
-        activity_type:
-          "assignment",
-
-        questions:
-          questions.map(
-            (question, index) => ({
-              questionNumber:
-                index + 1,
-
-              question:
-                question.question.trim(),
-
-              options: {
-                A:
-                  question.optionA.trim(),
-
-                B:
-                  question.optionB.trim(),
-
-                C:
-                  question.optionC.trim(),
-
-                D:
-                  question.optionD.trim(),
-              },
-
-              optionA:
-                question.optionA.trim(),
-
-              optionB:
-                question.optionB.trim(),
-
-              optionC:
-                question.optionC.trim(),
-
-              optionD:
-                question.optionD.trim(),
-
-              correctAnswer:
-                question.correctAnswer,
-
-              explanation:
-                question.explanation.trim(),
-            })
-          ),
+        "X-Tutor-Reference":
+          reference,
       };
 
-      console.log(
-        "Creating academy assignment:",
-        payload
-      );
+      /*
+       * Send Academy token when available.
+       */
+      if (token) {
+        headers.Authorization =
+          `Bearer ${token}`;
+
+        headers["x-academy-token"] =
+          token;
+      }
 
       const response =
         await fetch(
           ASSIGNMENT_URL,
           {
             method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
+            headers,
             body: JSON.stringify(
               payload
             ),
@@ -556,66 +854,134 @@ export default function TutorCreateAssignment() {
 
       let data = null;
 
+      const responseText =
+        await response.text();
+
       try {
         data =
-          await response.json();
+          responseText
+            ? JSON.parse(
+                responseText
+              )
+            : null;
       } catch {
         data = null;
       }
 
       console.log(
-        "Create assignment response:",
-        {
-          status: response.status,
-          ok: response.ok,
-          data,
-        }
+        "================================================"
       );
 
-      /* ---------------------------------------------------
+      console.log(
+        "CREATE ASSIGNMENT RESPONSE"
+      );
+
+      console.log(
+        "HTTP status:",
+        response.status
+      );
+
+      console.log(
+        "HTTP OK:",
+        response.ok
+      );
+
+      console.log(
+        "Response:",
+        data
+      );
+
+      console.log(
+        "================================================"
+      );
+
+      /* -------------------------------------------------
          SERVER ERROR
-      --------------------------------------------------- */
+      ------------------------------------------------- */
 
       if (!response.ok) {
-        const serverError =
-          data?.details
-            ? `${
-                data?.error ||
-                data?.message ||
-                "Unable to create assignment."
-              } ${data.details}`
-            : data?.error ||
-              data?.message ||
-              `Unable to create assignment. Server returned ${response.status}.`;
+        let serverError =
+          data?.error ||
+          data?.message ||
+          "Unable to create assignment.";
+
+        if (data?.details) {
+          serverError +=
+            ` ${data.details}`;
+        }
 
         throw new Error(
           serverError
         );
       }
 
-      /* ---------------------------------------------------
-         SUCCESS
-      --------------------------------------------------- */
+      /* -------------------------------------------------
+         VERIFY THAT QUESTIONS WERE ACTUALLY SAVED
+      ------------------------------------------------- */
+
+      const returnedQuestions =
+        Array.isArray(
+          data?.questions
+        )
+          ? data.questions
+          : Array.isArray(
+              data?.assignment
+                ?.questions
+            )
+          ? data.assignment.questions
+          : [];
+
+      /*
+       * The backend should return inserted
+       * questions. If it does not, we still
+       * accept the creation response because
+       * some backend versions only return the
+       * assignment object.
+       */
+      if (
+        data?.success === false
+      ) {
+        throw new Error(
+          data?.error ||
+            data?.message ||
+            "The server did not create the assignment."
+        );
+      }
 
       setSuccess(
         data?.message ||
-          "Assignment created successfully."
+          `Assignment created successfully with ${preparedQuestions.length} question${
+            preparedQuestions.length === 1
+              ? ""
+              : "s"
+          }.`
       );
 
+      /*
+       * Log what the server says it inserted.
+       */
+      console.log(
+        "Server returned questions:",
+        returnedQuestions
+      );
+
+      /*
+       * Clear form.
+       */
       setTitle("");
       setDescription("");
       setInstructions("");
       setSelectedClass("");
       setSubject("");
       setDueDate("");
+
       setQuestions([
         createQuestion(),
       ]);
 
-      /* ---------------------------------------------------
-         OPTIONAL REDIRECT
-      --------------------------------------------------- */
-
+      /*
+       * Give the user time to see success.
+       */
       setTimeout(() => {
         navigate(
           "/academy/tutor/assignments"
@@ -653,7 +1019,8 @@ export default function TutorCreateAssignment() {
             onClick={() =>
               navigate(-1)
             }
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 transition hover:border-cyan-500 hover:text-cyan-400"
+            disabled={saving}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 transition hover:border-cyan-500 hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <ArrowLeft
               size={19}
@@ -673,8 +1040,9 @@ export default function TutorCreateAssignment() {
             </div>
 
             <p className="mt-1 text-sm text-slate-400">
-              Create an assignment for
-              your class.
+              Create an assignment
+              with questions for your
+              class.
             </p>
           </div>
         </div>
@@ -721,6 +1089,10 @@ export default function TutorCreateAssignment() {
           </div>
         )}
 
+        {/* =================================================
+            FORM
+        ================================================= */}
+
         <form
           onSubmit={handleSubmit}
           className="space-y-6"
@@ -736,8 +1108,9 @@ export default function TutorCreateAssignment() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-400">
-                Enter the basic information
-                for this assignment.
+                Enter the basic
+                information for this
+                assignment.
               </p>
             </div>
 
@@ -770,7 +1143,9 @@ export default function TutorCreateAssignment() {
                 </label>
 
                 <select
-                  value={selectedClass}
+                  value={
+                    selectedClass
+                  }
                   onChange={
                     handleClassChange
                   }
@@ -928,20 +1303,41 @@ export default function TutorCreateAssignment() {
           <section className="rounded-2xl border border-slate-800 bg-[#071426] p-5 shadow-xl sm:p-6">
             <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
               <div>
-                <h2 className="text-lg font-bold">
-                  Questions
-                </h2>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-lg font-bold">
+                    Questions
+                  </h2>
+
+                  <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-400">
+                    {questions.length}{" "}
+                    question
+                    {questions.length ===
+                    1
+                      ? ""
+                      : "s"}
+                  </span>
+
+                  <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-400">
+                    {totalMarks} mark
+                    {totalMarks === 1
+                      ? ""
+                      : "s"}
+                  </span>
+                </div>
 
                 <p className="mt-1 text-sm text-slate-400">
-                  Add questions and choose
-                  the correct answer.
+                  Add questions,
+                  four options, the
+                  correct answer and
+                  optional explanations.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={addQuestion}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                disabled={saving}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus size={18} />
                 Add Question
@@ -950,9 +1346,14 @@ export default function TutorCreateAssignment() {
 
             <div className="space-y-6">
               {questions.map(
-                (question, index) => (
+                (
+                  question,
+                  index
+                ) => (
                   <div
-                    key={question.id}
+                    key={
+                      question.id
+                    }
                     className="rounded-2xl border border-slate-800 bg-[#020617] p-4 sm:p-5"
                   >
                     {/* QUESTION HEADER */}
@@ -966,12 +1367,15 @@ export default function TutorCreateAssignment() {
                         <div>
                           <h3 className="font-semibold">
                             Question{" "}
-                            {index + 1}
+                            {index +
+                              1}
                           </h3>
 
                           <p className="text-xs text-slate-500">
-                            Enter the question
-                            and four options.
+                            Enter the
+                            question
+                            and four
+                            options.
                           </p>
                         </div>
                       </div>
@@ -985,11 +1389,16 @@ export default function TutorCreateAssignment() {
                               question.id
                             )
                           }
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-500/20 text-red-400 transition hover:bg-red-500/10"
+                          disabled={
+                            saving
+                          }
+                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-500/20 text-red-400 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                           title="Remove question"
                         >
                           <Trash2
-                            size={17}
+                            size={
+                              17
+                            }
                           />
                         </button>
                       )}
@@ -1006,17 +1415,23 @@ export default function TutorCreateAssignment() {
                         value={
                           question.question
                         }
-                        onChange={(event) =>
+                        onChange={(
+                          event
+                        ) =>
                           updateQuestion(
                             question.id,
                             "question",
-                            event.target
+                            event
+                              .target
                               .value
                           )
                         }
                         rows={4}
+                        disabled={
+                          saving
+                        }
                         placeholder="Enter the question..."
-                        className="w-full resize-none rounded-xl border border-slate-700 bg-[#071426] px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-500"
+                        className="w-full resize-none rounded-xl border border-slate-700 bg-[#071426] px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-500 disabled:opacity-50"
                       />
                     </div>
 
@@ -1024,25 +1439,43 @@ export default function TutorCreateAssignment() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                       {[
-                        ["A", "optionA"],
-                        ["B", "optionB"],
-                        ["C", "optionC"],
-                        ["D", "optionD"],
+                        [
+                          "A",
+                          "optionA",
+                        ],
+                        [
+                          "B",
+                          "optionB",
+                        ],
+                        [
+                          "C",
+                          "optionC",
+                        ],
+                        [
+                          "D",
+                          "optionD",
+                        ],
                       ].map(
                         ([
                           letter,
                           field,
                         ]) => (
                           <div
-                            key={letter}
+                            key={
+                              letter
+                            }
                           >
                             <label className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
                               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-cyan-400">
-                                {letter}
+                                {
+                                  letter
+                                }
                               </span>
 
                               Option{" "}
-                              {letter}
+                              {
+                                letter
+                              }
                             </label>
 
                             <input
@@ -1063,8 +1496,11 @@ export default function TutorCreateAssignment() {
                                     .value
                                 )
                               }
+                              disabled={
+                                saving
+                              }
                               placeholder={`Enter option ${letter}`}
-                              className="w-full rounded-xl border border-slate-700 bg-[#071426] px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-500"
+                              className="w-full rounded-xl border border-slate-700 bg-[#071426] px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-500 disabled:opacity-50"
                             />
                           </div>
                         )
@@ -1085,15 +1521,22 @@ export default function TutorCreateAssignment() {
                           "C",
                           "D",
                         ].map(
-                          (letter) => {
+                          (
+                            letter
+                          ) => {
                             const active =
                               question.correctAnswer ===
                               letter;
 
                             return (
                               <button
-                                key={letter}
+                                key={
+                                  letter
+                                }
                                 type="button"
+                                disabled={
+                                  saving
+                                }
                                 onClick={() =>
                                   updateQuestion(
                                     question.id,
@@ -1101,18 +1544,52 @@ export default function TutorCreateAssignment() {
                                     letter
                                   )
                                 }
-                                className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
+                                className={`rounded-xl border px-4 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                   active
                                     ? "border-cyan-500 bg-cyan-500/10 text-cyan-400"
                                     : "border-slate-700 bg-[#071426] text-slate-400 hover:border-slate-500"
                                 }`}
                               >
-                                {letter}
+                                {
+                                  letter
+                                }
                               </button>
                             );
                           }
                         )}
                       </div>
+                    </div>
+
+                    {/* MARKS */}
+
+                    <div className="mt-5">
+                      <label className="mb-2 block text-sm font-medium text-slate-300">
+                        Marks
+                      </label>
+
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={
+                          question.marks
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          updateQuestion(
+                            question.id,
+                            "marks",
+                            event
+                              .target
+                              .value
+                          )
+                        }
+                        disabled={
+                          saving
+                        }
+                        className="w-full rounded-xl border border-slate-700 bg-[#071426] px-4 py-3 text-white outline-none focus:border-cyan-500 sm:max-w-xs"
+                      />
                     </div>
 
                     {/* EXPLANATION */}
@@ -1129,22 +1606,76 @@ export default function TutorCreateAssignment() {
                         value={
                           question.explanation
                         }
-                        onChange={(event) =>
+                        onChange={(
+                          event
+                        ) =>
                           updateQuestion(
                             question.id,
                             "explanation",
-                            event.target
+                            event
+                              .target
                               .value
                           )
                         }
                         rows={3}
+                        disabled={
+                          saving
+                        }
                         placeholder="Explain why the selected answer is correct..."
-                        className="w-full resize-none rounded-xl border border-slate-700 bg-[#071426] px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-500"
+                        className="w-full resize-none rounded-xl border border-slate-700 bg-[#071426] px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-cyan-500 disabled:opacity-50"
                       />
                     </div>
                   </div>
                 )
               )}
+            </div>
+          </section>
+
+          {/* =================================================
+              SUMMARY
+          ================================================= */}
+
+          <section className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-cyan-400">
+                  Assignment Summary
+                </p>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  {questions.length}{" "}
+                  question
+                  {questions.length ===
+                  1
+                    ? ""
+                    : "s"}{" "}
+                  • {totalMarks}{" "}
+                  total mark
+                  {totalMarks === 1
+                    ? ""
+                    : "s"}
+                </p>
+              </div>
+
+              <div className="text-left sm:text-right">
+                <p className="text-xs text-slate-500">
+                  Class
+                </p>
+
+                <p className="font-semibold text-white">
+                  {selectedClass ||
+                    "Not selected"}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Subject
+                </p>
+
+                <p className="font-semibold text-white">
+                  {subject ||
+                    "Not selected"}
+                </p>
+              </div>
             </div>
           </section>
 
@@ -1166,17 +1697,22 @@ export default function TutorCreateAssignment() {
 
             <button
               type="submit"
-              disabled={saving}
+              disabled={
+                saving ||
+                !questions.length
+              }
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? (
                 <>
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+
                   Creating...
                 </>
               ) : (
                 <>
                   <Save size={18} />
+
                   Create Assignment
                 </>
               )}

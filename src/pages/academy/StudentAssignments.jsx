@@ -41,6 +41,42 @@ const DEMO_ASSIGNMENTS = [
     status: "pending",
     score: null,
     totalMarks: 20,
+
+    questions: [
+      {
+        id: "q1",
+        question:
+          "Solve x² - 5x + 6 = 0.",
+        options: [
+          "x = 1 or x = 6",
+          "x = 2 or x = 3",
+          "x = -2 or x = -3",
+          "x = 3 or x = 4",
+        ],
+      },
+      {
+        id: "q2",
+        question:
+          "What is the value of the discriminant of x² - 4x + 4 = 0?",
+        options: [
+          "0",
+          "4",
+          "8",
+          "16",
+        ],
+      },
+      {
+        id: "q3",
+        question:
+          "Which of the following is a quadratic equation?",
+        options: [
+          "2x + 5 = 0",
+          "x² + 3x - 4 = 0",
+          "5x - 2 = 8",
+          "x + 1 = 3",
+        ],
+      },
+    ],
   },
   {
     id: "assignment-002",
@@ -81,10 +117,7 @@ const getStudentId = (student) => {
   );
 };
 
-const normalizeAssignment = (
-  item,
-  index
-) => ({
+const normalizeAssignment = (item, index) => ({
   id:
     item?.id ||
     item?.assignmentId ||
@@ -121,13 +154,12 @@ const normalizeAssignment = (
     item?.deadline ||
     "",
 
-  status:
-    String(
-      item?.status ||
+  status: String(
+    item?.status ||
       item?.submissionStatus ||
       item?.submission_status ||
       "pending"
-    ).toLowerCase(),
+  ).toLowerCase(),
 
   score:
     item?.score ??
@@ -140,6 +172,13 @@ const normalizeAssignment = (
     item?.total_marks ||
     item?.maxMarks ||
     100,
+
+  questions:
+    item?.questions ||
+    item?.items ||
+    item?.assignmentQuestions ||
+    item?.assignment_questions ||
+    [],
 });
 
 const formatDate = (date) => {
@@ -179,7 +218,9 @@ const getStatusLabel = (status) => {
 
 export default function StudentAssignments() {
   const navigate = useNavigate();
-  const { student } = useOutletContext() || {};
+
+  const { student } =
+    useOutletContext() || {};
 
   const [assignments, setAssignments] =
     useState([]);
@@ -474,6 +515,7 @@ export default function StudentAssignments() {
                 size={22}
                 className="animate-spin"
               />
+
               Loading assignments...
             </div>
           </div>
@@ -558,10 +600,7 @@ export default function StudentAssignments() {
                           <span>
                             Score:{" "}
                             <strong className="text-cyan-300">
-                              {
-                                assignment.score
-                              }
-                              /
+                              {assignment.score}/
                               {
                                 assignment.totalMarks
                               }

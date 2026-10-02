@@ -9,11 +9,17 @@ import pool from "../lib/db.js";
 const router = express.Router();
 
 /* =========================================================
-   CONSTANTS
+   CONFIG
 ========================================================= */
 
 const MAX_FILE_SIZE = 250 * 1024 * 1024;
 const MAX_FILES = 10;
+
+const UPLOAD_DIR = path.resolve(
+  process.cwd(),
+  "uploads",
+  "task-submissions"
+);
 
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -32,93 +38,54 @@ const ALLOWED_MIME_TYPES = new Set([
   "video/quicktime",
 ]);
 
-const UPLOAD_DIR = path.resolve(
-  process.cwd(),
-  "uploads",
-  "task-submissions"
-);
-
 /* =========================================================
    BASIC HELPERS
 ========================================================= */
 
-function clean(value) {
-  if (value === undefined || value === null) {
-    return "";
-  }
+const clean = (value) =>
+  value === undefined || value === null
+    ? ""
+    : String(value).trim();
 
-  return String(value).trim();
-}
-
-function normalize(value) {
-  return clean(value)
+const normalize = (value) =>
+  clean(value)
     .toLowerCase()
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
 
-function normalizeStatus(value) {
-  return clean(value)
+const normalizeStatus = (value) =>
+  clean(value)
     .toLowerCase()
     .replace(/[\s_-]+/g, "");
-}
 
-function arrayFromValue(value) {
-  if (Array.isArray(value)) {
-    return value;
-  }
-
+const toNumber = (value) => {
   if (
     value === undefined ||
     value === null ||
     value === ""
   ) {
-    return [];
+    return null;
   }
 
-  if (typeof value === "string") {
-    const trimmed = value.trim();
+  const number = Number(value);
 
-    if (!trimmed) {
-      return [];
-    }
+  return Number.isFinite(number)
+    ? number
+    : null;
+};
 
-    try {
-      const parsed = JSON.parse(trimmed);
+const toIso = (value) => {
+  if (!value) return null;
 
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
+  const date = new Date(value);
 
-      if (
-        parsed &&
-        typeof parsed === "object"
-      ) {
-        return [parsed];
-      }
-    } catch {}
+  return Number.isNaN(date.getTime())
+    ? null
+    : date.toISOString();
+};
 
-    return trimmed
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return [value];
-}
-
-function uniqueArray(values = []) {
-  return [
-    ...new Set(
-      values
-        .map((value) => clean(value))
-        .filter(Boolean)
-    ),
-  ];
-}
-
-function safeJsonParse(value, fallback = {}) {
+const parseJson = (value, fallback = {}) => {
   if (
     value === undefined ||
     value === null ||
@@ -136,37 +103,38 @@ function safeJsonParse(value, fallback = {}) {
   } catch {
     return fallback;
   }
-}
+};
 
-function toNumberOrNull(value) {
-  if (
-    value === undefined ||
-    value === null ||
-    value === ""
-  ) {
-    return null;
+const arrayValue = (value) => {
+  if (Array.isArray(value)) {
+    return value;
   }
 
-  const number = Number(value);
-
-  return Number.isFinite(number)
-    ? number
-    : null;
-}
-
-function toIsoOrNull(value) {
   if (!value) {
-    return null;
+    return [];
   }
 
-  const date = new Date(value);
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return null;
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+
+      if (parsed && typeof parsed === "object") {
+        return [parsed];
+      }
+    } catch {}
+
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 
-  return date.toISOString();
-}
+  return [value];
+};
 
 /* =========================================================
    DATABASE HELPERS
@@ -188,14 +156,16 @@ async function tableExists(tableName) {
   return Boolean(result.rows[0]?.exists);
 }
 
-async function getTableColumns(tableName) {
+async function getColumns(tableName) {
+  if (!(await tableExists(tableName))) {
+    return [];
+  }
+
   const result = await pool.query(
     `
       SELECT
         column_name,
-        data_type,
-        is_nullable,
-        column_default
+        data_type
       FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = $1
@@ -204,87 +174,17 @@ async function getTableColumns(tableName) {
     [tableName]
   );
 
-  return result.rows || [];
+  return result.rows;
 }
 
-function columnNames(columns = []) {
-  return new Set(
-    columns.map(
-      (column) => column.column_name
-    )
-  );
-}
+const columnSet = (columns) =>
+  new Set(columns.map((column) => column.column_name));
 
-function getColumnInfo(
-  name,
-  columns = []
-) {
-  return columns.find(
-    (column) =>
-      column.column_name === name
-  );
-}
-
-function firstExistingColumn(
-  names,
-  availableColumns
-) {
-  return names.find((name) =>
-    availableColumns.has(name)
-  );
-}
+const firstColumn = (names, columns) =>
+  names.find((name) => columns.has(name));
 
 /* =========================================================
-   STUDENT IDENTIFIERS
-========================================================= */
-
-function getStudentId(req) {
-  return clean(
-    req.body?.studentId ||
-      req.body?.student_id ||
-      req.body?.userId ||
-      req.body?.user_id ||
-      req.body?.studentReference ||
-      req.body?.student_reference ||
-      req.headers["x-student-id"] ||
-      req.headers["x-user-id"]
-  );
-}
-
-function getStudentEmail(req) {
-  return clean(
-    req.body?.email ||
-      req.body?.studentEmail ||
-      req.body?.student_email ||
-      req.headers["x-student-email"]
-  ).toLowerCase();
-}
-
-function getStudentName(req) {
-  return clean(
-    req.body?.fullName ||
-      req.body?.full_name ||
-      req.body?.studentName ||
-      req.body?.student_name ||
-      req.body?.name ||
-      [
-        req.body?.firstName ||
-          req.body?.first_name,
-
-        req.body?.middleName ||
-          req.body?.middle_name,
-
-        req.body?.lastName ||
-          req.body?.last_name,
-      ]
-        .map(clean)
-        .filter(Boolean)
-        .join(" ")
-  );
-}
-
-/* =========================================================
-   FILE UPLOAD
+   UPLOADS
 ========================================================= */
 
 function ensureUploadDirectory() {
@@ -296,31 +196,22 @@ function ensureUploadDirectory() {
 ensureUploadDirectory();
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    try {
-      ensureUploadDirectory();
-      cb(null, UPLOAD_DIR);
-    } catch (error) {
-      cb(error);
-    }
+  destination: (_req, _file, callback) => {
+    ensureUploadDirectory();
+    callback(null, UPLOAD_DIR);
   },
 
-  filename: (_req, file, cb) => {
-    const extension = path.extname(
-      file.originalname || ""
-    );
-
-    const safeExtension = extension
+  filename: (_req, file, callback) => {
+    const extension = path
+      .extname(file.originalname || "")
       .replace(/[^a-zA-Z0-9.]/g, "")
       .toLowerCase();
 
-    const randomPart = crypto
-      .randomBytes(16)
-      .toString("hex");
-
-    cb(
+    callback(
       null,
-      `${Date.now()}-${randomPart}${safeExtension}`
+      `${Date.now()}-${crypto
+        .randomBytes(12)
+        .toString("hex")}${extension}`
     );
   },
 });
@@ -333,108 +224,20 @@ const upload = multer({
     files: MAX_FILES,
   },
 
-  fileFilter: (_req, file, cb) => {
-    if (
-      !ALLOWED_MIME_TYPES.has(
-        file.mimetype
-      )
-    ) {
-      return cb(
+  fileFilter: (_req, file, callback) => {
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return callback(
         new Error(
           `File type is not allowed: ${file.mimetype}`
         )
       );
     }
 
-    cb(null, true);
+    callback(null, true);
   },
 });
 
-/* =========================================================
-   FILE HELPERS
-========================================================= */
-
-function getAttachmentType(mimeType) {
-  const mime = clean(
-    mimeType
-  ).toLowerCase();
-
-  if (mime === "application/pdf") {
-    return "pdf";
-  }
-
-  if (
-    mime === "application/msword" ||
-    mime ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  ) {
-    return "document";
-  }
-
-  if (mime.startsWith("image/")) {
-    return "image";
-  }
-
-  if (mime.startsWith("video/")) {
-    return "video";
-  }
-
-  return "file";
-}
-
-function buildAttachments(files = []) {
-  return files.map((file) => {
-    const now =
-      new Date().toISOString();
-
-    const url =
-      `/uploads/task-submissions/${encodeURIComponent(
-        file.filename
-      )}`;
-
-    return {
-      id: crypto.randomUUID(),
-
-      originalName:
-        file.originalname,
-
-      original_name:
-        file.originalname,
-
-      filename:
-        file.filename,
-
-      mimeType:
-        file.mimetype,
-
-      mime_type:
-        file.mimetype,
-
-      size:
-        file.size,
-
-      fileSize:
-        file.size,
-
-      file_size:
-        file.size,
-
-      type:
-        getAttachmentType(
-          file.mimetype
-        ),
-
-      url,
-
-      createdAt: now,
-      created_at: now,
-    };
-  });
-}
-
-function deleteUploadedFiles(
-  files = []
-) {
+function deleteUploadedFiles(files = []) {
   for (const file of files) {
     try {
       if (
@@ -445,7 +248,7 @@ function deleteUploadedFiles(
       }
     } catch (error) {
       console.error(
-        "Unable to delete uploaded submission file:",
+        "Unable to delete uploaded file:",
         error
       );
     }
@@ -453,35 +256,71 @@ function deleteUploadedFiles(
 }
 
 /* =========================================================
-   ATTACHMENT NORMALIZATION
+   ATTACHMENTS
 ========================================================= */
 
-function normalizeAttachment(
-  attachment
-) {
-  if (!attachment) {
-    return null;
+function attachmentType(mime) {
+  const type = clean(mime).toLowerCase();
+
+  if (type === "application/pdf") {
+    return "pdf";
   }
 
-  if (typeof attachment === "string") {
-    const value =
-      clean(attachment);
+  if (
+    type === "application/msword" ||
+    type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    return "document";
+  }
 
-    if (!value) {
-      return null;
-    }
+  if (type.startsWith("image/")) {
+    return "image";
+  }
 
+  if (type.startsWith("video/")) {
+    return "video";
+  }
+
+  return "file";
+}
+
+function buildAttachments(files = []) {
+  return files.map((file) => ({
+    id: crypto.randomUUID(),
+
+    originalName: file.originalname,
+    original_name: file.originalname,
+
+    filename: file.filename,
+
+    mimeType: file.mimetype,
+    mime_type: file.mimetype,
+
+    size: file.size,
+    fileSize: file.size,
+    file_size: file.size,
+
+    type: attachmentType(file.mimetype),
+
+    url: `/uploads/task-submissions/${encodeURIComponent(
+      file.filename
+    )}`,
+
+    createdAt: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  }));
+}
+
+function normalizeAttachment(value) {
+  if (!value) return null;
+
+  if (typeof value === "string") {
     return {
       id: value,
-      originalName: path.basename(
-        value
-      ),
-      original_name: path.basename(
-        value
-      ),
-      filename: path.basename(
-        value
-      ),
+      originalName: path.basename(value),
+      original_name: path.basename(value),
+      filename: path.basename(value),
       mimeType: "",
       mime_type: "",
       size: null,
@@ -492,28 +331,30 @@ function normalizeAttachment(
     };
   }
 
-  const filename =
-    clean(
-      attachment.filename ||
-        attachment.fileName ||
-        attachment.file_name
-    );
+  const filename = clean(
+    value.filename ||
+      value.fileName ||
+      value.file_name
+  );
 
-  const originalName =
-    clean(
-      attachment.originalName ||
-        attachment.original_name ||
-        attachment.name ||
-        filename
-    );
+  const originalName = clean(
+    value.originalName ||
+      value.original_name ||
+      value.name ||
+      filename
+  );
 
-  let url =
-    clean(
-      attachment.url ||
-        attachment.path ||
-        attachment.fileUrl ||
-        attachment.file_url
-    );
+  const mimeType = clean(
+    value.mimeType ||
+      value.mime_type
+  );
+
+  let url = clean(
+    value.url ||
+      value.path ||
+      value.fileUrl ||
+      value.file_url
+  );
 
   if (!url && filename) {
     url =
@@ -523,74 +364,54 @@ function normalizeAttachment(
   }
 
   return {
-    ...attachment,
+    ...value,
 
     id:
-      attachment.id ||
+      value.id ||
       crypto.randomUUID(),
 
     originalName,
-
-    original_name:
-      originalName,
+    original_name: originalName,
 
     filename,
 
-    mimeType:
-      clean(
-        attachment.mimeType ||
-          attachment.mime_type ||
-          attachment.type
-      ),
-
-    mime_type:
-      clean(
-        attachment.mime_type ||
-          attachment.mimeType
-      ),
+    mimeType,
+    mime_type: mimeType,
 
     size:
-      attachment.size ??
-      attachment.fileSize ??
-      attachment.file_size ??
+      value.size ??
+      value.fileSize ??
+      value.file_size ??
       null,
 
     fileSize:
-      attachment.fileSize ??
-      attachment.size ??
-      attachment.file_size ??
+      value.fileSize ??
+      value.size ??
+      value.file_size ??
       null,
 
     file_size:
-      attachment.file_size ??
-      attachment.fileSize ??
-      attachment.size ??
+      value.file_size ??
+      value.fileSize ??
+      value.size ??
       null,
 
     type:
-      clean(
-        attachment.type
-      ) ||
-      getAttachmentType(
-        attachment.mimeType ||
-          attachment.mime_type ||
-          ""
-      ),
+      clean(value.type) ||
+      attachmentType(mimeType),
 
     url,
   };
 }
 
-function normalizeAttachments(
-  value
-) {
-  return arrayFromValue(value)
+function normalizeAttachments(value) {
+  return arrayValue(value)
     .map(normalizeAttachment)
     .filter(Boolean);
 }
 
 /* =========================================================
-   TUTOR HELPERS
+   TUTOR
 ========================================================= */
 
 function getTutorReference(tutor) {
@@ -604,56 +425,55 @@ function getTutorReference(tutor) {
 }
 
 function getTutorName(tutor) {
-  return clean(
+  const direct = clean(
     tutor?.full_name ||
       tutor?.fullName ||
-      tutor?.name ||
-      [
-        tutor?.first_name ||
-          tutor?.firstName,
-
-        tutor?.middle_name ||
-          tutor?.middleName,
-
-        tutor?.last_name ||
-          tutor?.lastName,
-      ]
-        .map(clean)
-        .filter(Boolean)
-        .join(" ")
+      tutor?.name
   );
+
+  if (direct) return direct;
+
+  return [
+    tutor?.first_name ||
+      tutor?.firstName,
+
+    tutor?.middle_name ||
+      tutor?.middleName,
+
+    tutor?.last_name ||
+      tutor?.lastName,
+  ]
+    .map(clean)
+    .filter(Boolean)
+    .join(" ");
 }
 
-async function findTutorByReference(
-  reference
-) {
-  const tutorReference =
-    clean(reference);
+async function findTutor(reference) {
+  const tutorReference = clean(reference);
 
   if (!tutorReference) {
     return null;
   }
 
-  const exists =
-    await tableExists(
+  if (
+    !(await tableExists(
       "academy_tutor_applications"
-    );
-
-  if (!exists) {
+    ))
+  ) {
     return null;
   }
 
-  const result =
-    await pool.query(
-      `
-        SELECT *
-        FROM academy_tutor_applications
-        ORDER BY created_at DESC NULLS LAST
-      `
-    );
+  const result = await pool.query(
+    `
+      SELECT *
+      FROM academy_tutor_applications
+      ORDER BY created_at DESC NULLS LAST
+    `
+  );
 
-  const target =
-    normalize(tutorReference);
+  const target = normalize(
+    tutorReference
+  );
 
   return (
     result.rows.find(
@@ -665,35 +485,26 @@ async function findTutorByReference(
   );
 }
 
-async function verifyTutor(
-  reference
-) {
+async function verifyTutor(reference) {
   const tutor =
-    await findTutorByReference(
-      reference
-    );
+    await findTutor(reference);
 
   if (!tutor) {
     return {
       tutor: null,
-
       error: {
         status: 404,
-
-        code:
-          "TUTOR_NOT_FOUND",
-
+        code: "TUTOR_NOT_FOUND",
         message:
           "Tutor account could not be found.",
       },
     };
   }
 
-  const status =
-    normalizeStatus(
-      tutor.application_status ||
-        tutor.status
-    );
+  const status = normalizeStatus(
+    tutor.application_status ||
+      tutor.status
+  );
 
   if (
     status !== "verified" &&
@@ -701,13 +512,9 @@ async function verifyTutor(
   ) {
     return {
       tutor: null,
-
       error: {
         status: 403,
-
-        code:
-          "TUTOR_NOT_VERIFIED",
-
+        code: "TUTOR_NOT_VERIFIED",
         message:
           "Your tutor account has not been verified yet.",
       },
@@ -716,220 +523,26 @@ async function verifyTutor(
 
   return {
     tutor,
-
     error: null,
   };
 }
 
-/* =========================================================
-   STUDENT ENROLLMENT HELPERS
-========================================================= */
-
-function getEnrollmentStudentId(
-  row
-) {
+function getRequestTutorReference(req) {
   return clean(
-    row?.student_id ||
-      row?.studentId ||
-      row?.user_id ||
-      row?.userId ||
-      row?.student_reference ||
-      row?.studentReference
+    req.query?.reference ||
+      req.query?.tutorReference ||
+      req.query?.tutor_reference ||
+      req.query?.assignmentReference ||
+      req.query?.assignment_reference ||
+      req.headers["x-tutor-reference"]
   );
-}
-
-function getEnrollmentEmail(row) {
-  return clean(
-    row?.email ||
-      row?.student_email ||
-      row?.studentEmail
-  ).toLowerCase();
-}
-
-function getEnrollmentName(row) {
-  const direct = clean(
-    row?.full_name ||
-      row?.fullName ||
-      row?.student_name ||
-      row?.studentName ||
-      row?.name
-  );
-
-  if (direct) {
-    return direct;
-  }
-
-  return [
-    row?.first_name ||
-      row?.firstName,
-
-    row?.middle_name ||
-      row?.middleName,
-
-    row?.last_name ||
-      row?.lastName,
-  ]
-    .map(clean)
-    .filter(Boolean)
-    .join(" ");
-}
-
-function getEnrollmentClass(row) {
-  return clean(
-    row?.grade ||
-      row?.class ||
-      row?.class_name ||
-      row?.className ||
-      row?.level
-  );
-}
-
-function getEnrollmentSubjects(row) {
-  return uniqueArray(
-    arrayFromValue(
-      row?.subjects ||
-        row?.subject ||
-        row?.selected_subjects ||
-        row?.selectedSubjects
-    ).map((item) => {
-      if (
-        typeof item === "object" &&
-        item !== null
-      ) {
-        return clean(
-          item.subject ||
-            item.name ||
-            item.title
-        );
-      }
-
-      return clean(item);
-    })
-  );
-}
-
-async function findStudentEnrollment(
-  req
-) {
-  const studentId =
-    getStudentId(req);
-
-  const studentEmail =
-    getStudentEmail(req);
-
-  const studentName =
-    getStudentName(req);
-
-  const exists =
-    await tableExists(
-      "academy_student_enrollments"
-    );
-
-  if (!exists) {
-    return null;
-  }
-
-  const result =
-    await pool.query(
-      `
-        SELECT *
-        FROM academy_student_enrollments
-        ORDER BY created_at DESC NULLS LAST
-      `
-    );
-
-  const rows =
-    result.rows || [];
-
-  if (!rows.length) {
-    return null;
-  }
-
-  if (studentId) {
-    const match =
-      rows.find(
-        (row) =>
-          normalize(
-            getEnrollmentStudentId(
-              row
-            )
-          ) ===
-          normalize(studentId)
-      );
-
-    if (match) {
-      return match;
-    }
-  }
-
-  if (studentEmail) {
-    const match =
-      rows.find(
-        (row) =>
-          normalize(
-            getEnrollmentEmail(row)
-          ) ===
-          normalize(studentEmail)
-      );
-
-    if (match) {
-      return match;
-    }
-  }
-
-  if (studentName) {
-    const match =
-      rows.find(
-        (row) =>
-          normalize(
-            getEnrollmentName(row)
-          ) ===
-          normalize(studentName)
-      );
-
-    if (match) {
-      return match;
-    }
-  }
-
-  return null;
 }
 
 /* =========================================================
-   CLASS ACTIVITY HELPERS
+   TASK HELPERS
 ========================================================= */
 
-async function getClassActivityColumns() {
-  const exists =
-    await tableExists(
-      "class_activities"
-    );
-
-  if (!exists) {
-    return [];
-  }
-
-  return getTableColumns(
-    "class_activities"
-  );
-}
-
-function getTaskId(req) {
-  return clean(
-    req.body?.taskId ||
-      req.body?.task_id ||
-      req.body?.activityId ||
-      req.body?.activity_id ||
-      req.params?.taskId ||
-      req.params?.activityId ||
-      req.query?.taskId ||
-      req.query?.task_id ||
-      req.query?.activityId ||
-      req.query?.activity_id
-  );
-}
-
-function getTaskGrade(task) {
+function taskGrade(task) {
   return clean(
     task?.grade ||
       task?.class ||
@@ -942,7 +555,7 @@ function getTaskGrade(task) {
   );
 }
 
-function getTaskSubject(task) {
+function taskSubject(task) {
   return clean(
     task?.subject ||
       task?.subject_name ||
@@ -952,7 +565,7 @@ function getTaskSubject(task) {
   );
 }
 
-function getTaskTutorReference(task) {
+function taskTutorReference(task) {
   return clean(
     task?.tutor_reference ||
       task?.tutorReference ||
@@ -963,7 +576,14 @@ function getTaskTutorReference(task) {
   );
 }
 
-function getTaskActivityType(task) {
+function taskMetadata(task) {
+  return parseJson(
+    task?.metadata,
+    {}
+  );
+}
+
+function taskType(task) {
   return clean(
     task?.activity_type ||
       task?.activityType ||
@@ -974,155 +594,71 @@ function getTaskActivityType(task) {
   );
 }
 
-function isTaskActivity(task) {
-  const type =
-    normalize(
-      getTaskActivityType(task)
-    );
-
-  return (
-    type === "task" ||
-    type === "tasks" ||
-    type === "class task" ||
-    type === "class_task"
+function isTask(task) {
+  const type = normalize(
+    taskType(task)
   );
+
+  return [
+    "task",
+    "tasks",
+    "class task",
+    "class_task",
+  ].includes(type);
 }
 
-function getTaskMetadata(task) {
-  return safeJsonParse(
-    task?.metadata,
-    {}
-  );
-}
-
-function getTaskMaxScore(task) {
+function taskMaxScore(task) {
   const metadata =
-    getTaskMetadata(task);
+    taskMetadata(task);
 
-  const value =
+  return toNumber(
     task?.max_score ??
-    task?.maxScore ??
-    metadata?.maxScore ??
-    metadata?.max_score;
-
-  return toNumberOrNull(value);
-}
-
-function getTaskDueAt(task) {
-  const metadata =
-    getTaskMetadata(task);
-
-  return (
-    toIsoOrNull(
-      task?.due_date ??
-        task?.dueDate ??
-        task?.deadline ??
-        task?.due_at ??
-        task?.dueAt ??
-        metadata?.dueAt ??
-        metadata?.due_at ??
-        metadata?.deadline ??
-        metadata?.dueDate
-    )
+      task?.maxScore ??
+      metadata?.maxScore ??
+      metadata?.max_score
   );
 }
 
-function taskBelongsToStudent(
-  task,
-  enrollment
-) {
-  if (
-    !task ||
-    !enrollment
-  ) {
-    return false;
-  }
+function taskDueAt(task) {
+  const metadata =
+    taskMetadata(task);
 
-  const taskClass =
-    getTaskGrade(task);
-
-  const studentClass =
-    getEnrollmentClass(
-      enrollment
-    );
-
-  if (
-    taskClass &&
-    studentClass &&
-    normalize(taskClass) !==
-      normalize(studentClass)
-  ) {
-    return false;
-  }
-
-  const taskSubject =
-    getTaskSubject(task);
-
-  if (!taskSubject) {
-    return true;
-  }
-
-  const studentSubjects =
-    getEnrollmentSubjects(
-      enrollment
-    );
-
-  if (!studentSubjects.length) {
-    return true;
-  }
-
-  return studentSubjects.some(
-    (subject) =>
-      normalize(subject) ===
-      normalize(taskSubject)
+  return toIso(
+    task?.due_date ??
+      task?.dueDate ??
+      task?.deadline ??
+      task?.due_at ??
+      task?.dueAt ??
+      metadata?.dueAt ??
+      metadata?.due_at ??
+      metadata?.deadline ??
+      metadata?.dueDate
   );
 }
 
 /* =========================================================
-   DYNAMIC CLASS ACTIVITY SELECT
+   CLASS ACTIVITIES
 ========================================================= */
 
-function buildClassActivitySelect(
-  columns
-) {
+function buildActivitySelect(columns) {
   const available =
-    columnNames(columns);
+    columnSet(columns);
 
-  const selections = [];
-
-  if (available.has("id")) {
-    selections.push(
-      `"id" AS "id"`
-    );
-  } else {
-    selections.push(
-      `NULL::text AS "id"`
-    );
-  }
-
-  function textExpression(
-    names,
-    alias
-  ) {
+  const text = (names, alias) => {
     const column =
-      firstExistingColumn(
+      firstColumn(
         names,
         available
       );
 
-    if (!column) {
-      return `NULL::text AS "${alias}"`;
-    }
+    return column
+      ? `"${column}"::text AS "${alias}"`
+      : `NULL::text AS "${alias}"`;
+  };
 
-    return `"${column}"::text AS "${alias}"`;
-  }
-
-  function jsonExpression(
-    names,
-    alias
-  ) {
+  const json = (names, alias) => {
     const column =
-      firstExistingColumn(
+      firstColumn(
         names,
         available
       );
@@ -1132,9 +668,9 @@ function buildClassActivitySelect(
     }
 
     const info =
-      getColumnInfo(
-        column,
-        columns
+      columns.find(
+        (item) =>
+          item.column_name === column
       );
 
     if (
@@ -1156,95 +692,51 @@ function buildClassActivitySelect(
           ''
         ) IS NULL
           THEN '{}'::jsonb
-
         WHEN LEFT(
           TRIM("${column}"::text),
           1
         ) = '{'
-        AND RIGHT(
-          TRIM("${column}"::text),
-          1
-        ) = '}'
-        THEN
-          CASE
-            WHEN "${column}"::text
-              ~ '^\\s*\\{.*\\}\\s*$'
-            THEN
-              "${column}"::text::jsonb
-            ELSE
-              '{}'::jsonb
-          END
-
-        ELSE
-          '{}'::jsonb
+          THEN
+            CASE
+              WHEN TRIM("${column}"::text)
+                ~ '^\\s*\\{.*\\}\\s*$'
+              THEN
+                "${column}"::text::jsonb
+              ELSE
+                '{}'::jsonb
+            END
+        ELSE '{}'::jsonb
       END AS "${alias}"
     `;
-  }
+  };
 
-  function timestampExpression(
+  const timestamp = (
     names,
     alias
-  ) {
+  ) => {
     const column =
-      firstExistingColumn(
+      firstColumn(
         names,
         available
       );
 
-    if (!column) {
-      return `NULL::timestamptz AS "${alias}"`;
-    }
+    return column
+      ? `"${column}"::timestamptz AS "${alias}"`
+      : `NULL::timestamptz AS "${alias}"`;
+  };
 
-    return `
-      CASE
-        WHEN "${column}" IS NULL
-          THEN NULL::timestamptz
-        ELSE
-          "${column}"::timestamptz
-      END AS "${alias}"
-    `;
-  }
-
-  function numericExpression(
+  const numeric = (
     names,
     alias
-  ) {
+  ) => {
     const column =
-      firstExistingColumn(
+      firstColumn(
         names,
         available
       );
 
     if (!column) {
       return `NULL::numeric AS "${alias}"`;
-    }
-
-    const info =
-      getColumnInfo(
-        column,
-        columns
-      );
-
-    const numericTypes =
-      new Set([
-        "smallint",
-        "integer",
-        "bigint",
-        "numeric",
-        "decimal",
-        "real",
-        "double precision",
-      ]);
-
-    if (
-      numericTypes.has(
-        info?.data_type
-      )
-    ) {
-      return `
-        "${column}"::numeric
-        AS "${alias}"
-      `;
     }
 
     return `
@@ -1257,37 +749,29 @@ function buildClassActivitySelect(
 
         WHEN TRIM("${column}"::text)
           ~ '^-?[0-9]+(\\.[0-9]+)?$'
-          THEN
-            TRIM("${column}"::text)::numeric
+          THEN TRIM("${column}"::text)::numeric
 
-        ELSE
-          NULL::numeric
+        ELSE NULL::numeric
       END AS "${alias}"
     `;
-  }
+  };
 
-  selections.push(
-    textExpression(
-      [
-        "title",
-        "name",
-      ],
+  return [
+    available.has("id")
+      ? `"id"::text AS "id"`
+      : `NULL::text AS "id"`,
+
+    text(
+      ["title", "name"],
       "title"
-    )
-  );
+    ),
 
-  selections.push(
-    textExpression(
-      [
-        "description",
-        "details",
-      ],
+    text(
+      ["description", "details"],
       "description"
-    )
-  );
+    ),
 
-  selections.push(
-    textExpression(
+    text(
       [
         "instructions",
         "instruction",
@@ -1295,11 +779,9 @@ function buildClassActivitySelect(
         "taskInstructions",
       ],
       "instructions"
-    )
-  );
+    ),
 
-  selections.push(
-    textExpression(
+    text(
       [
         "activity_type",
         "activityType",
@@ -1307,11 +789,9 @@ function buildClassActivitySelect(
         "activity",
       ],
       "activity_type"
-    )
-  );
+    ),
 
-  selections.push(
-    textExpression(
+    text(
       [
         "grade",
         "class",
@@ -1320,22 +800,18 @@ function buildClassActivitySelect(
         "level",
       ],
       "grade"
-    )
-  );
+    ),
 
-  selections.push(
-    textExpression(
+    text(
       [
         "subject",
         "subject_name",
         "subjectName",
       ],
       "subject"
-    )
-  );
+    ),
 
-  selections.push(
-    textExpression(
+    text(
       [
         "tutor_reference",
         "tutorReference",
@@ -1344,20 +820,14 @@ function buildClassActivitySelect(
         "tutorId",
       ],
       "tutor_reference"
-    )
-  );
+    ),
 
-  selections.push(
-    jsonExpression(
-      [
-        "metadata",
-      ],
+    json(
+      ["metadata"],
       "metadata"
-    )
-  );
+    ),
 
-  selections.push(
-    timestampExpression(
+    timestamp(
       [
         "due_date",
         "dueDate",
@@ -1366,11 +836,9 @@ function buildClassActivitySelect(
         "dueAt",
       ],
       "due_date"
-    )
-  );
+    ),
 
-  selections.push(
-    numericExpression(
+    numeric(
       [
         "max_score",
         "maxScore",
@@ -1378,62 +846,45 @@ function buildClassActivitySelect(
         "total_score",
       ],
       "max_score"
-    )
-  );
+    ),
 
-  selections.push(
-    timestampExpression(
-      [
-        "created_at",
-      ],
+    timestamp(
+      ["created_at"],
       "created_at"
-    )
-  );
+    ),
 
-  selections.push(
-    timestampExpression(
-      [
-        "updated_at",
-      ],
+    timestamp(
+      ["updated_at"],
       "updated_at"
-    )
-  );
-
-  return selections.join(",\n");
+    ),
+  ].join(",\n");
 }
 
-/* =========================================================
-   FIND TASK
-========================================================= */
+async function findTaskById(taskId) {
+  const id = clean(taskId);
 
-async function findTaskById(
-  taskId
-) {
-  const id =
-    clean(taskId);
-
-  if (!id) {
-    return null;
-  }
+  if (!id) return null;
 
   const columns =
-    await getClassActivityColumns();
+    await getColumns(
+      "class_activities"
+    );
 
   if (!columns.length) {
     return null;
   }
 
   const available =
-    columnNames(columns);
-
-  const select =
-    buildClassActivitySelect(
-      columns
-    );
+    columnSet(columns);
 
   if (!available.has("id")) {
     return null;
   }
+
+  const select =
+    buildActivitySelect(
+      columns
+    );
 
   const result =
     await pool.query(
@@ -1447,41 +898,7 @@ async function findTaskById(
       [id]
     );
 
-  if (result.rows.length) {
-    return result.rows[0];
-  }
-
-  const alternativeId =
-    firstExistingColumn(
-      [
-        "activity_id",
-        "activityId",
-        "task_id",
-        "taskId",
-      ],
-      available
-    );
-
-  if (!alternativeId) {
-    return null;
-  }
-
-  const fallback =
-    await pool.query(
-      `
-        SELECT
-          ${select}
-        FROM class_activities
-        WHERE "${alternativeId}"::text = $1
-        LIMIT 1
-      `,
-      [id]
-    );
-
-  return (
-    fallback.rows[0] ||
-    null
-  );
+  return result.rows[0] || null;
 }
 
 /* =========================================================
@@ -1516,7 +933,6 @@ async function ensureSubmissionTable() {
       submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
       reviewed_at TIMESTAMPTZ,
-
       reviewed_by TEXT,
 
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -1524,429 +940,315 @@ async function ensureSubmissionTable() {
     )
   `);
 
-  const requiredColumns = [
+  const columns = [
     [
       "task_id",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS task_id TEXT
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS task_id TEXT`,
     ],
 
     [
       "student_id",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS student_id TEXT
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS student_id TEXT`,
     ],
 
     [
       "student_name",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS student_name TEXT
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS student_name TEXT`,
     ],
 
     [
       "student_email",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS student_email TEXT
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS student_email TEXT`,
     ],
 
     [
       "grade",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS grade TEXT
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS grade TEXT`,
     ],
 
     [
       "subject",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS subject TEXT
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS subject TEXT`,
     ],
 
     [
       "response_text",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS response_text TEXT
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS response_text TEXT`,
     ],
 
     [
       "attachments",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS attachments
-        JSONB DEFAULT '[]'::jsonb
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS attachments
+       JSONB DEFAULT '[]'::jsonb`,
     ],
 
     [
       "status",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS status
-        TEXT DEFAULT 'submitted'
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS status
+       TEXT DEFAULT 'submitted'`,
     ],
 
     [
       "score",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS score NUMERIC
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS score NUMERIC`,
     ],
 
     [
       "max_score",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS max_score NUMERIC
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS max_score NUMERIC`,
     ],
 
     [
       "feedback",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS feedback TEXT
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS feedback TEXT`,
     ],
 
     [
       "submitted_at",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS submitted_at
-        TIMESTAMPTZ DEFAULT NOW()
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS submitted_at
+       TIMESTAMPTZ DEFAULT NOW()`,
     ],
 
     [
       "reviewed_at",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS reviewed_at
-        TIMESTAMPTZ
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS reviewed_at
+       TIMESTAMPTZ`,
     ],
 
     [
       "reviewed_by",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS reviewed_by TEXT
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS reviewed_by TEXT`,
     ],
 
     [
       "created_at",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS created_at
-        TIMESTAMPTZ DEFAULT NOW()
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS created_at
+       TIMESTAMPTZ DEFAULT NOW()`,
     ],
 
     [
       "updated_at",
-      `
-        ALTER TABLE academy_task_submissions
-        ADD COLUMN IF NOT EXISTS updated_at
-        TIMESTAMPTZ DEFAULT NOW()
-      `,
+      `ALTER TABLE academy_task_submissions
+       ADD COLUMN IF NOT EXISTS updated_at
+       TIMESTAMPTZ DEFAULT NOW()`,
     ],
   ];
 
-  for (const [, sql] of requiredColumns) {
+  for (const [, sql] of columns) {
     await pool.query(sql);
   }
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS
-      idx_academy_task_submissions_task_id
-    ON academy_task_submissions(task_id)
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS
-      idx_academy_task_submissions_student_id
-    ON academy_task_submissions(student_id)
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS
-      idx_academy_task_submissions_student_email
-    ON academy_task_submissions(student_email)
-  `);
 }
 
 /* =========================================================
    NORMALIZE SUBMISSION
 ========================================================= */
 
-function normalizeSubmission(row) {
+function normalizeSubmission(row, task = null) {
+  const metadata = parseJson(
+    row?.task_metadata ||
+      task?.metadata,
+    {}
+  );
+
   const attachments =
     normalizeAttachments(
       row?.attachments
     );
 
-  const taskMetadata =
-    safeJsonParse(
-      row?.task_metadata,
-      {}
-    );
-
-  const taskDueAt =
-    toIsoOrNull(
-      row?.task_due_at ||
-        row?.due_at ||
-        row?.due_date ||
-        row?.deadline
-    );
-
   const submittedAt =
-    toIsoOrNull(
+    toIso(
       row?.submitted_at ||
-        row?.submittedAt ||
         row?.created_at
     );
 
-  const explicitOverdue =
-    row?.overdue ??
-    row?.is_overdue ??
-    row?.isOverdue ??
-    row?.late ??
-    false;
-
-  let overdue =
-    Boolean(explicitOverdue);
-
-  if (
-    !overdue &&
-    taskDueAt &&
-    submittedAt
-  ) {
-    overdue =
-      new Date(
-        submittedAt
-      ).getTime() >
-      new Date(
-        taskDueAt
-      ).getTime();
-  }
-
-  const score =
-    toNumberOrNull(
-      row?.score
+  const dueAt =
+    toIso(
+      row?.task_due_at ||
+        taskDueAt(task)
     );
 
+  const score =
+    toNumber(row?.score);
+
   const maxScore =
-    toNumberOrNull(
+    toNumber(
       row?.max_score ??
-        row?.task_max_score
+        row?.task_max_score ??
+        taskMaxScore(task)
     );
 
   const status =
-    clean(
-      row?.status
-    ) || "submitted";
+    clean(row?.status) ||
+    "submitted";
 
   const statusNormalized =
     normalizeStatus(status);
 
   const isReviewed =
-    statusNormalized ===
-      "reviewed" ||
-    statusNormalized ===
-      "graded";
+    statusNormalized === "reviewed" ||
+    statusNormalized === "graded";
+
+  const overdue =
+    Boolean(
+      row?.overdue ||
+        row?.is_overdue ||
+        row?.isOverdue
+    ) ||
+    Boolean(
+      dueAt &&
+        submittedAt &&
+        new Date(submittedAt) >
+          new Date(dueAt)
+    );
+
+  const taskTitle =
+    row?.task_title ||
+    task?.title ||
+    "";
+
+  const taskDescription =
+    row?.task_description ||
+    task?.description ||
+    "";
+
+  const taskInstructions =
+    row?.task_instructions ||
+    task?.instructions ||
+    metadata?.instructions ||
+    "";
+
+  const taskGrade =
+    row?.task_grade ||
+    taskGrade(task);
+
+  const taskSubject =
+    row?.task_subject ||
+    taskSubject(task);
 
   return {
     ...row,
 
-    id:
-      row?.id,
+    id: row?.id,
 
     submissionId:
       row?.id ||
       row?.submission_id ||
-      row?.submissionId ||
       null,
 
     submission_id:
       row?.id ||
       row?.submission_id ||
-      row?.submissionId ||
       null,
 
     taskId:
       row?.task_id ||
-      row?.taskId ||
       null,
 
     task_id:
       row?.task_id ||
-      row?.taskId ||
       null,
 
-    taskTitle:
-      row?.task_title ||
-      row?.taskTitle ||
-      row?.title ||
-      "",
+    taskTitle,
+    task_title: taskTitle,
 
-    task_title:
-      row?.task_title ||
-      row?.taskTitle ||
-      row?.title ||
-      "",
+    taskDescription,
+    task_description: taskDescription,
 
-    taskDescription:
-      row?.task_description ||
-      row?.taskDescription ||
-      row?.description ||
-      "",
-
-    task_description:
-      row?.task_description ||
-      row?.taskDescription ||
-      row?.description ||
-      "",
-
-    taskInstructions:
-      row?.task_instructions ||
-      row?.taskInstructions ||
-      row?.instructions ||
-      taskMetadata?.instructions ||
-      "",
-
+    taskInstructions,
     task_instructions:
-      row?.task_instructions ||
-      row?.taskInstructions ||
-      row?.instructions ||
-      taskMetadata?.instructions ||
-      "",
+      taskInstructions,
 
     taskActivityType:
       row?.task_activity_type ||
-      row?.activity_type ||
+      taskType(task) ||
       "task",
 
     task_activity_type:
       row?.task_activity_type ||
-      row?.activity_type ||
+      taskType(task) ||
       "task",
 
-    taskGrade:
-      row?.task_grade ||
-      row?.grade ||
-      "",
+    taskGrade,
+    task_grade: taskGrade,
 
-    task_grade:
-      row?.task_grade ||
-      row?.grade ||
-      "",
+    taskSubject,
+    task_subject: taskSubject,
 
-    taskSubject:
-      row?.task_subject ||
-      row?.subject ||
-      "",
-
-    task_subject:
-      row?.task_subject ||
-      row?.subject ||
-      "",
-
-    taskMetadata,
+    taskMetadata: metadata,
 
     taskCreatedAt:
       row?.task_created_at ||
+      task?.created_at ||
       null,
 
-    taskDueAt,
+    taskDueAt: dueAt,
+    task_due_at: dueAt,
 
-    task_due_at:
-      taskDueAt,
+    dueAt: dueAt,
+    due_at: dueAt,
+    deadline: dueAt,
 
-    dueAt:
-      taskDueAt,
-
-    due_at:
-      taskDueAt,
-
-    deadline:
-      taskDueAt,
-
-    taskMaxScore:
-      maxScore,
-
-    task_max_score:
-      maxScore,
+    taskMaxScore: maxScore,
+    task_max_score: maxScore,
 
     studentId:
       row?.student_id ||
-      row?.studentId ||
       null,
 
     student_id:
       row?.student_id ||
-      row?.studentId ||
       null,
 
     studentName:
       row?.student_name ||
-      row?.studentName ||
       "",
 
     student_name:
       row?.student_name ||
-      row?.studentName ||
       "",
 
     studentEmail:
       row?.student_email ||
-      row?.studentEmail ||
       "",
 
     student_email:
       row?.student_email ||
-      row?.studentEmail ||
       "",
 
     grade:
       row?.grade ||
+      taskGrade ||
       "",
 
     subject:
       row?.subject ||
+      taskSubject ||
       "",
 
     responseText:
       row?.response_text ||
-      row?.responseText ||
       "",
 
     response_text:
       row?.response_text ||
-      row?.responseText ||
       "",
 
-    /*
-     * THIS IS THE IMPORTANT PART.
-     * The actual files submitted by the student
-     * are exposed under several predictable names
-     * so the tutor frontend can display them.
-     */
     attachments,
 
     submissionAttachments:
@@ -1970,8 +1272,7 @@ function normalizeSubmission(row) {
 
     maxScore,
 
-    max_score:
-      maxScore,
+    max_score: maxScore,
 
     feedback:
       row?.feedback ||
@@ -1983,25 +1284,17 @@ function normalizeSubmission(row) {
       submittedAt,
 
     reviewedAt:
-      toIsoOrNull(
-        row?.reviewed_at ||
-          row?.reviewedAt
-      ),
+      toIso(row?.reviewed_at),
 
     reviewed_at:
-      toIsoOrNull(
-        row?.reviewed_at ||
-          row?.reviewedAt
-      ),
+      toIso(row?.reviewed_at),
 
     reviewedBy:
       row?.reviewed_by ||
-      row?.reviewedBy ||
       null,
 
     reviewed_by:
       row?.reviewed_by ||
-      row?.reviewedBy ||
       null,
 
     isReviewed,
@@ -2015,391 +1308,140 @@ function normalizeSubmission(row) {
     isOverdue:
       overdue,
 
+    isLate:
+      overdue,
+
     late:
       overdue,
 
-    isLate:
-      overdue,
-  };
-}
-
-/* =========================================================
-   BUILD FULL TUTOR SUBMISSION
-========================================================= */
-
-function buildTutorSubmission(
-  row,
-  task = null
-) {
-  const taskData =
-    task || {};
-
-  const normalized =
-    normalizeSubmission({
-      ...row,
-
-      task_title:
-        row?.task_title ||
-        taskData?.title ||
-        "",
-
-      task_description:
-        row?.task_description ||
-        taskData?.description ||
-        "",
-
-      task_instructions:
-        row?.task_instructions ||
-        taskData?.instructions ||
-        "",
-
-      task_activity_type:
-        row?.task_activity_type ||
-        getTaskActivityType(
-          taskData
-        ),
-
-      task_grade:
-        row?.task_grade ||
-        getTaskGrade(
-          taskData
-        ),
-
-      task_subject:
-        row?.task_subject ||
-        getTaskSubject(
-          taskData
-        ),
-
-      task_metadata:
-        row?.task_metadata ||
-        taskData?.metadata ||
-        {},
-
-      task_tutor_reference:
-        row?.task_tutor_reference ||
-        getTaskTutorReference(
-          taskData
-        ),
-
-      task_created_at:
-        row?.task_created_at ||
-        taskData?.created_at ||
-        null,
-
-      task_due_at:
-        row?.task_due_at ||
-        getTaskDueAt(
-          taskData
-        ),
-
-      task_max_score:
-        row?.task_max_score ??
-        row?.max_score ??
-        getTaskMaxScore(
-          taskData
-        ),
-    });
-
-  /*
-   * Keep the entire task available to the tutor UI.
-   */
-  normalized.task =
-    task
+    task: task
       ? {
           ...task,
-
-          dueAt:
-            getTaskDueAt(task),
-
-          maxScore:
-            getTaskMaxScore(task),
-
-          title:
-            task?.title ||
-            "",
-
+          title: task.title || "",
           description:
-            task?.description ||
-            "",
-
+            task.description || "",
           instructions:
-            task?.instructions ||
-            "",
-
-          grade:
-            getTaskGrade(task),
-
-          subject:
-            getTaskSubject(task),
+            task.instructions || "",
+          grade: taskGrade,
+          subject: taskSubject,
+          dueAt,
+          maxScore,
         }
-      : null;
+      : null,
 
-  /*
-   * Explicit aliases for the actual student's work.
-   */
-  normalized.studentSubmission = {
-    responseText:
-      normalized.responseText,
+    studentSubmission: {
+      responseText:
+        row?.response_text ||
+        "",
 
-    response_text:
-      normalized.response_text,
+      response_text:
+        row?.response_text ||
+        "",
 
-    attachments:
-      normalized.attachments,
+      attachments,
 
-    files:
-      normalized.attachments,
+      files: attachments,
 
-    submittedFiles:
-      normalized.attachments,
+      submittedFiles:
+        attachments,
 
-    submittedAt:
-      normalized.submittedAt,
+      submittedAt,
 
-    status:
-      normalized.status,
+      status,
+    },
   };
-
-  return normalized;
 }
 
 /* =========================================================
-   HEALTH
-========================================================= */
-
-router.get(
-  "/task-submissions/health",
-  async (_req, res) => {
-    try {
-      await pool.query(
-        "SELECT 1"
-      );
-
-      await ensureSubmissionTable();
-
-      const classActivitiesExists =
-        await tableExists(
-          "class_activities"
-        );
-
-      return res.json({
-        success: true,
-
-        message:
-          "Task submission service is working.",
-
-        database: true,
-
-        classActivities:
-          classActivitiesExists,
-      });
-    } catch (error) {
-      console.error(
-        "Task submission health error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-
-        message:
-          "Task submission service is unavailable.",
-
-        code:
-          error?.code ||
-          "TASK_SUBMISSION_HEALTH_ERROR",
-
-        detail:
-          error?.detail ||
-          null,
-
-        hint:
-          error?.hint ||
-          null,
-      });
-    }
-  }
-);
-
-/* =========================================================
-   STUDENT SUBMIT TASK
+   STUDENT SUBMIT
 ========================================================= */
 
 router.post(
   "/student/task-submissions",
-  upload.array(
-    "files",
-    MAX_FILES
-  ),
+  upload.array("files", MAX_FILES),
   async (req, res) => {
-    const uploadedFiles =
-      req.files || [];
+    const files = req.files || [];
 
     try {
       await ensureSubmissionTable();
 
-      const taskId =
-        getTaskId(req);
+      const taskId = clean(
+        req.body?.taskId ||
+          req.body?.task_id
+      );
 
       if (!taskId) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
+        deleteUploadedFiles(files);
 
         return res.status(400).json({
           success: false,
-
-          code:
-            "TASK_ID_REQUIRED",
-
+          code: "TASK_ID_REQUIRED",
           message:
             "Task ID is required.",
         });
       }
 
-      const enrollment =
-        await findStudentEnrollment(
-          req
-        );
-
-      if (!enrollment) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
-
-        return res.status(403).json({
-          success: false,
-
-          code:
-            "STUDENT_NOT_ENROLLED",
-
-          message:
-            "Your student enrollment could not be verified.",
-        });
-      }
-
       const task =
-        await findTaskById(
-          taskId
-        );
+        await findTaskById(taskId);
 
       if (!task) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
+        deleteUploadedFiles(files);
 
         return res.status(404).json({
           success: false,
-
-          code:
-            "TASK_NOT_FOUND",
-
+          code: "TASK_NOT_FOUND",
           message:
             "The task could not be found.",
         });
       }
 
-      if (
-        !isTaskActivity(task)
-      ) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
-
-        return res.status(400).json({
-          success: false,
-
-          code:
-            "INVALID_TASK",
-
-          message:
-            "This activity is not a student task.",
-        });
-      }
-
-      if (
-        !taskBelongsToStudent(
-          task,
-          enrollment
-        )
-      ) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
-
-        return res.status(403).json({
-          success: false,
-
-          code:
-            "TASK_NOT_AVAILABLE",
-
-          message:
-            "This task is not assigned to your class or subject.",
-        });
-      }
-
-      const responseText =
-        clean(
-          req.body?.responseText ||
-            req.body?.response_text ||
-            req.body?.answer ||
-            req.body?.submissionText ||
-            req.body?.submission_text
-        );
+      const responseText = clean(
+        req.body?.responseText ||
+          req.body?.response_text ||
+          req.body?.answer
+      );
 
       if (
         !responseText &&
-        uploadedFiles.length === 0
+        files.length === 0
       ) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
+        deleteUploadedFiles(files);
 
         return res.status(400).json({
           success: false,
-
-          code:
-            "SUBMISSION_EMPTY",
-
+          code: "SUBMISSION_EMPTY",
           message:
             "Please provide an answer or upload at least one file.",
         });
       }
 
-      const studentId =
-        getStudentId(req) ||
-        getEnrollmentStudentId(
-          enrollment
-        );
+      const studentId = clean(
+        req.body?.studentId ||
+          req.body?.student_id ||
+          req.body?.userId ||
+          req.body?.user_id ||
+          req.headers["x-student-id"]
+      );
 
-      const studentEmail =
-        getStudentEmail(req) ||
-        getEnrollmentEmail(
-          enrollment
-        );
+      const studentEmail = clean(
+        req.body?.email ||
+          req.body?.studentEmail ||
+          req.body?.student_email ||
+          req.headers["x-student-email"]
+      ).toLowerCase();
 
-      const studentName =
-        getStudentName(req) ||
-        getEnrollmentName(
-          enrollment
-        );
-
-      const grade =
-        getTaskGrade(task) ||
-        getEnrollmentClass(
-          enrollment
-        );
-
-      const subject =
-        getTaskSubject(task);
+      const studentName = clean(
+        req.body?.fullName ||
+          req.body?.full_name ||
+          req.body?.studentName ||
+          req.body?.student_name ||
+          req.body?.name
+      );
 
       const attachments =
-        buildAttachments(
-          uploadedFiles
-        );
+        buildAttachments(files);
 
-      const existingResult =
+      const existing =
         await pool.query(
           `
             SELECT *
@@ -2413,8 +1455,8 @@ router.post(
                 OR
                 (
                   $3 <> ''
-                  AND LOWER(student_email) =
-                    LOWER($3)
+                  AND LOWER(student_email)
+                    = LOWER($3)
                 )
               )
             ORDER BY submitted_at DESC
@@ -2427,24 +1469,9 @@ router.post(
           ]
         );
 
-      const existing =
-        existingResult.rows[0] ||
-        null;
-
-      /*
-       * IMPORTANT:
-       * If the student resubmits, replace the old
-       * submission rather than leaving the tutor
-       * with an older submission record.
-       */
       let result;
 
-      if (existing) {
-        const oldAttachments =
-          normalizeAttachments(
-            existing.attachments
-          );
-
+      if (existing.rows[0]) {
         result =
           await pool.query(
             `
@@ -2461,81 +1488,25 @@ router.post(
                 score = NULL,
                 max_score = $8,
                 feedback = NULL,
-                submitted_at = NOW(),
                 reviewed_at = NULL,
                 reviewed_by = NULL,
+                submitted_at = NOW(),
                 updated_at = NOW()
               WHERE id = $9
               RETURNING *
             `,
             [
-              studentId ||
-                null,
-
-              studentName ||
-                null,
-
-              studentEmail ||
-                null,
-
-              grade ||
-                null,
-
-              subject ||
-                null,
-
-              responseText ||
-                null,
-
-              JSON.stringify(
-                attachments
-              ),
-
-              getTaskMaxScore(
-                task
-              ),
-
-              existing.id,
+              studentId || null,
+              studentName || null,
+              studentEmail || null,
+              taskGrade(task) || null,
+              taskSubject(task) || null,
+              responseText || null,
+              JSON.stringify(attachments),
+              taskMaxScore(task),
+              existing.rows[0].id,
             ]
           );
-
-        /*
-         * Remove old physical files after successful
-         * replacement.
-         */
-        for (const attachment of oldAttachments) {
-          const oldFilename =
-            clean(
-              attachment?.filename
-            );
-
-          if (!oldFilename) {
-            continue;
-          }
-
-          const oldPath =
-            path.join(
-              UPLOAD_DIR,
-              oldFilename
-            );
-
-          try {
-            if (
-              fs.existsSync(
-                oldPath
-              )
-            ) {
-              fs.unlinkSync(
-                oldPath
-              );
-            }
-          } catch (error) {
-            console.error(
-              "Unable to delete old submission attachment:",
-              error
-            );
-          }
-        }
       } else {
         result =
           await pool.query(
@@ -2550,10 +1521,7 @@ router.post(
                 response_text,
                 attachments,
                 status,
-                max_score,
-                submitted_at,
-                created_at,
-                updated_at
+                max_score
               )
               VALUES (
                 $1,
@@ -2565,456 +1533,7 @@ router.post(
                 $7,
                 $8::jsonb,
                 'submitted',
-                $9,
-                NOW(),
-                NOW(),
-                NOW()
-              )
-              RETURNING *
-            `,
-            [
-              taskId,
-
-              studentId ||
-                null,
-
-              studentName ||
-                null,
-
-              studentEmail ||
-                null,
-
-              grade ||
-                null,
-
-              subject ||
-                null,
-
-              responseText ||
-                null,
-
-              JSON.stringify(
-                attachments
-              ),
-
-              getTaskMaxScore(
-                task
-              ),
-            ]
-          );
-      }
-
-      const submission =
-        buildTutorSubmission(
-          result.rows[0],
-          task
-        );
-
-      return res.status(
-        existing ? 200 : 201
-      ).json({
-        success: true,
-
-        message:
-          existing
-            ? "Task resubmitted successfully."
-            : "Task submitted successfully.",
-
-        submission,
-
-        task,
-
-        previousSubmission:
-          existing
-            ? normalizeSubmission(
-                existing
-              )
-            : null,
-      });
-    } catch (error) {
-      deleteUploadedFiles(
-        uploadedFiles
-      );
-
-      console.error(
-        "Student task submission error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-
-        code:
-          error?.code ||
-          "TASK_SUBMISSION_CREATE_ERROR",
-
-        message:
-          error?.message ||
-          "Unable to submit task.",
-
-        detail:
-          error?.detail ||
-          null,
-
-        hint:
-          error?.hint ||
-          null,
-
-        table:
-          error?.table ||
-          null,
-
-        column:
-          error?.column ||
-          null,
-
-        constraint:
-          error?.constraint ||
-          null,
-      });
-    }
-  }
-);
-
-/* =========================================================
-   COMPATIBILITY STUDENT SUBMIT ROUTE
-   Supports:
-   /student/tasks/:taskId/submit
-========================================================= */
-
-router.post(
-  "/student/tasks/:taskId/submit",
-  upload.array(
-    "files",
-    MAX_FILES
-  ),
-  async (req, res) => {
-    /*
-     * Put the route parameter into the same
-     * body shape used by the main submission handler.
-     */
-    req.body =
-      req.body || {};
-
-    req.body.taskId =
-      req.params.taskId;
-
-    const uploadedFiles =
-      req.files || [];
-
-    try {
-      await ensureSubmissionTable();
-
-      const taskId =
-        clean(
-          req.params.taskId
-        );
-
-      if (!taskId) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
-
-        return res.status(400).json({
-          success: false,
-          code:
-            "TASK_ID_REQUIRED",
-          message:
-            "Task ID is required.",
-        });
-      }
-
-      const enrollment =
-        await findStudentEnrollment(
-          req
-        );
-
-      if (!enrollment) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
-
-        return res.status(403).json({
-          success: false,
-          code:
-            "STUDENT_NOT_ENROLLED",
-          message:
-            "Your student enrollment could not be verified.",
-        });
-      }
-
-      const task =
-        await findTaskById(
-          taskId
-        );
-
-      if (!task) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
-
-        return res.status(404).json({
-          success: false,
-          code:
-            "TASK_NOT_FOUND",
-          message:
-            "The task could not be found.",
-        });
-      }
-
-      if (
-        !isTaskActivity(task)
-      ) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
-
-        return res.status(400).json({
-          success: false,
-          code:
-            "INVALID_TASK",
-          message:
-            "This activity is not a student task.",
-        });
-      }
-
-      if (
-        !taskBelongsToStudent(
-          task,
-          enrollment
-        )
-      ) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
-
-        return res.status(403).json({
-          success: false,
-          code:
-            "TASK_NOT_AVAILABLE",
-          message:
-            "This task is not assigned to your class or subject.",
-        });
-      }
-
-      const responseText =
-        clean(
-          req.body?.responseText ||
-            req.body?.response_text ||
-            req.body?.answer ||
-            req.body?.submissionText ||
-            req.body?.submission_text
-        );
-
-      if (
-        !responseText &&
-        uploadedFiles.length === 0
-      ) {
-        deleteUploadedFiles(
-          uploadedFiles
-        );
-
-        return res.status(400).json({
-          success: false,
-          code:
-            "SUBMISSION_EMPTY",
-          message:
-            "Please provide an answer or upload at least one file.",
-        });
-      }
-
-      const studentId =
-        getStudentId(req) ||
-        getEnrollmentStudentId(
-          enrollment
-        );
-
-      const studentEmail =
-        getStudentEmail(req) ||
-        getEnrollmentEmail(
-          enrollment
-        );
-
-      const studentName =
-        getStudentName(req) ||
-        getEnrollmentName(
-          enrollment
-        );
-
-      const grade =
-        getTaskGrade(task) ||
-        getEnrollmentClass(
-          enrollment
-        );
-
-      const subject =
-        getTaskSubject(task);
-
-      const attachments =
-        buildAttachments(
-          uploadedFiles
-        );
-
-      const existingResult =
-        await pool.query(
-          `
-            SELECT *
-            FROM academy_task_submissions
-            WHERE task_id = $1
-              AND (
-                (
-                  $2 <> ''
-                  AND student_id = $2
-                )
-                OR
-                (
-                  $3 <> ''
-                  AND LOWER(student_email) =
-                    LOWER($3)
-                )
-              )
-            ORDER BY submitted_at DESC
-            LIMIT 1
-          `,
-          [
-            taskId,
-            studentId,
-            studentEmail,
-          ]
-        );
-
-      const existing =
-        existingResult.rows[0] ||
-        null;
-
-      let result;
-
-      if (existing) {
-        const oldAttachments =
-          normalizeAttachments(
-            existing.attachments
-          );
-
-        result =
-          await pool.query(
-            `
-              UPDATE academy_task_submissions
-              SET
-                student_id = $1,
-                student_name = $2,
-                student_email = $3,
-                grade = $4,
-                subject = $5,
-                response_text = $6,
-                attachments = $7::jsonb,
-                status = 'submitted',
-                score = NULL,
-                max_score = $8,
-                feedback = NULL,
-                submitted_at = NOW(),
-                reviewed_at = NULL,
-                reviewed_by = NULL,
-                updated_at = NOW()
-              WHERE id = $9
-              RETURNING *
-            `,
-            [
-              studentId ||
-                null,
-
-              studentName ||
-                null,
-
-              studentEmail ||
-                null,
-
-              grade ||
-                null,
-
-              subject ||
-                null,
-
-              responseText ||
-                null,
-
-              JSON.stringify(
-                attachments
-              ),
-
-              getTaskMaxScore(
-                task
-              ),
-
-              existing.id,
-            ]
-          );
-
-        for (const attachment of oldAttachments) {
-          const filename =
-            clean(
-              attachment?.filename
-            );
-
-          if (!filename) {
-            continue;
-          }
-
-          const oldPath =
-            path.join(
-              UPLOAD_DIR,
-              filename
-            );
-
-          try {
-            if (
-              fs.existsSync(
-                oldPath
-              )
-            ) {
-              fs.unlinkSync(
-                oldPath
-              );
-            }
-          } catch (error) {
-            console.error(
-              "Unable to delete old attachment:",
-              error
-            );
-          }
-        }
-      } else {
-        result =
-          await pool.query(
-            `
-              INSERT INTO academy_task_submissions (
-                task_id,
-                student_id,
-                student_name,
-                student_email,
-                grade,
-                subject,
-                response_text,
-                attachments,
-                status,
-                max_score,
-                submitted_at,
-                created_at,
-                updated_at
-              )
-              VALUES (
-                $1,
-                $2,
-                $3,
-                $4,
-                $5,
-                $6,
-                $7,
-                $8::jsonb,
-                'submitted',
-                $9,
-                NOW(),
-                NOW(),
-                NOW()
+                $9
               )
               RETURNING *
             `,
@@ -3023,74 +1542,58 @@ router.post(
               studentId || null,
               studentName || null,
               studentEmail || null,
-              grade || null,
-              subject || null,
+              taskGrade(task) || null,
+              taskSubject(task) || null,
               responseText || null,
-              JSON.stringify(
-                attachments
-              ),
-              getTaskMaxScore(
-                task
-              ),
+              JSON.stringify(attachments),
+              taskMaxScore(task),
             ]
           );
       }
 
-      const submission =
-        buildTutorSubmission(
-          result.rows[0],
-          task
-        );
-
       return res.status(
-        existing ? 200 : 201
+        existing.rows[0]
+          ? 200
+          : 201
       ).json({
         success: true,
 
         message:
-          existing
+          existing.rows[0]
             ? "Task resubmitted successfully."
             : "Task submitted successfully.",
 
-        submission,
-
-        task,
+        submission:
+          normalizeSubmission(
+            result.rows[0],
+            task
+          ),
       });
     } catch (error) {
-      deleteUploadedFiles(
-        uploadedFiles
-      );
+      deleteUploadedFiles(files);
 
       console.error(
-        "Student task submit compatibility route error:",
+        "Student task submission error:",
         error
       );
 
       return res.status(500).json({
         success: false,
-
         code:
           error?.code ||
           "TASK_SUBMISSION_CREATE_ERROR",
-
         message:
           error?.message ||
           "Unable to submit task.",
-
         detail:
-          error?.detail ||
-          null,
-
-        hint:
-          error?.hint ||
-          null,
+          error?.detail || null,
       });
     }
   }
 );
 
 /* =========================================================
-   STUDENT GET MY SUBMISSIONS
+   STUDENT GET SUBMISSIONS
 ========================================================= */
 
 router.get(
@@ -3099,98 +1602,63 @@ router.get(
     try {
       await ensureSubmissionTable();
 
-      const studentId =
-        clean(
-          req.query?.studentId ||
-            req.query?.student_id ||
-            req.query?.userId ||
-            req.query?.user_id ||
-            req.headers[
-              "x-student-id"
-            ]
-        );
+      const studentId = clean(
+        req.query?.studentId ||
+          req.query?.student_id ||
+          req.query?.userId ||
+          req.query?.user_id ||
+          req.headers["x-student-id"]
+      );
 
-      const studentEmail =
-        clean(
-          req.query?.email ||
-            req.query?.studentEmail ||
-            req.query?.student_email ||
-            req.headers[
-              "x-student-email"
-            ]
-        ).toLowerCase();
+      const email = clean(
+        req.query?.email ||
+          req.query?.studentEmail ||
+          req.query?.student_email ||
+          req.headers["x-student-email"]
+      ).toLowerCase();
 
-      const studentName =
-        clean(
-          req.query?.fullName ||
-            req.query?.full_name ||
-            req.query?.studentName ||
-            req.query?.student_name
-        );
-
-      if (
-        !studentId &&
-        !studentEmail &&
-        !studentName
-      ) {
+      if (!studentId && !email) {
         return res.status(400).json({
           success: false,
-
           code:
             "STUDENT_IDENTIFIER_REQUIRED",
-
           message:
-            "Student ID, email, or full name is required.",
+            "Student ID or email is required.",
         });
       }
 
       const result =
         await pool.query(
           `
-            SELECT
-              s.*
-            FROM academy_task_submissions s
+            SELECT *
+            FROM academy_task_submissions
             WHERE
               (
                 $1 <> ''
-                AND s.student_id = $1
+                AND student_id = $1
               )
               OR
               (
                 $2 <> ''
-                AND LOWER(s.student_email) =
-                  LOWER($2)
+                AND LOWER(student_email)
+                  = LOWER($2)
               )
-              OR
-              (
-                $3 <> ''
-                AND LOWER(s.student_name) =
-                  LOWER($3)
-              )
-            ORDER BY
-              s.submitted_at DESC
+            ORDER BY submitted_at DESC
           `,
-          [
-            studentId,
-            studentEmail,
-            studentName,
-          ]
+          [studentId, email]
         );
 
       const submissions =
         result.rows.map(
-          normalizeSubmission
+          (row) =>
+            normalizeSubmission(row)
         );
 
       return res.json({
         success: true,
-
         submissions,
-
         data: submissions,
-
-        count:
-          submissions.length,
+        count: submissions.length,
       });
     } catch (error) {
       console.error(
@@ -3200,182 +1668,26 @@ router.get(
 
       return res.status(500).json({
         success: false,
-
         code:
           error?.code ||
           "STUDENT_SUBMISSIONS_LOAD_ERROR",
-
         message:
           error?.message ||
-          "Unable to load your task submissions.",
+          "Unable to load submissions.",
       });
     }
   }
 );
 
 /* =========================================================
-   STUDENT GET SINGLE SUBMISSION
-========================================================= */
+   TUTOR GET SUBMISSIONS
+   Supports:
 
-router.get(
-  "/student/task-submissions/:submissionId",
-  async (req, res) => {
-    try {
-      await ensureSubmissionTable();
+   /tutor/task-submissions
 
-      const submissionId =
-        clean(
-          req.params?.submissionId
-        );
+   /tutor/task-submissions?assignmentId=2
 
-      if (!submissionId) {
-        return res.status(400).json({
-          success: false,
-
-          code:
-            "SUBMISSION_ID_REQUIRED",
-
-          message:
-            "Submission ID is required.",
-        });
-      }
-
-      const studentId =
-        clean(
-          req.query?.studentId ||
-            req.query?.student_id ||
-            req.query?.userId ||
-            req.query?.user_id
-        );
-
-      const studentEmail =
-        clean(
-          req.query?.email ||
-            req.query?.studentEmail ||
-            req.query?.student_email
-        ).toLowerCase();
-
-      const studentName =
-        clean(
-          req.query?.fullName ||
-            req.query?.full_name ||
-            req.query?.studentName ||
-            req.query?.student_name
-        );
-
-      const result =
-        await pool.query(
-          `
-            SELECT *
-            FROM academy_task_submissions
-            WHERE id::text = $1
-            LIMIT 1
-          `,
-          [submissionId]
-        );
-
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-
-          code:
-            "SUBMISSION_NOT_FOUND",
-
-          message:
-            "Submission could not be found.",
-        });
-      }
-
-      const submission =
-        result.rows[0];
-
-      if (
-        studentId &&
-        normalize(
-          submission.student_id
-        ) !==
-          normalize(studentId)
-      ) {
-        return res.status(403).json({
-          success: false,
-
-          message:
-            "You do not have access to this submission.",
-        });
-      }
-
-      if (
-        !studentId &&
-        studentEmail &&
-        normalize(
-          submission.student_email
-        ) !==
-          normalize(studentEmail)
-      ) {
-        return res.status(403).json({
-          success: false,
-
-          message:
-            "You do not have access to this submission.",
-        });
-      }
-
-      if (
-        !studentId &&
-        !studentEmail &&
-        studentName &&
-        normalize(
-          submission.student_name
-        ) !==
-          normalize(studentName)
-      ) {
-        return res.status(403).json({
-          success: false,
-
-          message:
-            "You do not have access to this submission.",
-        });
-      }
-
-      const task =
-        await findTaskById(
-          submission.task_id
-        );
-
-      return res.json({
-        success: true,
-
-        submission:
-          buildTutorSubmission(
-            submission,
-            task
-          ),
-      });
-    } catch (error) {
-      console.error(
-        "Load single student submission error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-
-        code:
-          error?.code ||
-          "STUDENT_SUBMISSION_LOAD_ERROR",
-
-        message:
-          error?.message ||
-          "Unable to load submission.",
-      });
-    }
-  }
-);
-
-/* =========================================================
-   TUTOR GET ALL TASK SUBMISSIONS
+   /tutor/task-submissions?taskId=2
 ========================================================= */
 
 router.get(
@@ -3385,48 +1697,33 @@ router.get(
       await ensureSubmissionTable();
 
       const reference =
-        clean(
-          req.query?.reference ||
-            req.query?.tutorReference ||
-            req.query?.tutor_reference ||
-            req.query?.applicationReference ||
-            req.query?.application_reference ||
-            req.headers[
-              "x-tutor-reference"
-            ]
-        );
+        getRequestTutorReference(req);
 
       if (!reference) {
         return res.status(400).json({
           success: false,
-
           code:
             "TUTOR_REFERENCE_REQUIRED",
-
           message:
             "Tutor reference is required.",
         });
       }
 
       const tutorCheck =
-        await verifyTutor(
-          reference
-        );
+        await verifyTutor(reference);
 
-      if (
-        tutorCheck.error
-      ) {
-        return res.status(
-          tutorCheck.error.status
-        ).json({
-          success: false,
-
-          code:
-            tutorCheck.error.code,
-
-          message:
-            tutorCheck.error.message,
-        });
+      if (tutorCheck.error) {
+        return res
+          .status(
+            tutorCheck.error.status
+          )
+          .json({
+            success: false,
+            code:
+              tutorCheck.error.code,
+            message:
+              tutorCheck.error.message,
+          });
       }
 
       const tutor =
@@ -3435,148 +1732,176 @@ router.get(
       const tutorReference =
         getTutorReference(tutor);
 
+      /* -----------------------------------------------------
+         SUPPORT assignmentId FROM FRONTEND
+      ----------------------------------------------------- */
+
+      const assignmentId = clean(
+        req.query?.assignmentId ||
+          req.query?.assignment_id ||
+          req.query?.taskId ||
+          req.query?.task_id
+      );
+
       const columns =
-        await getClassActivityColumns();
+        await getColumns(
+          "class_activities"
+        );
 
       if (!columns.length) {
         return res.json({
           success: true,
-
           submissions: [],
-
           data: [],
-
           count: 0,
-
+          total: 0,
+          awaitingReview: 0,
+          submittedCount: 0,
+          gradedCount: 0,
+          reviewedCount: 0,
+          overdueCount: 0,
           tutorReference,
-
-          message:
-            "No class activities table is available yet.",
+          tutorName:
+            getTutorName(tutor),
         });
       }
 
       const available =
-        columnNames(columns);
+        columnSet(columns);
 
-      const tutorColumn =
-        firstExistingColumn(
+      const directTutorColumn =
+        firstColumn(
           [
             "tutor_reference",
             "tutorReference",
             "reference",
+            "tutor_id",
+            "tutorId",
           ],
           available
         );
 
-      const select =
-        buildClassActivitySelect(
+      const activitySelect =
+        buildActivitySelect(
           columns
         );
 
-      let result;
+      /*
+       * IMPORTANT:
+       *
+       * We use INNER JOIN here.
+       *
+       * That prevents unrelated/orphaned submissions
+       * from appearing in the tutor grading page.
+       */
+      let sql = `
+        SELECT
+          s.*,
 
-      if (tutorColumn) {
-        result =
-          await pool.query(
-            `
-              SELECT
-                s.*,
+          a.title AS task_title,
 
-                a.title AS task_title,
-                a.description AS task_description,
-                a.instructions AS task_instructions,
-                a.activity_type AS task_activity_type,
-                a.grade AS task_grade,
-                a.subject AS task_subject,
-                a.metadata AS task_metadata,
-                a.tutor_reference AS task_tutor_reference,
-                a.due_date AS task_due_at,
-                a.max_score AS task_max_score,
-                a.created_at AS task_created_at
+          a.description AS task_description,
 
-              FROM academy_task_submissions s
+          a.instructions AS task_instructions,
 
-              LEFT JOIN (
-                SELECT
-                  ${select}
-                FROM class_activities
-              ) a
-                ON a.id::text =
-                   s.task_id::text
+          a.activity_type AS task_activity_type,
 
-              WHERE
-                LOWER(
-                  COALESCE(
-                    a.tutor_reference,
-                    ''
-                  )
-                ) = LOWER($1)
+          a.grade AS task_grade,
 
-              ORDER BY
-                s.submitted_at DESC
-            `,
-            [tutorReference]
-          );
+          a.subject AS task_subject,
+
+          a.tutor_reference AS task_tutor_reference,
+
+          a.metadata AS task_metadata,
+
+          a.due_date AS task_due_at,
+
+          a.max_score AS task_max_score,
+
+          a.created_at AS task_created_at
+
+        FROM academy_task_submissions s
+
+        INNER JOIN (
+          SELECT
+            ${activitySelect}
+          FROM class_activities
+        ) a
+          ON a.id::text =
+             s.task_id::text
+
+        WHERE 1 = 1
+      `;
+
+      const params = [];
+      let index = 1;
+
+      /* -----------------------------------------------------
+         TUTOR FILTER
+      ----------------------------------------------------- */
+
+      if (directTutorColumn) {
+        sql += `
+          AND LOWER(
+            COALESCE(
+              a.tutor_reference,
+              ''
+            )
+          ) = LOWER($${index})
+        `;
       } else {
-        result =
-          await pool.query(
-            `
-              SELECT
-                s.*,
-
-                a.title AS task_title,
-                a.description AS task_description,
-                a.instructions AS task_instructions,
-                a.activity_type AS task_activity_type,
-                a.grade AS task_grade,
-                a.subject AS task_subject,
-                a.metadata AS task_metadata,
-                a.tutor_reference AS task_tutor_reference,
-                a.due_date AS task_due_at,
-                a.max_score AS task_max_score,
-                a.created_at AS task_created_at
-
-              FROM academy_task_submissions s
-
-              LEFT JOIN (
-                SELECT
-                  ${select}
-                FROM class_activities
-              ) a
-                ON a.id::text =
-                   s.task_id::text
-
-              WHERE
-                LOWER(
-                  COALESCE(
-                    a.metadata->>'tutorReference',
-                    a.metadata->>'tutor_reference',
-                    a.metadata->>'reference',
-                    ''
-                  )
-                ) = LOWER($1)
-
-              ORDER BY
-                s.submitted_at DESC
-            `,
-            [tutorReference]
-          );
+        sql += `
+          AND LOWER(
+            COALESCE(
+              a.metadata->>'tutorReference',
+              a.metadata->>'tutor_reference',
+              a.metadata->>'reference',
+              ''
+            )
+          ) = LOWER($${index})
+        `;
       }
+
+      params.push(tutorReference);
+      index++;
+
+      /* -----------------------------------------------------
+         ASSIGNMENT FILTER
+      ----------------------------------------------------- */
+
+      if (assignmentId) {
+        sql += `
+          AND a.id::text = $${index}
+        `;
+
+        params.push(assignmentId);
+        index++;
+      }
+
+      sql += `
+        ORDER BY
+          s.submitted_at DESC NULLS LAST,
+          s.created_at DESC NULLS LAST
+      `;
+
+      const result =
+        await pool.query(
+          sql,
+          params
+        );
 
       const submissions =
         result.rows
           .map((row) =>
-            buildTutorSubmission(
-              row
-            )
+            normalizeSubmission(row)
           )
-          .filter((item) =>
-            isTaskActivity({
+          .filter((submission) =>
+            isTask({
               activity_type:
-                item.taskActivityType,
+                submission.taskActivityType,
 
               metadata:
-                item.taskMetadata,
+                submission.taskMetadata,
             })
           );
 
@@ -3630,12 +1955,26 @@ router.get(
 
         tutorName:
           getTutorName(tutor),
+
+        assignmentId:
+          assignmentId || null,
       });
     } catch (error) {
       console.error(
         "Load tutor task submissions error:",
         error
       );
+
+      console.error({
+        code: error?.code,
+        message: error?.message,
+        detail: error?.detail,
+        hint: error?.hint,
+        table: error?.table,
+        column: error?.column,
+        constraint:
+          error?.constraint,
+      });
 
       return res.status(500).json({
         success: false,
@@ -3649,27 +1988,26 @@ router.get(
           "Unable to load task submissions.",
 
         detail:
-          error?.detail ||
-          null,
+          error?.detail || null,
 
         hint:
-          error?.hint ||
-          null,
+          error?.hint || null,
 
         table:
-          error?.table ||
-          null,
+          error?.table || null,
 
         column:
-          error?.column ||
-          null,
+          error?.column || null,
+
+        constraint:
+          error?.constraint || null,
       });
     }
   }
 );
 
 /* =========================================================
-   TUTOR GET SINGLE SUBMISSION
+   TUTOR GET ONE SUBMISSION
 ========================================================= */
 
 router.get(
@@ -3679,60 +2017,45 @@ router.get(
       await ensureSubmissionTable();
 
       const reference =
-        clean(
-          req.query?.reference ||
-            req.query?.tutorReference ||
-            req.query?.tutor_reference ||
-            req.headers[
-              "x-tutor-reference"
-            ]
-        );
+        getRequestTutorReference(req);
 
       if (!reference) {
         return res.status(400).json({
           success: false,
-
           code:
             "TUTOR_REFERENCE_REQUIRED",
-
           message:
             "Tutor reference is required.",
         });
       }
 
       const tutorCheck =
-        await verifyTutor(
-          reference
-        );
+        await verifyTutor(reference);
 
-      if (
-        tutorCheck.error
-      ) {
-        return res.status(
-          tutorCheck.error.status
-        ).json({
-          success: false,
-
-          code:
-            tutorCheck.error.code,
-
-          message:
-            tutorCheck.error.message,
-        });
+      if (tutorCheck.error) {
+        return res
+          .status(
+            tutorCheck.error.status
+          )
+          .json({
+            success: false,
+            code:
+              tutorCheck.error.code,
+            message:
+              tutorCheck.error.message,
+          });
       }
 
       const submissionId =
         clean(
-          req.params?.submissionId
+          req.params.submissionId
         );
 
       if (!submissionId) {
         return res.status(400).json({
           success: false,
-
           code:
             "SUBMISSION_ID_REQUIRED",
-
           message:
             "Submission ID is required.",
         });
@@ -3749,15 +2072,11 @@ router.get(
           [submissionId]
         );
 
-      if (
-        !result.rows.length
-      ) {
+      if (!result.rows.length) {
         return res.status(404).json({
           success: false,
-
           code:
             "SUBMISSION_NOT_FOUND",
-
           message:
             "Submission could not be found.",
         });
@@ -3774,10 +2093,7 @@ router.get(
       if (!task) {
         return res.status(404).json({
           success: false,
-
-          code:
-            "TASK_NOT_FOUND",
-
+          code: "TASK_NOT_FOUND",
           message:
             "The task connected to this submission could not be found.",
         });
@@ -3788,31 +2104,25 @@ router.get(
           tutorCheck.tutor
         );
 
-      const taskTutorReference =
-        getTaskTutorReference(
-          task
-        );
+      const owner =
+        taskTutorReference(task);
 
       if (
-        taskTutorReference &&
-        normalize(
-          taskTutorReference
-        ) !==
+        owner &&
+        normalize(owner) !==
           normalize(tutorReference)
       ) {
         return res.status(403).json({
           success: false,
-
           code:
             "SUBMISSION_NOT_YOUR_TASK",
-
           message:
             "This submission does not belong to one of your tasks.",
         });
       }
 
       const normalized =
-        buildTutorSubmission(
+        normalizeSubmission(
           submission,
           task
         );
@@ -3820,8 +2130,7 @@ router.get(
       return res.json({
         success: true,
 
-        submission:
-          normalized,
+        submission: normalized,
 
         task,
 
@@ -3836,29 +2145,21 @@ router.get(
 
       return res.status(500).json({
         success: false,
-
         code:
           error?.code ||
           "TUTOR_SUBMISSION_LOAD_ERROR",
-
         message:
           error?.message ||
           "Unable to load submission.",
-
         detail:
-          error?.detail ||
-          null,
-
-        hint:
-          error?.hint ||
-          null,
+          error?.detail || null,
       });
     }
   }
 );
 
 /* =========================================================
-   TUTOR REVIEW / GRADE SUBMISSION
+   TUTOR GRADE / REVIEW
 ========================================================= */
 
 router.patch(
@@ -3868,90 +2169,113 @@ router.patch(
       await ensureSubmissionTable();
 
       const reference =
-        clean(
-          req.body?.reference ||
-            req.body?.tutorReference ||
-            req.body?.tutor_reference ||
-            req.query?.reference ||
-            req.query?.tutorReference ||
-            req.query?.tutor_reference ||
-            req.headers[
-              "x-tutor-reference"
-            ]
-        );
+        getRequestTutorReference(req);
 
       if (!reference) {
         return res.status(400).json({
           success: false,
-
           code:
             "TUTOR_REFERENCE_REQUIRED",
-
           message:
             "Tutor reference is required.",
         });
       }
 
       const tutorCheck =
-        await verifyTutor(
-          reference
-        );
+        await verifyTutor(reference);
 
-      if (
-        tutorCheck.error
-      ) {
-        return res.status(
-          tutorCheck.error.status
-        ).json({
-          success: false,
-
-          code:
-            tutorCheck.error.code,
-
-          message:
-            tutorCheck.error.message,
-        });
+      if (tutorCheck.error) {
+        return res
+          .status(
+            tutorCheck.error.status
+          )
+          .json({
+            success: false,
+            code:
+              tutorCheck.error.code,
+            message:
+              tutorCheck.error.message,
+          });
       }
 
       const submissionId =
         clean(
-          req.params?.submissionId
+          req.params.submissionId
         );
 
       if (!submissionId) {
         return res.status(400).json({
           success: false,
-
           code:
             "SUBMISSION_ID_REQUIRED",
-
           message:
             "Submission ID is required.",
         });
       }
 
-      const scoreValue =
+      let score =
         req.body?.score;
 
-      const maxScoreValue =
+      if (
+        score !== undefined &&
+        score !== null &&
+        score !== ""
+      ) {
+        score = Number(score);
+
+        if (
+          !Number.isFinite(score) ||
+          score < 0
+        ) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_SCORE",
+            message:
+              "Score must be a valid non-negative number.",
+          });
+        }
+      } else {
+        score = null;
+      }
+
+      let maxScore =
         req.body?.maxScore ??
         req.body?.max_score;
 
-      const feedback =
-        clean(
-          req.body?.feedback ||
-            req.body?.comment ||
-            req.body?.comments
-        );
+      if (
+        maxScore !== undefined &&
+        maxScore !== null &&
+        maxScore !== ""
+      ) {
+        maxScore =
+          Number(maxScore);
 
-      const requestedStatus =
-        normalize(
-          req.body?.status ||
-            "reviewed"
-        );
+        if (
+          !Number.isFinite(maxScore) ||
+          maxScore <= 0
+        ) {
+          return res.status(400).json({
+            success: false,
+            code:
+              "INVALID_MAX_SCORE",
+            message:
+              "Maximum score must be a valid positive number.",
+          });
+        }
+      } else {
+        maxScore = null;
+      }
 
-      let status =
-        requestedStatus;
+      const feedback = clean(
+        req.body?.feedback ||
+          req.body?.comment ||
+          req.body?.comments
+      );
+
+      let status = normalize(
+        req.body?.status ||
+          "reviewed"
+      );
 
       if (
         ![
@@ -3961,62 +2285,6 @@ router.patch(
         ].includes(status)
       ) {
         status = "reviewed";
-      }
-
-      let score = null;
-
-      if (
-        scoreValue !==
-          undefined &&
-        scoreValue !== null &&
-        scoreValue !== ""
-      ) {
-        score =
-          Number(scoreValue);
-
-        if (
-          !Number.isFinite(score) ||
-          score < 0
-        ) {
-          return res.status(400).json({
-            success: false,
-
-            code:
-              "INVALID_SCORE",
-
-            message:
-              "Score must be a valid non-negative number.",
-          });
-        }
-      }
-
-      let maxScore = null;
-
-      if (
-        maxScoreValue !==
-          undefined &&
-        maxScoreValue !== null &&
-        maxScoreValue !== ""
-      ) {
-        maxScore =
-          Number(maxScoreValue);
-
-        if (
-          !Number.isFinite(
-            maxScore
-          ) ||
-          maxScore <= 0
-        ) {
-          return res.status(400).json({
-            success: false,
-
-            code:
-              "INVALID_MAX_SCORE",
-
-            message:
-              "Maximum score must be a valid positive number.",
-          });
-        }
       }
 
       const result =
@@ -4030,15 +2298,11 @@ router.patch(
           [submissionId]
         );
 
-      if (
-        !result.rows.length
-      ) {
+      if (!result.rows.length) {
         return res.status(404).json({
           success: false,
-
           code:
             "SUBMISSION_NOT_FOUND",
-
           message:
             "Submission could not be found.",
         });
@@ -4055,10 +2319,7 @@ router.patch(
       if (!task) {
         return res.status(404).json({
           success: false,
-
-          code:
-            "TASK_NOT_FOUND",
-
+          code: "TASK_NOT_FOUND",
           message:
             "The task connected to this submission could not be found.",
         });
@@ -4069,43 +2330,31 @@ router.patch(
           tutorCheck.tutor
         );
 
-      const taskTutorReference =
-        getTaskTutorReference(
-          task
-        );
+      const owner =
+        taskTutorReference(task);
 
       if (
-        taskTutorReference &&
-        normalize(
-          taskTutorReference
-        ) !==
+        owner &&
+        normalize(owner) !==
           normalize(tutorReference)
       ) {
         return res.status(403).json({
           success: false,
-
           code:
             "SUBMISSION_NOT_YOUR_TASK",
-
           message:
             "You cannot review a submission for another tutor's task.",
         });
       }
 
-      if (
-        maxScore === null
-      ) {
+      if (maxScore === null) {
         maxScore =
           submission.max_score !==
-            null &&
-          submission.max_score !==
-            undefined
+          null
             ? Number(
                 submission.max_score
               )
-            : getTaskMaxScore(
-                task
-              );
+            : taskMaxScore(task);
       }
 
       if (
@@ -4115,16 +2364,14 @@ router.patch(
       ) {
         return res.status(400).json({
           success: false,
-
           code:
             "SCORE_EXCEEDS_MAXIMUM",
-
           message:
             "Score cannot be greater than the maximum score.",
         });
       }
 
-      const updateResult =
+      const updated =
         await pool.query(
           `
             UPDATE academy_task_submissions
@@ -4141,16 +2388,10 @@ router.patch(
           `,
           [
             status,
-
             score,
-
             maxScore,
-
-            feedback ||
-              null,
-
+            feedback || null,
             tutorReference,
-
             submissionId,
           ]
         );
@@ -4162,8 +2403,8 @@ router.patch(
           "Task submission reviewed successfully.",
 
         submission:
-          buildTutorSubmission(
-            updateResult.rows[0],
+          normalizeSubmission(
+            updated.rows[0],
             task
           ),
       });
@@ -4175,22 +2416,14 @@ router.patch(
 
       return res.status(500).json({
         success: false,
-
         code:
           error?.code ||
           "TASK_SUBMISSION_REVIEW_ERROR",
-
         message:
           error?.message ||
           "Unable to review task submission.",
-
         detail:
-          error?.detail ||
-          null,
-
-        hint:
-          error?.hint ||
-          null,
+          error?.detail || null,
       });
     }
   }
@@ -4207,91 +2440,66 @@ router.get(
       await ensureSubmissionTable();
 
       const reference =
-        clean(
-          req.query?.reference ||
-            req.query?.tutorReference ||
-            req.query?.tutor_reference ||
-            req.headers[
-              "x-tutor-reference"
-            ]
-        );
+        getRequestTutorReference(req);
 
       if (!reference) {
         return res.status(400).json({
           success: false,
-
           code:
             "TUTOR_REFERENCE_REQUIRED",
-
           message:
             "Tutor reference is required.",
         });
       }
 
       const tutorCheck =
-        await verifyTutor(
-          reference
-        );
+        await verifyTutor(reference);
 
-      if (
-        tutorCheck.error
-      ) {
-        return res.status(
-          tutorCheck.error.status
-        ).json({
-          success: false,
-
-          code:
-            tutorCheck.error.code,
-
-          message:
-            tutorCheck.error.message,
-        });
+      if (tutorCheck.error) {
+        return res
+          .status(
+            tutorCheck.error.status
+          )
+          .json({
+            success: false,
+            code:
+              tutorCheck.error.code,
+            message:
+              tutorCheck.error.message,
+          });
       }
 
       const taskId =
-        clean(
-          req.params?.taskId
-        );
+        clean(req.params.taskId);
 
       if (!taskId) {
         return res.status(400).json({
           success: false,
-
           code:
             "TASK_ID_REQUIRED",
-
           message:
             "Task ID is required.",
         });
       }
 
       const task =
-        await findTaskById(
-          taskId
-        );
+        await findTaskById(taskId);
 
       if (!task) {
         return res.status(404).json({
           success: false,
-
           code:
             "TASK_NOT_FOUND",
-
           message:
             "The task could not be found.",
         });
       }
 
-      if (
-        !isTaskActivity(task)
-      ) {
+      if (!isTask(task)) {
         return res.status(400).json({
           success: false,
-
           code:
             "INVALID_TASK",
-
           message:
             "This activity is not a student task.",
         });
@@ -4302,24 +2510,18 @@ router.get(
           tutorCheck.tutor
         );
 
-      const taskTutorReference =
-        getTaskTutorReference(
-          task
-        );
+      const owner =
+        taskTutorReference(task);
 
       if (
-        taskTutorReference &&
-        normalize(
-          taskTutorReference
-        ) !==
+        owner &&
+        normalize(owner) !==
           normalize(tutorReference)
       ) {
         return res.status(403).json({
           success: false,
-
           code:
             "TASK_NOT_YOUR_TASK",
-
           message:
             "This task does not belong to you.",
         });
@@ -4337,12 +2539,11 @@ router.get(
         );
 
       const submissions =
-        result.rows.map(
-          (row) =>
-            buildTutorSubmission(
-              row,
-              task
-            )
+        result.rows.map((row) =>
+          normalizeSubmission(
+            row,
+            task
+          )
         );
 
       return res.json({
@@ -4389,38 +2590,25 @@ router.get(
 
       return res.status(500).json({
         success: false,
-
         code:
           error?.code ||
           "TASK_SUBMISSIONS_LOAD_ERROR",
-
         message:
           error?.message ||
           "Unable to load task submissions.",
-
         detail:
-          error?.detail ||
-          null,
-
-        hint:
-          error?.hint ||
-          null,
+          error?.detail || null,
       });
     }
   }
 );
 
 /* =========================================================
-   MULTER ERROR HANDLER
+   MULTER / UPLOAD ERRORS
 ========================================================= */
 
 router.use(
-  (
-    error,
-    _req,
-    res,
-    _next
-  ) => {
+  (error, _req, res, _next) => {
     if (
       error instanceof
       multer.MulterError
@@ -4431,10 +2619,8 @@ router.use(
       ) {
         return res.status(400).json({
           success: false,
-
           code:
             "FILE_TOO_LARGE",
-
           message:
             "Each submission file must be 250MB or smaller.",
         });
@@ -4446,10 +2632,8 @@ router.use(
       ) {
         return res.status(400).json({
           success: false,
-
           code:
             "TOO_MANY_FILES",
-
           message:
             "You can upload a maximum of 10 files.",
         });
@@ -4457,11 +2641,9 @@ router.use(
 
       return res.status(400).json({
         success: false,
-
         code:
           error.code ||
           "UPLOAD_ERROR",
-
         message:
           error.message ||
           "Unable to upload submission files.",
@@ -4476,10 +2658,8 @@ router.use(
 
       return res.status(400).json({
         success: false,
-
         code:
           "SUBMISSION_UPLOAD_ERROR",
-
         message:
           error.message ||
           "Unable to upload submission files.",
@@ -4488,10 +2668,8 @@ router.use(
 
     return res.status(500).json({
       success: false,
-
       code:
         "TASK_SUBMISSION_ERROR",
-
       message:
         "Unable to process task submission.",
     });

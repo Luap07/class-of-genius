@@ -8,12 +8,16 @@ const router = express.Router();
 ============================================================ */
 
 const clean = (value) => {
-  if (value === undefined || value === null) return "";
+  if (value === undefined || value === null) {
+    return "";
+  }
+
   return String(value).trim();
 };
 
 const toNumber = (value, fallback = 0) => {
   const number = Number(value);
+
   return Number.isFinite(number) ? number : fallback;
 };
 
@@ -30,7 +34,7 @@ const getGrade = (percentage) => {
 };
 
 /* ============================================================
-   REQUEST HELPERS
+   TUTOR REFERENCE
 ============================================================ */
 
 const getTutorReference = (req) => {
@@ -48,6 +52,10 @@ const getTutorReference = (req) => {
       req.headers["x-tutor-ref"]
   );
 };
+
+/* ============================================================
+   STUDENT ENROLLMENT ID
+============================================================ */
 
 const getEnrollmentId = (req) => {
   const body = req.body || {};
@@ -68,6 +76,10 @@ const getEnrollmentId = (req) => {
   );
 };
 
+/* ============================================================
+   STUDENT REFERENCE
+============================================================ */
+
 const getStudentReference = (req) => {
   const body = req.body || {};
   const query = req.query || {};
@@ -87,6 +99,10 @@ const getStudentReference = (req) => {
   );
 };
 
+/* ============================================================
+   STUDENT NAME
+============================================================ */
+
 const getStudentName = (req) => {
   const body = req.body || {};
 
@@ -102,54 +118,13 @@ const getStudentName = (req) => {
 };
 
 /* ============================================================
-   DATABASE HELPERS
-============================================================ */
-
-const tableExists = async (tableName, client = pool) => {
-  const result = await client.query(
-    `
-      SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = 'public'
-          AND table_name = $1
-      ) AS exists
-    `,
-    [tableName]
-  );
-
-  return Boolean(result.rows[0]?.exists);
-};
-
-const getTableColumns = async (tableName, client = pool) => {
-  const result = await client.query(
-    `
-      SELECT
-        column_name,
-        data_type,
-        udt_name,
-        is_nullable,
-        column_default
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = $1
-      ORDER BY ordinal_position
-    `,
-    [tableName]
-  );
-
-  return result.rows.reduce((map, row) => {
-    map[row.column_name] = row;
-    return map;
-  }, {});
-};
-
-/* ============================================================
    FORMAT QUESTION
 ============================================================ */
 
 const formatQuestion = (question) => {
-  if (!question) return null;
+  if (!question) {
+    return null;
+  }
 
   return {
     id: question.id,
@@ -189,44 +164,16 @@ const formatQuestion = (question) => {
       question.correctAnswer ??
       "",
 
-    marks: toNumber(question.marks, 1),
+    marks: toNumber(
+      question.marks,
+      1
+    ),
 
     createdAt:
       question.created_at ??
       question.createdAt ??
       null,
   };
-};
-
-/* ============================================================
-   LOAD QUESTIONS
-============================================================ */
-
-const getAssignmentQuestions = async (
-  client,
-  assignmentId
-) => {
-  const result = await client.query(
-    `
-      SELECT
-        id,
-        assignment_id,
-        question,
-        option_a,
-        option_b,
-        option_c,
-        option_d,
-        correct_answer,
-        marks,
-        created_at
-      FROM academy_assignment_questions
-      WHERE assignment_id = $1
-      ORDER BY id ASC
-    `,
-    [assignmentId]
-  );
-
-  return result.rows;
 };
 
 /* ============================================================
@@ -272,19 +219,21 @@ const formatAssignment = (
       assignment.tutorReference ??
       "",
 
-    totalQuestions: toNumber(
-      assignment.total_questions,
-      formattedQuestions.length
-    ),
+    totalQuestions:
+      toNumber(
+        assignment.total_questions,
+        formattedQuestions.length
+      ),
 
-    totalMarks: toNumber(
-      assignment.total_marks,
-      formattedQuestions.reduce(
-        (sum, question) =>
-          sum + toNumber(question.marks, 1),
-        0
-      )
-    ),
+    totalMarks:
+      toNumber(
+        assignment.total_marks,
+        formattedQuestions.reduce(
+          (sum, question) =>
+            sum + toNumber(question.marks, 1),
+          0
+        )
+      ),
 
     duration:
       assignment.duration ??
@@ -315,6 +264,64 @@ const formatAssignment = (
 };
 
 /* ============================================================
+   CHECK TABLE
+============================================================ */
+
+const tableExists = async (
+  tableName,
+  client = pool
+) => {
+  const result = await client.query(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = $1
+      ) AS exists
+    `,
+    [tableName]
+  );
+
+  return Boolean(
+    result.rows[0]?.exists
+  );
+};
+
+/* ============================================================
+   GET TABLE COLUMNS
+============================================================ */
+
+const getTableColumns = async (
+  tableName,
+  client = pool
+) => {
+  const result = await client.query(
+    `
+      SELECT
+        column_name,
+        data_type,
+        udt_name,
+        is_nullable,
+        column_default
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = $1
+      ORDER BY ordinal_position
+    `,
+    [tableName]
+  );
+
+  return result.rows.reduce(
+    (map, row) => {
+      map[row.column_name] = row;
+      return map;
+    },
+    {}
+  );
+};
+
+/* ============================================================
    TUTOR OWNS ASSIGNMENT
 ============================================================ */
 
@@ -331,10 +338,44 @@ const verifyTutorOwnsAssignment = async (
         AND tutor_reference = $2
       LIMIT 1
     `,
-    [assignmentId, tutorReference]
+    [
+      assignmentId,
+      tutorReference,
+    ]
   );
 
   return result.rows[0] || null;
+};
+
+/* ============================================================
+   LOAD QUESTIONS
+============================================================ */
+
+const getAssignmentQuestions = async (
+  client,
+  assignmentId
+) => {
+  const result = await client.query(
+    `
+      SELECT
+        id,
+        assignment_id,
+        question,
+        option_a,
+        option_b,
+        option_c,
+        option_d,
+        correct_answer,
+        marks,
+        created_at
+      FROM academy_assignment_questions
+      WHERE assignment_id = $1
+      ORDER BY id ASC
+    `,
+    [assignmentId]
+  );
+
+  return result.rows;
 };
 
 /* ============================================================
@@ -344,22 +385,25 @@ const verifyTutorOwnsAssignment = async (
 const formatSavedAnswer = (answer) => {
   const selectedAnswer = clean(
     answer.student_answer ??
-      answer.studentAnswer ??
       answer.answer ??
       answer.selected_answer ??
+      answer.studentAnswer ??
       answer.selectedAnswer ??
       ""
   );
 
   const correctAnswer =
     clean(answer.correct_answer) ||
-    clean(answer.question_correct_answer);
+    clean(answer.question_correct_answer) ||
+    clean(answer.correctAnswer);
 
   const questionText =
     clean(answer.question_text) ||
     clean(answer.question);
 
-  const rawIsCorrect = answer.is_correct;
+  const rawIsCorrect =
+    answer.is_correct ??
+    answer.isCorrect;
 
   let isCorrect;
 
@@ -371,7 +415,8 @@ const formatSavedAnswer = (answer) => {
     String(rawIsCorrect).trim() !== ""
   ) {
     isCorrect =
-      String(rawIsCorrect).toLowerCase() === "true" ||
+      String(rawIsCorrect).toLowerCase() ===
+        "true" ||
       String(rawIsCorrect) === "1";
   } else {
     isCorrect =
@@ -389,45 +434,57 @@ const formatSavedAnswer = (answer) => {
 
   const marksAwarded = toNumber(
     answer.marks_awarded ??
+      answer.marksAwarded ??
       answer.answer_score ??
       answer.score,
     isCorrect ? marks : 0
   );
 
   return {
-    id: answer.id,
+    id:
+      answer.id ??
+      null,
 
-    answerId: answer.id,
+    answerId:
+      answer.id ??
+      null,
 
     submissionId:
       answer.submission_id ??
+      answer.submissionId ??
       null,
 
     questionId:
       answer.question_id ??
       answer.question_record_id ??
+      answer.questionId ??
       null,
 
     questionNumber:
       answer.question_number ??
+      answer.questionNumber ??
       null,
 
     question: questionText,
 
     optionA:
       answer.option_a ??
+      answer.optionA ??
       "",
 
     optionB:
       answer.option_b ??
+      answer.optionB ??
       "",
 
     optionC:
       answer.option_c ??
+      answer.optionC ??
       "",
 
     optionD:
       answer.option_d ??
+      answer.optionD ??
       "",
 
     selectedAnswer,
@@ -443,7 +500,8 @@ const formatSavedAnswer = (answer) => {
 
     marksAwarded,
 
-    score: marksAwarded,
+    score:
+      marksAwarded,
 
     explanation:
       answer.explanation ??
@@ -458,20 +516,97 @@ const formatSavedAnswer = (answer) => {
     createdAt:
       answer.answer_created_at ??
       answer.created_at ??
+      answer.createdAt ??
       null,
   };
+};
+
+/* ============================================================
+   NORMALIZE STORED ANSWERS
+============================================================ */
+
+const normalizeStoredAnswers = (
+  storedAnswers
+) => {
+  if (
+    storedAnswers === null ||
+    storedAnswers === undefined ||
+    storedAnswers === ""
+  ) {
+    return [];
+  }
+
+  let parsed = storedAnswers;
+
+  try {
+    if (
+      typeof storedAnswers === "string"
+    ) {
+      parsed =
+        JSON.parse(storedAnswers);
+    }
+  } catch (error) {
+    console.error(
+      "❌ Failed to parse stored submission answers:",
+      error
+    );
+
+    return [];
+  }
+
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+
+  if (
+    parsed &&
+    typeof parsed === "object"
+  ) {
+    return Object.entries(parsed).map(
+      ([
+        key,
+        value,
+      ]) => {
+        if (
+          value &&
+          typeof value === "object"
+        ) {
+          return {
+            ...value,
+
+            questionId:
+              value.questionId ??
+              value.question_id ??
+              key,
+          };
+        }
+
+        return {
+          questionId: key,
+
+          studentAnswer:
+            value,
+        };
+      }
+    );
+  }
+
+  return [];
 };
 
 /* ============================================================
    LOAD SUBMISSION ANSWERS
 
    IMPORTANT:
-   We load answer records DIRECTLY by submission_id.
 
-   Questions are attached afterwards.
+   This function first checks academy_assignment_answers.
 
-   This means a missing question JOIN can never make an
-   existing answer disappear.
+   If there are no rows there, it falls back to the
+   "answer" column of academy_assignment_submissions.
+
+   This fixes older submissions where the answers were stored
+   as JSON in the submission but no individual answer records
+   were inserted.
 ============================================================ */
 
 const getSubmissionAnswers = async (
@@ -485,166 +620,57 @@ const getSubmissionAnswers = async (
     return [];
   }
 
-  const exists =
-    await tableExists(
-      "academy_assignment_answers",
-      client
-    );
+  /* ==========================================================
+     LOAD SUBMISSION
+  ========================================================== */
 
-  if (!exists) {
-    throw new Error(
-      "academy_assignment_answers table does not exist."
-    );
-  }
-
-  const columns =
-    await getTableColumns(
-      "academy_assignment_answers",
-      client
-    );
-
-  /*
-   * Build SELECT dynamically so this route remains compatible
-   * with the actual answer-table schema.
-   */
-
-  const selectColumns = [
-    "id",
-    "submission_id",
-    "question_id",
-  ];
-
-  if (columns.student_answer) {
-    selectColumns.push(
-      "student_answer"
-    );
-  }
-
-  if (columns.answer) {
-    selectColumns.push(
-      "answer"
-    );
-  }
-
-  if (columns.selected_answer) {
-    selectColumns.push(
-      "selected_answer"
-    );
-  }
-
-  if (columns.correct_answer) {
-    selectColumns.push(
-      "correct_answer"
-    );
-  }
-
-  if (columns.is_correct) {
-    selectColumns.push(
-      "is_correct"
-    );
-  }
-
-  if (columns.marks_awarded) {
-    selectColumns.push(
-      "marks_awarded"
-    );
-  }
-
-  if (columns.score) {
-    selectColumns.push(
-      "score"
-    );
-  }
-
-  if (columns.created_at) {
-    selectColumns.push(
-      "created_at"
-    );
-  }
-
-  const rawResult =
+  const submissionResult =
     await client.query(
       `
-        SELECT
-          ${selectColumns.join(", ")}
-        FROM academy_assignment_answers
-        WHERE submission_id = $1
-        ORDER BY id ASC
+        SELECT *
+        FROM academy_assignment_submissions
+        WHERE id = $1
+        LIMIT 1
       `,
       [normalizedSubmissionId]
     );
 
-  console.log(
-    "🔎 ANSWER LOOKUP:",
-    {
-      submissionId:
-        normalizedSubmissionId,
-
-      rowsFound:
-        rawResult.rows.length,
-
-      answerIds:
-        rawResult.rows.map(
-          (row) => row.id
-        ),
-
-      questionIds:
-        rawResult.rows.map(
-          (row) => row.question_id
-        ),
-    }
-  );
-
   if (
-    rawResult.rows.length === 0
+    submissionResult.rows.length === 0
   ) {
     console.warn(
-      "⚠️ NO ANSWER ROWS FOUND:",
+      "⚠️ Submission not found:",
       normalizedSubmissionId
     );
 
     return [];
   }
 
-  /*
-   * Load all question records associated with the answer rows.
-   */
+  const submission =
+    submissionResult.rows[0];
 
-  const questionIds = [
-    ...new Set(
-      rawResult.rows
-        .map(
-          (row) =>
-            row.question_id
-        )
-        .filter(
-          (id) =>
-            id !== null &&
-            id !== undefined &&
-            clean(id) !== ""
-        )
-        .map(
-          (id) =>
-            String(id)
-        )
-    ),
-  ];
+  /* ==========================================================
+     LOAD QUESTIONS
+  ========================================================== */
 
-  let questionMap =
-    new Map();
+  let questions = [];
 
-  if (
-    questionIds.length > 0 &&
+  const questionsTableExists =
     await tableExists(
       "academy_assignment_questions",
       client
-    )
+    );
+
+  if (
+    questionsTableExists &&
+    submission.assignment_id
   ) {
     const questionResult =
       await client.query(
         `
           SELECT
             id,
+            assignment_id,
             question,
             option_a,
             option_b,
@@ -654,73 +680,449 @@ const getSubmissionAnswers = async (
             marks,
             created_at
           FROM academy_assignment_questions
-          WHERE id = ANY($1::bigint[])
+          WHERE assignment_id = $1
+          ORDER BY id ASC
         `,
-        [questionIds]
+        [submission.assignment_id]
       );
 
-    questionMap =
-      new Map(
-        questionResult.rows.map(
-          (question) => [
-            String(question.id),
-            question,
-          ]
-        )
-      );
+    questions =
+      questionResult.rows;
   }
 
-  return rawResult.rows.map(
-    (answerRow) => {
-      const question =
-        questionMap.get(
-          String(
-            answerRow.question_id
-          )
+  const questionMap =
+    new Map(
+      questions.map(
+        (question) => [
+          String(question.id),
+          question,
+        ]
+      )
+    );
+
+  /* ==========================================================
+     SOURCE 1:
+     academy_assignment_answers
+  ========================================================== */
+
+  const answersTableExists =
+    await tableExists(
+      "academy_assignment_answers",
+      client
+    );
+
+  if (answersTableExists) {
+    const answerColumns =
+      await getTableColumns(
+        "academy_assignment_answers",
+        client
+      );
+
+    if (
+      answerColumns.submission_id
+    ) {
+      const selectColumns = [];
+
+      const availableColumns = [
+        "id",
+        "submission_id",
+        "question_id",
+        "question_number",
+        "student_answer",
+        "answer",
+        "selected_answer",
+        "correct_answer",
+        "is_correct",
+        "marks_awarded",
+        "score",
+        "answer_score",
+        "explanation",
+        "reason",
+        "created_at",
+      ];
+
+      for (
+        const column of availableColumns
+      ) {
+        if (
+          answerColumns[column]
+        ) {
+          selectColumns.push(
+            column
+          );
+        }
+      }
+
+      if (
+        selectColumns.length > 0
+      ) {
+        const answerResult =
+          await client.query(
+            `
+              SELECT
+                ${selectColumns.join(", ")}
+              FROM academy_assignment_answers
+              WHERE submission_id = $1
+              ORDER BY id ASC
+            `,
+            [normalizedSubmissionId]
+          );
+
+        console.log(
+          "🔎 ANSWER TABLE LOOKUP:",
+          {
+            submissionId:
+              normalizedSubmissionId,
+
+            rowsFound:
+              answerResult.rows.length,
+
+            answerIds:
+              answerResult.rows.map(
+                (row) =>
+                  row.id
+              ),
+
+            questionIds:
+              answerResult.rows.map(
+                (row) =>
+                  row.question_id
+              ),
+          }
         );
 
-      return formatSavedAnswer({
-        ...answerRow,
+        if (
+          answerResult.rows.length >
+          0
+        ) {
+          return answerResult.rows.map(
+            (answerRow) => {
+              const question =
+                questionMap.get(
+                  String(
+                    answerRow.question_id
+                  )
+                );
 
-        question_record_id:
-          question?.id ??
-          answerRow.question_id ??
-          null,
+              return formatSavedAnswer({
+                ...answerRow,
 
-        question_text:
-          question?.question ??
-          "",
+                question_record_id:
+                  question?.id ??
+                  answerRow.question_id ??
+                  null,
 
-        option_a:
-          question?.option_a ??
-          "",
+                question_text:
+                  question?.question ??
+                  "",
 
-        option_b:
-          question?.option_b ??
-          "",
+                option_a:
+                  question?.option_a ??
+                  "",
 
-        option_c:
-          question?.option_c ??
-          "",
+                option_b:
+                  question?.option_b ??
+                  "",
 
-        option_d:
-          question?.option_d ??
-          "",
+                option_c:
+                  question?.option_c ??
+                  "",
 
-        question_correct_answer:
-          question?.correct_answer ??
-          "",
+                option_d:
+                  question?.option_d ??
+                  "",
 
-        question_marks:
-          question?.marks ??
-          1,
+                question_correct_answer:
+                  question?.correct_answer ??
+                  "",
 
-        question_created_at:
-          question?.created_at ??
-          null,
-      });
+                question_marks:
+                  question?.marks ??
+                  1,
+
+                question_created_at:
+                  question?.created_at ??
+                  null,
+              });
+            }
+          );
+        }
+      }
+    }
+  }
+
+  /* ==========================================================
+     SOURCE 2:
+     academy_assignment_submissions.answer
+  ========================================================== */
+
+  const storedAnswers =
+    normalizeStoredAnswers(
+      submission.answer
+    );
+
+  if (
+    storedAnswers.length === 0
+  ) {
+    console.warn(
+      "⚠️ No answer rows and no usable stored answers:",
+      {
+        submissionId:
+          normalizedSubmissionId,
+
+        submissionAnswer:
+          submission.answer
+            ? "present"
+            : "empty",
+      }
+    );
+
+    return [];
+  }
+
+  /* ==========================================================
+     FORMAT FALLBACK ANSWERS
+  ========================================================== */
+
+  const formattedAnswers =
+    storedAnswers.map(
+      (
+        answer,
+        index
+      ) => {
+        const questionId =
+          answer.questionId ??
+          answer.question_id ??
+          answer.questionRecordId ??
+          answer.question_record_id ??
+          answer.id;
+
+        let question =
+          questionMap.get(
+            String(
+              questionId
+            )
+          );
+
+        /* Match by question number */
+
+        if (
+          !question &&
+          (
+            answer.questionNumber ??
+            answer.question_number
+          ) !== undefined
+        ) {
+          const questionNumber =
+            Number(
+              answer.questionNumber ??
+                answer.question_number
+            );
+
+          if (
+            Number.isFinite(
+              questionNumber
+            )
+          ) {
+            question =
+              questions[
+                questionNumber - 1
+              ];
+          }
+        }
+
+        /* Last fallback: array position */
+
+        if (
+          !question &&
+          questions[index]
+        ) {
+          question =
+            questions[index];
+        }
+
+        const selectedAnswer =
+          clean(
+            answer.studentAnswer ??
+              answer.student_answer ??
+              answer.answer ??
+              answer.selectedAnswer ??
+              answer.selected_answer ??
+              answer.value
+          );
+
+        const correctAnswer =
+          clean(
+            answer.correctAnswer ??
+              answer.correct_answer ??
+              question?.correct_answer
+          );
+
+        const marks =
+          toNumber(
+            answer.marks ??
+              answer.question_marks ??
+              question?.marks,
+            1
+          );
+
+        let isCorrect;
+
+        const rawCorrect =
+          answer.isCorrect ??
+          answer.is_correct;
+
+        if (
+          typeof rawCorrect ===
+          "boolean"
+        ) {
+          isCorrect =
+            rawCorrect;
+        } else if (
+          rawCorrect !==
+            undefined &&
+          rawCorrect !== null &&
+          String(
+            rawCorrect
+          ).trim() !== ""
+        ) {
+          const value =
+            String(
+              rawCorrect
+            ).toLowerCase();
+
+          isCorrect =
+            value === "true" ||
+            value === "1";
+        } else {
+          isCorrect =
+            selectedAnswer !== "" &&
+            correctAnswer !== "" &&
+            selectedAnswer
+              .toLowerCase() ===
+              correctAnswer
+                .toLowerCase();
+        }
+
+        const marksAwarded =
+          toNumber(
+            answer.marksAwarded ??
+              answer.marks_awarded ??
+              answer.score ??
+              answer.answer_score,
+            isCorrect
+              ? marks
+              : 0
+          );
+
+        return {
+          id:
+            answer.id ??
+            `stored-${normalizedSubmissionId}-${index + 1}`,
+
+          answerId:
+            answer.id ??
+            `stored-${normalizedSubmissionId}-${index + 1}`,
+
+          submissionId:
+            normalizedSubmissionId,
+
+          questionId:
+            question?.id ??
+            questionId ??
+            null,
+
+          questionNumber:
+            answer.questionNumber ??
+            answer.question_number ??
+            index + 1,
+
+          question:
+            clean(
+              answer.question ??
+                answer.question_text ??
+                question?.question ??
+                ""
+            ),
+
+          optionA:
+            answer.optionA ??
+            answer.option_a ??
+            question?.option_a ??
+            "",
+
+          optionB:
+            answer.optionB ??
+            answer.option_b ??
+            question?.option_b ??
+            "",
+
+          optionC:
+            answer.optionC ??
+            answer.option_c ??
+            question?.option_c ??
+            "",
+
+          optionD:
+            answer.optionD ??
+            answer.option_d ??
+            question?.option_d ??
+            "",
+
+          selectedAnswer,
+
+          studentAnswer:
+            selectedAnswer,
+
+          correctAnswer,
+
+          isCorrect,
+
+          marks,
+
+          marksAwarded,
+
+          score:
+            marksAwarded,
+
+          explanation:
+            answer.explanation ??
+            answer.reason ??
+            "",
+
+          reason:
+            answer.reason ??
+            answer.explanation ??
+            "",
+
+          createdAt:
+            answer.createdAt ??
+            answer.created_at ??
+            submission.submitted_at ??
+            submission.created_at ??
+            null,
+        };
+      }
+    );
+
+  console.log(
+    "✅ FALLBACK ANSWERS LOADED:",
+    {
+      submissionId:
+        normalizedSubmissionId,
+
+      answerCount:
+        formattedAnswers.length,
+
+      questionIds:
+        formattedAnswers.map(
+          (answer) =>
+            answer.questionId
+        ),
     }
   );
+
+  return formattedAnswers;
 };
 
 /* ============================================================
@@ -915,10 +1317,17 @@ router.get(
 
       return res.json({
         success: true,
+
         assignments,
-        data: assignments,
-        results: assignments,
-        count: assignments.length,
+
+        data:
+          assignments,
+
+        results:
+          assignments,
+
+        count:
+          assignments.length,
       });
     } catch (error) {
       console.error(
@@ -1041,6 +1450,8 @@ router.post(
         getTutorReference(req);
 
       if (!tutorReference) {
+        client.release();
+
         return res.status(400).json({
           success: false,
           message:
@@ -1087,6 +1498,8 @@ router.post(
           : [];
 
       if (!title) {
+        client.release();
+
         return res.status(400).json({
           success: false,
           message:
@@ -1097,6 +1510,8 @@ router.post(
       if (
         questions.length === 0
       ) {
+        client.release();
+
         return res.status(400).json({
           success: false,
           message:
@@ -1114,40 +1529,48 @@ router.post(
           client
         );
 
-      const insertColumns = [];
-      const values = [];
-      const params = [];
+      const assignmentInsertColumns =
+        [];
 
-      const addColumn = (
-        column,
-        value
-      ) => {
-        if (
-          assignmentColumns[column]
-        ) {
-          insertColumns.push(
-            column
-          );
+      const assignmentValues =
+        [];
 
-          values.push(value);
+      const assignmentParams =
+        [];
 
-          params.push(
-            `$${values.length}`
-          );
-        }
-      };
+      const addAssignmentColumn =
+        (
+          column,
+          value
+        ) => {
+          if (
+            assignmentColumns[column]
+          ) {
+            assignmentInsertColumns.push(
+              column
+            );
 
-      addColumn(
+            assignmentValues.push(
+              value
+            );
+
+            assignmentParams.push(
+              `$${assignmentValues.length}`
+            );
+          }
+        };
+
+      addAssignmentColumn(
         "title",
         title
       );
 
-      addColumn(
+      addAssignmentColumn(
         "description",
         description
       );
 
-      addColumn(
+      addAssignmentColumn(
         "subject",
         subject
       );
@@ -1155,20 +1578,20 @@ router.post(
       if (
         assignmentColumns.class_name
       ) {
-        addColumn(
+        addAssignmentColumn(
           "class_name",
           className
         );
       } else if (
         assignmentColumns.class
       ) {
-        addColumn(
+        addAssignmentColumn(
           "class",
           className
         );
       }
 
-      addColumn(
+      addAssignmentColumn(
         "tutor_reference",
         tutorReference
       );
@@ -1176,14 +1599,14 @@ router.post(
       if (
         assignmentColumns.duration
       ) {
-        addColumn(
+        addAssignmentColumn(
           "duration",
           duration
         );
       } else if (
         assignmentColumns.duration_minutes
       ) {
-        addColumn(
+        addAssignmentColumn(
           "duration_minutes",
           duration
         );
@@ -1192,7 +1615,7 @@ router.post(
       if (
         assignmentColumns.due_date
       ) {
-        addColumn(
+        addAssignmentColumn(
           "due_date",
           dueDate
         );
@@ -1201,7 +1624,7 @@ router.post(
       if (
         assignmentColumns.status
       ) {
-        addColumn(
+        addAssignmentColumn(
           "status",
           "active"
         );
@@ -1210,7 +1633,7 @@ router.post(
       if (
         assignmentColumns.total_questions
       ) {
-        addColumn(
+        addAssignmentColumn(
           "total_questions",
           questions.length
         );
@@ -1233,7 +1656,7 @@ router.post(
       if (
         assignmentColumns.total_marks
       ) {
-        addColumn(
+        addAssignmentColumn(
           "total_marks",
           totalMarks
         );
@@ -1244,19 +1667,27 @@ router.post(
           `
             INSERT INTO academy_assignments
             (
-              ${insertColumns.join(", ")}
+              ${assignmentInsertColumns.join(
+                ", "
+              )}
             )
             VALUES
             (
-              ${params.join(", ")}
+              ${assignmentParams.join(
+                ", "
+              )}
             )
             RETURNING *
           `,
-          values
+          assignmentValues
         );
 
       const assignment =
         assignmentResult.rows[0];
+
+      /* ======================================================
+         QUESTIONS
+      ====================================================== */
 
       const questionColumns =
         await getTableColumns(
@@ -1267,40 +1698,50 @@ router.post(
       for (
         const question of questions
       ) {
-        const qColumns = [];
-        const qValues = [];
-        const qParams = [];
+        const insertColumns =
+          [];
 
-        const addQuestionColumn = (
-          column,
-          value
-        ) => {
-          if (
-            questionColumns[column]
-          ) {
-            qColumns.push(column);
+        const values =
+          [];
 
-            qValues.push(value);
+        const params =
+          [];
 
-            qParams.push(
-              `$${qValues.length}`
-            );
-          }
-        };
+        const addColumn =
+          (
+            column,
+            value
+          ) => {
+            if (
+              questionColumns[column]
+            ) {
+              insertColumns.push(
+                column
+              );
 
-        addQuestionColumn(
+              values.push(
+                value
+              );
+
+              params.push(
+                `$${values.length}`
+              );
+            }
+          };
+
+        addColumn(
           "assignment_id",
           assignment.id
         );
 
-        addQuestionColumn(
+        addColumn(
           "question",
           clean(
             question.question
           )
         );
 
-        addQuestionColumn(
+        addColumn(
           "option_a",
           clean(
             question.optionA ??
@@ -1308,7 +1749,7 @@ router.post(
           )
         );
 
-        addQuestionColumn(
+        addColumn(
           "option_b",
           clean(
             question.optionB ??
@@ -1316,7 +1757,7 @@ router.post(
           )
         );
 
-        addQuestionColumn(
+        addColumn(
           "option_c",
           clean(
             question.optionC ??
@@ -1324,7 +1765,7 @@ router.post(
           )
         );
 
-        addQuestionColumn(
+        addColumn(
           "option_d",
           clean(
             question.optionD ??
@@ -1332,7 +1773,7 @@ router.post(
           )
         );
 
-        addQuestionColumn(
+        addColumn(
           "correct_answer",
           clean(
             question.correctAnswer ??
@@ -1340,7 +1781,7 @@ router.post(
           )
         );
 
-        addQuestionColumn(
+        addColumn(
           "marks",
           toNumber(
             question.marks,
@@ -1352,14 +1793,18 @@ router.post(
           `
             INSERT INTO academy_assignment_questions
             (
-              ${qColumns.join(", ")}
+              ${insertColumns.join(
+                ", "
+              )}
             )
             VALUES
             (
-              ${qParams.join(", ")}
+              ${params.join(
+                ", "
+              )}
             )
           `,
-          qValues
+          values
         );
       }
 
@@ -1468,6 +1913,7 @@ router.delete(
 
       return res.json({
         success: true,
+
         message:
           "Assignment deleted successfully.",
       });
@@ -1562,10 +2008,17 @@ router.get(
 
       return res.json({
         success: true,
+
         assignments,
-        data: assignments,
-        results: assignments,
-        count: assignments.length,
+
+        data:
+          assignments,
+
+        results:
+          assignments,
+
+        count:
+          assignments.length,
       });
     } catch (error) {
       console.error(
@@ -1667,101 +2120,6 @@ router.get(
 );
 
 /* ============================================================
-   NORMALIZE STUDENT ANSWER
-============================================================ */
-
-const normalizeStudentAnswer = (
-  answer,
-  questionsById
-) => {
-  if (
-    answer === null ||
-    answer === undefined
-  ) {
-    return null;
-  }
-
-  /*
-   * Support all common frontend structures.
-   */
-
-  const questionId =
-    answer.questionId ??
-    answer.question_id ??
-    answer.questionID ??
-    answer.question?.id ??
-    answer.id;
-
-  if (
-    questionId === undefined ||
-    questionId === null ||
-    clean(questionId) === ""
-  ) {
-    return null;
-  }
-
-  const question =
-    questionsById.get(
-      String(questionId)
-    );
-
-  if (!question) {
-    console.warn(
-      "⚠️ Answer references question outside assignment:",
-      questionId
-    );
-
-    return null;
-  }
-
-  const selected = clean(
-    answer.studentAnswer ??
-      answer.student_answer ??
-      answer.selectedAnswer ??
-      answer.selected_answer ??
-      answer.answer ??
-      answer.value ??
-      answer.response ??
-      ""
-  );
-
-  const correct =
-    clean(
-      question.correct_answer
-    );
-
-  const isCorrect =
-    selected !== "" &&
-    correct !== "" &&
-    selected.toLowerCase() ===
-      correct.toLowerCase();
-
-  const marks =
-    toNumber(
-      question.marks,
-      1
-    );
-
-  return {
-    questionId:
-      question.id,
-
-    selected,
-
-    correct,
-
-    isCorrect,
-
-    marks,
-
-    marksAwarded:
-      isCorrect
-        ? marks
-        : 0,
-  };
-};
-
-/* ============================================================
    STUDENT — SUBMIT ASSIGNMENT
 ============================================================ */
 
@@ -1787,64 +2145,86 @@ router.post(
       const body =
         req.body || {};
 
-      /*
-       * Support:
-       * answers
-       * answerRecords
-       * submittedAnswers
-       * responses
-       */
+      /* ======================================================
+         NORMALIZE ANSWERS
 
-      let submittedAnswers =
+         Supports:
+
+         [
+           {
+             questionId: 1,
+             studentAnswer: "A"
+           }
+         ]
+
+         AND:
+
+         {
+           "1": "A",
+           "2": "B"
+         }
+      ====================================================== */
+
+      const rawSubmittedAnswers =
         body.answers ??
         body.answerRecords ??
-        body.submittedAnswers ??
+        body.answer_records ??
         body.responses ??
+        body.answersMap ??
         [];
 
-      /*
-       * Some clients send answers as an object:
-       *
-       * {
-       *   "123": "A",
-       *   "124": "B"
-       * }
-       *
-       * Convert that into normal answer records.
-       */
+      let submittedAnswers;
 
       if (
-        submittedAnswers &&
-        !Array.isArray(
-          submittedAnswers
-        ) &&
-        typeof submittedAnswers ===
+        Array.isArray(
+          rawSubmittedAnswers
+        )
+      ) {
+        submittedAnswers =
+          rawSubmittedAnswers;
+      } else if (
+        rawSubmittedAnswers &&
+        typeof rawSubmittedAnswers ===
           "object"
       ) {
         submittedAnswers =
           Object.entries(
-            submittedAnswers
+            rawSubmittedAnswers
           ).map(
             ([
               questionId,
               value,
-            ]) => ({
-              questionId,
-              studentAnswer:
-                value,
-            })
-          );
-      }
+            ]) => {
+              if (
+                value &&
+                typeof value ===
+                  "object"
+              ) {
+                return {
+                  ...value,
 
-      if (
-        !Array.isArray(
-          submittedAnswers
-        )
-      ) {
+                  questionId:
+                    value.questionId ??
+                    value.question_id ??
+                    questionId,
+                };
+              }
+
+              return {
+                questionId,
+
+                studentAnswer:
+                  value,
+              };
+            }
+          );
+      } else {
         submittedAnswers = [];
       }
 
       if (!assignmentId) {
+        client.release();
+
         return res.status(400).json({
           success: false,
           message:
@@ -1856,16 +2236,14 @@ router.post(
         !enrollmentId &&
         !studentReference
       ) {
+        client.release();
+
         return res.status(400).json({
           success: false,
           message:
             "Student enrollment ID or student reference is required.",
         });
       }
-
-      /*
-       * Load assignment.
-       */
 
       const assignmentResult =
         await client.query(
@@ -1882,6 +2260,8 @@ router.post(
         assignmentResult.rows.length ===
         0
       ) {
+        client.release();
+
         return res.status(404).json({
           success: false,
           message:
@@ -1892,31 +2272,13 @@ router.post(
       const assignment =
         assignmentResult.rows[0];
 
-      /*
-       * Load the actual assignment questions.
-       */
-
       const questions =
         await getAssignmentQuestions(
           client,
           assignmentId
         );
 
-      if (
-        questions.length === 0
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "This assignment has no questions.",
-        });
-      }
-
-      /*
-       * Map question IDs.
-       */
-
-      const questionsById =
+      const questionMap =
         new Map(
           questions.map(
             (question) => [
@@ -1926,95 +2288,139 @@ router.post(
           )
         );
 
-      /*
-       * Normalize frontend answers.
-       */
-
-      const normalizedSubmittedAnswers =
-        submittedAnswers
-          .map(
-            (answer) =>
-              normalizeStudentAnswer(
-                answer,
-                questionsById
-              )
-          )
-          .filter(Boolean);
-
-      /*
-       * Create a map so duplicate frontend answers for
-       * the same question do not create duplicate records.
-       */
-
-      const answerMap =
-        new Map();
-
-      for (
-        const answer of
-          normalizedSubmittedAnswers
-      ) {
-        answerMap.set(
-          String(
-            answer.questionId
-          ),
-          answer
-        );
-      }
-
-      /*
-       * IMPORTANT FIX:
-       *
-       * Create one answer record for EVERY question.
-       *
-       * If the student did not answer a question, its
-       * student answer is simply "" and it receives 0 marks.
-       *
-       * This guarantees the tutor can always see the
-       * complete submission.
-       */
+      /* ======================================================
+         NORMALIZE ANSWERS AGAINST QUESTIONS
+      ====================================================== */
 
       const normalizedAnswers =
-        questions.map(
-          (question) => {
-            const submitted =
-              answerMap.get(
-                String(question.id)
-              );
+        [];
 
-            if (submitted) {
-              return submitted;
-            }
+      for (
+        let index = 0;
+        index <
+        submittedAnswers.length;
+        index++
+      ) {
+        const answer =
+          submittedAnswers[index] ||
+          {};
 
-            return {
-              questionId:
-                question.id,
+        const questionId =
+          answer.questionId ??
+          answer.question_id ??
+          answer.questionRecordId ??
+          answer.question_record_id ??
+          answer.id;
 
-              selected:
-                "",
+        let question =
+          questionMap.get(
+            String(
+              questionId
+            )
+          );
 
-              correct:
-                clean(
-                  question.correct_answer
-                ),
+        /* Match by question number */
 
-              isCorrect:
-                false,
+        if (
+          !question &&
+          (
+            answer.questionNumber ??
+            answer.question_number
+          ) !== undefined
+        ) {
+          const questionNumber =
+            Number(
+              answer.questionNumber ??
+                answer.question_number
+            );
 
-              marks:
-                toNumber(
-                  question.marks,
-                  1
-                ),
-
-              marksAwarded:
-                0,
-            };
+          if (
+            Number.isFinite(
+              questionNumber
+            )
+          ) {
+            question =
+              questions[
+                questionNumber - 1
+              ];
           }
-        );
+        }
 
-      /*
-       * Calculate score.
-       */
+        /* Match by position */
+
+        if (
+          !question &&
+          questions[index]
+        ) {
+          question =
+            questions[index];
+        }
+
+        if (!question) {
+          console.warn(
+            "⚠️ Could not match submitted answer to question:",
+            {
+              index,
+              questionId,
+              answer,
+            }
+          );
+
+          continue;
+        }
+
+        const selected =
+          clean(
+            answer.studentAnswer ??
+              answer.student_answer ??
+              answer.answer ??
+              answer.selectedAnswer ??
+              answer.selected_answer ??
+              answer.value
+          );
+
+        const correct =
+          clean(
+            question.correct_answer
+          );
+
+        const isCorrect =
+          selected !== "" &&
+          correct !== "" &&
+          selected.toLowerCase() ===
+            correct.toLowerCase();
+
+        const marks =
+          toNumber(
+            question.marks,
+            1
+          );
+
+        normalizedAnswers.push({
+          questionId:
+            question.id,
+
+          questionNumber:
+            index + 1,
+
+          selected,
+
+          correct,
+
+          isCorrect,
+
+          marks,
+
+          marksAwarded:
+            isCorrect
+              ? marks
+              : 0,
+        });
+      }
+
+      /* ======================================================
+         SCORE
+      ====================================================== */
 
       const score =
         normalizedAnswers.reduce(
@@ -2060,38 +2466,12 @@ router.post(
           percentage
         );
 
-      console.log(
-        "📝 SUBMISSION NORMALIZED:",
-        {
-          assignmentId,
-
-          enrollmentId,
-
-          studentReference,
-
-          questions:
-            questions.length,
-
-          frontendAnswers:
-            submittedAnswers.length,
-
-          normalizedAnswers:
-            normalizedAnswers.length,
-
-          score,
-
-          totalMarks,
-
-          percentage,
-        }
-      );
-
       await client.query(
         "BEGIN"
       );
 
       /* ======================================================
-         CREATE SUBMISSION
+         SUBMISSION
       ====================================================== */
 
       const submissionColumns =
@@ -2100,28 +2480,36 @@ router.post(
           client
         );
 
-      const insertColumns = [];
-      const values = [];
-      const params = [];
+      const insertColumns =
+        [];
 
-      const addSubmissionColumn = (
-        column,
-        value
-      ) => {
-        if (
-          submissionColumns[column]
-        ) {
-          insertColumns.push(
-            column
-          );
+      const values =
+        [];
 
-          values.push(value);
+      const params =
+        [];
 
-          params.push(
-            `$${values.length}`
-          );
-        }
-      };
+      const addSubmissionColumn =
+        (
+          column,
+          value
+        ) => {
+          if (
+            submissionColumns[column]
+          ) {
+            insertColumns.push(
+              column
+            );
+
+            values.push(
+              value
+            );
+
+            params.push(
+              `$${values.length}`
+            );
+          }
+        };
 
       addSubmissionColumn(
         "assignment_id",
@@ -2157,24 +2545,20 @@ router.post(
         );
       }
 
+      /*
+        Save the original answers as JSON.
+
+        This is important because it gives us a second source
+        of truth if answer rows are unavailable.
+      */
+
       if (
         submissionColumns.answer
       ) {
         addSubmissionColumn(
           "answer",
           JSON.stringify(
-            normalizedAnswers
-          )
-        );
-      }
-
-      if (
-        submissionColumns.answers
-      ) {
-        addSubmissionColumn(
-          "answers",
-          JSON.stringify(
-            normalizedAnswers
+            submittedAnswers
           )
         );
       }
@@ -2225,15 +2609,6 @@ router.post(
       }
 
       if (
-        submissionColumns.result_released
-      ) {
-        addSubmissionColumn(
-          "result_released",
-          false
-        );
-      }
-
-      if (
         submissionColumns.submitted_at
       ) {
         addSubmissionColumn(
@@ -2242,25 +2617,20 @@ router.post(
         );
       }
 
-      if (
-        insertColumns.length ===
-        0
-      ) {
-        throw new Error(
-          "No writable columns were found in academy_assignment_submissions."
-        );
-      }
-
       const submissionResult =
         await client.query(
           `
             INSERT INTO academy_assignment_submissions
             (
-              ${insertColumns.join(", ")}
+              ${insertColumns.join(
+                ", "
+              )}
             )
             VALUES
             (
-              ${params.join(", ")}
+              ${params.join(
+                ", "
+              )}
             )
             RETURNING *
           `,
@@ -2270,13 +2640,8 @@ router.post(
       const submission =
         submissionResult.rows[0];
 
-      console.log(
-        "✅ SUBMISSION CREATED:",
-        submission.id
-      );
-
       /* ======================================================
-         SAVE ANSWERS
+         ANSWER RECORDS
       ====================================================== */
 
       const answersTableExists =
@@ -2285,216 +2650,232 @@ router.post(
           client
         );
 
-      if (!answersTableExists) {
-        throw new Error(
-          "academy_assignment_answers table does not exist."
-        );
-      }
-
-      const answerColumns =
-        await getTableColumns(
-          "academy_assignment_answers",
-          client
-        );
-
-      /*
-       * Save EVERY question.
-       */
-
-      for (
-        const answer of
-          normalizedAnswers
-      ) {
-        const answerInsertColumns =
-          [];
-
-        const answerValues =
-          [];
-
-        const answerParams =
-          [];
-
-        const addAnswerColumn =
-          (
-            column,
-            value
-          ) => {
-            if (
-              answerColumns[column]
-            ) {
-              answerInsertColumns.push(
-                column
-              );
-
-              answerValues.push(
-                value
-              );
-
-              answerParams.push(
-                `$${answerValues.length}`
-              );
-            }
-          };
-
-        addAnswerColumn(
-          "submission_id",
-          submission.id
-        );
-
-        addAnswerColumn(
-          "question_id",
-          answer.questionId
-        );
-
-        if (
-          answerColumns.student_answer
-        ) {
-          addAnswerColumn(
-            "student_answer",
-            answer.selected
-          );
-        }
-
-        if (
-          answerColumns.answer
-        ) {
-          addAnswerColumn(
-            "answer",
-            answer.selected
-          );
-        }
-
-        if (
-          answerColumns.selected_answer
-        ) {
-          addAnswerColumn(
-            "selected_answer",
-            answer.selected
-          );
-        }
-
-        if (
-          answerColumns.correct_answer
-        ) {
-          addAnswerColumn(
-            "correct_answer",
-            answer.correct
-          );
-        }
-
-        if (
-          answerColumns.is_correct
-        ) {
-          addAnswerColumn(
-            "is_correct",
-            answer.isCorrect
-          );
-        }
-
-        if (
-          answerColumns.marks_awarded
-        ) {
-          addAnswerColumn(
-            "marks_awarded",
-            answer.marksAwarded
-          );
-        }
-
-        if (
-          answerColumns.score
-        ) {
-          addAnswerColumn(
-            "score",
-            answer.marksAwarded
-          );
-        }
-
-        if (
-          answerInsertColumns.length ===
-          0
-        ) {
-          throw new Error(
-            "No writable columns were found in academy_assignment_answers."
-          );
-        }
-
-        /*
-         * Do not depend on ON CONFLICT here.
-         *
-         * A unique constraint on
-         * (submission_id, question_id)
-         * may or may not exist in the database.
-         */
-
-        await client.query(
-          `
-            INSERT INTO academy_assignment_answers
-            (
-              ${answerInsertColumns.join(
-                ", "
-              )}
-            )
-            VALUES
-            (
-              ${answerParams.join(
-                ", "
-              )}
-            )
-          `,
-          answerValues
-        );
-      }
-
-      /*
-       * Verify the rows BEFORE committing.
-       */
-
-      const verification =
-        await client.query(
-          `
-            SELECT
-              COUNT(*)::int AS count
-            FROM academy_assignment_answers
-            WHERE submission_id = $1
-          `,
-          [submission.id]
-        );
-
-      const savedAnswerCount =
-        Number(
-          verification.rows[0]?.count ||
-            0
-        );
-
-      console.log(
-        "✅ ANSWERS SAVED:",
-        {
-          submissionId:
-            submission.id,
-
-          expected:
-            normalizedAnswers.length,
-
-          actual:
-            savedAnswerCount,
-        }
-      );
-
       if (
-        savedAnswerCount === 0
+        answersTableExists &&
+        normalizedAnswers.length > 0
       ) {
-        throw new Error(
-          "Submission was created, but no answer records were saved."
-        );
+        const answerColumns =
+          await getTableColumns(
+            "academy_assignment_answers",
+            client
+          );
+
+        for (
+          const answer of
+            normalizedAnswers
+        ) {
+          const answerInsertColumns =
+            [];
+
+          const answerValues =
+            [];
+
+          const answerParams =
+            [];
+
+          const addAnswerColumn =
+            (
+              column,
+              value
+            ) => {
+              if (
+                answerColumns[column]
+              ) {
+                answerInsertColumns.push(
+                  column
+                );
+
+                answerValues.push(
+                  value
+                );
+
+                answerParams.push(
+                  `$${answerValues.length}`
+                );
+              }
+            };
+
+          addAnswerColumn(
+            "submission_id",
+            submission.id
+          );
+
+          addAnswerColumn(
+            "question_id",
+            answer.questionId
+          );
+
+          addAnswerColumn(
+            "question_number",
+            answer.questionNumber
+          );
+
+          if (
+            answerColumns.student_answer
+          ) {
+            addAnswerColumn(
+              "student_answer",
+              answer.selected
+            );
+          }
+
+          if (
+            answerColumns.correct_answer
+          ) {
+            addAnswerColumn(
+              "correct_answer",
+              answer.correct
+            );
+          }
+
+          if (
+            answerColumns.is_correct
+          ) {
+            addAnswerColumn(
+              "is_correct",
+              answer.isCorrect
+            );
+          }
+
+          if (
+            answerColumns.marks_awarded
+          ) {
+            addAnswerColumn(
+              "marks_awarded",
+              answer.marksAwarded
+            );
+          }
+
+          if (
+            answerColumns.score
+          ) {
+            addAnswerColumn(
+              "score",
+              answer.marksAwarded
+            );
+          }
+
+          if (
+            answerInsertColumns.length ===
+            0
+          ) {
+            continue;
+          }
+
+          /*
+            Only use ON CONFLICT if the expected unique
+            constraint exists.
+
+            This avoids breaking submission when the database
+            does not have a unique constraint on
+            (submission_id, question_id).
+          */
+
+          let hasUniqueConstraint =
+            false;
+
+          try {
+            const constraintResult =
+              await client.query(
+                `
+                  SELECT 1
+                  FROM pg_constraint c
+                  JOIN pg_class t
+                    ON t.oid = c.conrelid
+                  JOIN pg_attribute a
+                    ON a.attrelid = t.oid
+                  WHERE t.relname =
+                    'academy_assignment_answers'
+                    AND c.contype = 'u'
+                  GROUP BY c.oid
+                  HAVING
+                    array_agg(a.attname ORDER BY a.attnum)
+                    @>
+                    ARRAY[
+                      'submission_id',
+                      'question_id'
+                    ]::text[]
+                    AND
+                    cardinality(
+                      array_agg(
+                        a.attname
+                        ORDER BY a.attnum
+                      )
+                    ) = 2
+                `
+              );
+
+            hasUniqueConstraint =
+              constraintResult.rows.length >
+              0;
+          } catch {
+            hasUniqueConstraint =
+              false;
+          }
+
+          if (
+            hasUniqueConstraint
+          ) {
+            await client.query(
+              `
+                INSERT INTO academy_assignment_answers
+                (
+                  ${answerInsertColumns.join(
+                    ", "
+                  )}
+                )
+                VALUES
+                (
+                  ${answerParams.join(
+                    ", "
+                  )}
+                )
+                ON CONFLICT
+                (
+                  submission_id,
+                  question_id
+                )
+                DO UPDATE SET
+                  student_answer =
+                    EXCLUDED.student_answer,
+                  correct_answer =
+                    EXCLUDED.correct_answer,
+                  is_correct =
+                    EXCLUDED.is_correct,
+                  marks_awarded =
+                    EXCLUDED.marks_awarded
+              `,
+              answerValues
+            );
+          } else {
+            await client.query(
+              `
+                INSERT INTO academy_assignment_answers
+                (
+                  ${answerInsertColumns.join(
+                    ", "
+                  )}
+                )
+                VALUES
+                (
+                  ${answerParams.join(
+                    ", "
+                  )}
+                )
+              `,
+              answerValues
+            );
+          }
+        }
       }
 
       await client.query(
         "COMMIT"
       );
 
-      /*
-       * Load the exact rows again after COMMIT.
-       */
+      /* ======================================================
+         LOAD SAVED ANSWERS
+      ====================================================== */
 
       const savedAnswers =
         await getSubmissionAnswers(
@@ -2503,12 +2884,20 @@ router.post(
         );
 
       console.log(
-        "✅ ANSWERS RELOADED:",
+        "✅ SUBMISSION SAVED:",
         {
           submissionId:
             submission.id,
 
-          answerCount:
+          assignmentId,
+
+          submittedAnswerCount:
+            submittedAnswers.length,
+
+          normalizedAnswerCount:
+            normalizedAnswers.length,
+
+          savedAnswerCount:
             savedAnswers.length,
         }
       );
@@ -2629,6 +3018,9 @@ router.get(
           [assignmentId]
         );
 
+      const submissions =
+        [];
+
       const questions =
         await getAssignmentQuestions(
           pool,
@@ -2648,8 +3040,6 @@ router.get(
             ),
           0
         );
-
-      const submissions = [];
 
       for (
         const row of result.rows
@@ -2693,10 +3083,6 @@ router.get(
 
           enrollmentId:
             row.enrollment_id,
-
-          studentReference:
-            row.student_reference ??
-            null,
 
           studentName:
             row.student_name ||
@@ -2836,6 +3222,19 @@ router.get(
         });
       }
 
+      console.log(
+        "📄 SINGLE SUBMISSION RESPONSE:",
+        {
+          submissionId,
+
+          answerCount:
+            submission.answerCount,
+
+          answersAvailable:
+            submission.answersAvailable,
+        }
+      );
+
       return res.json({
         success: true,
 
@@ -2906,6 +3305,8 @@ router.patch(
         !assignmentId ||
         !submissionId
       ) {
+        client.release();
+
         return res.status(400).json({
           success: false,
           message:
@@ -2914,6 +3315,8 @@ router.patch(
       }
 
       if (!tutorReference) {
+        client.release();
+
         return res.status(400).json({
           success: false,
           message:
@@ -2929,6 +3332,8 @@ router.patch(
         );
 
       if (!assignment) {
+        client.release();
+
         return res.status(404).json({
           success: false,
           message:
@@ -2955,6 +3360,8 @@ router.patch(
         submissionResult.rows.length ===
         0
       ) {
+        client.release();
+
         return res.status(404).json({
           success: false,
           message:
@@ -2976,37 +3383,49 @@ router.patch(
           client
         );
 
-      const updates = [];
-      const values = [];
-      const params = [];
+      const updates =
+        [];
 
-      const addUpdate = (
-        column,
-        value
-      ) => {
-        if (
-          columns[column]
-        ) {
-          values.push(value);
+      const values =
+        [];
 
-          params.push(
-            `$${values.length}`
-          );
+      const params =
+        [];
 
-          updates.push(
-            `${column} = ${params[params.length - 1]}`
-          );
-        }
-      };
+      const addUpdate =
+        (
+          column,
+          value
+        ) => {
+          if (
+            columns[column]
+          ) {
+            values.push(
+              value
+            );
 
-      if (columns.status) {
+            params.push(
+              `$${values.length}`
+            );
+
+            updates.push(
+              `${column} = ${params[params.length - 1]}`
+            );
+          }
+        };
+
+      if (
+        columns.status
+      ) {
         addUpdate(
           "status",
           "released"
         );
       }
 
-      if (columns.feedback) {
+      if (
+        columns.feedback
+      ) {
         addUpdate(
           "feedback",
           feedback
@@ -3025,6 +3444,8 @@ router.patch(
       if (
         updates.length === 0
       ) {
+        client.release();
+
         return res.status(500).json({
           success: false,
           message:
@@ -3043,10 +3464,16 @@ router.patch(
       await client.query(
         `
           UPDATE academy_assignment_submissions
-          SET ${updates.join(", ")}
+          SET ${updates.join(
+            ", "
+          )}
           WHERE id = ${params[params.length - 1]}
         `,
         values
+      );
+
+      await client.query(
+        "COMMIT"
       );
 
       return res.json({
@@ -3056,6 +3483,12 @@ router.patch(
           "Assignment result released successfully.",
       });
     } catch (error) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
+
       console.error(
         "Release assignment result error:",
         error
@@ -3264,6 +3697,12 @@ router.get(
 
         answers,
 
+        answerCount:
+          answers.length,
+
+        answersAvailable:
+          answers.length > 0,
+
         data: {
           submission:
             formattedSubmission,
@@ -3293,224 +3732,6 @@ router.get(
     }
   }
 );
-
-/* ============================================================
-   DEBUG — CHECK SUBMISSION ANSWERS DIRECTLY
-   REMOVE THIS ENDPOINT AFTER FIXING THE ISSUE
-============================================================ */
-
-router.get(
-  "/debug/submission/:submissionId/answers",
-  async (req, res) => {
-    try {
-      const submissionId =
-        clean(req.params.submissionId);
-
-      if (!submissionId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Submission ID is required.",
-        });
-      }
-
-      /* --------------------------------------------------------
-         CHECK SUBMISSION
-      -------------------------------------------------------- */
-
-      const submissionResult =
-        await pool.query(
-          `
-            SELECT *
-            FROM academy_assignment_submissions
-            WHERE id = $1
-            LIMIT 1
-          `,
-          [submissionId]
-        );
-
-      /* --------------------------------------------------------
-         CHECK ALL ANSWERS FOR THIS SUBMISSION
-      -------------------------------------------------------- */
-
-      const answersResult =
-        await pool.query(
-          `
-            SELECT *
-            FROM academy_assignment_answers
-            WHERE submission_id = $1
-            ORDER BY id ASC
-          `,
-          [submissionId]
-        );
-
-      /* --------------------------------------------------------
-         CHECK ANSWERS USING STRING CAST
-         This helps detect UUID/string/integer mismatches.
-      -------------------------------------------------------- */
-
-      const castResult =
-        await pool.query(
-          `
-            SELECT *
-            FROM academy_assignment_answers
-            WHERE CAST(submission_id AS TEXT) = CAST($1 AS TEXT)
-            ORDER BY id ASC
-          `,
-          [submissionId]
-        );
-
-      /* --------------------------------------------------------
-         CHECK RECENT ANSWERS
-      -------------------------------------------------------- */
-
-      const recentAnswersResult =
-        await pool.query(
-          `
-            SELECT
-              id,
-              submission_id,
-              question_id,
-              student_answer,
-              correct_answer,
-              is_correct,
-              marks_awarded,
-              created_at
-            FROM academy_assignment_answers
-            ORDER BY id DESC
-            LIMIT 30
-          `
-        );
-
-      /* --------------------------------------------------------
-         CHECK TABLE COLUMNS
-      -------------------------------------------------------- */
-
-      const answerColumns =
-        await getTableColumns(
-          "academy_assignment_answers",
-          pool
-        );
-
-      /* --------------------------------------------------------
-         CHECK SUBMISSION COLUMNS
-      -------------------------------------------------------- */
-
-      const submissionColumns =
-        await getTableColumns(
-          "academy_assignment_submissions",
-          pool
-        );
-
-      console.log(
-        "================================================"
-      );
-
-      console.log(
-        "🔍 SUBMISSION ANSWER DEBUG"
-      );
-
-      console.log({
-        requestedSubmissionId:
-          submissionId,
-
-        submissionFound:
-          submissionResult.rows.length > 0,
-
-        submission:
-          submissionResult.rows[0] ||
-          null,
-
-        directAnswerCount:
-          answersResult.rows.length,
-
-        castAnswerCount:
-          castResult.rows.length,
-
-        directAnswers:
-          answersResult.rows,
-
-        castAnswers:
-          castResult.rows,
-
-        recentAnswers:
-          recentAnswersResult.rows,
-
-        answerColumns:
-          Object.keys(
-            answerColumns
-          ),
-
-        submissionColumns:
-          Object.keys(
-            submissionColumns
-          ),
-      });
-
-      console.log(
-        "================================================"
-      );
-
-      return res.json({
-        success: true,
-
-        submissionId,
-
-        submissionFound:
-          submissionResult.rows.length >
-          0,
-
-        submission:
-          submissionResult.rows[0] ||
-          null,
-
-        directAnswerCount:
-          answersResult.rows.length,
-
-        castAnswerCount:
-          castResult.rows.length,
-
-        answers:
-          answersResult.rows,
-
-        castAnswers:
-          castResult.rows,
-
-        recentAnswers:
-          recentAnswersResult.rows,
-
-        answerColumns:
-          Object.keys(
-            answerColumns
-          ),
-
-        submissionColumns:
-          Object.keys(
-            submissionColumns
-          ),
-      });
-    } catch (error) {
-      console.error(
-        "Submission answer debug error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-
-        message:
-          "Unable to inspect submission answers.",
-
-        error:
-          error.message,
-
-        stack:
-          error.stack,
-      });
-    }
-  }
-);
-
 
 /* ============================================================
    EXPORT

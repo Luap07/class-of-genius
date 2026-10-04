@@ -17,6 +17,10 @@ import {
   AlertCircle,
   Award,
   RefreshCw,
+  ExternalLink,
+  Download,
+  PlayCircle,
+  Eye,
 } from "lucide-react";
 
 import {
@@ -42,6 +46,7 @@ const API_URL = (
 
 const ACADEMY_TOKEN_KEYS = [
   "scholiqen_academy_token",
+  "scholiqen_auth_token",
   "academy_token",
   "scholiqen_token",
   "access_token",
@@ -90,7 +95,7 @@ const ENROLLMENT_KEYS = [
 ];
 
 /* ============================================================
-   HELPERS
+   BASIC HELPERS
 ============================================================ */
 
 const cleanValue = (value) => {
@@ -108,6 +113,24 @@ const cleanValue = (value) => {
   }
 
   return String(value).trim();
+};
+
+const firstNonEmpty = (...values) => {
+  for (const value of values) {
+    if (
+      value !== undefined &&
+      value !== null
+    ) {
+      const cleaned =
+        cleanValue(value);
+
+      if (cleaned) {
+        return cleaned;
+      }
+    }
+  }
+
+  return "";
 };
 
 const isUsableIdentity = (value) => {
@@ -206,6 +229,738 @@ const findIdentityInObject = (
 };
 
 /* ============================================================
+   FILE HELPERS
+============================================================ */
+
+const parsePossibleObject = (
+  value
+) => {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return null;
+  }
+
+  if (
+    typeof value === "object"
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value === "string"
+  ) {
+    const trimmed =
+      value.trim();
+
+    if (!trimmed) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+};
+
+const deriveFileNameFromUrl = (
+  url
+) => {
+  const value =
+    cleanValue(url);
+
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const cleanUrl =
+      value
+        .split("?")[0]
+        .split("#")[0];
+
+    const parts =
+      cleanUrl
+        .split("/")
+        .filter(Boolean);
+
+    if (!parts.length) {
+      return "";
+    }
+
+    return decodeURIComponent(
+      parts[parts.length - 1]
+    );
+  } catch {
+    return "";
+  }
+};
+
+const normalizeFileCandidate = (
+  candidate
+) => {
+  if (
+    candidate === undefined ||
+    candidate === null
+  ) {
+    return null;
+  }
+
+  if (
+    typeof candidate === "string"
+  ) {
+    const parsed =
+      parsePossibleObject(
+        candidate
+      );
+
+    if (
+      parsed &&
+      typeof parsed === "object"
+    ) {
+      return normalizeFileCandidate(
+        parsed
+      );
+    }
+
+    const url =
+      candidate.trim();
+
+    if (!url) {
+      return null;
+    }
+
+    return {
+      url,
+      name:
+        deriveFileNameFromUrl(
+          url
+        ),
+      type: "",
+      size: null,
+    };
+  }
+
+  if (
+    typeof candidate !== "object"
+  ) {
+    return null;
+  }
+
+  const nestedCandidates = [
+    candidate.file,
+    candidate.document,
+    candidate.attachment,
+    candidate.upload,
+    candidate.uploadedFile,
+    candidate.uploaded_file,
+    candidate.assignmentFile,
+    candidate.assignment_file,
+    candidate.fileData,
+    candidate.file_data,
+    candidate.documentFile,
+    candidate.document_file,
+    candidate.attachmentFile,
+    candidate.attachment_file,
+  ];
+
+  let nestedFile = null;
+
+  for (
+    const nestedCandidate of nestedCandidates
+  ) {
+    if (
+      nestedCandidate === undefined ||
+      nestedCandidate === null
+    ) {
+      continue;
+    }
+
+    const normalized =
+      normalizeFileCandidate(
+        nestedCandidate
+      );
+
+    if (
+      normalized?.url ||
+      normalized?.name
+    ) {
+      nestedFile =
+        normalized;
+
+      break;
+    }
+  }
+
+  const url =
+    firstNonEmpty(
+      candidate.url,
+      candidate.fileUrl,
+      candidate.file_url,
+      candidate.attachmentUrl,
+      candidate.attachment_url,
+      candidate.documentUrl,
+      candidate.document_url,
+      candidate.uploadUrl,
+      candidate.upload_url,
+      candidate.publicUrl,
+      candidate.public_url,
+      candidate.downloadUrl,
+      candidate.download_url,
+      candidate.href,
+      candidate.src,
+      candidate.filePath,
+      candidate.file_path,
+      candidate.documentPath,
+      candidate.document_path,
+      candidate.storagePath,
+      candidate.storage_path,
+      candidate.path,
+      nestedFile?.url
+    );
+
+  const name =
+    firstNonEmpty(
+      candidate.name,
+      candidate.fileName,
+      candidate.file_name,
+      candidate.attachmentName,
+      candidate.attachment_name,
+      candidate.documentName,
+      candidate.document_name,
+      candidate.originalName,
+      candidate.original_name,
+      candidate.originalFilename,
+      candidate.original_filename,
+      candidate.filename,
+      candidate.storedFilename,
+      candidate.stored_filename,
+      nestedFile?.name
+    ) ||
+    deriveFileNameFromUrl(url);
+
+  const type =
+    firstNonEmpty(
+      candidate.mimeType,
+      candidate.mime_type,
+      candidate.fileType,
+      candidate.file_type,
+      candidate.contentType,
+      candidate.content_type,
+      candidate.attachmentType,
+      candidate.attachment_type,
+      candidate.documentType,
+      candidate.document_type,
+      candidate.type,
+      nestedFile?.type
+    );
+
+  const size =
+    candidate.size ??
+    candidate.fileSize ??
+    candidate.file_size ??
+    candidate.attachmentSize ??
+    candidate.attachment_size ??
+    candidate.documentSize ??
+    candidate.document_size ??
+    candidate.bytes ??
+    nestedFile?.size ??
+    null;
+
+  if (
+    !url &&
+    !name &&
+    !type
+  ) {
+    return null;
+  }
+
+  return {
+    url,
+    name,
+    type,
+    size,
+  };
+};
+
+const getAssignmentFile = (
+  assignment
+) => {
+  const emptyFile = {
+    url: "",
+    name: "",
+    type: "",
+    size: null,
+  };
+
+  if (
+    assignment === undefined ||
+    assignment === null
+  ) {
+    return emptyFile;
+  }
+
+  if (
+    typeof assignment === "string"
+  ) {
+    return (
+      normalizeFileCandidate(
+        assignment
+      ) ||
+      emptyFile
+    );
+  }
+
+  if (
+    typeof assignment !== "object"
+  ) {
+    return emptyFile;
+  }
+
+  const directCandidates = [
+    assignment.file,
+    assignment.document,
+    assignment.attachment,
+    assignment.upload,
+    assignment.uploadedFile,
+    assignment.uploaded_file,
+    assignment.assignmentFile,
+    assignment.assignment_file,
+    assignment.fileData,
+    assignment.file_data,
+    assignment.documentFile,
+    assignment.document_file,
+    assignment.attachmentFile,
+    assignment.attachment_file,
+  ];
+
+  for (
+    const candidate of directCandidates
+  ) {
+    const normalized =
+      normalizeFileCandidate(
+        candidate
+      );
+
+    if (
+      normalized?.url
+    ) {
+      return normalized;
+    }
+  }
+
+  const arrayFields = [
+    "attachments",
+    "files",
+    "documents",
+    "uploads",
+    "uploadedFiles",
+    "uploaded_files",
+  ];
+
+  for (
+    const field of arrayFields
+  ) {
+    const candidates =
+      assignment[field];
+
+    if (
+      Array.isArray(candidates)
+    ) {
+      for (
+        const candidate of candidates
+      ) {
+        const normalized =
+          normalizeFileCandidate(
+            candidate
+          );
+
+        if (
+          normalized?.url
+        ) {
+          return normalized;
+        }
+      }
+    } else if (
+      candidates
+    ) {
+      const normalized =
+        normalizeFileCandidate(
+          candidates
+        );
+
+      if (
+        normalized?.url
+      ) {
+        return normalized;
+      }
+    }
+  }
+
+  const directUrlCandidate = {
+    url: firstNonEmpty(
+      assignment.fileUrl,
+      assignment.file_url,
+      assignment.documentUrl,
+      assignment.document_url,
+      assignment.attachmentUrl,
+      assignment.attachment_url,
+      assignment.uploadUrl,
+      assignment.upload_url,
+      assignment.publicUrl,
+      assignment.public_url,
+      assignment.downloadUrl,
+      assignment.download_url,
+      assignment.href,
+      assignment.src,
+      assignment.filePath,
+      assignment.file_path,
+      assignment.documentPath,
+      assignment.document_path,
+      assignment.storagePath,
+      assignment.storage_path,
+      assignment.path
+    ),
+
+    name: firstNonEmpty(
+      assignment.fileName,
+      assignment.file_name,
+      assignment.documentName,
+      assignment.document_name,
+      assignment.attachmentName,
+      assignment.attachment_name,
+      assignment.originalName,
+      assignment.original_name,
+      assignment.originalFilename,
+      assignment.original_filename,
+      assignment.filename
+    ),
+
+    type: firstNonEmpty(
+      assignment.fileType,
+      assignment.file_type,
+      assignment.documentType,
+      assignment.document_type,
+      assignment.attachmentType,
+      assignment.attachment_type,
+      assignment.mimeType,
+      assignment.mime_type,
+      assignment.contentType,
+      assignment.content_type
+    ),
+
+    size:
+      assignment.fileSize ??
+      assignment.file_size ??
+      assignment.documentSize ??
+      assignment.document_size ??
+      assignment.attachmentSize ??
+      assignment.attachment_size ??
+      null,
+  };
+
+  const directNormalized =
+    normalizeFileCandidate(
+      directUrlCandidate
+    );
+
+  if (
+    directNormalized?.url
+  ) {
+    return directNormalized;
+  }
+
+  const nestedContainers = [
+    assignment.data,
+    assignment.result,
+    assignment.assignment,
+    assignment.activity,
+    assignment.task,
+  ];
+
+  for (
+    const nested of nestedContainers
+  ) {
+    if (
+      !nested ||
+      nested === assignment
+    ) {
+      continue;
+    }
+
+    const normalized =
+      getAssignmentFile(
+        nested
+      );
+
+    if (
+      normalized?.url
+    ) {
+      return normalized;
+    }
+  }
+
+  return emptyFile;
+};
+
+/* ============================================================
+   RESOLVE FILE URL
+============================================================ */
+
+const resolveFileUrl = (
+  fileUrl
+) => {
+  if (!fileUrl) {
+    return "";
+  }
+
+  let value =
+    String(fileUrl).trim();
+
+  if (!value) {
+    return "";
+  }
+
+  if (
+    value.startsWith("blob:") ||
+    value.startsWith("data:")
+  ) {
+    return value;
+  }
+
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://")
+  ) {
+    return value;
+  }
+
+  if (
+    value.startsWith("//")
+  ) {
+    return `http:${value}`;
+  }
+
+  value =
+    value.replace(
+      /\\/g,
+      "/"
+    );
+
+  if (
+    value.startsWith("/")
+  ) {
+    return `${API_URL}${value}`;
+  }
+
+  return `${API_URL}/${value.replace(
+    /^\/+/,
+    ""
+  )}`;
+};
+
+/* ============================================================
+   FILE EXTENSION
+============================================================ */
+
+const getFileExtension = (
+  fileName = "",
+  fileType = "",
+  fileUrl = ""
+) => {
+  const name =
+    String(fileName)
+      .toLowerCase()
+      .trim();
+
+  if (
+    name.includes(".")
+  ) {
+    return name
+      .split(".")
+      .pop()
+      .split("?")[0]
+      .split("#")[0];
+  }
+
+  const url =
+    String(fileUrl)
+      .toLowerCase()
+      .trim();
+
+  if (
+    url.includes(".")
+  ) {
+    const cleanUrl =
+      url
+        .split("?")[0]
+        .split("#")[0];
+
+    const lastPart =
+      cleanUrl
+        .split("/")
+        .pop();
+
+    if (
+      lastPart?.includes(".")
+    ) {
+      return lastPart
+        .split(".")
+        .pop();
+    }
+  }
+
+  const type =
+    String(fileType)
+      .toLowerCase()
+      .trim();
+
+  if (
+    type.includes("pdf")
+  ) {
+    return "pdf";
+  }
+
+  if (
+    type.includes("msword")
+  ) {
+    return "doc";
+  }
+
+  if (
+    type.includes(
+      "wordprocessingml"
+    )
+  ) {
+    return "docx";
+  }
+
+  if (
+    type.includes("mp4")
+  ) {
+    return "mp4";
+  }
+
+  if (
+    type.includes("webm")
+  ) {
+    return "webm";
+  }
+
+  if (
+    type.includes("quicktime")
+  ) {
+    return "mov";
+  }
+
+  return "";
+};
+
+const isPdfFile = (
+  fileName,
+  fileType,
+  fileUrl
+) => {
+  const extension =
+    getFileExtension(
+      fileName,
+      fileType,
+      fileUrl
+    );
+
+  return (
+    extension === "pdf" ||
+    String(fileType)
+      .toLowerCase()
+      .includes("pdf")
+  );
+};
+
+const isVideoFile = (
+  fileName,
+  fileType,
+  fileUrl
+) => {
+  const extension =
+    getFileExtension(
+      fileName,
+      fileType,
+      fileUrl
+    );
+
+  return (
+    [
+      "mp4",
+      "webm",
+      "mov",
+    ].includes(extension) ||
+    String(fileType)
+      .toLowerCase()
+      .startsWith("video/")
+  );
+};
+
+const formatFileSize = (
+  size
+) => {
+  if (
+    size === undefined ||
+    size === null ||
+    size === ""
+  ) {
+    return "";
+  }
+
+  const numeric =
+    Number(size);
+
+  if (
+    !Number.isFinite(numeric) ||
+    numeric <= 0
+  ) {
+    return "";
+  }
+
+  if (
+    numeric < 1024
+  ) {
+    return `${numeric} B`;
+  }
+
+  if (
+    numeric < 1024 * 1024
+  ) {
+    return `${(
+      numeric / 1024
+    ).toFixed(1)} KB`;
+  }
+
+  if (
+    numeric <
+    1024 *
+      1024 *
+      1024
+  ) {
+    return `${(
+      numeric /
+      (1024 * 1024)
+    ).toFixed(1)} MB`;
+  }
+
+  return `${(
+    numeric /
+    (1024 *
+      1024 *
+      1024)
+  ).toFixed(1)} GB`;
+};
+
+/* ============================================================
    STUDENT IDENTITY
 ============================================================ */
 
@@ -225,10 +980,6 @@ const getStudentIdentity = () => {
       objects.push(object);
     }
   }
-
-  /* ----------------------------------------------------------
-     STUDENT REFERENCE
-  ---------------------------------------------------------- */
 
   const referenceObjectKeys = [
     "reference",
@@ -255,7 +1006,9 @@ const getStudentIdentity = () => {
         referenceObjectKeys
       );
 
-    if (studentReference) {
+    if (
+      studentReference
+    ) {
       break;
     }
 
@@ -278,26 +1031,28 @@ const getStudentIdentity = () => {
           referenceObjectKeys
         );
 
-      if (studentReference) {
+      if (
+        studentReference
+      ) {
         break;
       }
     }
 
-    if (studentReference) {
+    if (
+      studentReference
+    ) {
       break;
     }
   }
 
-  if (!studentReference) {
+  if (
+    !studentReference
+  ) {
     studentReference =
       readLocalStorageValue(
         STUDENT_REFERENCE_KEYS
       );
   }
-
-  /* ----------------------------------------------------------
-     STUDENT ID
-  ---------------------------------------------------------- */
 
   let studentId = "";
 
@@ -307,11 +1062,7 @@ const getStudentIdentity = () => {
     studentId =
       findIdentityInObject(
         student,
-        [
-          "studentId",
-          "student_id",
-          "studentID",
-        ]
+        STUDENT_ID_KEYS
       );
 
     if (studentId) {
@@ -332,11 +1083,7 @@ const getStudentIdentity = () => {
       studentId =
         findIdentityInObject(
           nested,
-          [
-            "studentId",
-            "student_id",
-            "studentID",
-          ]
+          STUDENT_ID_KEYS
         );
 
       if (studentId) {
@@ -355,10 +1102,6 @@ const getStudentIdentity = () => {
         STUDENT_ID_KEYS
       );
   }
-
-  /* ----------------------------------------------------------
-     ENROLLMENT ID
-  ---------------------------------------------------------- */
 
   let enrollmentId = "";
 
@@ -410,10 +1153,6 @@ const getStudentIdentity = () => {
     }
   }
 
-  /* ----------------------------------------------------------
-     enrollment.id
-  ---------------------------------------------------------- */
-
   if (!enrollmentId) {
     for (
       const student of objects
@@ -425,8 +1164,7 @@ const getStudentIdentity = () => {
       ];
 
       for (
-        const enrollment
-        of enrollmentObjects
+        const enrollment of enrollmentObjects
       ) {
         if (
           enrollment &&
@@ -453,10 +1191,6 @@ const getStudentIdentity = () => {
       }
     }
   }
-
-  /* ----------------------------------------------------------
-     data.enrollment.id
-  ---------------------------------------------------------- */
 
   if (!enrollmentId) {
     for (
@@ -508,13 +1242,6 @@ const getStudentIdentity = () => {
     }
   }
 
-  /*
-   * Some login implementations place the enrollment
-   * record itself in `student.enrollment`.
-   *
-   * Also accept an enrollment object stored directly
-   * under localStorage.
-   */
   if (!enrollmentId) {
     try {
       const rawEnrollment =
@@ -546,21 +1273,15 @@ const getStudentIdentity = () => {
     }
   }
 
-  /*
-   * Finally check direct localStorage aliases.
-   */
   if (!enrollmentId) {
     enrollmentId =
       readLocalStorageValue(
         ENROLLMENT_KEYS.filter(
-          (key) => key !== "enrollment"
+          (key) =>
+            key !== "enrollment"
         )
       );
   }
-
-  /* ----------------------------------------------------------
-     STUDENT NAME
-  ---------------------------------------------------------- */
 
   let studentName = "";
 
@@ -669,7 +1390,9 @@ const getStudentIdentity = () => {
 
   return {
     studentReference:
-      cleanValue(studentReference),
+      cleanValue(
+        studentReference
+      ),
 
     studentId:
       cleanValue(studentId),
@@ -716,9 +1439,6 @@ const getAuthHeaders = () => {
     getAcademyToken();
 
   return {
-    "Content-Type":
-      "application/json",
-
     Accept:
       "application/json",
 
@@ -726,8 +1446,23 @@ const getAuthHeaders = () => {
       ? {
           Authorization:
             `Bearer ${token}`,
+
+          "x-academy-token":
+            token,
+
+          "x-student-token":
+            token,
         }
       : {}),
+  };
+};
+
+const getJsonAuthHeaders = () => {
+  return {
+    ...getAuthHeaders(),
+
+    "Content-Type":
+      "application/json",
   };
 };
 
@@ -739,6 +1474,21 @@ const normalizeQuestion = (
   question,
   index
 ) => {
+  if (
+    !question ||
+    typeof question !== "object"
+  ) {
+    return {
+      id: index + 1,
+      question: "",
+      optionA: "",
+      optionB: "",
+      optionC: "",
+      optionD: "",
+      marks: 1,
+    };
+  }
+
   return {
     ...question,
 
@@ -784,29 +1534,106 @@ const normalizeQuestion = (
 };
 
 /* ============================================================
+   PARSE QUESTIONS
+============================================================ */
+
+const parseQuestionsValue = (
+  value
+) => {
+  if (
+    Array.isArray(value)
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value === "string"
+  ) {
+    const trimmed =
+      value.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const parsed =
+        JSON.parse(trimmed);
+
+      if (
+        Array.isArray(parsed)
+      ) {
+        return parsed;
+      }
+
+      if (
+        Array.isArray(
+          parsed?.questions
+        )
+      ) {
+        return parsed.questions;
+      }
+
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  if (
+    value &&
+    typeof value === "object"
+  ) {
+    if (
+      Array.isArray(
+        value.questions
+      )
+    ) {
+      return value.questions;
+    }
+  }
+
+  return [];
+};
+
+/* ============================================================
    EXTRACT QUESTIONS
 ============================================================ */
 
 const extractQuestions = (
   payload
 ) => {
-  const possibleArrays = [
+  const possibleValues = [
     payload?.assignment?.questions,
     payload?.questions,
     payload?.data?.assignment?.questions,
     payload?.data?.questions,
     payload?.result?.assignment?.questions,
     payload?.result?.questions,
+
+    payload?.assignment?.questionData,
+    payload?.questionData,
+    payload?.data?.assignment?.questionData,
+    payload?.data?.questionData,
+
+    payload?.assignment?.items,
+    payload?.items,
+    payload?.data?.assignment?.items,
+    payload?.data?.items,
   ];
 
   for (
-    const candidate
-    of possibleArrays
+    const candidate of possibleValues
   ) {
+    const parsed =
+      parseQuestionsValue(
+        candidate
+      );
+
     if (
-      Array.isArray(candidate)
+      parsed.length
     ) {
-      return candidate.map(
+      return parsed.map(
         (question, index) =>
           normalizeQuestion(
             question,
@@ -837,7 +1664,7 @@ const extractAssignment = (
 };
 
 /* ============================================================
-   EXTRACT ERROR MESSAGE
+   ERROR
 ============================================================ */
 
 const extractServerMessage = (
@@ -913,6 +1740,8 @@ export default function StudentAssignmentDetails() {
         params.id ||
         params.assignment_id ||
         location.state?.assignment?.id ||
+        location.state?.assignment?.assignmentId ||
+        location.state?.assignment?.assignment_id ||
         ""
       );
     }, [
@@ -976,6 +1805,30 @@ export default function StudentAssignmentDetails() {
     setExpandedQuestion,
   ] = useState(null);
 
+  /* ==========================================================
+     PROTECTED FILE STATE
+  ========================================================== */
+
+  const [
+    protectedFileUrl,
+    setProtectedFileUrl,
+  ] = useState("");
+
+  const [
+    protectedFileLoading,
+    setProtectedFileLoading,
+  ] = useState(false);
+
+  const [
+    protectedFileError,
+    setProtectedFileError,
+  ] = useState("");
+
+  const [
+    protectedFileType,
+    setProtectedFileType,
+  ] = useState("");
+
   const [
     studentIdentity,
     setStudentIdentity,
@@ -1021,9 +1874,34 @@ export default function StudentAssignmentDetails() {
           return;
         }
 
+        const stateAssignment =
+          location.state
+            ?.assignment ||
+          null;
+
+        const stateDocument =
+          location.state
+            ?.document ||
+          null;
+
+        const stateFile =
+          getAssignmentFile(
+            stateDocument ||
+              stateAssignment
+          );
+
         try {
           setLoading(true);
           setError("");
+
+          const token =
+            getAcademyToken();
+
+          if (!token) {
+            throw new Error(
+              "Your student session has expired. Please log in again."
+            );
+          }
 
           const response =
             await fetch(
@@ -1032,6 +1910,10 @@ export default function StudentAssignmentDetails() {
               )}`,
               {
                 method: "GET",
+
+                credentials:
+                  "include",
+
                 headers:
                   getAuthHeaders(),
               }
@@ -1049,9 +1931,150 @@ export default function StudentAssignmentDetails() {
             data
           );
 
+          const assignmentData =
+            extractAssignment(
+              data
+            );
+
+          const detailFile =
+            getAssignmentFile(
+              assignmentData
+            );
+
+          console.log(
+            "📎 DETAIL FILE FOUND:",
+            detailFile
+          );
+
+          const mergedAssignment =
+            {
+              ...(stateAssignment ||
+                {}),
+              ...(assignmentData ||
+                {}),
+            };
+
+          if (
+            !detailFile.url &&
+            stateFile.url
+          ) {
+            mergedAssignment.file =
+              {
+                url:
+                  stateFile.url,
+                name:
+                  stateFile.name,
+                type:
+                  stateFile.type,
+                size:
+                  stateFile.size,
+              };
+
+            mergedAssignment.fileUrl =
+              stateFile.url;
+
+            mergedAssignment.fileName =
+              stateFile.name;
+
+            mergedAssignment.fileType =
+              stateFile.type;
+
+            mergedAssignment.fileSize =
+              stateFile.size;
+          }
+
+          const finalFile =
+            getAssignmentFile(
+              mergedAssignment
+            );
+
+          if (
+            finalFile.url
+          ) {
+            mergedAssignment.file =
+              {
+                url:
+                  finalFile.url,
+                name:
+                  finalFile.name,
+                type:
+                  finalFile.type,
+                size:
+                  finalFile.size,
+              };
+
+            mergedAssignment.fileUrl =
+              finalFile.url;
+
+            if (
+              finalFile.name
+            ) {
+              mergedAssignment.fileName =
+                finalFile.name;
+            }
+
+            if (
+              finalFile.type
+            ) {
+              mergedAssignment.fileType =
+                finalFile.type;
+            }
+
+            if (
+              finalFile.size !==
+                null &&
+              finalFile.size !==
+                undefined
+            ) {
+              mergedAssignment.fileSize =
+                finalFile.size;
+            }
+          }
+
+          if (
+            stateAssignment?.document &&
+            !mergedAssignment.document
+          ) {
+            mergedAssignment.document =
+              stateAssignment.document;
+          }
+
+          if (
+            stateAssignment?.attachment &&
+            !mergedAssignment.attachment
+          ) {
+            mergedAssignment.attachment =
+              stateAssignment.attachment;
+          }
+
+          const questionData =
+            extractQuestions(
+              data
+            );
+
           if (
             !response.ok
           ) {
+            if (
+              stateAssignment
+            ) {
+              setAssignment(
+                mergedAssignment
+              );
+
+              setQuestions(
+                extractQuestions(
+                  mergedAssignment
+                )
+              );
+
+              setLoading(
+                false
+              );
+
+              return;
+            }
+
             throw new Error(
               extractServerMessage(
                 data,
@@ -1060,34 +2083,27 @@ export default function StudentAssignmentDetails() {
             );
           }
 
-          const assignmentData =
-            extractAssignment(
-              data
-            );
-
-          const questionData =
-            extractQuestions(
-              data
-            );
-
-          if (!assignmentData) {
+          if (
+            !assignmentData &&
+            !stateAssignment
+          ) {
             throw new Error(
               "The assignment was not found."
             );
           }
 
           setAssignment(
-            assignmentData
+            mergedAssignment
           );
 
           setQuestions(
-            questionData
+            questionData.length
+              ? questionData
+              : extractQuestions(
+                  mergedAssignment
+                )
           );
 
-          /*
-           * If the backend returns existing answers
-           * with the assignment, preload them.
-           */
           const existingAnswers =
             data?.answers ||
             data?.data?.answers ||
@@ -1141,27 +2157,443 @@ export default function StudentAssignmentDetails() {
             "📝 QUESTIONS FOUND:",
             questionData.length
           );
+
+          console.log(
+            "📎 STATE FILE:",
+            stateFile
+          );
+
+          console.log(
+            "📎 DETAIL FILE:",
+            detailFile
+          );
+
+          console.log(
+            "📎 FINAL FILE:",
+            getAssignmentFile(
+              mergedAssignment
+            )
+          );
+
+          console.log(
+            "📚 FINAL ASSIGNMENT:",
+            mergedAssignment
+          );
         } catch (err) {
           console.error(
             "StudentAssignmentDetails load error:",
             err
           );
 
-          setError(
-            err?.message ||
-              "Unable to load this assignment."
-          );
+          if (
+            stateAssignment
+          ) {
+            const fallbackAssignment =
+              {
+                ...stateAssignment,
+              };
+
+            const fallbackFile =
+              getAssignmentFile(
+                fallbackAssignment
+              );
+
+            if (
+              fallbackFile.url
+            ) {
+              fallbackAssignment.file =
+                {
+                  url:
+                    fallbackFile.url,
+                  name:
+                    fallbackFile.name,
+                  type:
+                    fallbackFile.type,
+                  size:
+                    fallbackFile.size,
+                };
+
+              fallbackAssignment.fileUrl =
+                fallbackFile.url;
+
+              fallbackAssignment.fileName =
+                fallbackFile.name;
+
+              fallbackAssignment.fileType =
+                fallbackFile.type;
+
+              fallbackAssignment.fileSize =
+                fallbackFile.size;
+            }
+
+            setAssignment(
+              fallbackAssignment
+            );
+
+            setQuestions(
+              extractQuestions(
+                fallbackAssignment
+              )
+            );
+
+            setError("");
+          } else {
+            setError(
+              err?.message ||
+                "Unable to load this assignment."
+            );
+          }
         } finally {
           setLoading(false);
         }
       },
-      [assignmentId]
+      [
+        assignmentId,
+        location.state,
+      ]
     );
 
   useEffect(() => {
     loadAssignment();
   }, [
     loadAssignment,
+  ]);
+
+  /* ==========================================================
+     ASSIGNMENT DOCUMENT
+  ========================================================== */
+
+  const assignmentFile =
+    useMemo(() => {
+      const fromAssignment =
+        getAssignmentFile(
+          assignment
+        );
+
+      if (
+        fromAssignment.url
+      ) {
+        return fromAssignment;
+      }
+
+      const fromStateDocument =
+        getAssignmentFile(
+          location.state
+            ?.document
+        );
+
+      if (
+        fromStateDocument.url
+      ) {
+        return fromStateDocument;
+      }
+
+      const fromStateAssignment =
+        getAssignmentFile(
+          location.state
+            ?.assignment
+        );
+
+      if (
+        fromStateAssignment.url
+      ) {
+        return fromStateAssignment;
+      }
+
+      return {
+        url: "",
+        name: "",
+        type: "",
+        size: null,
+      };
+    }, [
+      assignment,
+      location.state,
+    ]);
+
+  const assignmentFileUrl =
+    useMemo(() => {
+      return resolveFileUrl(
+        assignmentFile.url
+      );
+    }, [
+      assignmentFile.url,
+    ]);
+
+  const assignmentFileExtension =
+    useMemo(() => {
+      return getFileExtension(
+        assignmentFile.name,
+        assignmentFile.type,
+        assignmentFile.url
+      );
+    }, [
+      assignmentFile.name,
+      assignmentFile.type,
+      assignmentFile.url,
+    ]);
+
+  const hasAssignmentDocument =
+    Boolean(
+      assignmentFileUrl
+    );
+
+  const assignmentIsPdf =
+    isPdfFile(
+      assignmentFile.name,
+      assignmentFile.type,
+      assignmentFile.url
+    );
+
+  const assignmentIsVideo =
+    isVideoFile(
+      assignmentFile.name,
+      assignmentFile.type,
+      assignmentFile.url
+    );
+
+  /* ==========================================================
+     PROTECTED FILE ENDPOINT
+  ========================================================== */
+
+  const protectedFileEndpoint =
+    useMemo(() => {
+      if (!assignmentId) {
+        return "";
+      }
+
+      return `${API_URL}/api/academy/student/assignments/${encodeURIComponent(
+        assignmentId
+      )}/file`;
+    }, [
+      assignmentId,
+    ]);
+
+  /* ==========================================================
+     LOAD PROTECTED FILE
+  ========================================================== */
+
+  const loadProtectedFile =
+    useCallback(
+      async ({
+        force = false,
+      } = {}) => {
+        if (
+          !protectedFileEndpoint
+        ) {
+          return "";
+        }
+
+        if (
+          protectedFileUrl &&
+          !force
+        ) {
+          return protectedFileUrl;
+        }
+
+        const token =
+          getAcademyToken();
+
+        if (!token) {
+          setProtectedFileError(
+            "Your student session has expired. Please log in again."
+          );
+
+          return "";
+        }
+
+        try {
+          setProtectedFileLoading(
+            true
+          );
+
+          setProtectedFileError("");
+
+          const response =
+            await fetch(
+              protectedFileEndpoint,
+              {
+                method: "GET",
+
+                credentials:
+                  "include",
+
+                headers:
+                  getAuthHeaders(),
+              }
+            );
+
+          if (
+            !response.ok
+          ) {
+            const raw =
+              await response
+                .text()
+                .catch(
+                  () => ""
+                );
+
+            let data = {};
+
+            try {
+              data =
+                raw
+                  ? JSON.parse(
+                      raw
+                    )
+                  : {};
+            } catch {
+              data = {};
+            }
+
+            throw new Error(
+              extractServerMessage(
+                data,
+                `Unable to load assignment file. Server returned ${response.status}.`
+              )
+            );
+          }
+
+          const blob =
+            await response.blob();
+
+          if (
+            !blob ||
+            blob.size === 0
+          ) {
+            throw new Error(
+              "The assignment file is empty."
+            );
+          }
+
+          /*
+           * Some servers return application/octet-stream
+           * even when the actual file is a PDF.
+           *
+           * Keep the server MIME type when available,
+           * otherwise derive it from the assignment.
+           */
+          let finalType =
+            blob.type ||
+            assignmentFile.type ||
+            "";
+
+          if (
+            assignmentIsPdf &&
+            !finalType.includes(
+              "pdf"
+            )
+          ) {
+            finalType =
+              "application/pdf";
+          }
+
+          if (
+            finalType &&
+            blob.type !==
+              finalType
+          ) {
+            const typedBlob =
+              blob.slice(
+                0,
+                blob.size,
+                finalType
+              );
+
+            const objectUrl =
+              URL.createObjectURL(
+                typedBlob
+              );
+
+            setProtectedFileType(
+              finalType
+            );
+
+            setProtectedFileUrl(
+              objectUrl
+            );
+
+            return objectUrl;
+          }
+
+          const objectUrl =
+            URL.createObjectURL(
+              blob
+            );
+
+          setProtectedFileType(
+            finalType
+          );
+
+          setProtectedFileUrl(
+            objectUrl
+          );
+
+          return objectUrl;
+        } catch (err) {
+          console.error(
+            "❌ PROTECTED ASSIGNMENT FILE ERROR:",
+            err
+          );
+
+          setProtectedFileError(
+            err?.message ||
+              "Unable to load the assignment file."
+          );
+
+          return "";
+        } finally {
+          setProtectedFileLoading(
+            false
+          );
+        }
+      },
+      [
+        protectedFileEndpoint,
+        protectedFileUrl,
+        assignmentFile.type,
+        assignmentIsPdf,
+      ]
+    );
+
+  /* ==========================================================
+     LOAD FILE WHEN ASSIGNMENT DOCUMENT EXISTS
+  ========================================================== */
+
+  useEffect(() => {
+    if (
+      !assignmentId ||
+      !hasAssignmentDocument
+    ) {
+      return;
+    }
+
+    loadProtectedFile();
+  }, [
+    assignmentId,
+    hasAssignmentDocument,
+    loadProtectedFile,
+  ]);
+
+  /* ==========================================================
+     CLEAN OBJECT URL
+  ========================================================== */
+
+  useEffect(() => {
+    return () => {
+      if (
+        protectedFileUrl &&
+        protectedFileUrl.startsWith(
+          "blob:"
+        )
+      ) {
+        URL.revokeObjectURL(
+          protectedFileUrl
+        );
+      }
+    };
+  }, [
+    protectedFileUrl,
   ]);
 
   /* ==========================================================
@@ -1206,10 +2638,6 @@ export default function StudentAssignmentDetails() {
         return;
       }
 
-      /* ------------------------------------------------------
-         CHECK ANSWERS
-      ------------------------------------------------------ */
-
       const unansweredQuestions =
         questions.filter(
           (question) => {
@@ -1243,10 +2671,6 @@ export default function StudentAssignmentDetails() {
         return;
       }
 
-      /* ------------------------------------------------------
-         READ IDENTITY
-      ------------------------------------------------------ */
-
       const identity =
         getStudentIdentity();
 
@@ -1261,30 +2685,12 @@ export default function StudentAssignmentDetails() {
         studentName,
       } = identity;
 
-      console.log(
-        "📤 SUBMISSION IDENTITY:",
-        identity
-      );
-
-      /*
-       * Do not silently fail here.
-       *
-       * We require either enrollmentId OR studentReference.
-       * The backend can use the reference to resolve the
-       * student's enrollment when supported.
-       */
-
       if (
         !enrollmentId &&
         !studentReference
       ) {
         setSubmitError(
           "Your student enrollment information could not be found. Please log out and log in again."
-        );
-
-        console.error(
-          "❌ No enrollmentId or studentReference found:",
-          identity
         );
 
         return;
@@ -1294,12 +2700,7 @@ export default function StudentAssignmentDetails() {
         setSubmitting(true);
         setSubmitError("");
 
-        /* ----------------------------------------------------
-           ANSWER MAP
-        ---------------------------------------------------- */
-
         const answerMap = {};
-
         const answerList = [];
 
         questions.forEach(
@@ -1340,10 +2741,6 @@ export default function StudentAssignmentDetails() {
           }
         );
 
-        /* ----------------------------------------------------
-           PAYLOAD
-        ---------------------------------------------------- */
-
         const payload = {
           assignmentId:
             assignment.id,
@@ -1351,18 +2748,12 @@ export default function StudentAssignmentDetails() {
           assignment_id:
             assignment.id,
 
-          /*
-           * Primary identity.
-           */
           enrollmentId:
             enrollmentId || "",
 
           enrollment_id:
             enrollmentId || "",
 
-          /*
-           * Student reference.
-           */
           studentReference:
             studentReference || "",
 
@@ -1372,9 +2763,6 @@ export default function StudentAssignmentDetails() {
           reference:
             studentReference || "",
 
-          /*
-           * Compatibility only.
-           */
           studentId:
             studentId || "",
 
@@ -1389,35 +2777,15 @@ export default function StudentAssignmentDetails() {
             studentName ||
             "Student",
 
-          /*
-           * Main answer format used by backend.
-           */
           answers:
             answerMap,
 
-          /*
-           * Additional compatible answer format.
-           */
           answerList:
             answerList,
 
           responses:
             answerMap,
         };
-
-        console.log(
-          "📤 SUBMITTING ASSIGNMENT PAYLOAD:",
-          payload
-        );
-
-        console.log(
-          "📝 ANSWER COUNT:",
-          answerList.length
-        );
-
-        /* ----------------------------------------------------
-           SEND
-        ---------------------------------------------------- */
 
         const response =
           await fetch(
@@ -1428,7 +2796,10 @@ export default function StudentAssignmentDetails() {
               method: "POST",
 
               headers:
-                getAuthHeaders(),
+                getJsonAuthHeaders(),
+
+              credentials:
+                "include",
 
               body:
                 JSON.stringify(
@@ -1457,32 +2828,14 @@ export default function StudentAssignmentDetails() {
           };
         }
 
-        console.log(
-          "📥 SUBMISSION HTTP STATUS:",
-          response.status
-        );
-
-        console.log(
-          "📥 SUBMISSION RESPONSE:",
-          data
-        );
-
-        /* ----------------------------------------------------
-           ALREADY SUBMITTED
-        ---------------------------------------------------- */
-
         if (
-          response.status === 409
+          response.status ===
+          409
         ) {
           const existingSubmission =
             extractSubmission(
               data
             );
-
-          console.warn(
-            "⚠️ ASSIGNMENT ALREADY SUBMITTED:",
-            existingSubmission
-          );
 
           if (
             existingSubmission
@@ -1506,10 +2859,6 @@ export default function StudentAssignmentDetails() {
           );
         }
 
-        /* ----------------------------------------------------
-           OTHER SERVER ERROR
-        ---------------------------------------------------- */
-
         if (
           !response.ok
         ) {
@@ -1521,26 +2870,11 @@ export default function StudentAssignmentDetails() {
           );
         }
 
-        /* ----------------------------------------------------
-           SAVE SUBMISSION
-        ---------------------------------------------------- */
-
         const saved =
           extractSubmission(
             data
           );
 
-        console.log(
-          "✅ ASSIGNMENT SUBMITTED:",
-          saved
-        );
-
-        /*
-         * The backend should return a submission.
-         *
-         * Even if it does not, don't treat a successful
-         * HTTP response as a failed submission.
-         */
         setSavedSubmission(
           saved
         );
@@ -1574,6 +2908,99 @@ export default function StudentAssignmentDetails() {
           false
         );
       }
+    };
+
+  /* ==========================================================
+     OPEN PROTECTED DOCUMENT
+  ========================================================== */
+
+  const openAssignmentDocument =
+    async () => {
+      const url =
+        await loadProtectedFile();
+
+      if (!url) {
+        return;
+      }
+
+      window.open(
+        url,
+        "_blank",
+        "noopener,noreferrer"
+      );
+    };
+
+  /* ==========================================================
+     DOWNLOAD PROTECTED DOCUMENT
+  ========================================================== */
+
+  const downloadAssignmentDocument =
+    async () => {
+      const url =
+        await loadProtectedFile();
+
+      if (!url) {
+        return;
+      }
+
+      try {
+        const anchor =
+          document.createElement(
+            "a"
+          );
+
+        anchor.href =
+          url;
+
+        anchor.download =
+          assignmentFile.name ||
+          "assignment-document";
+
+        document.body.appendChild(
+          anchor
+        );
+
+        anchor.click();
+
+        anchor.remove();
+      } catch (err) {
+        console.error(
+          "Assignment download error:",
+          err
+        );
+
+        window.open(
+          url,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      }
+    };
+
+  /* ==========================================================
+     RETRY FILE
+  ========================================================== */
+
+  const retryProtectedFile =
+    async () => {
+      if (
+        protectedFileUrl &&
+        protectedFileUrl.startsWith(
+          "blob:"
+        )
+      ) {
+        URL.revokeObjectURL(
+          protectedFileUrl
+        );
+      }
+
+      setProtectedFileUrl("");
+
+      setProtectedFileError("");
+
+      await loadProtectedFile({
+        force: true,
+      });
     };
 
   /* ==========================================================
@@ -1615,24 +3042,30 @@ export default function StudentAssignmentDetails() {
     return (
       <div className="min-h-screen bg-[#050816] text-white px-6 py-10">
         <div className="max-w-3xl mx-auto">
+
           <button
             type="button"
             onClick={goBack}
             className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-8"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft
+              size={18}
+            />
 
             Back to Assignments
           </button>
 
           <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6">
+
             <div className="flex items-start gap-3">
+
               <AlertCircle
                 size={22}
                 className="text-red-400 mt-0.5"
               />
 
               <div>
+
                 <h2 className="font-semibold text-red-300">
                   Unable to load assignment
                 </h2>
@@ -1640,9 +3073,13 @@ export default function StudentAssignmentDetails() {
                 <p className="text-sm text-red-200/80 mt-2">
                   {error}
                 </p>
+
               </div>
+
             </div>
+
           </div>
+
         </div>
       </div>
     );
@@ -1656,17 +3093,21 @@ export default function StudentAssignmentDetails() {
     return (
       <div className="min-h-screen bg-[#050816] text-white px-6 py-10">
         <div className="max-w-3xl mx-auto">
+
           <button
             type="button"
             onClick={goBack}
             className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-8"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft
+              size={18}
+            />
 
             Back to Assignments
           </button>
 
           <div className="rounded-2xl border border-white/10 bg-[#071426] p-8 text-center">
+
             <FileText
               size={42}
               className="mx-auto text-slate-500 mb-4"
@@ -1675,7 +3116,9 @@ export default function StudentAssignmentDetails() {
             <h2 className="text-xl font-semibold">
               Assignment not found
             </h2>
+
           </div>
+
         </div>
       </div>
     );
@@ -1689,6 +3132,7 @@ export default function StudentAssignmentDetails() {
     return (
       <div className="min-h-screen bg-[#050816] text-white px-6 py-10">
         <div className="max-w-3xl mx-auto">
+
           <motion.div
             initial={{
               opacity: 0,
@@ -1700,11 +3144,14 @@ export default function StudentAssignmentDetails() {
             }}
             className="rounded-3xl border border-emerald-500/20 bg-[#071426] p-8 md:p-10 text-center"
           >
+
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-6">
+
               <CheckCircle2
                 size={34}
                 className="text-emerald-400"
               />
+
             </div>
 
             <h1 className="text-2xl md:text-3xl font-bold">
@@ -1720,8 +3167,10 @@ export default function StudentAssignmentDetails() {
 
             {savedSubmission ? (
               <div className="mt-6 space-y-3">
+
                 {savedSubmission.id ? (
                   <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
+
                     <Award
                       size={17}
                       className="text-cyan-400"
@@ -1734,13 +3183,16 @@ export default function StudentAssignmentDetails() {
                         savedSubmission.id
                       }
                     </span>
+
                   </div>
                 ) : null}
 
                 {savedSubmission.score !==
                 undefined ? (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+
                     <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+
                       <p className="text-xs text-slate-500">
                         Score
                       </p>
@@ -1756,9 +3208,11 @@ export default function StudentAssignmentDetails() {
                           0
                         }
                       </p>
+
                     </div>
 
                     <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+
                       <p className="text-xs text-slate-500">
                         Percentage
                       </p>
@@ -1770,9 +3224,11 @@ export default function StudentAssignmentDetails() {
                         }
                         %
                       </p>
+
                     </div>
 
                     <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+
                       <p className="text-xs text-slate-500">
                         Grade
                       </p>
@@ -1783,13 +3239,17 @@ export default function StudentAssignmentDetails() {
                           "—"
                         }
                       </p>
+
                     </div>
+
                   </div>
                 ) : null}
+
               </div>
             ) : null}
 
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+
               <button
                 type="button"
                 onClick={goBack}
@@ -1809,8 +3269,11 @@ export default function StudentAssignmentDetails() {
               >
                 View Result
               </button>
+
             </div>
+
           </motion.div>
+
         </div>
       </div>
     );
@@ -1822,6 +3285,7 @@ export default function StudentAssignmentDetails() {
 
   return (
     <div className="min-h-screen bg-[#050816] text-white px-4 sm:px-6 py-6 sm:py-10">
+
       <div className="max-w-4xl mx-auto">
 
         {/* BACK */}
@@ -1831,7 +3295,9 @@ export default function StudentAssignmentDetails() {
           onClick={goBack}
           className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-6"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft
+            size={18}
+          />
 
           Back to Assignments
         </button>
@@ -1839,15 +3305,20 @@ export default function StudentAssignmentDetails() {
         {/* HEADER */}
 
         <div className="rounded-3xl border border-white/10 bg-[#071426] p-6 sm:p-8 mb-6">
+
           <div className="flex items-start gap-4">
+
             <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
+
               <FileText
                 size={23}
                 className="text-cyan-400"
               />
+
             </div>
 
             <div className="min-w-0 flex-1">
+
               <h1 className="text-2xl sm:text-3xl font-bold">
                 {assignment.title ||
                   "Assignment"}
@@ -1870,20 +3341,33 @@ export default function StudentAssignmentDetails() {
               ) : null}
 
               <div className="flex flex-wrap gap-3 mt-5">
+
                 <div className="inline-flex items-center gap-2 rounded-lg bg-black/20 border border-white/5 px-3 py-2 text-xs text-slate-400">
-                  <FileText size={14} />
 
-                  {questions.length}{" "}
+                  <FileText
+                    size={14}
+                  />
 
-                  {questions.length ===
-                  1
-                    ? "Question"
-                    : "Questions"}
+                  {questions.length >
+                  0
+                    ? `${questions.length} ${
+                        questions.length ===
+                        1
+                          ? "Question"
+                          : "Questions"
+                      }`
+                    : hasAssignmentDocument
+                    ? "Assignment Document"
+                    : "Assignment"}
+
                 </div>
 
                 {assignment.due_date ||
-                assignment.dueDate ? (
+                assignment.dueDate ||
+                assignment.dueAt ||
+                assignment.due_at ? (
                   <div className="inline-flex items-center gap-2 rounded-lg bg-black/20 border border-white/5 px-3 py-2 text-xs text-slate-400">
+
                     <Clock3
                       size={14}
                     />
@@ -1892,44 +3376,424 @@ export default function StudentAssignmentDetails() {
 
                     {new Date(
                       assignment.due_date ||
-                      assignment.dueDate
+                        assignment.dueDate ||
+                        assignment.dueAt ||
+                        assignment.due_at
                     ).toLocaleDateString()}
+
                   </div>
                 ) : null}
+
               </div>
+
             </div>
+
           </div>
+
         </div>
 
-        {/* NO QUESTIONS */}
+        {/* ====================================================
+            TUTOR DOCUMENT
+        ==================================================== */}
 
-        {!questions.length ? (
-          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle
-                size={22}
-                className="text-amber-400 mt-0.5"
-              />
+        {hasAssignmentDocument &&
+        !questions.length ? (
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 10,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            className="rounded-3xl border border-cyan-400/15 bg-[#071426] overflow-hidden mb-6"
+          >
 
-              <div>
-                <h2 className="font-semibold text-amber-300">
-                  No Questions Available
-                </h2>
+            {/* DOCUMENT HEADER */}
 
-                <p className="text-sm text-amber-200/70 mt-2">
-                  This assignment has
-                  been created, but no
-                  questions have been
-                  added yet.
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 border-b border-white/10">
+
+              <div className="flex items-center gap-3 min-w-0">
+
+                <div className="w-11 h-11 rounded-xl bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center shrink-0">
+
+                  {assignmentIsVideo ? (
+                    <PlayCircle
+                      size={21}
+                      className="text-cyan-400"
+                    />
+                  ) : (
+                    <FileText
+                      size={21}
+                      className="text-cyan-400"
+                    />
+                  )}
+
+                </div>
+
+                <div className="min-w-0">
+
+                  <p className="text-xs uppercase tracking-wider text-slate-500">
+                    Tutor Assignment
+                  </p>
+
+                  <h2 className="mt-1 font-semibold truncate">
+                    {
+                      assignmentFile.name ||
+                      "Assignment Document"
+                    }
+                  </h2>
+
+                  <div className="flex flex-wrap gap-2 mt-1 text-xs text-slate-500">
+
+                    {assignmentFileExtension ? (
+                      <span className="uppercase">
+                        {
+                          assignmentFileExtension
+                        }
+                      </span>
+                    ) : null}
+
+                    {formatFileSize(
+                      assignmentFile.size
+                    ) ? (
+                      <>
+                        <span>
+                          •
+                        </span>
+
+                        <span>
+                          {
+                            formatFileSize(
+                              assignmentFile.size
+                            )
+                          }
+                        </span>
+                      </>
+                    ) : null}
+
+                  </div>
+
+                </div>
+
               </div>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* QUESTIONS */}
 
+              <div className="flex items-center gap-2 shrink-0">
+
+                <button
+                  type="button"
+                  onClick={
+                    openAssignmentDocument
+                  }
+                  disabled={
+                    protectedFileLoading ||
+                    !assignmentFileUrl
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  {protectedFileLoading ? (
+                    <Loader2
+                      size={16}
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <ExternalLink
+                      size={16}
+                    />
+                  )}
+
+                  {protectedFileLoading
+                    ? "Loading..."
+                    : "Open"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    downloadAssignmentDocument
+                  }
+                  disabled={
+                    protectedFileLoading ||
+                    !assignmentFileUrl
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  <Download
+                    size={16}
+                  />
+
+                  Download
+                </button>
+
+              </div>
+
+            </div>
+
+            {/* ==================================================
+                PROTECTED FILE ERROR
+            ================================================== */}
+
+            {protectedFileError ? (
+              <div className="p-4 sm:p-6">
+
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-5">
+
+                  <div className="flex items-start gap-3">
+
+                    <AlertCircle
+                      size={20}
+                      className="text-red-400 mt-0.5 shrink-0"
+                    />
+
+                    <div className="flex-1">
+
+                      <h3 className="font-semibold text-red-300">
+                        Unable to load assignment file
+                      </h3>
+
+                      <p className="mt-2 text-sm text-red-200/80">
+                        {
+                          protectedFileError
+                        }
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={
+                          retryProtectedFile
+                        }
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-400/10 border border-red-400/20 px-4 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-400/20 transition"
+                      >
+                        <RefreshCw
+                          size={16}
+                        />
+
+                        Try Again
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+            ) : null}
+
+            {/* ==================================================
+                FILE LOADING
+            ================================================== */}
+
+            {protectedFileLoading &&
+            !protectedFileUrl ? (
+              <div className="flex min-h-[400px] items-center justify-center p-8">
+
+                <div className="flex flex-col items-center gap-4">
+
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
+
+                    <Loader2
+                      size={28}
+                      className="animate-spin text-cyan-400"
+                    />
+
+                  </div>
+
+                  <div className="text-center">
+
+                    <p className="font-semibold">
+                      Loading assignment document
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Securely loading the file...
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+            ) : null}
+
+            {/* ==================================================
+                PDF
+            ================================================== */}
+
+            {assignmentIsPdf &&
+            protectedFileUrl ? (
+              <div className="p-4 sm:p-6">
+
+                <div className="mb-3 flex items-center justify-between gap-3">
+
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+
+                    <Eye
+                      size={16}
+                      className="text-cyan-400"
+                    />
+
+                    Secure PDF Preview
+
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={
+                      openAssignmentDocument
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/10 transition"
+                  >
+                    <ExternalLink
+                      size={14}
+                    />
+
+                    Open Full Screen
+                  </button>
+
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+
+                  <iframe
+                    src={`${protectedFileUrl}#toolbar=1&navpanes=0`}
+                    title={
+                      assignmentFile.name ||
+                      "Assignment PDF"
+                    }
+                    className="w-full h-[70vh] min-h-[500px]"
+                  />
+
+                </div>
+
+              </div>
+            ) : null}
+
+            {/* ==================================================
+                VIDEO
+            ================================================== */}
+
+            {assignmentIsVideo &&
+            protectedFileUrl ? (
+              <div className="p-4 sm:p-6">
+
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+
+                  <video
+                    src={
+                      protectedFileUrl
+                    }
+                    controls
+                    playsInline
+                    className="w-full max-h-[70vh]"
+                  >
+                    Your browser does not
+                    support video playback.
+                  </video>
+
+                </div>
+
+              </div>
+            ) : null}
+
+            {/* ==================================================
+                OTHER DOCUMENTS
+            ================================================== */}
+
+            {!assignmentIsPdf &&
+            !assignmentIsVideo &&
+            !protectedFileError ? (
+              <div className="p-6 sm:p-10">
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-8 text-center">
+
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-400/10 border border-cyan-400/20">
+
+                    <FileText
+                      size={30}
+                      className="text-cyan-400"
+                    />
+
+                  </div>
+
+                  <h3 className="mt-5 text-lg font-semibold">
+                    Assignment Document
+                  </h3>
+
+                  <p className="mt-2 text-sm text-slate-400 max-w-md mx-auto">
+                    This assignment contains a{" "}
+                    {assignmentFileExtension
+                      ? assignmentFileExtension.toUpperCase()
+                      : "document"}{" "}
+                    uploaded by your tutor.
+                  </p>
+
+                  <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+
+                    <button
+                      type="button"
+                      onClick={
+                        openAssignmentDocument
+                      }
+                      disabled={
+                        protectedFileLoading ||
+                        !assignmentFileUrl
+                      }
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      {protectedFileLoading ? (
+                        <Loader2
+                          size={18}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <ExternalLink
+                          size={18}
+                        />
+                      )}
+
+                      {protectedFileLoading
+                        ? "Loading..."
+                        : "Open Document"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={
+                        downloadAssignmentDocument
+                      }
+                      disabled={
+                        protectedFileLoading ||
+                        !assignmentFileUrl
+                      }
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-medium text-slate-200 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      <Download
+                        size={18}
+                      />
+
+                      Download
+                    </button>
+
+                  </div>
+
+                </div>
+
+              </div>
+            ) : null}
+
+          </motion.div>
+        ) : null}
+
+        {/* ====================================================
+            QUESTIONS
+        ==================================================== */}
+
+        {questions.length > 0 ? (
+          <>
             <div className="space-y-4">
+
               {questions.map(
                 (
                   question,
@@ -1969,6 +3833,7 @@ export default function StudentAssignmentDetails() {
                       }}
                       className="rounded-2xl border border-white/10 bg-[#071426] overflow-hidden"
                     >
+
                       <button
                         type="button"
                         onClick={() =>
@@ -1980,7 +3845,9 @@ export default function StudentAssignmentDetails() {
                         }
                         className="w-full flex items-center justify-between gap-4 p-5 text-left hover:bg-white/[0.02] transition"
                       >
+
                         <div className="flex items-start gap-4">
+
                           <div className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-sm font-semibold">
                             {
                               index +
@@ -1989,6 +3856,7 @@ export default function StudentAssignmentDetails() {
                           </div>
 
                           <div>
+
                             <p className="font-medium leading-relaxed">
                               {
                                 question.question ||
@@ -2008,7 +3876,9 @@ export default function StudentAssignmentDetails() {
                                 ? "s"
                                 : ""}
                             </p>
+
                           </div>
+
                         </div>
 
                         {expanded ? (
@@ -2022,11 +3892,14 @@ export default function StudentAssignmentDetails() {
                             className="text-slate-500 shrink-0"
                           />
                         )}
+
                       </button>
 
                       {expanded ? (
                         <div className="px-5 pb-5">
+
                           <div className="border-t border-white/5 pt-5 space-y-3">
+
                             {[
                               [
                                 "A",
@@ -2079,7 +3952,9 @@ export default function StudentAssignmentDetails() {
                                         : "border-white/10 bg-black/10 hover:bg-white/[0.03]"
                                     }`}
                                   >
+
                                     <div className="flex items-center gap-3">
+
                                       <span
                                         className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold ${
                                           isSelected
@@ -2097,67 +3972,79 @@ export default function StudentAssignmentDetails() {
                                           option
                                         }
                                       </span>
+
                                     </div>
+
                                   </button>
                                 );
                               }
                             )}
+
                           </div>
 
                           {selectedAnswer ? (
                             <div className="mt-4 flex items-center gap-2 text-xs text-emerald-400">
+
                               <CheckCircle2
                                 size={15}
                               />
 
                               Answer selected
+
                             </div>
                           ) : null}
+
                         </div>
                       ) : null}
+
                     </motion.div>
                   );
                 }
               )}
-            </div>
 
-            {/* SUBMIT ERROR */}
+            </div>
 
             {submitError ? (
               <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4">
+
                 <div className="flex items-start gap-3">
+
                   <AlertCircle
                     size={19}
                     className="text-red-400 mt-0.5 shrink-0"
                   />
 
                   <div className="flex-1">
+
                     <p className="text-sm text-red-300">
                       {
                         submitError
                       }
                     </p>
+
                   </div>
+
                 </div>
+
               </div>
             ) : null}
 
-            {/* SUBMIT */}
-
             <div className="mt-8 rounded-2xl border border-white/10 bg-[#071426] p-5 sm:p-6">
+
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+
                 <div>
+
                   <h2 className="font-semibold">
                     Ready to submit?
                   </h2>
 
                   <p className="text-sm text-slate-500 mt-1">
-                    Make sure you
-                    have answered
-                    every question
-                    before
+                    Make sure you have answered
+                    every question before
                     submitting.
                   </p>
+
                 </div>
 
                 <button
@@ -2170,6 +4057,7 @@ export default function StudentAssignmentDetails() {
                   }
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-cyan-500 text-slate-950 font-semibold hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
+
                   {submitting ? (
                     <>
                       <Loader2
@@ -2188,14 +4076,17 @@ export default function StudentAssignmentDetails() {
                       Submit Assignment
                     </>
                   )}
+
                 </button>
+
               </div>
+
             </div>
 
-            {/* IDENTITY DEBUG INFO */}
-
             <div className="mt-5 rounded-xl border border-white/5 bg-black/10 p-4">
+
               <div className="flex items-center gap-2 text-xs text-slate-500">
+
                 <RefreshCw
                   size={13}
                 />
@@ -2208,10 +4099,43 @@ export default function StudentAssignmentDetails() {
                   {studentIdentity.enrollmentId ||
                     "not found"}
                 </span>
+
               </div>
+
             </div>
           </>
-        )}
+        ) : !hasAssignmentDocument ? (
+
+          /* NO QUESTIONS / NO DOCUMENT */
+
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
+
+            <div className="flex items-start gap-3">
+
+              <AlertCircle
+                size={22}
+                className="text-amber-400 mt-0.5"
+              />
+
+              <div>
+
+                <h2 className="font-semibold text-amber-300">
+                  No Questions Available
+                </h2>
+
+                <p className="text-sm text-amber-200/70 mt-2">
+                  This assignment has been
+                  created, but no questions or
+                  document have been added yet.
+                </p>
+
+              </div>
+
+            </div>
+
+          </div>
+        ) : null}
+
       </div>
     </div>
   );

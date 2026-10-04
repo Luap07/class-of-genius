@@ -1,198 +1,129 @@
-// server/routes/academyTutorAssignments.js
-
 import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { fileURLToPath } from "url";
 
 import pool from "../lib/db.js";
 
 const router = express.Router();
 
 /* ============================================================
-   CONSTANTS
+   PATHS
 ============================================================ */
 
-const MAX_FILE_SIZE =
-  250 * 1024 * 1024;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const MAX_FILES = 10;
+const SERVER_ROOT = path.resolve(__dirname, "..");
 
-const UPLOAD_DIRECTORY =
-  path.join(
-    process.cwd(),
-    "uploads",
-    "academy-assignments"
-  );
-
-const ALLOWED_MIME_TYPES =
-  new Set([
-    "application/pdf",
-
-    "application/msword",
-
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-
-    "video/mp4",
-
-    "video/webm",
-
-    "video/quicktime",
-  ]);
-
-const ALLOWED_EXTENSIONS =
-  new Set([
-    ".pdf",
-    ".doc",
-    ".docx",
-    ".mp4",
-    ".webm",
-    ".mov",
-  ]);
-
-/* ============================================================
-   ENSURE UPLOAD DIRECTORY
-============================================================ */
-
-fs.mkdirSync(
-  UPLOAD_DIRECTORY,
-  {
-    recursive: true,
-  }
+const UPLOAD_DIR = path.join(
+  SERVER_ROOT,
+  "uploads",
+  "academy-assignments"
 );
 
-/* ============================================================
-   MULTER STORAGE
-============================================================ */
-
-const storage =
-  multer.diskStorage({
-    destination: (
-      req,
-      file,
-      cb
-    ) => {
-      cb(
-        null,
-        UPLOAD_DIRECTORY
-      );
-    },
-
-    filename: (
-      req,
-      file,
-      cb
-    ) => {
-      const extension =
-        path.extname(
-          file.originalname
-        ).toLowerCase();
-
-      const uniqueName =
-        `${Date.now()}-${crypto.randomBytes(12).toString("hex")}${extension}`;
-
-      cb(
-        null,
-        uniqueName
-      );
-    },
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, {
+    recursive: true,
   });
+}
 
 /* ============================================================
-   MULTER FILTER
+   MULTER
 ============================================================ */
 
-const fileFilter = (
-  req,
-  file,
-  cb
-) => {
-  const extension =
-    path.extname(
-      file.originalname
-    ).toLowerCase();
+const ALLOWED_EXTENSIONS = new Set([
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".mp4",
+  ".webm",
+  ".mov",
+]);
 
-  const mimeAllowed =
-    ALLOWED_MIME_TYPES.has(
-      file.mimetype
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "application/octet-stream",
+]);
+
+const MAX_FILE_SIZE = 250 * 1024 * 1024;
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, UPLOAD_DIR);
+  },
+
+  filename: (_req, file, cb) => {
+    const originalExt = path
+      .extname(file.originalname || "")
+      .toLowerCase();
+
+    const safeExt = ALLOWED_EXTENSIONS.has(originalExt)
+      ? originalExt
+      : "";
+
+    const uniqueName =
+      `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${safeExt}`;
+
+    cb(null, uniqueName);
+  },
+});
+
+const upload = multer({
+  storage,
+
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+  },
+
+  fileFilter: (_req, file, cb) => {
+    const ext = path
+      .extname(file.originalname || "")
+      .toLowerCase();
+
+    const mime = String(file.mimetype || "").toLowerCase();
+
+    if (
+      ALLOWED_EXTENSIONS.has(ext) ||
+      ALLOWED_MIME_TYPES.has(mime)
+    ) {
+      return cb(null, true);
+    }
+
+    return cb(
+      new Error(
+        "Unsupported file type. Allowed files: PDF, DOC, DOCX, MP4, WEBM and MOV."
+      )
     );
-
-  const extensionAllowed =
-    ALLOWED_EXTENSIONS.has(
-      extension
-    );
-
-  if (
-    mimeAllowed ||
-    extensionAllowed
-  ) {
-    cb(
-      null,
-      true
-    );
-
-    return;
-  }
-
-  cb(
-    new Error(
-      "Unsupported file type. Allowed files are PDF, DOC, DOCX, MP4, WebM and MOV."
-    )
-  );
-};
-
-const upload =
-  multer({
-    storage,
-    fileFilter,
-
-    limits: {
-      fileSize:
-        MAX_FILE_SIZE,
-
-      files:
-        MAX_FILES,
-    },
-  });
+  },
+});
 
 /* ============================================================
-   BASIC HELPERS
+   HELPERS
 ============================================================ */
 
-const clean = (
-  value
-) => {
-  if (
-    value === undefined ||
-    value === null
-  ) {
+const clean = (value) => {
+  if (value === undefined || value === null) {
     return "";
   }
 
-  return String(
-    value
-  ).trim();
+  return String(value).trim();
 };
 
-const toNumber = (
-  value,
-  fallback = 0
-) => {
-  const number =
-    Number(value);
+const toNumber = (value, fallback = 0) => {
+  const n = Number(value);
 
-  return Number.isFinite(
-    number
-  )
-    ? number
-    : fallback;
+  return Number.isFinite(n) ? n : fallback;
 };
 
-const parseJson = (
-  value,
-  fallback = null
-) => {
+const safeJsonParse = (value, fallback = null) => {
   if (
     value === undefined ||
     value === null ||
@@ -201,88 +132,118 @@ const parseJson = (
     return fallback;
   }
 
-  if (
-    typeof value ===
-    "object"
-  ) {
+  if (typeof value === "object") {
     return value;
   }
 
   try {
-    return JSON.parse(
-      value
-    );
+    return JSON.parse(value);
   } catch {
     return fallback;
   }
 };
 
-const quoteIdentifier = (
-  identifier
-) => {
-  return `"${String(
-    identifier
-  ).replace(
-    /"/g,
-    '""'
-  )}"`;
-};
-
-const firstExistingColumn = (
-  columns,
-  candidates
-) => {
-  const available =
-    new Set(
-      columns.map(
-        (column) =>
-          column.column_name
-      )
-    );
-
-  return (
-    candidates.find(
-      (candidate) =>
-        available.has(
-          candidate
-        )
-    ) || null
-  );
+const uniqueArray = (values = []) => {
+  return [
+    ...new Set(
+      values
+        .map((value) => clean(value))
+        .filter(Boolean)
+    ),
+  ];
 };
 
 /* ============================================================
-   GET TUTOR REFERENCE
+   TUTOR REFERENCE NORMALIZATION
 ============================================================ */
 
-const getTutorReference = (
-  req
-) => {
-  const directValues = [
-    req.headers[
-      "x-tutor-reference"
-    ],
+/*
+  IMPORTANT:
+
+  The tutor reference must always be the SQA application
+  reference.
+
+  Correct:
+    SQA-677281-6D34
+
+  Incorrect:
+    0635004a-e160-4f76-aca3-e187ddd9c8a0
+
+  Also handles the bad value that was previously being saved:
+
+    SQA-677281-6D34, SQA-677281-6D34
+*/
+
+const normalizeTutorReference = (value) => {
+  const reference = clean(value);
+
+  if (!reference) {
+    return "";
+  }
+
+  const references = reference
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const validReference = references.find((item) =>
+    /^SQA-[A-Z0-9-]+$/i.test(item)
+  );
+
+  return validReference
+    ? validReference.toUpperCase()
+    : "";
+};
+
+const isValidTutorReference = (value) => {
+  const reference =
+    normalizeTutorReference(value);
+
+  return /^SQA-[A-Z0-9-]+$/i.test(reference);
+};
+
+const getTutorReference = (req) => {
+  const candidates = [
+    req.headers["x-tutor-reference"],
+    req.headers["x-tutor-ref"],
 
     req.query?.tutorReference,
-
     req.query?.tutor_reference,
-
     req.query?.reference,
+    req.query?.applicationReference,
+    req.query?.application_reference,
 
     req.body?.tutorReference,
-
     req.body?.tutor_reference,
-
     req.body?.reference,
+    req.body?.applicationReference,
+    req.body?.application_reference,
   ];
 
-  for (
-    const value of directValues
-  ) {
-    const cleaned =
-      clean(value);
+  for (const candidate of candidates) {
+    const reference =
+      normalizeTutorReference(candidate);
 
-    if (cleaned) {
-      return cleaned;
+    if (reference) {
+      return reference;
+    }
+  }
+
+  return "";
+};
+
+const getTutorName = (req) => {
+  const candidates = [
+    req.body?.tutorName,
+    req.body?.tutor_name,
+    req.headers["x-tutor-name"],
+  ];
+
+  for (const candidate of candidates) {
+    const value = clean(candidate);
+
+    if (value) {
+      return value;
     }
   }
 
@@ -290,526 +251,914 @@ const getTutorReference = (
 };
 
 /* ============================================================
-   GET ASSIGNMENT ID
+   SQL IDENTIFIER HELPERS
 ============================================================ */
 
-const getAssignmentId = (
-  req
-) => {
-  return clean(
-    req.params?.id ??
-      req.params?.assignmentId ??
-      req.query?.id ??
-      req.body?.id ??
-      req.body?.assignmentId ??
-      req.body?.assignment_id
+const safeIdentifier = (identifier) => {
+  return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(
+    identifier
+  );
+};
+
+const quoteIdentifier = (identifier) => {
+  if (!safeIdentifier(identifier)) {
+    throw new Error(
+      `Unsafe SQL identifier: ${identifier}`
+    );
+  }
+
+  return `"${identifier}"`;
+};
+
+/* ============================================================
+   TABLE COLUMN HELPERS
+============================================================ */
+
+const tableColumnsCache = new Map();
+
+const getTableColumns = async (tableName) => {
+  if (tableColumnsCache.has(tableName)) {
+    return tableColumnsCache.get(tableName);
+  }
+
+  const result = await pool.query(
+    `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = $1
+      ORDER BY ordinal_position
+    `,
+    [tableName]
+  );
+
+  const columns = new Set(
+    result.rows.map(
+      (row) => row.column_name
+    )
+  );
+
+  tableColumnsCache.set(
+    tableName,
+    columns
+  );
+
+  return columns;
+};
+
+const refreshTableColumns = (tableName) => {
+  tableColumnsCache.delete(
+    tableName
   );
 };
 
 /* ============================================================
-   TABLE COLUMNS
+   ENSURE FILE COLUMNS EXIST
 ============================================================ */
 
-const getTableColumns = async (
-  client,
-  tableName
-) => {
-  const result =
-    await client.query(
-      `
-        SELECT
-          column_name,
-          data_type,
-          udt_name,
-          is_nullable
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = $1
-        ORDER BY ordinal_position
-      `,
-      [tableName]
-    );
+const ensureFileColumns = async () => {
+  await pool.query(`
+    ALTER TABLE academy_assignments
+      ADD COLUMN IF NOT EXISTS file_name TEXT,
+      ADD COLUMN IF NOT EXISTS file_url TEXT,
+      ADD COLUMN IF NOT EXISTS file_type TEXT,
+      ADD COLUMN IF NOT EXISTS file_size BIGINT,
+      ADD COLUMN IF NOT EXISTS file_path TEXT
+  `);
 
-  return result.rows;
+  refreshTableColumns(
+    "academy_assignments"
+  );
 };
 
 /* ============================================================
-   FIND ASSIGNMENT FOR TUTOR
+   FILE HELPERS
 ============================================================ */
 
-const findAssignmentByTutor =
-  async (
-    client,
-    assignmentId,
-    tutorReference
-  ) => {
-    const result =
-      await client.query(
-        `
-          SELECT *
-          FROM academy_assignments
-          WHERE id::text = $1
-            AND tutor_reference = $2
-          LIMIT 1
-        `,
-        [
-          assignmentId,
-          tutorReference,
-        ]
-      );
+const normalizeStoredFilePath = (value) => {
+  const input = clean(value);
 
-    return (
-      result.rows[0] ||
-      null
-    );
-  };
+  if (!input) {
+    return "";
+  }
 
-/* ============================================================
-   FIND TUTOR ASSIGNMENTS
-============================================================ */
+  return input
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+};
 
-const findTutorAssignments =
-  async (
-    client,
-    tutorReference
-  ) => {
-    const result =
-      await client.query(
-        `
-          SELECT *
-          FROM academy_assignments
-          WHERE tutor_reference = $1
-          ORDER BY
-            COALESCE(
-              updated_at,
-              created_at,
-              NOW()
-            ) DESC
-        `,
-        [
-          tutorReference,
-        ]
-      );
+const getStoredFileName = (filePath) => {
+  const normalized =
+    normalizeStoredFilePath(filePath);
 
-    return result.rows;
-  };
+  if (!normalized) {
+    return "";
+  }
 
-/* ============================================================
-   FILE INFO
-============================================================ */
+  return path.basename(
+    normalized
+  );
+};
 
-const getAssignmentFileInfo = (
-  assignment
+const getFileUrl = (assignmentId) => {
+  return `/api/academy/tutor/assignments/${encodeURIComponent(
+    assignmentId
+  )}/file`;
+};
+
+const deleteStoredFile = async (
+  filePath
 ) => {
-  if (!assignment) {
-    return {
-      url: "",
-      path: "",
-      name: "",
-      type: "",
-      size: 0,
-    };
+  const normalized =
+    normalizeStoredFilePath(filePath);
+
+  if (!normalized) {
+    return;
   }
 
-  let attachment =
-    null;
+  const basename =
+    path.basename(normalized);
 
-  const attachmentValue =
-    assignment.attachments ??
-    assignment.attachment ??
-    assignment.files;
+  if (!basename) {
+    return;
+  }
 
-  const parsedAttachment =
-    parseJson(
-      attachmentValue,
-      null
+  const absolutePath =
+    path.join(
+      UPLOAD_DIR,
+      basename
     );
 
-  if (
-    Array.isArray(
-      parsedAttachment
-    )
-  ) {
-    attachment =
-      parsedAttachment[0] ||
-      null;
-  } else if (
-    parsedAttachment &&
-    typeof parsedAttachment ===
-      "object"
-  ) {
-    attachment =
-      parsedAttachment;
+  try {
+    await fs.promises.unlink(
+      absolutePath
+    );
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error(
+        "Unable to delete assignment file:",
+        error
+      );
+    }
   }
+};
+
+const getUploadedFileData = (
+  file
+) => {
+  if (!file) {
+    return null;
+  }
+
+  const storedPath =
+    path
+      .relative(
+        SERVER_ROOT,
+        file.path
+      )
+      .replace(/\\/g, "/");
 
   return {
-    url: clean(
-      assignment.file_url ??
-        assignment.fileUrl ??
-        assignment.attachment_url ??
-        assignment.attachmentUrl ??
-        assignment.document_url ??
-        assignment.documentUrl ??
-        attachment?.url ??
-        attachment?.fileUrl
+    fileName: clean(
+      file.originalname
     ),
 
-    path: clean(
-      assignment.file_path ??
-        assignment.filePath ??
-        assignment.attachment_path ??
-        assignment.attachmentPath ??
-        assignment.document_path ??
-        assignment.documentPath ??
-        attachment?.path
+    filePath: storedPath,
+
+    fileType: clean(
+      file.mimetype
     ),
 
-    name: clean(
-      assignment.file_name ??
-        assignment.filename ??
-        assignment.attachment_name ??
-        assignment.attachmentName ??
-        assignment.document_name ??
-        assignment.documentName ??
-        attachment?.originalName ??
-        attachment?.name ??
-        attachment?.fileName ??
-        attachment?.filename
-    ),
-
-    type: clean(
-      assignment.file_type ??
-        assignment.fileType ??
-        assignment.mime_type ??
-        assignment.mimeType ??
-        assignment.content_type ??
-        assignment.contentType ??
-        assignment.document_type ??
-        assignment.documentType ??
-        attachment?.mimeType
-    ),
-
-    size: toNumber(
-      assignment.file_size ??
-        assignment.fileSize ??
-        assignment.attachment_size ??
-        assignment.attachmentSize ??
-        assignment.document_size ??
-        assignment.documentSize ??
-        attachment?.size,
+    fileSize: toNumber(
+      file.size,
       0
     ),
   };
 };
 
 /* ============================================================
-   REMOVE ASSIGNMENT FILE
+   QUESTION HELPERS
 ============================================================ */
 
-const removeAssignmentFile = (
-  assignment
+const normalizeQuestions = (
+  rawQuestions
 ) => {
-  const fileInfo =
-    getAssignmentFileInfo(
-      assignment
-    );
+  let questions =
+    rawQuestions;
 
-  if (
-    fileInfo.path &&
-    fs.existsSync(
-      fileInfo.path
-    )
-  ) {
-    try {
-      fs.unlinkSync(
-        fileInfo.path
-      );
-
-      return true;
-    } catch (
-      error
-    ) {
-      console.error(
-        "Unable to remove assignment file:",
-        error
-      );
-    }
+  if (!Array.isArray(questions)) {
+    questions = [];
   }
 
-  if (
-    fileInfo.name
-  ) {
-    const possiblePath =
-      path.join(
-        UPLOAD_DIRECTORY,
-        path.basename(
-          fileInfo.name
-        )
-      );
-
-    if (
-      fs.existsSync(
-        possiblePath
-      )
-    ) {
-      try {
-        fs.unlinkSync(
-          possiblePath
-        );
-
-        return true;
-      } catch (
-        error
-      ) {
-        console.error(
-          "Unable to remove assignment file:",
-          error
-        );
-      }
-    }
-  }
-
-  if (
-    fileInfo.url
-  ) {
-    try {
-      const pathname =
-        new URL(
-          fileInfo.url,
-          "http://localhost"
-        ).pathname;
-
-      const possiblePath =
-        path.join(
-          UPLOAD_DIRECTORY,
-          path.basename(
-            pathname
-          )
-        );
-
+  return questions
+    .map((question, index) => {
       if (
-        fs.existsSync(
-          possiblePath
-        )
+        !question ||
+        typeof question !== "object"
       ) {
-        fs.unlinkSync(
-          possiblePath
-        );
-
-        return true;
+        return null;
       }
-    } catch {
-      // Ignore invalid URL.
-    }
-  }
 
-  return false;
+      const questionText = clean(
+        question.questionText ??
+        question.question_text ??
+        question.question ??
+        question.text
+      );
+
+      const optionA = clean(
+        question.optionA ??
+        question.option_a ??
+        question.a
+      );
+
+      const optionB = clean(
+        question.optionB ??
+        question.option_b ??
+        question.b
+      );
+
+      const optionC = clean(
+        question.optionC ??
+        question.option_c ??
+        question.c
+      );
+
+      const optionD = clean(
+        question.optionD ??
+        question.option_d ??
+        question.d
+      );
+
+      const correctAnswer = clean(
+        question.correctAnswer ??
+        question.correct_answer ??
+        question.answer
+      );
+
+      const marks = toNumber(
+        question.marks ??
+        question.maxMarks ??
+        question.max_marks,
+        1
+      );
+
+      if (!questionText) {
+        return null;
+      }
+
+      return {
+        questionText,
+        optionA,
+        optionB,
+        optionC,
+        optionD,
+        correctAnswer,
+        marks,
+        questionNumber:
+          index + 1,
+      };
+    })
+    .filter(Boolean);
 };
 
 /* ============================================================
-   SERIALIZE ASSIGNMENT
+   INSERT QUESTIONS
 ============================================================ */
 
-const serializeAssignment = (
+const insertQuestions = async (
+  client,
+  assignmentId,
+  questions
+) => {
+  if (!questions.length) {
+    return;
+  }
+
+  const columns =
+    await getTableColumns(
+      "academy_assignment_questions"
+    );
+
+  if (!columns.size) {
+    return;
+  }
+
+  for (const question of questions) {
+    const finalColumns = [];
+    const finalValues = [];
+    const finalPlaceholders = [];
+
+    const mappings = [
+      [
+        "assignment_id",
+        assignmentId,
+      ],
+
+      [
+        "question_number",
+        question.questionNumber,
+      ],
+
+      [
+        "question_text",
+        question.questionText,
+      ],
+
+      [
+        "question",
+        question.questionText,
+      ],
+
+      [
+        "text",
+        question.questionText,
+      ],
+
+      [
+        "option_a",
+        question.optionA,
+      ],
+
+      [
+        "option_b",
+        question.optionB,
+      ],
+
+      [
+        "option_c",
+        question.optionC,
+      ],
+
+      [
+        "option_d",
+        question.optionD,
+      ],
+
+      [
+        "correct_answer",
+        question.correctAnswer,
+      ],
+
+      [
+        "answer",
+        question.correctAnswer,
+      ],
+
+      [
+        "marks",
+        question.marks,
+      ],
+
+      [
+        "max_marks",
+        question.marks,
+      ],
+    ];
+
+    for (
+      const [column, value] of mappings
+    ) {
+      if (!columns.has(column)) {
+        continue;
+      }
+
+      finalColumns.push(
+        column
+      );
+
+      finalValues.push(
+        value
+      );
+
+      finalPlaceholders.push(
+        `$${finalValues.length}`
+      );
+    }
+
+    if (!finalColumns.length) {
+      continue;
+    }
+
+    const sql = `
+      INSERT INTO academy_assignment_questions
+      (${finalColumns
+        .map(quoteIdentifier)
+        .join(", ")})
+      VALUES (${finalPlaceholders.join(", ")})
+    `;
+
+    await client.query(
+      sql,
+      finalValues
+    );
+  }
+};
+
+/* ============================================================
+   LOAD QUESTIONS
+============================================================ */
+
+const loadQuestions = async (
+  assignmentId
+) => {
+  try {
+    const columns =
+      await getTableColumns(
+        "academy_assignment_questions"
+      );
+
+    if (
+      !columns.has(
+        "assignment_id"
+      )
+    ) {
+      return [];
+    }
+
+    const orderColumn =
+      columns.has(
+        "question_number"
+      )
+        ? `
+            CASE
+              WHEN question_number IS NULL
+              THEN id
+              ELSE question_number
+            END ASC,
+            id ASC
+          `
+        : `id ASC`;
+
+    const result =
+      await pool.query(
+        `
+          SELECT *
+          FROM academy_assignment_questions
+          WHERE assignment_id = $1
+          ORDER BY ${orderColumn}
+        `,
+        [assignmentId]
+      );
+
+    return result.rows;
+  } catch (error) {
+    console.error(
+      "Unable to load assignment questions:",
+      error
+    );
+
+    return [];
+  }
+};
+
+/* ============================================================
+   FORMAT QUESTION
+============================================================ */
+
+const formatQuestion = (
+  row,
+  index
+) => {
+  const questionText = clean(
+    row.question_text ??
+    row.question ??
+    row.text
+  );
+
+  const optionA = clean(
+    row.option_a ??
+    row.optionA ??
+    row.a
+  );
+
+  const optionB = clean(
+    row.option_b ??
+    row.optionB ??
+    row.b
+  );
+
+  const optionC = clean(
+    row.option_c ??
+    row.optionC ??
+    row.c
+  );
+
+  const optionD = clean(
+    row.option_d ??
+    row.optionD ??
+    row.d
+  );
+
+  const correctAnswer = clean(
+    row.correct_answer ??
+    row.answer ??
+    row.correctAnswer
+  );
+
+  const marks = toNumber(
+    row.marks ??
+    row.max_marks,
+    1
+  );
+
+  return {
+    ...row,
+
+    id:
+      row.id ??
+      row.question_id,
+
+    assignment_id:
+      row.assignment_id,
+
+    question_number:
+      toNumber(
+        row.question_number,
+        index + 1
+      ),
+
+    questionText,
+
+    question_text:
+      questionText,
+
+    question:
+      questionText,
+
+    text:
+      questionText,
+
+    optionA,
+
+    option_a:
+      optionA,
+
+    optionB,
+
+    option_b:
+      optionB,
+
+    optionC,
+
+    option_c:
+      optionC,
+
+    optionD,
+
+    option_d:
+      optionD,
+
+    correctAnswer,
+
+    correct_answer:
+      correctAnswer,
+
+    answer:
+      correctAnswer,
+
+    marks,
+
+    max_marks:
+      marks,
+  };
+};
+
+/* ============================================================
+   FORMAT ASSIGNMENT
+============================================================ */
+
+const formatAssignment = async (
   row
 ) => {
   if (!row) {
     return null;
   }
 
+  const assignmentId =
+    row.id ??
+    row.assignment_id;
+
+  let fileName = clean(
+    row.file_name ??
+    row.attachment_name ??
+    row.document_name
+  );
+
+  const filePath = clean(
+    row.file_path ??
+    row.attachment_path ??
+    row.document_path
+  );
+
+  if (
+    !fileName &&
+    filePath
+  ) {
+    fileName =
+      getStoredFileName(
+        filePath
+      );
+  }
+
+  const fileUrl =
+    filePath
+      ? getFileUrl(
+          assignmentId
+        )
+      : clean(
+          row.file_url ??
+          row.attachment_url ??
+          row.document_url
+        );
+
+  const rawQuestions =
+    await loadQuestions(
+      assignmentId
+    );
+
   const questions =
-    parseJson(
-      row.questions,
-      []
+    rawQuestions.map(
+      formatQuestion
     );
 
-  const safeQuestions =
-    Array.isArray(
-      questions
-    )
-      ? questions
-      : [];
-
-  const fileInfo =
-    getAssignmentFileInfo(
-      row
-    );
-
-  const grade =
-    clean(
-      row.grade ??
-        row.class_name ??
-        row.className ??
-        row.class ??
-        row.student_class ??
-        row.studentClass
-    );
-
-  const dueDate =
-    row.due_date ??
-    row.dueDate ??
-    row.due_at ??
-    row.dueAt ??
-    null;
-
-  const totalMarks =
-    toNumber(
-      row.total_marks ??
-        row.totalMarks ??
-        row.max_score ??
-        row.maxScore ??
-        row.total_mark ??
-        row.totalMark,
-      safeQuestions.reduce(
-        (
-          total,
-          question
-        ) =>
-          total +
-          toNumber(
-            question?.marks ??
-              question?.maxMarks ??
-              question?.max_marks ??
-              1,
-            1
-          ),
-        0
-      )
-    );
-
-  const assignment = {
+  return {
     ...row,
 
-    id:
-      row.id,
+    id: assignmentId,
 
-    reference:
+    assignment_id:
+      assignmentId,
+
+    tutor_reference:
       clean(
-        row.reference ??
-          row.assignment_reference ??
-          row.assignmentReference
+        row.tutor_reference
       ),
 
-    assignmentReference:
+    tutor_name:
       clean(
-        row.assignment_reference ??
-          row.assignmentReference ??
-          row.reference
+        row.tutor_name
       ),
 
-    title:
-      clean(
-        row.title
-      ),
+    grade: clean(
+      row.grade ??
+      row.class_name ??
+      row.class
+    ),
 
-    description:
-      clean(
-        row.description
-      ),
+    class_name: clean(
+      row.class_name ??
+      row.grade ??
+      row.class
+    ),
 
-    instructions:
-      clean(
-        row.instructions
-      ),
-
-    grade,
-
-    className:
-      grade,
-
-    class:
-      grade,
+    class: clean(
+      row.class ??
+      row.class_name ??
+      row.grade
+    ),
 
     subject:
-      clean(
-        row.subject
-      ),
+      clean(row.subject),
 
-    dueDate,
+    title:
+      clean(row.title),
 
-    dueAt:
-      dueDate,
+    description:
+      clean(row.description),
 
-    createdAt:
-      row.created_at ??
-      row.createdAt ??
+    instructions:
+      clean(row.instructions),
+
+    due_at:
+      row.due_at ??
+      row.due_date ??
       null,
 
-    updatedAt:
-      row.updated_at ??
-      row.updatedAt ??
+    due_date:
+      row.due_date ??
+      row.due_at ??
       null,
 
-    questions:
-      safeQuestions,
-
-    totalQuestions:
-      safeQuestions.length,
-
-    totalMarks,
-
-    maxScore:
+    max_score:
       toNumber(
         row.max_score ??
-          row.maxScore ??
-          totalMarks,
-        totalMarks
+        row.total_marks,
+        0
       ),
 
-    fileName:
-      fileInfo.name,
+    total_marks:
+      toNumber(
+        row.total_marks ??
+        row.max_score,
+        0
+      ),
 
-    fileUrl:
-      fileInfo.url,
+    total_questions:
+      toNumber(
+        row.total_questions,
+        questions.length
+      ),
 
-    attachmentUrl:
-      fileInfo.url,
+    status:
+      clean(row.status) ||
+      "published",
+
+    result_released:
+      Boolean(
+        row.result_released
+      ),
+
+    fileName,
+
+    file_name:
+      fileName,
+
+    filePath,
+
+    file_path:
+      filePath,
+
+    fileUrl,
+
+    file_url:
+      fileUrl,
 
     attachmentName:
-      fileInfo.name,
+      fileName,
+
+    attachment_name:
+      fileName,
+
+    attachmentUrl:
+      fileUrl,
+
+    attachment_url:
+      fileUrl,
 
     fileType:
-      fileInfo.type,
+      clean(
+        row.file_type ??
+        row.mime_type
+      ),
 
-    mimeType:
-      fileInfo.type,
+    file_type:
+      clean(
+        row.file_type ??
+        row.mime_type
+      ),
 
     fileSize:
-      fileInfo.size,
+      toNumber(
+        row.file_size,
+        0
+      ),
+
+    file_size:
+      toNumber(
+        row.file_size,
+        0
+      ),
 
     file:
-      fileInfo.url ||
-      fileInfo.name
+      filePath ||
+      fileUrl ||
+      fileName
         ? {
-            name:
-              fileInfo.name,
+            name: fileName,
 
-            originalName:
-              fileInfo.name,
+            fileName,
 
-            filename:
-              fileInfo.name,
+            url: fileUrl,
 
-            url:
-              fileInfo.url,
+            fileUrl,
 
-            fileUrl:
-              fileInfo.url,
+            path: filePath,
 
-            path:
-              fileInfo.path,
+            filePath,
 
-            mimeType:
-              fileInfo.type,
+            type: clean(
+              row.file_type ??
+              row.mime_type
+            ),
 
             size:
-              fileInfo.size,
+              toNumber(
+                row.file_size,
+                0
+              ),
           }
         : null,
-  };
 
-  return assignment;
+    questions,
+  };
 };
+
+/* ============================================================
+   GET ALL ASSIGNMENTS
+============================================================ */
+
+router.get(
+  "/",
+  async (req, res) => {
+    try {
+      await ensureFileColumns();
+
+      const tutorReference =
+        getTutorReference(req);
+
+      if (
+        !isValidTutorReference(
+          tutorReference
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "A valid SQA tutor reference is required.",
+        });
+      }
+
+      /*
+        This supports both the corrected database value:
+
+          SQA-677281-6D34
+
+        and the old duplicated value:
+
+          SQA-677281-6D34, SQA-677281-6D34
+      */
+
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE
+              UPPER(TRIM(tutor_reference)) = $1
+
+              OR
+
+              UPPER(
+                TRIM(
+                  SPLIT_PART(
+                    tutor_reference,
+                    ',',
+                    1
+                  )
+                )
+              ) = $1
+
+            ORDER BY
+              created_at DESC NULLS LAST,
+              id DESC
+          `,
+          [
+            tutorReference.toUpperCase(),
+          ]
+        );
+
+      const assignments =
+        await Promise.all(
+          result.rows.map(
+            formatAssignment
+          )
+        );
+
+      return res.json({
+        success: true,
+
+        assignments,
+
+        data: assignments,
+
+        results: assignments,
+
+        count:
+          assignments.length,
+      });
+    } catch (error) {
+      console.error(
+        "GET tutor assignments error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+
+        message:
+          "Unable to load assignments.",
+
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+      });
+    }
+  }
+);
 
 /* ============================================================
    CREATE ASSIGNMENT
@@ -818,682 +1167,600 @@ const serializeAssignment = (
 router.post(
   "/",
   upload.single("file"),
-  async (
-    req,
-    res
-  ) => {
-    const client =
-      await pool.connect();
+  async (req, res) => {
+    let client;
+
+    const uploadedFile =
+      req.file;
 
     try {
+      await ensureFileColumns();
+
+      /*
+        ALWAYS normalize the tutor reference
+        before saving it.
+      */
+
       const tutorReference =
-        getTutorReference(
-          req
-        );
+        getTutorReference(req);
 
       if (
-        !tutorReference
+        !isValidTutorReference(
+          tutorReference
+        )
       ) {
-        if (
-          req.file?.path
-        ) {
-          try {
-            fs.unlinkSync(
-              req.file.path
-            );
-          } catch {}
+        if (uploadedFile) {
+          await deleteStoredFile(
+            uploadedFile.path
+          );
         }
 
-        return res
-          .status(401)
-          .json({
-            success: false,
-            error:
-              "Valid tutor reference is required.",
-          });
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "A valid SQA tutor reference is required.",
+        });
       }
+
+      const tutorName =
+        getTutorName(req);
 
       const title =
         clean(
-          req.body?.title
+          req.body.title
         );
-
-      if (!title) {
-        if (
-          req.file?.path
-        ) {
-          try {
-            fs.unlinkSync(
-              req.file.path
-            );
-          } catch {}
-        }
-
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "Assignment title is required.",
-          });
-      }
 
       const description =
         clean(
-          req.body?.description
+          req.body.description
         );
 
       const instructions =
         clean(
-          req.body?.instructions
-        );
-
-      const subject =
-        clean(
-          req.body?.subject
+          req.body.instructions
         );
 
       const grade =
         clean(
-          req.body?.class ??
-            req.body?.grade ??
-            req.body?.className ??
-            req.body?.class_name ??
-            req.body?.studentClass ??
-            req.body?.student_class
+          req.body.grade ??
+          req.body.class ??
+          req.body.class_name ??
+          req.body.className
         );
 
-      const dueDate =
+      const subject =
         clean(
-          req.body?.dueDate ??
-            req.body?.due_date ??
-            req.body?.dueAt ??
-            req.body?.due_at
+          req.body.subject
         );
 
-      let questions =
-        parseJson(
-          req.body?.questions,
+      const dueAt =
+        clean(
+          req.body.dueAt ??
+          req.body.due_at ??
+          req.body.dueDate ??
+          req.body.due_date
+        );
+
+      const maxScore =
+        toNumber(
+          req.body.maxScore ??
+          req.body.max_score ??
+          req.body.totalMarks ??
+          req.body.total_marks,
+          0
+        );
+
+      const status =
+        clean(
+          req.body.status
+        ) || "published";
+
+      const resultReleased =
+        String(
+          req.body.resultReleased ??
+          req.body.result_released ??
+          "false"
+        ).toLowerCase() ===
+        "true";
+
+      const rawQuestions =
+        safeJsonParse(
+          req.body.questions,
           []
         );
 
-      if (
-        !Array.isArray(
-          questions
-        )
-      ) {
-        questions = [];
+      const questions =
+        normalizeQuestions(
+          rawQuestions
+        );
+
+      if (!title) {
+        if (uploadedFile) {
+          await deleteStoredFile(
+            uploadedFile.path
+          );
+        }
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Assignment title is required.",
+        });
       }
 
-      const activityType =
-        clean(
-          req.body?.activityType ??
-            req.body?.activity_type ??
-            "assignment"
-        ) ||
-        "assignment";
+      if (!grade) {
+        if (uploadedFile) {
+          await deleteStoredFile(
+            uploadedFile.path
+          );
+        }
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Class or grade is required.",
+        });
+      }
+
+      if (!subject) {
+        if (uploadedFile) {
+          await deleteStoredFile(
+            uploadedFile.path
+          );
+        }
+
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "Subject is required.",
+        });
+      }
 
       const columns =
         await getTableColumns(
-          client,
           "academy_assignments"
         );
 
-      const available =
-        new Set(
-          columns.map(
-            (
-              column
-            ) =>
-              column.column_name
-          )
+      const fileData =
+        getUploadedFileData(
+          uploadedFile
         );
 
-      const insertColumns =
-        [];
+      const insertColumns = [];
+      const values = [];
+      const placeholders = [];
 
-      const insertValues =
-        [];
+      const add = (
+        column,
+        value
+      ) => {
+        if (!columns.has(column)) {
+          return;
+        }
 
-      const addInsert =
-        (
-          column,
+        insertColumns.push(
+          column
+        );
+
+        values.push(
           value
-        ) => {
-          if (
-            !available.has(
-              column
-            )
-          ) {
-            return;
-          }
+        );
 
-          insertColumns.push(
-            quoteIdentifier(
-              column
-            )
-          );
+        placeholders.push(
+          `$${values.length}`
+        );
+      };
 
-          insertValues.push(
-            value
-          );
-        };
+      /*
+        SAVE ONLY THE CLEAN SQA REFERENCE.
+      */
 
-      addInsert(
+      add(
         "tutor_reference",
         tutorReference
       );
 
-      addInsert(
-        "title",
-        title
+      add(
+        "tutor_name",
+        tutorName
       );
 
-      addInsert(
-        "description",
-        description
-      );
-
-      addInsert(
-        "instructions",
-        instructions
-      );
-
-      addInsert(
-        "subject",
-        subject
-      );
-
-      addInsert(
-        "class_name",
-        grade
-      );
-
-      addInsert(
-        "class",
-        grade
-      );
-
-      addInsert(
+      add(
         "grade",
         grade
       );
 
-      addInsert(
-        "student_class",
+      add(
+        "class_name",
         grade
       );
 
-      addInsert(
-        "due_date",
-        dueDate ||
-          null
+      add(
+        "subject",
+        subject
       );
 
-      addInsert(
+      add(
+        "title",
+        title
+      );
+
+      add(
+        "description",
+        description
+      );
+
+      add(
+        "instructions",
+        instructions
+      );
+
+      add(
         "due_at",
-        dueDate ||
-          null
+        dueAt || null
       );
 
-      addInsert(
-        "activity_type",
-        activityType
+      add(
+        "due_date",
+        dueAt || null
       );
 
-      addInsert(
-        "activityType",
-        activityType
+      add(
+        "max_score",
+        maxScore
       );
 
-      if (
-        available.has(
-          "questions"
-        )
-      ) {
-        addInsert(
-          "questions",
-          JSON.stringify(
-            questions
-          )
+      add(
+        "total_marks",
+        maxScore
+      );
+
+      add(
+        "total_questions",
+        questions.length
+      );
+
+      add(
+        "status",
+        status
+      );
+
+      add(
+        "result_released",
+        resultReleased
+      );
+
+      if (fileData) {
+        add(
+          "file_name",
+          fileData.fileName
+        );
+
+        add(
+          "file_path",
+          fileData.filePath
+        );
+
+        add(
+          "file_type",
+          fileData.fileType
+        );
+
+        add(
+          "file_size",
+          fileData.fileSize
         );
       }
 
-      if (
-        available.has(
-          "total_marks"
-        )
-      ) {
-        const calculatedMarks =
-          questions.reduce(
-            (
-              total,
-              question
-            ) =>
-              total +
-              toNumber(
-                question?.marks ??
-                  question?.maxMarks ??
-                  question?.max_marks ??
-                  1,
-                1
-              ),
-            0
-          );
-
-        addInsert(
-          "total_marks",
-          calculatedMarks
+      if (!insertColumns.length) {
+        throw new Error(
+          "academy_assignments has no usable columns."
         );
       }
 
-      if (
-        available.has(
-          "max_score"
-        )
-      ) {
-        addInsert(
-          "max_score",
-          100
-        );
-      }
+      client =
+        await pool.connect();
 
-      if (
-        available.has(
-          "created_at"
-        )
-      ) {
-        insertColumns.push(
-          `"created_at"`
-        );
+      await client.query(
+        "BEGIN"
+      );
 
-        insertValues.push(
-          new Date()
-        );
-      }
-
-      if (
-        available.has(
-          "updated_at"
-        )
-      ) {
-        insertColumns.push(
-          `"updated_at"`
-        );
-
-        insertValues.push(
-          new Date()
-        );
-      }
-
-      /* ======================================================
-         FILE METADATA
-      ====================================================== */
-
-      if (req.file) {
-        const fileUrl =
-          `/uploads/academy-assignments/${encodeURIComponent(
-            req.file.filename
-          )}`;
-
-        const fileNameColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_name",
-              "filename",
-              "attachment_name",
-              "attachmentName",
-              "document_name",
-              "documentName",
-            ]
-          );
-
-        const fileUrlColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_url",
-              "fileUrl",
-              "attachment_url",
-              "attachmentUrl",
-              "document_url",
-              "documentUrl",
-            ]
-          );
-
-        const filePathColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_path",
-              "filePath",
-              "attachment_path",
-              "attachmentPath",
-              "document_path",
-              "documentPath",
-            ]
-          );
-
-        const fileTypeColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_type",
-              "fileType",
-              "mime_type",
-              "mimeType",
-              "content_type",
-              "contentType",
-              "document_type",
-              "documentType",
-            ]
-          );
-
-        const fileSizeColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_size",
-              "fileSize",
-              "attachment_size",
-              "attachmentSize",
-              "document_size",
-              "documentSize",
-            ]
-          );
-
-        if (
-          fileNameColumn
-        ) {
-          addInsert(
-            fileNameColumn,
-            req.file.originalname
-          );
-        }
-
-        if (
-          fileUrlColumn
-        ) {
-          addInsert(
-            fileUrlColumn,
-            fileUrl
-          );
-        }
-
-        if (
-          filePathColumn
-        ) {
-          addInsert(
-            filePathColumn,
-            req.file.path
-          );
-        }
-
-        if (
-          fileTypeColumn
-        ) {
-          addInsert(
-            fileTypeColumn,
-            req.file.mimetype ||
-              ""
-          );
-        }
-
-        if (
-          fileSizeColumn
-        ) {
-          addInsert(
-            fileSizeColumn,
-            req.file.size
-          );
-        }
-
-        const attachmentColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "attachments",
-              "attachment",
-              "files",
-            ]
-          );
-
-        if (
-          attachmentColumn
-        ) {
-          const attachmentData =
-            [
-              {
-                name:
-                  req.file.originalname,
-
-                originalName:
-                  req.file.originalname,
-
-                fileName:
-                  req.file.filename,
-
-                filename:
-                  req.file.filename,
-
-                url:
-                  fileUrl,
-
-                fileUrl:
-                  fileUrl,
-
-                path:
-                  req.file.path,
-
-                mimeType:
-                  req.file.mimetype,
-
-                size:
-                  req.file.size,
-              },
-            ];
-
-          addInsert(
-            attachmentColumn,
-            JSON.stringify(
-              attachmentData
-            )
-          );
-        }
-      }
-
-      if (
-        !insertColumns.length
-      ) {
-        if (
-          req.file?.path
-        ) {
-          try {
-            fs.unlinkSync(
-              req.file.path
-            );
-          } catch {}
-        }
-
-        return res
-          .status(500)
-          .json({
-            success: false,
-            error:
-              "Unable to determine assignment database columns.",
-          });
-      }
-
-      const placeholders =
-        insertValues.map(
-          (
-            _,
-            index
-          ) =>
-            `$${index + 1}`
-        );
-
-      const result =
+      const insertResult =
         await client.query(
           `
             INSERT INTO academy_assignments
             (
-              ${insertColumns.join(
-                ", "
-              )}
+              ${insertColumns
+                .map(quoteIdentifier)
+                .join(", ")}
             )
             VALUES
             (
-              ${placeholders.join(
-                ", "
-              )}
+              ${placeholders.join(", ")}
             )
             RETURNING *
           `,
-          insertValues
+          values
         );
 
-      const assignment =
-        serializeAssignment(
-          result.rows[0]
-        );
+      let assignment =
+        insertResult.rows[0];
 
-      return res
-        .status(201)
-        .json({
-          success: true,
+      const assignmentId =
+        assignment.id;
 
-          assignment,
-
-          data:
-            assignment,
-
-          message:
-            "Assignment created successfully.",
-        });
-    } catch (
-      error
-    ) {
       if (
-        req.file?.path
+        fileData &&
+        columns.has("file_url")
       ) {
+        const fileUrl =
+          getFileUrl(
+            assignmentId
+          );
+
+        const updateColumns = [
+          `"file_url" = $1`,
+        ];
+
+        const updateValues = [
+          fileUrl,
+        ];
+
+        if (
+          columns.has(
+            "updated_at"
+          )
+        ) {
+          updateColumns.push(
+            `"updated_at" = CURRENT_TIMESTAMP`
+          );
+        }
+
+        updateValues.push(
+          assignmentId
+        );
+
+        await client.query(
+          `
+            UPDATE academy_assignments
+            SET ${updateColumns.join(", ")}
+            WHERE id = $2
+          `,
+          updateValues
+        );
+
+        assignment = {
+          ...assignment,
+
+          file_url:
+            fileUrl,
+        };
+      }
+
+      await insertQuestions(
+        client,
+        assignmentId,
+        questions
+      );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      const finalResult =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [assignmentId]
+        );
+
+      const formatted =
+        await formatAssignment(
+          finalResult.rows[0]
+        );
+
+      return res.status(201).json({
+        success: true,
+
+        message:
+          "Assignment created successfully.",
+
+        assignment:
+          formatted,
+
+        data:
+          formatted,
+      });
+    } catch (error) {
+      if (client) {
         try {
-          if (
-            fs.existsSync(
-              req.file.path
-            )
-          ) {
-            fs.unlinkSync(
-              req.file.path
-            );
-          }
+          await client.query(
+            "ROLLBACK"
+          );
         } catch {}
       }
 
+      if (uploadedFile) {
+        await deleteStoredFile(
+          uploadedFile.path
+        );
+      }
+
       console.error(
-        "CREATE ASSIGNMENT ERROR:",
+        "POST tutor assignment error:",
         error
       );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
+      return res.status(500).json({
+        success: false,
 
-          error:
-            "Unable to create assignment.",
+        message:
+          "Unable to create assignment.",
 
-          details:
-            process.env.NODE_ENV ===
-            "development"
-              ? error?.message
-              : undefined,
-        });
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+      });
     } finally {
-      client.release();
+      if (client) {
+        client.release();
+      }
     }
   }
 );
 
 /* ============================================================
-   GET ALL ASSIGNMENTS
+   GET ASSIGNMENT FILE
 ============================================================ */
 
 router.get(
-  "/",
-  async (
-    req,
-    res
-  ) => {
-    const client =
-      await pool.connect();
-
+  "/:id/file",
+  async (req, res) => {
     try {
+      await ensureFileColumns();
+
+      const id =
+        clean(
+          req.params.id
+        );
+
       const tutorReference =
-        getTutorReference(
-          req
+        getTutorReference(req);
+
+      const result =
+        await pool.query(
+          `
+            SELECT
+              id,
+              tutor_reference,
+              file_path,
+              file_name,
+              file_type
+            FROM academy_assignments
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [id]
+        );
+
+      if (!result.rows.length) {
+        return res.status(404).json({
+          success: false,
+
+          message:
+            "Assignment not found.",
+        });
+      }
+
+      const assignment =
+        result.rows[0];
+
+      /*
+        If a tutor reference was supplied,
+        verify it using the normalized SQA reference.
+      */
+
+      if (tutorReference) {
+        const storedTutorReference =
+          normalizeTutorReference(
+            assignment.tutor_reference
+          );
+
+        if (
+          storedTutorReference !==
+          tutorReference
+        ) {
+          return res.status(403).json({
+            success: false,
+
+            message:
+              "You are not authorized to access this file.",
+          });
+        }
+      }
+
+      const storedPath =
+        normalizeStoredFilePath(
+          assignment.file_path
+        );
+
+      if (!storedPath) {
+        return res.status(404).json({
+          success: false,
+
+          message:
+            "No file is attached to this assignment.",
+        });
+      }
+
+      const fileName =
+        path.basename(
+          storedPath
+        );
+
+      const absolutePath =
+        path.join(
+          UPLOAD_DIR,
+          fileName
         );
 
       if (
-        !tutorReference
+        !fs.existsSync(
+          absolutePath
+        )
       ) {
-        return res
-          .status(401)
-          .json({
-            success: false,
-            error:
-              "Valid tutor reference is required.",
-          });
+        return res.status(404).json({
+          success: false,
+
+          message:
+            "The uploaded file could not be found on the server.",
+        });
       }
 
-      const rows =
-        await findTutorAssignments(
-          client,
-          tutorReference
-        );
+      const mimeType =
+        clean(
+          assignment.file_type
+        ) ||
+        "application/octet-stream";
 
-      const assignments =
-        rows.map(
-          serializeAssignment
-        );
+      res.setHeader(
+        "Content-Type",
+        mimeType
+      );
 
-      return res.json({
-        success: true,
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${String(
+          assignment.file_name ||
+          fileName
+        ).replace(/"/g, "")}"`
+      );
 
-        assignments,
-
-        data:
-          assignments,
-
-        results:
-          assignments,
-
-        count:
-          assignments.length,
-      });
-    } catch (
-      error
-    ) {
+      return res.sendFile(
+        absolutePath
+      );
+    } catch (error) {
       console.error(
-        "GET TUTOR ASSIGNMENTS ERROR:",
+        "GET assignment file error:",
         error
       );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error:
-            "Unable to load assignments.",
-          details:
-            process.env.NODE_ENV ===
-            "development"
-              ? error?.message
-              : undefined,
-        });
-    } finally {
-      client.release();
+      return res.status(500).json({
+        success: false,
+
+        message:
+          "Unable to open assignment file.",
+      });
     }
   }
 );
@@ -1504,298 +1771,252 @@ router.get(
 
 router.get(
   "/:id",
-  async (
-    req,
-    res
-  ) => {
-    const client =
-      await pool.connect();
-
+  async (req, res) => {
     try {
-      const assignmentId =
-        getAssignmentId(
-          req
+      await ensureFileColumns();
+
+      const id =
+        clean(
+          req.params.id
         );
 
       const tutorReference =
-        getTutorReference(
-          req
-        );
+        getTutorReference(req);
 
       if (
-        !assignmentId
+        !isValidTutorReference(
+          tutorReference
+        )
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "Assignment ID is required.",
-          });
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "A valid SQA tutor reference is required.",
+        });
       }
 
-      if (
-        !tutorReference
-      ) {
-        return res
-          .status(401)
-          .json({
-            success: false,
-            error:
-              "Valid tutor reference is required.",
-          });
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE id = $1
+              AND (
+                UPPER(TRIM(tutor_reference)) = $2
+
+                OR
+
+                UPPER(
+                  TRIM(
+                    SPLIT_PART(
+                      tutor_reference,
+                      ',',
+                      1
+                    )
+                  )
+                ) = $2
+              )
+            LIMIT 1
+          `,
+          [
+            id,
+            tutorReference.toUpperCase(),
+          ]
+        );
+
+      if (!result.rows.length) {
+        return res.status(404).json({
+          success: false,
+
+          message:
+            "Assignment not found.",
+        });
       }
 
       const assignment =
-        await findAssignmentByTutor(
-          client,
-          assignmentId,
-          tutorReference
-        );
-
-      if (!assignment) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            error:
-              "Assignment not found.",
-          });
-      }
-
-      const serialized =
-        serializeAssignment(
-          assignment
+        await formatAssignment(
+          result.rows[0]
         );
 
       return res.json({
         success: true,
 
-        assignment:
-          serialized,
+        assignment,
 
         data:
-          serialized,
+          assignment,
       });
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.error(
-        "GET SINGLE ASSIGNMENT ERROR:",
+        "GET single assignment error:",
         error
       );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error:
-            "Unable to load assignment.",
-          details:
-            process.env.NODE_ENV ===
-            "development"
-              ? error?.message
-              : undefined,
-        });
-    } finally {
-      client.release();
+      return res.status(500).json({
+        success: false,
+
+        message:
+          "Unable to load assignment.",
+
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+      });
     }
   }
 );
 
 /* ============================================================
-   UPDATE / EDIT ASSIGNMENT
-   ALSO REPLACES DOCUMENT
+   PATCH ASSIGNMENT
 ============================================================ */
 
 router.patch(
   "/:id",
   upload.single("file"),
-  async (
-    req,
-    res
-  ) => {
-    const client =
-      await pool.connect();
+  async (req, res) => {
+    const uploadedFile =
+      req.file;
 
-    let oldAssignment =
-      null;
+    let client;
 
     try {
-      const assignmentId =
-        getAssignmentId(
-          req
+      await ensureFileColumns();
+
+      const id =
+        clean(
+          req.params.id
         );
 
       const tutorReference =
-        getTutorReference(
-          req
-        );
+        getTutorReference(req);
 
       if (
-        !assignmentId
-      ) {
-        if (
-          req.file?.path
-        ) {
-          try {
-            fs.unlinkSync(
-              req.file.path
-            );
-          } catch {}
-        }
-
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "Assignment ID is required.",
-          });
-      }
-
-      if (
-        !tutorReference
-      ) {
-        if (
-          req.file?.path
-        ) {
-          try {
-            fs.unlinkSync(
-              req.file.path
-            );
-          } catch {}
-        }
-
-        return res
-          .status(401)
-          .json({
-            success: false,
-            error:
-              "Valid tutor reference is required.",
-          });
-      }
-
-      oldAssignment =
-        await findAssignmentByTutor(
-          client,
-          assignmentId,
+        !isValidTutorReference(
           tutorReference
-        );
-
-      if (!oldAssignment) {
-        if (
-          req.file?.path
-        ) {
-          try {
-            fs.unlinkSync(
-              req.file.path
-            );
-          } catch {}
+        )
+      ) {
+        if (uploadedFile) {
+          await deleteStoredFile(
+            uploadedFile.path
+          );
         }
 
-        return res
-          .status(404)
-          .json({
-            success: false,
-            error:
-              "Assignment not found.",
-          });
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "A valid SQA tutor reference is required.",
+        });
       }
+
+      /*
+        Find assignment using the normalized
+        tutor reference.
+      */
+
+      const existingResult =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE id = $1
+              AND (
+                UPPER(TRIM(tutor_reference)) = $2
+
+                OR
+
+                UPPER(
+                  TRIM(
+                    SPLIT_PART(
+                      tutor_reference,
+                      ',',
+                      1
+                    )
+                  )
+                ) = $2
+              )
+            LIMIT 1
+          `,
+          [
+            id,
+            tutorReference.toUpperCase(),
+          ]
+        );
+
+      if (
+        !existingResult.rows.length
+      ) {
+        if (uploadedFile) {
+          await deleteStoredFile(
+            uploadedFile.path
+          );
+        }
+
+        return res.status(404).json({
+          success: false,
+
+          message:
+            "Assignment not found.",
+        });
+      }
+
+      const existing =
+        existingResult.rows[0];
 
       const columns =
         await getTableColumns(
-          client,
           "academy_assignments"
         );
 
-      const available =
-        new Set(
-          columns.map(
-            (
-              column
-            ) =>
-              column.column_name
-          )
-        );
+      const updates = [];
+      const values = [];
 
-      const updates =
-        [];
-
-      const values =
-        [];
-
-      const addUpdate =
-        (
-          column,
-          value
-        ) => {
-          if (
-            !available.has(
-              column
-            )
-          ) {
-            return false;
-          }
-
-          values.push(
-            value
-          );
-
-          updates.push(
-            `${quoteIdentifier(
-              column
-            )} = $${values.length}`
-          );
-
-          return true;
-        };
-
-      /* ======================================================
-         TITLE
-      ====================================================== */
-
-      if (
-        req.body?.title !==
-        undefined
-      ) {
-        const title =
-          clean(
-            req.body.title
-          );
-
-        if (!title) {
-          if (
-            req.file?.path
-          ) {
-            try {
-              fs.unlinkSync(
-                req.file.path
-              );
-            } catch {}
-          }
-
-          return res
-            .status(400)
-            .json({
-              success: false,
-              error:
-                "Assignment title cannot be empty.",
-            });
+      const addUpdate = (
+        column,
+        value
+      ) => {
+        if (
+          !columns.has(column)
+        ) {
+          return;
         }
 
+        updates.push(
+          `${quoteIdentifier(
+            column
+          )} = $${values.length + 1}`
+        );
+
+        values.push(
+          value
+        );
+      };
+
+      /* ========================================================
+         TITLE
+      ======================================================== */
+
+      if (
+        req.body.title !==
+        undefined
+      ) {
         addUpdate(
           "title",
-          title
+          clean(
+            req.body.title
+          )
         );
       }
 
-      /* ======================================================
+      /* ========================================================
          DESCRIPTION
-      ====================================================== */
+      ======================================================== */
 
       if (
-        req.body?.description !==
+        req.body.description !==
         undefined
       ) {
         addUpdate(
@@ -1806,12 +2027,12 @@ router.patch(
         );
       }
 
-      /* ======================================================
+      /* ========================================================
          INSTRUCTIONS
-      ====================================================== */
+      ======================================================== */
 
       if (
-        req.body?.instructions !==
+        req.body.instructions !==
         undefined
       ) {
         addUpdate(
@@ -1822,12 +2043,45 @@ router.patch(
         );
       }
 
-      /* ======================================================
-         SUBJECT
-      ====================================================== */
+      /* ========================================================
+         GRADE / CLASS
+      ======================================================== */
 
       if (
-        req.body?.subject !==
+        req.body.grade !==
+          undefined ||
+        req.body.class !==
+          undefined ||
+        req.body.class_name !==
+          undefined ||
+        req.body.className !==
+          undefined
+      ) {
+        const grade =
+          clean(
+            req.body.grade ??
+            req.body.class ??
+            req.body.class_name ??
+            req.body.className
+          );
+
+        addUpdate(
+          "grade",
+          grade
+        );
+
+        addUpdate(
+          "class_name",
+          grade
+        );
+      }
+
+      /* ========================================================
+         SUBJECT
+      ======================================================== */
+
+      if (
+        req.body.subject !==
         undefined
       ) {
         addUpdate(
@@ -1838,627 +2092,424 @@ router.patch(
         );
       }
 
-      /* ======================================================
-         CLASS / GRADE
-      ====================================================== */
-
-      const classWasProvided =
-        req.body?.class !==
-          undefined ||
-        req.body?.grade !==
-          undefined ||
-        req.body?.className !==
-          undefined ||
-        req.body?.class_name !==
-          undefined ||
-        req.body?.studentClass !==
-          undefined ||
-        req.body?.student_class !==
-          undefined;
-
-      if (
-        classWasProvided
-      ) {
-        const className =
-          clean(
-            req.body?.class ??
-              req.body?.grade ??
-              req.body?.className ??
-              req.body?.class_name ??
-              req.body?.studentClass ??
-              req.body?.student_class
-          );
-
-        addUpdate(
-          "class_name",
-          className
-        );
-
-        addUpdate(
-          "className",
-          className
-        );
-
-        addUpdate(
-          "class",
-          className
-        );
-
-        addUpdate(
-          "grade",
-          className
-        );
-
-        addUpdate(
-          "student_class",
-          className
-        );
-
-        addUpdate(
-          "studentClass",
-          className
-        );
-      }
-
-      /* ======================================================
+      /* ========================================================
          DUE DATE
-      ====================================================== */
-
-      const dueDateWasProvided =
-        req.body?.dueDate !==
-          undefined ||
-        req.body?.due_date !==
-          undefined ||
-        req.body?.dueAt !==
-          undefined ||
-        req.body?.due_at !==
-          undefined;
+      ======================================================== */
 
       if (
-        dueDateWasProvided
+        req.body.dueDate !==
+          undefined ||
+        req.body.due_date !==
+          undefined ||
+        req.body.dueAt !==
+          undefined ||
+        req.body.due_at !==
+          undefined
       ) {
-        const dueDate =
+        const dueAt =
           clean(
-            req.body?.dueDate ??
-              req.body?.due_date ??
-              req.body?.dueAt ??
-              req.body?.due_at
+            req.body.dueDate ??
+            req.body.due_date ??
+            req.body.dueAt ??
+            req.body.due_at
           );
 
-        const dueColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "due_date",
-              "dueDate",
-              "due_at",
-              "dueAt",
-            ]
-          );
+        addUpdate(
+          "due_at",
+          dueAt || null
+        );
 
-        if (
-          dueColumn
-        ) {
-          addUpdate(
-            dueColumn,
-            dueDate ||
-              null
-          );
-        }
+        addUpdate(
+          "due_date",
+          dueAt || null
+        );
       }
 
-      /* ======================================================
-         DURATION
-      ====================================================== */
-
-      const durationWasProvided =
-        req.body?.durationMinutes !==
-          undefined ||
-        req.body?.duration !==
-          undefined ||
-        req.body?.timeLimit !==
-          undefined;
+      /* ========================================================
+         MAX SCORE
+      ======================================================== */
 
       if (
-        durationWasProvided
+        req.body.maxScore !==
+          undefined ||
+        req.body.max_score !==
+          undefined ||
+        req.body.totalMarks !==
+          undefined ||
+        req.body.total_marks !==
+          undefined
       ) {
-        const duration =
+        const maxScore =
           toNumber(
-            req.body?.durationMinutes ??
-              req.body?.duration ??
-              req.body?.timeLimit,
+            req.body.maxScore ??
+            req.body.max_score ??
+            req.body.totalMarks ??
+            req.body.total_marks,
             0
           );
 
         addUpdate(
-          "duration_minutes",
-          duration
+          "max_score",
+          maxScore
         );
-
-        addUpdate(
-          "duration",
-          duration
-        );
-
-        addUpdate(
-          "time_limit",
-          duration
-        );
-      }
-
-      /* ======================================================
-         QUESTIONS
-      ====================================================== */
-
-      if (
-        req.body?.questions !==
-        undefined
-      ) {
-        let questions =
-          parseJson(
-            req.body.questions,
-            []
-          );
-
-        if (
-          !Array.isArray(
-            questions
-          )
-        ) {
-          questions = [];
-        }
-
-        if (
-          available.has(
-            "questions"
-          )
-        ) {
-          addUpdate(
-            "questions",
-            JSON.stringify(
-              questions
-            )
-          );
-        }
-
-        const totalMarks =
-          questions.reduce(
-            (
-              total,
-              question
-            ) =>
-              total +
-              toNumber(
-                question?.marks ??
-                  question?.maxMarks ??
-                  question?.max_marks ??
-                  1,
-                1
-              ),
-            0
-          );
 
         addUpdate(
           "total_marks",
-          totalMarks
+          maxScore
         );
       }
 
-      /* ======================================================
-         REPLACE DOCUMENT
-      ====================================================== */
-
-      let replacingFile =
-        false;
-
-      let newFileUrl =
-        "";
+      /* ========================================================
+         STATUS
+      ======================================================== */
 
       if (
-        req.file
+        req.body.status !==
+        undefined
       ) {
-        replacingFile =
-          true;
-
-        newFileUrl =
-          `/uploads/academy-assignments/${encodeURIComponent(
-            req.file.filename
-          )}`;
-
-        const fileNameColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_name",
-              "filename",
-              "attachment_name",
-              "attachmentName",
-              "document_name",
-              "documentName",
-            ]
-          );
-
-        const fileUrlColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_url",
-              "fileUrl",
-              "attachment_url",
-              "attachmentUrl",
-              "document_url",
-              "documentUrl",
-            ]
-          );
-
-        const filePathColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_path",
-              "filePath",
-              "attachment_path",
-              "attachmentPath",
-              "document_path",
-              "documentPath",
-            ]
-          );
-
-        const fileTypeColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_type",
-              "fileType",
-              "mime_type",
-              "mimeType",
-              "content_type",
-              "contentType",
-              "document_type",
-              "documentType",
-            ]
-          );
-
-        const fileSizeColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "file_size",
-              "fileSize",
-              "attachment_size",
-              "attachmentSize",
-              "document_size",
-              "documentSize",
-            ]
-          );
-
-        if (
-          fileNameColumn
-        ) {
-          addUpdate(
-            fileNameColumn,
-            req.file.originalname
-          );
-        }
-
-        if (
-          fileUrlColumn
-        ) {
-          addUpdate(
-            fileUrlColumn,
-            newFileUrl
-          );
-        }
-
-        if (
-          filePathColumn
-        ) {
-          addUpdate(
-            filePathColumn,
-            req.file.path
-          );
-        }
-
-        if (
-          fileTypeColumn
-        ) {
-          addUpdate(
-            fileTypeColumn,
-            req.file.mimetype ||
-              ""
-          );
-        }
-
-        if (
-          fileSizeColumn
-        ) {
-          addUpdate(
-            fileSizeColumn,
-            req.file.size
-          );
-        }
-
-        const attachmentColumn =
-          firstExistingColumn(
-            columns,
-            [
-              "attachments",
-              "attachment",
-              "files",
-            ]
-          );
-
-        if (
-          attachmentColumn
-        ) {
-          const attachmentData =
-            [
-              {
-                name:
-                  req.file.originalname,
-
-                originalName:
-                  req.file.originalname,
-
-                fileName:
-                  req.file.filename,
-
-                filename:
-                  req.file.filename,
-
-                url:
-                  newFileUrl,
-
-                fileUrl:
-                  newFileUrl,
-
-                path:
-                  req.file.path,
-
-                mimeType:
-                  req.file.mimetype,
-
-                size:
-                  req.file.size,
-              },
-            ];
-
-          addUpdate(
-            attachmentColumn,
-            JSON.stringify(
-              attachmentData
-            )
-          );
-        }
+        addUpdate(
+          "status",
+          clean(
+            req.body.status
+          )
+        );
       }
 
-      /* ======================================================
-         UPDATED AT
-      ====================================================== */
+      /* ========================================================
+         RESULT RELEASED
+      ======================================================== */
 
       if (
-        available.has(
+        req.body.resultReleased !==
+          undefined ||
+        req.body.result_released !==
+          undefined
+      ) {
+        const released =
+          String(
+            req.body.resultReleased ??
+            req.body.result_released
+          ).toLowerCase() ===
+          "true";
+
+        addUpdate(
+          "result_released",
+          released
+        );
+      }
+
+      /* ========================================================
+         QUESTIONS
+      ======================================================== */
+
+      const rawQuestions =
+        safeJsonParse(
+          req.body.questions,
+          null
+        );
+
+      const questionsProvided =
+        Array.isArray(
+          rawQuestions
+        );
+
+      const questions =
+        questionsProvided
+          ? normalizeQuestions(
+              rawQuestions
+            )
+          : null;
+
+      if (
+        questionsProvided &&
+        columns.has(
+          "total_questions"
+        )
+      ) {
+        addUpdate(
+          "total_questions",
+          questions.length
+        );
+      }
+
+      /* ========================================================
+         NEW FILE
+      ======================================================== */
+
+      let oldFilePath = "";
+
+      if (uploadedFile) {
+        oldFilePath =
+          clean(
+            existing.file_path
+          );
+
+        const fileData =
+          getUploadedFileData(
+            uploadedFile
+          );
+
+        addUpdate(
+          "file_name",
+          fileData.fileName
+        );
+
+        addUpdate(
+          "file_path",
+          fileData.filePath
+        );
+
+        addUpdate(
+          "file_type",
+          fileData.fileType
+        );
+
+        addUpdate(
+          "file_size",
+          fileData.fileSize
+        );
+
+        addUpdate(
+          "file_url",
+          getFileUrl(id)
+        );
+      }
+
+      /* ========================================================
+         UPDATED AT
+      ======================================================== */
+
+      if (
+        columns.has(
           "updated_at"
         )
       ) {
         updates.push(
-          `"updated_at" = NOW()`
+          `"updated_at" = CURRENT_TIMESTAMP`
         );
       }
 
-      /* ======================================================
-         NOTHING TO UPDATE
-      ====================================================== */
-
-      if (
-        updates.length ===
-        0
-      ) {
-        if (
-          req.file?.path
-        ) {
-          try {
-            fs.unlinkSync(
-              req.file.path
-            );
-          } catch {}
+      if (!updates.length) {
+        if (uploadedFile) {
+          await deleteStoredFile(
+            uploadedFile.path
+          );
         }
 
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "There are no changes to save.",
-          });
+        const formatted =
+          await formatAssignment(
+            existing
+          );
+
+        return res.json({
+          success: true,
+
+          message:
+            "No changes were made.",
+
+          assignment:
+            formatted,
+
+          data:
+            formatted,
+        });
       }
 
-      /* ======================================================
-         PARAMETERS
-      ====================================================== */
+      client =
+        await pool.connect();
 
-      values.push(
-        assignmentId
+      await client.query(
+        "BEGIN"
       );
+
+      /*
+        IMPORTANT FIX:
+
+        The old code used the same placeholder
+        for both id and tutor_reference.
+
+        We now use two separate placeholders.
+      */
+
+      const idPlaceholder =
+        values.length + 1;
+
+      values.push(id);
+
+      const tutorReferencePlaceholder =
+        values.length + 1;
 
       values.push(
         tutorReference
       );
 
-      const assignmentIdParam =
-        values.length -
-        1;
-
-      const tutorReferenceParam =
-        values.length;
-
-      /* ======================================================
-         UPDATE
-      ====================================================== */
-
       const updateResult =
         await client.query(
           `
             UPDATE academy_assignments
-            SET
-              ${updates.join(
-                ", "
-              )}
-            WHERE id::text = $${assignmentIdParam}
-              AND tutor_reference = $${tutorReferenceParam}
+
+            SET ${updates.join(", ")}
+
+            WHERE id = $${idPlaceholder}
+
+              AND (
+                UPPER(
+                  TRIM(tutor_reference)
+                ) = $${tutorReferencePlaceholder}
+
+                OR
+
+                UPPER(
+                  TRIM(
+                    SPLIT_PART(
+                      tutor_reference,
+                      ',',
+                      1
+                    )
+                  )
+                ) = $${tutorReferencePlaceholder}
+              )
+
             RETURNING *
           `,
           values
         );
 
       if (
-        updateResult.rows
-          .length === 0
+        !updateResult.rows.length
       ) {
-        if (
-          req.file?.path
-        ) {
-          try {
-            fs.unlinkSync(
-              req.file.path
-            );
-          } catch {}
+        await client.query(
+          "ROLLBACK"
+        );
+
+        if (uploadedFile) {
+          await deleteStoredFile(
+            uploadedFile.path
+          );
         }
 
-        return res
-          .status(404)
-          .json({
-            success: false,
-            error:
-              "Assignment could not be updated.",
-          });
+        return res.status(403).json({
+          success: false,
+
+          message:
+            "You are not authorized to update this assignment.",
+        });
       }
 
-      const updatedAssignment =
-        updateResult.rows[0];
-
-      /* ======================================================
-         REMOVE OLD FILE ONLY AFTER DB UPDATE SUCCEEDS
-      ====================================================== */
+      /* ========================================================
+         UPDATE QUESTIONS
+      ======================================================== */
 
       if (
-        replacingFile
+        questionsProvided
       ) {
-        removeAssignmentFile(
-          oldAssignment
+        const questionColumns =
+          await getTableColumns(
+            "academy_assignment_questions"
+          );
+
+        if (
+          questionColumns.has(
+            "assignment_id"
+          )
+        ) {
+          await client.query(
+            `
+              DELETE FROM academy_assignment_questions
+              WHERE assignment_id = $1
+            `,
+            [id]
+          );
+
+          await insertQuestions(
+            client,
+            id,
+            questions
+          );
+        }
+      }
+
+      await client.query(
+        "COMMIT"
+      );
+
+      /* ========================================================
+         DELETE OLD FILE
+      ======================================================== */
+
+      if (
+        uploadedFile &&
+        oldFilePath
+      ) {
+        await deleteStoredFile(
+          oldFilePath
         );
       }
 
-      const assignment =
-        serializeAssignment(
-          updatedAssignment
+      const finalResult =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [id]
         );
 
-      /* ======================================================
-         ENSURE NEW FILE IS RETURNED
-      ====================================================== */
-
-      if (
-        req.file
-      ) {
-        assignment.file = {
-          name:
-            req.file.originalname,
-
-          originalName:
-            req.file.originalname,
-
-          filename:
-            req.file.filename,
-
-          url:
-            newFileUrl,
-
-          fileUrl:
-            newFileUrl,
-
-          mimeType:
-            req.file.mimetype,
-
-          size:
-            req.file.size,
-        };
-
-        assignment.fileName =
-          req.file.originalname;
-
-        assignment.fileUrl =
-          newFileUrl;
-
-        assignment.attachmentUrl =
-          newFileUrl;
-
-        assignment.attachmentName =
-          req.file.originalname;
-
-        assignment.fileType =
-          req.file.mimetype;
-
-        assignment.mimeType =
-          req.file.mimetype;
-
-        assignment.fileSize =
-          req.file.size;
-      }
+      const formatted =
+        await formatAssignment(
+          finalResult.rows[0]
+        );
 
       return res.json({
         success: true,
 
-        assignment,
+        message:
+          "Assignment updated successfully.",
+
+        assignment:
+          formatted,
 
         data:
-          assignment,
-
-        message:
-          replacingFile
-            ? "Assignment and document updated successfully."
-            : "Assignment updated successfully.",
+          formatted,
       });
-    } catch (
-      error
-    ) {
-      if (
-        req.file?.path
-      ) {
+    } catch (error) {
+      if (client) {
         try {
-          if (
-            fs.existsSync(
-              req.file.path
-            )
-          ) {
-            fs.unlinkSync(
-              req.file.path
-            );
-          }
+          await client.query(
+            "ROLLBACK"
+          );
         } catch {}
       }
 
+      if (uploadedFile) {
+        await deleteStoredFile(
+          uploadedFile.path
+        );
+      }
+
       console.error(
-        "UPDATE ASSIGNMENT ERROR:",
+        "PATCH tutor assignment error:",
         error
       );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
+      return res.status(500).json({
+        success: false,
 
-          error:
-            "Unable to update assignment.",
+        message:
+          "Unable to update assignment.",
 
-          details:
-            process.env.NODE_ENV ===
-            "development"
-              ? error?.message
-              : undefined,
-        });
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+      });
     } finally {
-      client.release();
+      if (client) {
+        client.release();
+      }
     }
   }
 );
@@ -2469,78 +2520,204 @@ router.patch(
 
 router.delete(
   "/:id",
-  async (
-    req,
-    res
-  ) => {
-    const client =
-      await pool.connect();
+  async (req, res) => {
+    let client;
 
     try {
-      const assignmentId =
-        getAssignmentId(
-          req
+      const id =
+        clean(
+          req.params.id
         );
 
       const tutorReference =
-        getTutorReference(
-          req
+        getTutorReference(req);
+
+      if (
+        !isValidTutorReference(
+          tutorReference
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "A valid SQA tutor reference is required.",
+        });
+      }
+
+      const existingResult =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE id = $1
+              AND (
+                UPPER(TRIM(tutor_reference)) = $2
+
+                OR
+
+                UPPER(
+                  TRIM(
+                    SPLIT_PART(
+                      tutor_reference,
+                      ',',
+                      1
+                    )
+                  )
+                ) = $2
+              )
+            LIMIT 1
+          `,
+          [
+            id,
+            tutorReference.toUpperCase(),
+          ]
         );
 
       if (
-        !assignmentId
+        !existingResult.rows.length
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "Assignment ID is required.",
-          });
-      }
+        return res.status(404).json({
+          success: false,
 
-      if (
-        !tutorReference
-      ) {
-        return res
-          .status(401)
-          .json({
-            success: false,
-            error:
-              "Valid tutor reference is required.",
-          });
+          message:
+            "Assignment not found.",
+        });
       }
 
       const assignment =
-        await findAssignmentByTutor(
-          client,
-          assignmentId,
-          tutorReference
-        );
+        existingResult.rows[0];
 
-      if (!assignment) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            error:
-              "Assignment not found.",
-          });
-      }
+      client =
+        await pool.connect();
 
       await client.query(
         "BEGIN"
       );
 
+      /* ========================================================
+         DELETE ANSWERS
+      ======================================================== */
+
+      const answerColumns =
+        await getTableColumns(
+          "academy_assignment_answers"
+        );
+
+      const submissionColumns =
+        await getTableColumns(
+          "academy_assignment_submissions"
+        );
+
+      const questionColumns =
+        await getTableColumns(
+          "academy_assignment_questions"
+        );
+
+      /*
+        Delete answers through submissions first
+        when submission_id exists.
+      */
+
+      if (
+        answerColumns.has(
+          "submission_id"
+        ) &&
+        submissionColumns.has(
+          "assignment_id"
+        )
+      ) {
+        const submissions =
+          await client.query(
+            `
+              SELECT id
+              FROM academy_assignment_submissions
+              WHERE assignment_id = $1
+            `,
+            [id]
+          );
+
+        if (
+          submissions.rows.length
+        ) {
+          const submissionIds =
+            submissions.rows.map(
+              (row) => row.id
+            );
+
+          await client.query(
+            `
+              DELETE FROM academy_assignment_answers
+              WHERE submission_id = ANY($1::bigint[])
+            `,
+            [submissionIds]
+          );
+        }
+      }
+
+      /* ========================================================
+         DELETE SUBMISSIONS
+      ======================================================== */
+
+      if (
+        submissionColumns.has(
+          "assignment_id"
+        )
+      ) {
+        await client.query(
+          `
+            DELETE FROM academy_assignment_submissions
+            WHERE assignment_id = $1
+          `,
+          [id]
+        );
+      }
+
+      /* ========================================================
+         DELETE QUESTIONS
+      ======================================================== */
+
+      if (
+        questionColumns.has(
+          "assignment_id"
+        )
+      ) {
+        await client.query(
+          `
+            DELETE FROM academy_assignment_questions
+            WHERE assignment_id = $1
+          `,
+          [id]
+        );
+      }
+
+      /* ========================================================
+         DELETE ASSIGNMENT
+      ======================================================== */
+
       await client.query(
         `
           DELETE FROM academy_assignments
-          WHERE id::text = $1
-            AND tutor_reference = $2
+          WHERE id = $1
+            AND (
+              UPPER(TRIM(tutor_reference)) = $2
+
+              OR
+
+              UPPER(
+                TRIM(
+                  SPLIT_PART(
+                    tutor_reference,
+                    ',',
+                    1
+                  )
+                )
+              ) = $2
+            )
         `,
         [
-          assignmentId,
-          tutorReference,
+          id,
+          tutorReference.toUpperCase(),
         ]
       );
 
@@ -2548,8 +2725,8 @@ router.delete(
         "COMMIT"
       );
 
-      removeAssignmentFile(
-        assignment
+      await deleteStoredFile(
+        assignment.file_path
       );
 
       return res.json({
@@ -2558,216 +2735,36 @@ router.delete(
         message:
           "Assignment deleted successfully.",
       });
-    } catch (
-      error
-    ) {
-      try {
-        await client.query(
-          "ROLLBACK"
-        );
-      } catch {}
-
-      console.error(
-        "DELETE ASSIGNMENT ERROR:",
-        error
-      );
-
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error:
-            "Unable to delete assignment.",
-          details:
-            process.env.NODE_ENV ===
-            "development"
-              ? error?.message
-              : undefined,
-        });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* ============================================================
-   GET SUBMISSIONS FOR AN ASSIGNMENT
-============================================================ */
-
-router.get(
-  "/:id/submissions",
-  async (
-    req,
-    res
-  ) => {
-    const client =
-      await pool.connect();
-
-    try {
-      const assignmentId =
-        getAssignmentId(
-          req
-        );
-
-      const tutorReference =
-        getTutorReference(
-          req
-        );
-
-      if (
-        !assignmentId
-      ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "Assignment ID is required.",
-          });
-      }
-
-      if (
-        !tutorReference
-      ) {
-        return res
-          .status(401)
-          .json({
-            success: false,
-            error:
-              "Valid tutor reference is required.",
-          });
-      }
-
-      const assignment =
-        await findAssignmentByTutor(
-          client,
-          assignmentId,
-          tutorReference
-        );
-
-      if (!assignment) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            error:
-              "Assignment not found.",
-          });
-      }
-
-      const submissionTables =
-        [
-          "academy_assignment_submissions",
-          "academy_task_submissions",
-        ];
-
-      let submissionRows =
-        [];
-
-      let usedTable =
-        null;
-
-      for (
-        const table of submissionTables
-      ) {
+    } catch (error) {
+      if (client) {
         try {
-          const existsResult =
-            await client.query(
-              `
-                SELECT EXISTS (
-                  SELECT 1
-                  FROM information_schema.tables
-                  WHERE table_schema = 'public'
-                    AND table_name = $1
-                ) AS exists
-              `,
-              [table]
-            );
-
-          if (
-            !existsResult.rows[0]
-              ?.exists
-          ) {
-            continue;
-          }
-
-          const result =
-            await client.query(
-              `
-                SELECT *
-                FROM ${quoteIdentifier(
-                  table
-                )}
-                WHERE assignment_id::text = $1
-                ORDER BY
-                  COALESCE(
-                    updated_at,
-                    created_at,
-                    NOW()
-                  ) DESC
-              `,
-              [assignmentId]
-            );
-
-          submissionRows =
-            result.rows;
-
-          usedTable =
-            table;
-
-          break;
-        } catch (
-          error
-        ) {
-          console.warn(
-            `Unable to read ${table}:`,
-            error?.message
+          await client.query(
+            "ROLLBACK"
           );
-        }
+        } catch {}
       }
 
-      return res.json({
-        success: true,
-
-        assignment:
-          serializeAssignment(
-            assignment
-          ),
-
-        submissions:
-          submissionRows,
-
-        data:
-          submissionRows,
-
-        count:
-          submissionRows.length,
-
-        sourceTable:
-          usedTable,
-      });
-    } catch (
-      error
-    ) {
       console.error(
-        "GET ASSIGNMENT SUBMISSIONS ERROR:",
+        "DELETE tutor assignment error:",
         error
       );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error:
-            "Unable to load assignment submissions.",
-          details:
-            process.env.NODE_ENV ===
-            "development"
-              ? error?.message
-              : undefined,
-        });
+      return res.status(500).json({
+        success: false,
+
+        message:
+          "Unable to delete assignment.",
+
+        error:
+          process.env.NODE_ENV ===
+          "development"
+            ? error.message
+            : undefined,
+      });
     } finally {
-      client.release();
+      if (client) {
+        client.release();
+      }
     }
   }
 );
@@ -2779,9 +2776,9 @@ router.get(
 router.use(
   (
     error,
-    req,
+    _req,
     res,
-    next
+    _next
   ) => {
     if (
       error instanceof
@@ -2791,52 +2788,44 @@ router.use(
         error.code ===
         "LIMIT_FILE_SIZE"
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "The file is too large. Maximum file size is 250 MB.",
-          });
+        return res.status(400).json({
+          success: false,
+
+          message:
+            "The uploaded file is too large. Maximum size is 250 MB.",
+        });
       }
 
-      if (
-        error.code ===
-        "LIMIT_FILE_COUNT"
-      ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              `You can upload a maximum of ${MAX_FILES} files.`,
-          });
-      }
+      return res.status(400).json({
+        success: false,
 
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error:
-            error.message ||
-            "File upload failed.",
-        });
+        message:
+          error.message ||
+          "Unable to upload file.",
+      });
     }
 
-    if (
-      error
-    ) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error:
-            error.message ||
-            "Request failed.",
-        });
+    if (error) {
+      console.error(
+        "Tutor assignments upload error:",
+        error
+      );
+
+      return res.status(400).json({
+        success: false,
+
+        message:
+          error.message ||
+          "Unable to upload file.",
+      });
     }
 
-    next();
+    return res.status(500).json({
+      success: false,
+
+      message:
+        "Unexpected server error.",
+    });
   }
 );
 

@@ -1,7 +1,36 @@
 import express from "express";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
+
 import pool from "../lib/db.js";
+import {
+  resolveAuthenticatedStudent,
+  normalizeSubject,
+  normalizeClass,
+} from "./academyEnrollmentRoutes.js";
 
 const router = express.Router();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/* ============================================================
+   DIRECTORIES
+============================================================ */
+
+const uploadDirectory = path.join(
+  __dirname,
+  "../uploads/academy-assignments"
+);
+
+if (!fs.existsSync(uploadDirectory)) {
+  fs.mkdirSync(uploadDirectory, {
+    recursive: true,
+  });
+}
 
 /* ============================================================
    HELPERS
@@ -18,7 +47,29 @@ const clean = (value) => {
 const toNumber = (value, fallback = 0) => {
   const number = Number(value);
 
-  return Number.isFinite(number) ? number : fallback;
+  return Number.isFinite(number)
+    ? number
+    : fallback;
+};
+
+const parseJsonValue = (value, fallback = null) => {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return fallback;
+  }
+
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
 };
 
 const getGrade = (percentage) => {
@@ -33,245 +84,69 @@ const getGrade = (percentage) => {
   return "F";
 };
 
-/* ============================================================
-   TUTOR REFERENCE
-============================================================ */
+const safeNormalizeClass = (value) => {
+  const text = clean(value);
 
-const getTutorReference = (req) => {
-  const body = req.body || {};
-  const query = req.query || {};
-
-  return clean(
-    query.tutorReference ??
-      query.tutor_reference ??
-      query.reference ??
-      body.tutorReference ??
-      body.tutor_reference ??
-      body.reference ??
-      req.headers["x-tutor-reference"] ??
-      req.headers["x-tutor-ref"]
-  );
-};
-
-/* ============================================================
-   STUDENT ENROLLMENT ID
-============================================================ */
-
-const getEnrollmentId = (req) => {
-  const body = req.body || {};
-  const query = req.query || {};
-
-  return clean(
-    query.enrollmentId ??
-      query.enrollment_id ??
-      query.enrollment ??
-      body.enrollmentId ??
-      body.enrollment_id ??
-      body.enrollment ??
-      body.student?.enrollmentId ??
-      body.student?.enrollment_id ??
-      body.student?.enrollment ??
-      req.headers["x-enrollment-id"] ??
-      req.headers["x-student-enrollment"]
-  );
-};
-
-/* ============================================================
-   STUDENT REFERENCE
-============================================================ */
-
-const getStudentReference = (req) => {
-  const body = req.body || {};
-  const query = req.query || {};
-
-  return clean(
-    query.studentReference ??
-      query.student_reference ??
-      query.reference ??
-      body.studentReference ??
-      body.student_reference ??
-      body.reference ??
-      body.student?.studentReference ??
-      body.student?.student_reference ??
-      body.student?.reference ??
-      req.headers["x-student-reference"] ??
-      req.headers["x-student-ref"]
-  );
-};
-
-/* ============================================================
-   STUDENT NAME
-============================================================ */
-
-const getStudentName = (req) => {
-  const body = req.body || {};
-
-  return (
-    clean(
-      body.studentName ??
-        body.student_name ??
-        body.name ??
-        body.student?.name ??
-        body.student?.studentName
-    ) || "Student"
-  );
-};
-
-/* ============================================================
-   FORMAT QUESTION
-============================================================ */
-
-const formatQuestion = (question) => {
-  if (!question) {
-    return null;
+  if (!text) {
+    return "";
   }
 
-  return {
-    id: question.id,
+  try {
+    const normalized = normalizeClass(text);
 
-    assignmentId:
-      question.assignment_id ??
-      question.assignmentId ??
-      null,
+    if (normalized) {
+      return clean(normalized)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+    }
+  } catch {
+    // fallback below
+  }
 
-    question:
-      question.question ??
-      question.question_text ??
-      "",
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+};
 
-    optionA:
-      question.option_a ??
-      question.optionA ??
-      "",
+const classesMatch = (first, second) => {
+  const a = safeNormalizeClass(first);
+  const b = safeNormalizeClass(second);
 
-    optionB:
-      question.option_b ??
-      question.optionB ??
-      "",
+  if (!a || !b) {
+    return false;
+  }
 
-    optionC:
-      question.option_c ??
-      question.optionC ??
-      "",
+  return a === b;
+};
 
-    optionD:
-      question.option_d ??
-      question.optionD ??
-      "",
+const safeNormalizeSubject = (value) => {
+  const text = clean(value);
 
-    correctAnswer:
-      question.correct_answer ??
-      question.correctAnswer ??
-      "",
+  if (!text) {
+    return "";
+  }
 
-    marks: toNumber(
-      question.marks,
-      1
-    ),
+  try {
+    return clean(normalizeSubject(text))
+      .toLowerCase();
+  } catch {
+    return text.toLowerCase();
+  }
+};
 
-    createdAt:
-      question.created_at ??
-      question.createdAt ??
-      null,
-  };
+const subjectsMatch = (first, second) => {
+  return (
+    safeNormalizeSubject(first) ===
+    safeNormalizeSubject(second)
+  );
 };
 
 /* ============================================================
-   FORMAT ASSIGNMENT
+   DATABASE HELPERS
 ============================================================ */
 
-const formatAssignment = (
-  assignment,
-  questions = []
-) => {
-  const formattedQuestions = questions
-    .map(formatQuestion)
-    .filter(Boolean);
-
-  return {
-    id: assignment.id,
-
-    title:
-      assignment.title ??
-      "Untitled Assignment",
-
-    description:
-      assignment.description ??
-      "",
-
-    subject:
-      assignment.subject ??
-      "",
-
-    class:
-      assignment.class ??
-      assignment.class_name ??
-      "",
-
-    className:
-      assignment.class_name ??
-      assignment.className ??
-      assignment.class ??
-      "",
-
-    tutorReference:
-      assignment.tutor_reference ??
-      assignment.tutorReference ??
-      "",
-
-    totalQuestions:
-      toNumber(
-        assignment.total_questions,
-        formattedQuestions.length
-      ),
-
-    totalMarks:
-      toNumber(
-        assignment.total_marks,
-        formattedQuestions.reduce(
-          (sum, question) =>
-            sum + toNumber(question.marks, 1),
-          0
-        )
-      ),
-
-    duration:
-      assignment.duration ??
-      assignment.duration_minutes ??
-      0,
-
-    dueDate:
-      assignment.due_date ??
-      assignment.dueDate ??
-      null,
-
-    status:
-      assignment.status ??
-      "active",
-
-    createdAt:
-      assignment.created_at ??
-      assignment.createdAt ??
-      null,
-
-    updatedAt:
-      assignment.updated_at ??
-      assignment.updatedAt ??
-      null,
-
-    questions: formattedQuestions,
-  };
-};
-
-/* ============================================================
-   CHECK TABLE
-============================================================ */
-
-const tableExists = async (
-  tableName,
-  client = pool
-) => {
-  const result = await client.query(
+const tableExists = async (tableName) => {
+  const result = await pool.query(
     `
       SELECT EXISTS (
         SELECT 1
@@ -283,27 +158,13 @@ const tableExists = async (
     [tableName]
   );
 
-  return Boolean(
-    result.rows[0]?.exists
-  );
+  return Boolean(result.rows[0]?.exists);
 };
 
-/* ============================================================
-   GET TABLE COLUMNS
-============================================================ */
-
-const getTableColumns = async (
-  tableName,
-  client = pool
-) => {
-  const result = await client.query(
+const getTableColumns = async (tableName) => {
+  const result = await pool.query(
     `
-      SELECT
-        column_name,
-        data_type,
-        udt_name,
-        is_nullable,
-        column_default
+      SELECT column_name
       FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = $1
@@ -312,962 +173,1321 @@ const getTableColumns = async (
     [tableName]
   );
 
-  return result.rows.reduce(
-    (map, row) => {
-      map[row.column_name] = row;
-      return map;
-    },
-    {}
+  return result.rows.map(
+    (row) => row.column_name
   );
 };
 
 /* ============================================================
-   TUTOR OWNS ASSIGNMENT
+   TUTOR REFERENCE
 ============================================================ */
 
-const verifyTutorOwnsAssignment = async (
-  client,
-  assignmentId,
-  tutorReference
-) => {
-  const result = await client.query(
-    `
-      SELECT *
-      FROM academy_assignments
-      WHERE id = $1
-        AND tutor_reference = $2
-      LIMIT 1
-    `,
-    [
-      assignmentId,
-      tutorReference,
-    ]
+const getTutorReference = (req) => {
+  return clean(
+    req.query?.tutorReference ||
+      req.query?.reference ||
+      req.body?.tutorReference ||
+      req.body?.tutor_reference ||
+      req.body?.reference ||
+      req.headers["x-tutor-reference"]
   );
+};
+
+const isValidTutorReference = (reference) => {
+  return /^SQA-/i.test(
+    clean(reference)
+  );
+};
+
+/* ============================================================
+   FILE HELPERS
+============================================================ */
+
+const createFileUrl = (filename) => {
+  if (!filename) {
+    return null;
+  }
+
+  return `/uploads/academy-assignments/${encodeURIComponent(
+    filename
+  )}`;
+};
+
+const extractFileInfo = (assignment) => {
+  const filename =
+    assignment.file_name ||
+    assignment.filename ||
+    assignment.fileName ||
+    assignment.attachment_name ||
+    assignment.document_name ||
+    null;
+
+  const fileUrl =
+    assignment.file_url ||
+    assignment.fileUrl ||
+    assignment.attachment_url ||
+    assignment.document_url ||
+    (filename
+      ? createFileUrl(filename)
+      : null);
+
+  const filePath =
+    assignment.file_path ||
+    assignment.filePath ||
+    assignment.attachment_path ||
+    assignment.document_path ||
+    null;
+
+  return {
+    filename,
+    fileName: filename,
+    fileUrl,
+    file_url: fileUrl,
+    filePath,
+    file_path: filePath,
+    fileType:
+      assignment.file_type ||
+      assignment.fileType ||
+      assignment.attachment_type ||
+      null,
+    fileSize:
+      assignment.file_size ||
+      assignment.fileSize ||
+      null,
+  };
+};
+
+/* ============================================================
+   ASSIGNMENT CLASS
+============================================================ */
+
+const getAssignmentClassColumns = async () => {
+  const columns = await getTableColumns(
+    "academy_assignments"
+  );
+
+  const possibleColumns = [
+    "class_name",
+    "class",
+    "grade",
+    "className",
+    "current_class",
+    "student_class",
+  ];
+
+  return possibleColumns.filter(
+    (column) =>
+      columns.includes(column)
+  );
+};
+
+const getAssignmentClass = (assignment) => {
+  return (
+    assignment.class_name ||
+    assignment.className ||
+    assignment.class ||
+    assignment.grade ||
+    assignment.current_class ||
+    assignment.student_class ||
+    ""
+  );
+};
+
+const buildAssignmentClassWhere = (
+  classColumns,
+  parameterNumber = 1
+) => {
+  if (!classColumns.length) {
+    return {
+      sql: "FALSE",
+    };
+  }
+
+  const expressions =
+    classColumns.map(
+      (column) => `
+        LOWER(
+          REGEXP_REPLACE(
+            COALESCE("${column}"::text, ''),
+            '[^a-zA-Z0-9]',
+            '',
+            'g'
+          )
+        )
+        =
+        LOWER(
+          REGEXP_REPLACE(
+            $${parameterNumber}::text,
+            '[^a-zA-Z0-9]',
+            '',
+            'g'
+          )
+        )
+      `
+    );
+
+  return {
+    sql: `(${expressions.join(
+      " OR "
+    )})`,
+  };
+};
+
+/* ============================================================
+   QUESTIONS
+============================================================ */
+
+const formatQuestion = (question) => {
+  return {
+    id: question.id,
+
+    assignmentId:
+      question.assignment_id,
+
+    question:
+      question.question ||
+      question.question_text ||
+      question.text ||
+      "",
+
+    questionText:
+      question.question ||
+      question.question_text ||
+      question.text ||
+      "",
+
+    optionA:
+      question.option_a ||
+      question.optionA ||
+      "",
+
+    optionB:
+      question.option_b ||
+      question.optionB ||
+      "",
+
+    optionC:
+      question.option_c ||
+      question.optionC ||
+      "",
+
+    optionD:
+      question.option_d ||
+      question.optionD ||
+      "",
+
+    correctAnswer:
+      question.correct_answer ||
+      question.correctAnswer ||
+      "",
+
+    marks: toNumber(
+      question.marks,
+      1
+    ),
+
+    createdAt:
+      question.created_at ||
+      null,
+  };
+};
+
+const getAssignmentQuestions = async (
+  assignmentId
+) => {
+  const exists =
+    await tableExists(
+      "academy_assignment_questions"
+    );
+
+  if (!exists) {
+    return [];
+  }
+
+  const columns =
+    await getTableColumns(
+      "academy_assignment_questions"
+    );
+
+  if (
+    !columns.includes(
+      "assignment_id"
+    )
+  ) {
+    return [];
+  }
+
+  const orderColumn =
+    columns.includes("created_at")
+      ? "created_at"
+      : "id";
+
+  const result =
+    await pool.query(
+      `
+        SELECT *
+        FROM academy_assignment_questions
+        WHERE assignment_id = $1
+        ORDER BY ${orderColumn} ASC, id ASC
+      `,
+      [assignmentId]
+    );
+
+  return result.rows.map(
+    formatQuestion
+  );
+};
+
+/* ============================================================
+   ASSIGNMENT FORMATTER
+============================================================ */
+
+const formatAssignment = (
+  assignment,
+  questions = [],
+  submission = null
+) => {
+  const file =
+    extractFileInfo(
+      assignment
+    );
+
+  const assignmentClass =
+    getAssignmentClass(
+      assignment
+    );
+
+  const subject =
+    assignment.subject ||
+    "";
+
+  return {
+    id: assignment.id,
+
+    tutorReference:
+      assignment.tutor_reference ||
+      null,
+
+    tutorName:
+      assignment.tutor_name ||
+      "Tutor",
+
+    title:
+      assignment.title ||
+      "Untitled Assignment",
+
+    description:
+      assignment.description ||
+      "",
+
+    instructions:
+      assignment.instructions ||
+      "",
+
+    className:
+      assignmentClass,
+
+    class:
+      assignmentClass,
+
+    grade:
+      assignment.grade ||
+      assignmentClass,
+
+    subject,
+
+    normalizedSubject:
+      safeNormalizeSubject(
+        subject
+      ),
+
+    dueDate:
+      assignment.due_date ||
+      null,
+
+    status:
+      assignment.status ||
+      "published",
+
+    resultReleased:
+      Boolean(
+        assignment.result_released
+      ),
+
+    totalQuestions:
+      toNumber(
+        assignment.total_questions,
+        questions.length
+      ),
+
+    totalMarks:
+      toNumber(
+        assignment.total_marks,
+        questions.reduce(
+          (sum, question) =>
+            sum +
+            toNumber(
+              question.marks,
+              1
+            ),
+          0
+        )
+      ),
+
+    fileName:
+      file.fileName,
+
+    filename:
+      file.filename,
+
+    fileUrl:
+      file.fileUrl,
+
+    file_url:
+      file.file_url,
+
+    filePath:
+      file.filePath,
+
+    file_path:
+      file.file_path,
+
+    fileType:
+      file.fileType,
+
+    fileSize:
+      file.fileSize,
+
+    questions,
+
+    submission,
+
+    submissionStatus:
+      submission?.status ||
+      "pending",
+
+    submitted:
+      Boolean(submission),
+
+    score:
+      submission?.score ??
+      null,
+
+    maxScore:
+      submission?.max_score ??
+      null,
+
+    percentage:
+      submission?.percentage ??
+      null,
+
+    gradeResult:
+      submission?.grade ??
+      null,
+
+    submittedAt:
+      submission?.submitted_at ||
+      null,
+
+    createdAt:
+      assignment.created_at ||
+      null,
+
+    updatedAt:
+      assignment.updated_at ||
+      null,
+  };
+};
+
+/* ============================================================
+   STUDENT AUTH
+============================================================ */
+
+const authenticateStudent = async (
+  req,
+  res
+) => {
+  try {
+    const authenticated =
+      await resolveAuthenticatedStudent(
+        req
+      );
+
+    if (
+      !authenticated ||
+      !authenticated.student
+    ) {
+      res.status(401).json({
+        success: false,
+        message:
+          "Student authentication is required. Please log in again.",
+      });
+
+      return null;
+    }
+
+    const studentClass =
+      authenticated.studentClass ||
+      authenticated.serialized?.className ||
+      authenticated.serialized?.class ||
+      authenticated.serialized?.grade ||
+      "";
+
+    if (!studentClass) {
+      res.status(400).json({
+        success: false,
+        message:
+          "Your student profile does not have a class assigned. Please contact the administrator.",
+      });
+
+      return null;
+    }
+
+    return {
+      ...authenticated,
+      studentClass,
+    };
+  } catch (error) {
+    console.error(
+      "STUDENT AUTH ERROR:",
+      error
+    );
+
+    res.status(401).json({
+      success: false,
+      message:
+        "Student authentication is required. Please log in again.",
+    });
+
+    return null;
+  }
+};
+
+const getAuthenticatedStudentReference = (
+  authenticated
+) => {
+  const serialized =
+    authenticated?.serialized ||
+    {};
+
+  const student =
+    authenticated?.student ||
+    {};
+
+  return clean(
+    serialized.studentId ||
+      serialized.student_id ||
+      serialized.registrationNumber ||
+      serialized.registration_number ||
+      serialized.reference ||
+      serialized.enrollmentId ||
+      serialized.enrollment_id ||
+      student.studentId ||
+      student.student_id ||
+      student.registrationNumber ||
+      student.registration_number ||
+      student.reference ||
+      authenticated?.decoded
+        ?.studentId ||
+      authenticated?.decoded
+        ?.student_id ||
+      authenticated?.decoded
+        ?.enrollmentId
+  );
+};
+
+/* ============================================================
+   STUDENT SUBMISSION
+============================================================ */
+
+const getLatestStudentSubmission = async (
+  assignmentId,
+  studentReference
+) => {
+  if (!studentReference) {
+    return null;
+  }
+
+  const exists =
+    await tableExists(
+      "academy_assignment_submissions"
+    );
+
+  if (!exists) {
+    return null;
+  }
+
+  const columns =
+    await getTableColumns(
+      "academy_assignment_submissions"
+    );
+
+  if (
+    !columns.includes(
+      "assignment_id"
+    ) ||
+    !columns.includes(
+      "student_reference"
+    )
+  ) {
+    return null;
+  }
+
+  const orderColumn =
+    columns.includes("submitted_at")
+      ? "submitted_at"
+      : columns.includes(
+          "created_at"
+        )
+        ? "created_at"
+        : "id";
+
+  const result =
+    await pool.query(
+      `
+        SELECT *
+        FROM academy_assignment_submissions
+        WHERE assignment_id = $1
+          AND student_reference = $2
+        ORDER BY ${orderColumn} DESC, id DESC
+        LIMIT 1
+      `,
+      [
+        assignmentId,
+        studentReference,
+      ]
+    );
 
   return result.rows[0] || null;
 };
 
 /* ============================================================
-   LOAD QUESTIONS
+   TUTOR OWNERSHIP
 ============================================================ */
 
-const getAssignmentQuestions = async (
-  client,
-  assignmentId
-) => {
-  const result = await client.query(
-    `
-      SELECT
-        id,
-        assignment_id,
-        question,
-        option_a,
-        option_b,
-        option_c,
-        option_d,
-        correct_answer,
-        marks,
-        created_at
-      FROM academy_assignment_questions
-      WHERE assignment_id = $1
-      ORDER BY id ASC
-    `,
-    [assignmentId]
-  );
-
-  return result.rows;
-};
-
-/* ============================================================
-   FORMAT SAVED ANSWER
-============================================================ */
-
-const formatSavedAnswer = (answer) => {
-  const selectedAnswer = clean(
-    answer.student_answer ??
-      answer.answer ??
-      answer.selected_answer ??
-      answer.studentAnswer ??
-      answer.selectedAnswer ??
-      ""
-  );
-
-  const correctAnswer =
-    clean(answer.correct_answer) ||
-    clean(answer.question_correct_answer) ||
-    clean(answer.correctAnswer);
-
-  const questionText =
-    clean(answer.question_text) ||
-    clean(answer.question);
-
-  const rawIsCorrect =
-    answer.is_correct ??
-    answer.isCorrect;
-
-  let isCorrect;
-
-  if (typeof rawIsCorrect === "boolean") {
-    isCorrect = rawIsCorrect;
-  } else if (
-    rawIsCorrect !== null &&
-    rawIsCorrect !== undefined &&
-    String(rawIsCorrect).trim() !== ""
-  ) {
-    isCorrect =
-      String(rawIsCorrect).toLowerCase() ===
-        "true" ||
-      String(rawIsCorrect) === "1";
-  } else {
-    isCorrect =
-      selectedAnswer !== "" &&
-      correctAnswer !== "" &&
-      selectedAnswer.toLowerCase() ===
-        correctAnswer.toLowerCase();
-  }
-
-  const marks = toNumber(
-    answer.question_marks ??
-      answer.marks,
-    1
-  );
-
-  const marksAwarded = toNumber(
-    answer.marks_awarded ??
-      answer.marksAwarded ??
-      answer.answer_score ??
-      answer.score,
-    isCorrect ? marks : 0
-  );
-
-  return {
-    id:
-      answer.id ??
-      null,
-
-    answerId:
-      answer.id ??
-      null,
-
-    submissionId:
-      answer.submission_id ??
-      answer.submissionId ??
-      null,
-
-    questionId:
-      answer.question_id ??
-      answer.question_record_id ??
-      answer.questionId ??
-      null,
-
-    questionNumber:
-      answer.question_number ??
-      answer.questionNumber ??
-      null,
-
-    question: questionText,
-
-    optionA:
-      answer.option_a ??
-      answer.optionA ??
-      "",
-
-    optionB:
-      answer.option_b ??
-      answer.optionB ??
-      "",
-
-    optionC:
-      answer.option_c ??
-      answer.optionC ??
-      "",
-
-    optionD:
-      answer.option_d ??
-      answer.optionD ??
-      "",
-
-    selectedAnswer,
-
-    studentAnswer:
-      selectedAnswer,
-
-    correctAnswer,
-
-    isCorrect,
-
-    marks,
-
-    marksAwarded,
-
-    score:
-      marksAwarded,
-
-    explanation:
-      answer.explanation ??
-      answer.reason ??
-      "",
-
-    reason:
-      answer.reason ??
-      answer.explanation ??
-      "",
-
-    createdAt:
-      answer.answer_created_at ??
-      answer.created_at ??
-      answer.createdAt ??
-      null,
-  };
-};
-
-/* ============================================================
-   NORMALIZE STORED ANSWERS
-============================================================ */
-
-const normalizeStoredAnswers = (
-  storedAnswers
-) => {
-  if (
-    storedAnswers === null ||
-    storedAnswers === undefined ||
-    storedAnswers === ""
-  ) {
-    return [];
-  }
-
-  let parsed = storedAnswers;
-
-  try {
-    if (
-      typeof storedAnswers === "string"
-    ) {
-      parsed =
-        JSON.parse(storedAnswers);
-    }
-  } catch (error) {
-    console.error(
-      "❌ Failed to parse stored submission answers:",
-      error
-    );
-
-    return [];
-  }
-
-  if (Array.isArray(parsed)) {
-    return parsed;
-  }
-
-  if (
-    parsed &&
-    typeof parsed === "object"
-  ) {
-    return Object.entries(parsed).map(
-      ([
-        key,
-        value,
-      ]) => {
-        if (
-          value &&
-          typeof value === "object"
-        ) {
-          return {
-            ...value,
-
-            questionId:
-              value.questionId ??
-              value.question_id ??
-              key,
-          };
-        }
-
-        return {
-          questionId: key,
-
-          studentAnswer:
-            value,
-        };
-      }
-    );
-  }
-
-  return [];
-};
-
-/* ============================================================
-   LOAD SUBMISSION ANSWERS
-
-   IMPORTANT:
-
-   This function first checks academy_assignment_answers.
-
-   If there are no rows there, it falls back to the
-   "answer" column of academy_assignment_submissions.
-
-   This fixes older submissions where the answers were stored
-   as JSON in the submission but no individual answer records
-   were inserted.
-============================================================ */
-
-const getSubmissionAnswers = async (
-  client,
-  submissionId
-) => {
-  const normalizedSubmissionId =
-    clean(submissionId);
-
-  if (!normalizedSubmissionId) {
-    return [];
-  }
-
-  /* ==========================================================
-     LOAD SUBMISSION
-  ========================================================== */
-
-  const submissionResult =
-    await client.query(
-      `
-        SELECT *
-        FROM academy_assignment_submissions
-        WHERE id = $1
-        LIMIT 1
-      `,
-      [normalizedSubmissionId]
-    );
-
-  if (
-    submissionResult.rows.length === 0
-  ) {
-    console.warn(
-      "⚠️ Submission not found:",
-      normalizedSubmissionId
-    );
-
-    return [];
-  }
-
-  const submission =
-    submissionResult.rows[0];
-
-  /* ==========================================================
-     LOAD QUESTIONS
-  ========================================================== */
-
-  let questions = [];
-
-  const questionsTableExists =
-    await tableExists(
-      "academy_assignment_questions",
-      client
-    );
-
-  if (
-    questionsTableExists &&
-    submission.assignment_id
-  ) {
-    const questionResult =
-      await client.query(
-        `
-          SELECT
-            id,
-            assignment_id,
-            question,
-            option_a,
-            option_b,
-            option_c,
-            option_d,
-            correct_answer,
-            marks,
-            created_at
-          FROM academy_assignment_questions
-          WHERE assignment_id = $1
-          ORDER BY id ASC
-        `,
-        [submission.assignment_id]
-      );
-
-    questions =
-      questionResult.rows;
-  }
-
-  const questionMap =
-    new Map(
-      questions.map(
-        (question) => [
-          String(question.id),
-          question,
-        ]
-      )
-    );
-
-  /* ==========================================================
-     SOURCE 1:
-     academy_assignment_answers
-  ========================================================== */
-
-  const answersTableExists =
-    await tableExists(
-      "academy_assignment_answers",
-      client
-    );
-
-  if (answersTableExists) {
-    const answerColumns =
-      await getTableColumns(
-        "academy_assignment_answers",
-        client
-      );
-
-    if (
-      answerColumns.submission_id
-    ) {
-      const selectColumns = [];
-
-      const availableColumns = [
-        "id",
-        "submission_id",
-        "question_id",
-        "question_number",
-        "student_answer",
-        "answer",
-        "selected_answer",
-        "correct_answer",
-        "is_correct",
-        "marks_awarded",
-        "score",
-        "answer_score",
-        "explanation",
-        "reason",
-        "created_at",
-      ];
-
-      for (
-        const column of availableColumns
-      ) {
-        if (
-          answerColumns[column]
-        ) {
-          selectColumns.push(
-            column
-          );
-        }
-      }
-
-      if (
-        selectColumns.length > 0
-      ) {
-        const answerResult =
-          await client.query(
-            `
-              SELECT
-                ${selectColumns.join(", ")}
-              FROM academy_assignment_answers
-              WHERE submission_id = $1
-              ORDER BY id ASC
-            `,
-            [normalizedSubmissionId]
-          );
-
-        console.log(
-          "🔎 ANSWER TABLE LOOKUP:",
-          {
-            submissionId:
-              normalizedSubmissionId,
-
-            rowsFound:
-              answerResult.rows.length,
-
-            answerIds:
-              answerResult.rows.map(
-                (row) =>
-                  row.id
-              ),
-
-            questionIds:
-              answerResult.rows.map(
-                (row) =>
-                  row.question_id
-              ),
-          }
-        );
-
-        if (
-          answerResult.rows.length >
-          0
-        ) {
-          return answerResult.rows.map(
-            (answerRow) => {
-              const question =
-                questionMap.get(
-                  String(
-                    answerRow.question_id
-                  )
-                );
-
-              return formatSavedAnswer({
-                ...answerRow,
-
-                question_record_id:
-                  question?.id ??
-                  answerRow.question_id ??
-                  null,
-
-                question_text:
-                  question?.question ??
-                  "",
-
-                option_a:
-                  question?.option_a ??
-                  "",
-
-                option_b:
-                  question?.option_b ??
-                  "",
-
-                option_c:
-                  question?.option_c ??
-                  "",
-
-                option_d:
-                  question?.option_d ??
-                  "",
-
-                question_correct_answer:
-                  question?.correct_answer ??
-                  "",
-
-                question_marks:
-                  question?.marks ??
-                  1,
-
-                question_created_at:
-                  question?.created_at ??
-                  null,
-              });
-            }
-          );
-        }
-      }
-    }
-  }
-
-  /* ==========================================================
-     SOURCE 2:
-     academy_assignment_submissions.answer
-  ========================================================== */
-
-  const storedAnswers =
-    normalizeStoredAnswers(
-      submission.answer
-    );
-
-  if (
-    storedAnswers.length === 0
-  ) {
-    console.warn(
-      "⚠️ No answer rows and no usable stored answers:",
-      {
-        submissionId:
-          normalizedSubmissionId,
-
-        submissionAnswer:
-          submission.answer
-            ? "present"
-            : "empty",
-      }
-    );
-
-    return [];
-  }
-
-  /* ==========================================================
-     FORMAT FALLBACK ANSWERS
-  ========================================================== */
-
-  const formattedAnswers =
-    storedAnswers.map(
-      (
-        answer,
-        index
-      ) => {
-        const questionId =
-          answer.questionId ??
-          answer.question_id ??
-          answer.questionRecordId ??
-          answer.question_record_id ??
-          answer.id;
-
-        let question =
-          questionMap.get(
-            String(
-              questionId
-            )
-          );
-
-        /* Match by question number */
-
-        if (
-          !question &&
-          (
-            answer.questionNumber ??
-            answer.question_number
-          ) !== undefined
-        ) {
-          const questionNumber =
-            Number(
-              answer.questionNumber ??
-                answer.question_number
-            );
-
-          if (
-            Number.isFinite(
-              questionNumber
-            )
-          ) {
-            question =
-              questions[
-                questionNumber - 1
-              ];
-          }
-        }
-
-        /* Last fallback: array position */
-
-        if (
-          !question &&
-          questions[index]
-        ) {
-          question =
-            questions[index];
-        }
-
-        const selectedAnswer =
-          clean(
-            answer.studentAnswer ??
-              answer.student_answer ??
-              answer.answer ??
-              answer.selectedAnswer ??
-              answer.selected_answer ??
-              answer.value
-          );
-
-        const correctAnswer =
-          clean(
-            answer.correctAnswer ??
-              answer.correct_answer ??
-              question?.correct_answer
-          );
-
-        const marks =
-          toNumber(
-            answer.marks ??
-              answer.question_marks ??
-              question?.marks,
-            1
-          );
-
-        let isCorrect;
-
-        const rawCorrect =
-          answer.isCorrect ??
-          answer.is_correct;
-
-        if (
-          typeof rawCorrect ===
-          "boolean"
-        ) {
-          isCorrect =
-            rawCorrect;
-        } else if (
-          rawCorrect !==
-            undefined &&
-          rawCorrect !== null &&
-          String(
-            rawCorrect
-          ).trim() !== ""
-        ) {
-          const value =
-            String(
-              rawCorrect
-            ).toLowerCase();
-
-          isCorrect =
-            value === "true" ||
-            value === "1";
-        } else {
-          isCorrect =
-            selectedAnswer !== "" &&
-            correctAnswer !== "" &&
-            selectedAnswer
-              .toLowerCase() ===
-              correctAnswer
-                .toLowerCase();
-        }
-
-        const marksAwarded =
-          toNumber(
-            answer.marksAwarded ??
-              answer.marks_awarded ??
-              answer.score ??
-              answer.answer_score,
-            isCorrect
-              ? marks
-              : 0
-          );
-
-        return {
-          id:
-            answer.id ??
-            `stored-${normalizedSubmissionId}-${index + 1}`,
-
-          answerId:
-            answer.id ??
-            `stored-${normalizedSubmissionId}-${index + 1}`,
-
-          submissionId:
-            normalizedSubmissionId,
-
-          questionId:
-            question?.id ??
-            questionId ??
-            null,
-
-          questionNumber:
-            answer.questionNumber ??
-            answer.question_number ??
-            index + 1,
-
-          question:
-            clean(
-              answer.question ??
-                answer.question_text ??
-                question?.question ??
-                ""
-            ),
-
-          optionA:
-            answer.optionA ??
-            answer.option_a ??
-            question?.option_a ??
-            "",
-
-          optionB:
-            answer.optionB ??
-            answer.option_b ??
-            question?.option_b ??
-            "",
-
-          optionC:
-            answer.optionC ??
-            answer.option_c ??
-            question?.option_c ??
-            "",
-
-          optionD:
-            answer.optionD ??
-            answer.option_d ??
-            question?.option_d ??
-            "",
-
-          selectedAnswer,
-
-          studentAnswer:
-            selectedAnswer,
-
-          correctAnswer,
-
-          isCorrect,
-
-          marks,
-
-          marksAwarded,
-
-          score:
-            marksAwarded,
-
-          explanation:
-            answer.explanation ??
-            answer.reason ??
-            "",
-
-          reason:
-            answer.reason ??
-            answer.explanation ??
-            "",
-
-          createdAt:
-            answer.createdAt ??
-            answer.created_at ??
-            submission.submitted_at ??
-            submission.created_at ??
-            null,
-        };
-      }
-    );
-
-  console.log(
-    "✅ FALLBACK ANSWERS LOADED:",
-    {
-      submissionId:
-        normalizedSubmissionId,
-
-      answerCount:
-        formattedAnswers.length,
-
-      questionIds:
-        formattedAnswers.map(
-          (answer) =>
-            answer.questionId
-        ),
-    }
-  );
-
-  return formattedAnswers;
-};
-
-/* ============================================================
-   LOAD ONE SUBMISSION
-============================================================ */
-
-const getTutorSubmission = async (
-  client,
+const verifyTutorOwnsAssignment = async (
   assignmentId,
-  submissionId
+  tutorReference
 ) => {
-  const submissionResult =
-    await client.query(
+  const result =
+    await pool.query(
       `
         SELECT *
-        FROM academy_assignment_submissions
+        FROM academy_assignments
         WHERE id = $1
-          AND assignment_id = $2
+          AND tutor_reference = $2
         LIMIT 1
       `,
       [
-        submissionId,
         assignmentId,
+        tutorReference,
       ]
     );
 
-  if (
-    submissionResult.rows.length === 0
-  ) {
-    return null;
-  }
-
-  const submission =
-    submissionResult.rows[0];
-
-  const answers =
-    await getSubmissionAnswers(
-      client,
-      submission.id
-    );
-
-  const questions =
-    await getAssignmentQuestions(
-      client,
-      assignmentId
-    );
-
-  const totalMarks =
-    toNumber(
-      submission.total_marks,
-      questions.reduce(
-        (sum, question) =>
-          sum +
-          toNumber(
-            question.marks,
-            1
-          ),
-        0
-      )
-    );
-
-  const score =
-    toNumber(
-      submission.score,
-      answers.reduce(
-        (sum, answer) =>
-          sum +
-          toNumber(
-            answer.marksAwarded,
-            0
-          ),
-        0
-      )
-    );
-
-  const percentage =
-    toNumber(
-      submission.percentage,
-      totalMarks > 0
-        ? Number(
-            (
-              (score /
-                totalMarks) *
-              100
-            ).toFixed(2)
-          )
-        : 0
-    );
-
-  const status =
-    submission.status ??
-    "submitted";
-
-  const resultReleased =
-    Boolean(
-      submission.result_released
-    ) ||
-    String(status).toLowerCase() ===
-      "released";
-
-  return {
-    ...submission,
-
-    enrollmentId:
-      submission.enrollment_id,
-
-    studentReference:
-      submission.student_reference ??
-      null,
-
-    studentName:
-      submission.student_name ??
-      "Student",
-
-    score,
-
-    totalMarks,
-
-    percentage,
-
-    grade:
-      submission.grade ??
-      getGrade(percentage),
-
-    status,
-
-    resultReleased,
-
-    submittedAt:
-      submission.submitted_at ??
-      submission.created_at ??
-      null,
-
-    answerCount:
-      answers.length,
-
-    answers,
-
-    answersAvailable:
-      answers.length > 0,
-  };
+  return result.rows[0] || null;
 };
 
 /* ============================================================
-   TUTOR — GET ALL ASSIGNMENTS
+   MULTER
+============================================================ */
+
+const allowedExtensions =
+  new Set([
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".ppt",
+    ".pptx",
+    ".xls",
+    ".xlsx",
+    ".txt",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".zip",
+  ]);
+
+const storage =
+  multer.diskStorage({
+    destination: (
+      _req,
+      _file,
+      callback
+    ) => {
+      callback(
+        null,
+        uploadDirectory
+      );
+    },
+
+    filename: (
+      _req,
+      file,
+      callback
+    ) => {
+      const extension =
+        path.extname(
+          file.originalname || ""
+        ).toLowerCase();
+
+      const safeExtension =
+        allowedExtensions.has(
+          extension
+        )
+          ? extension
+          : "";
+
+      const filename =
+        `${Date.now()}-${crypto
+          .randomBytes(10)
+          .toString("hex")}${safeExtension}`;
+
+      callback(
+        null,
+        filename
+      );
+    },
+  });
+
+const upload =
+  multer({
+    storage,
+
+    limits: {
+      fileSize:
+        250 *
+        1024 *
+        1024,
+    },
+
+    fileFilter: (
+      _req,
+      file,
+      callback
+    ) => {
+      const extension =
+        path.extname(
+          file.originalname || ""
+        ).toLowerCase();
+
+      if (
+        !allowedExtensions.has(
+          extension
+        )
+      ) {
+        return callback(
+          new Error(
+            `Unsupported file type: ${
+              extension ||
+              "unknown"
+            }`
+          )
+        );
+      }
+
+      callback(
+        null,
+        true
+      );
+    },
+  });
+
+/* ============================================================
+   CREATE ASSIGNMENT
+============================================================ */
+
+router.post(
+  "/tutor/assignments",
+  upload.single("file"),
+  async (req, res) => {
+    let uploadedFilePath =
+      null;
+
+    try {
+      const tutorReference =
+        getTutorReference(req);
+
+      if (
+        !tutorReference ||
+        !isValidTutorReference(
+          tutorReference
+        )
+      ) {
+        if (
+          req.file?.path &&
+          fs.existsSync(
+            req.file.path
+          )
+        ) {
+          fs.unlinkSync(
+            req.file.path
+          );
+        }
+
+        return res.status(401).json({
+          success: false,
+          message:
+            "A valid SQA tutor reference is required.",
+        });
+      }
+
+      const title =
+        clean(
+          req.body.title
+        );
+
+      const description =
+        clean(
+          req.body.description
+        );
+
+      const instructions =
+        clean(
+          req.body.instructions
+        );
+
+      const className =
+        clean(
+          req.body.class_name ||
+            req.body.className ||
+            req.body.class ||
+            req.body.grade
+        );
+
+      const subject =
+        clean(
+          req.body.subject
+        );
+
+      const tutorName =
+        clean(
+          req.body.tutor_name ||
+            req.body.tutorName
+        );
+
+      const dueDate =
+        clean(
+          req.body.due_date ||
+            req.body.dueDate
+        ) || null;
+
+      if (
+        title.length < 3
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Assignment title must be at least 3 characters.",
+        });
+      }
+
+      if (!className) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Assignment class is required.",
+        });
+      }
+
+      if (!subject) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Assignment subject is required.",
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Please upload the assignment file.",
+        });
+      }
+
+      uploadedFilePath =
+        req.file.path;
+
+      const assignmentColumns =
+        await getTableColumns(
+          "academy_assignments"
+        );
+
+      const questionsExist =
+        await tableExists(
+          "academy_assignment_questions"
+        );
+
+      const rawQuestions =
+        parseJsonValue(
+          req.body.questions,
+          []
+        );
+
+      const questions =
+        Array.isArray(
+          rawQuestions
+        )
+          ? rawQuestions
+          : [];
+
+      const validQuestions =
+        questions
+          .map(
+            (question) => ({
+              question:
+                clean(
+                  question.question ||
+                    question.question_text ||
+                    question.text
+                ),
+
+              optionA:
+                clean(
+                  question.optionA ||
+                    question.option_a
+                ),
+
+              optionB:
+                clean(
+                  question.optionB ||
+                    question.option_b
+                ),
+
+              optionC:
+                clean(
+                  question.optionC ||
+                    question.option_c
+                ),
+
+              optionD:
+                clean(
+                  question.optionD ||
+                    question.option_d
+                ),
+
+              correctAnswer:
+                clean(
+                  question.correctAnswer ||
+                    question.correct_answer
+                ).toUpperCase(),
+
+              marks:
+                Math.max(
+                  1,
+                  toNumber(
+                    question.marks,
+                    1
+                  )
+                ),
+            })
+          )
+          .filter(
+            (question) =>
+              question.question &&
+              question.optionA &&
+              question.optionB &&
+              question.optionC &&
+              question.optionD &&
+              [
+                "A",
+                "B",
+                "C",
+                "D",
+              ].includes(
+                question.correctAnswer
+              )
+          );
+
+      const totalQuestions =
+        validQuestions.length;
+
+      const totalMarks =
+        validQuestions.reduce(
+          (
+            total,
+            question
+          ) =>
+            total +
+            question.marks,
+          0
+        );
+
+      const columns = [];
+      const values = [];
+      const parameters = [];
+
+      const addColumn = (
+        column,
+        value
+      ) => {
+        if (
+          assignmentColumns.includes(
+            column
+          )
+        ) {
+          columns.push(
+            `"${column}"`
+          );
+
+          values.push(
+            value
+          );
+
+          parameters.push(
+            `$${parameters.length + 1}`
+          );
+        }
+      };
+
+      addColumn(
+        "tutor_reference",
+        tutorReference
+      );
+
+      addColumn(
+        "tutor_name",
+        tutorName ||
+          "Tutor"
+      );
+
+      addColumn(
+        "title",
+        title
+      );
+
+      addColumn(
+        "description",
+        description
+      );
+
+      addColumn(
+        "instructions",
+        instructions
+      );
+
+      if (
+        assignmentColumns.includes(
+          "class_name"
+        )
+      ) {
+        addColumn(
+          "class_name",
+          className
+        );
+      } else if (
+        assignmentColumns.includes(
+          "class"
+        )
+      ) {
+        addColumn(
+          "class",
+          className
+        );
+      }
+
+      if (
+        assignmentColumns.includes(
+          "grade"
+        )
+      ) {
+        addColumn(
+          "grade",
+          className
+        );
+      }
+
+      addColumn(
+        "subject",
+        subject
+      );
+
+      addColumn(
+        "due_date",
+        dueDate
+      );
+
+      addColumn(
+        "status",
+        "published"
+      );
+
+      addColumn(
+        "result_released",
+        false
+      );
+
+      addColumn(
+        "total_questions",
+        totalQuestions
+      );
+
+      addColumn(
+        "total_marks",
+        totalMarks
+      );
+
+      const fileName =
+        req.file.filename;
+
+      const fileUrl =
+        createFileUrl(
+          fileName
+        );
+
+      addColumn(
+        "file_name",
+        fileName
+      );
+
+      addColumn(
+        "file_url",
+        fileUrl
+      );
+
+      addColumn(
+        "file_path",
+        req.file.path
+      );
+
+      addColumn(
+        "file_type",
+        req.file.mimetype
+      );
+
+      addColumn(
+        "file_size",
+        req.file.size
+      );
+
+      if (
+        assignmentColumns.includes(
+          "created_at"
+        )
+      ) {
+        columns.push(
+          `"created_at"`
+        );
+
+        values.push(
+          new Date()
+        );
+
+        parameters.push(
+          `$${parameters.length + 1}`
+        );
+      }
+
+      const client =
+        await pool.connect();
+
+      try {
+        await client.query(
+          "BEGIN"
+        );
+
+        const result =
+          await client.query(
+            `
+              INSERT INTO academy_assignments
+              (${columns.join(", ")})
+              VALUES
+              (${parameters.join(", ")})
+              RETURNING *
+            `,
+            values
+          );
+
+        const assignment =
+          result.rows[0];
+
+        if (
+          questionsExist &&
+          validQuestions.length
+        ) {
+          const questionColumns =
+            await getTableColumns(
+              "academy_assignment_questions"
+            );
+
+          for (
+            const question of validQuestions
+          ) {
+            const qColumns = [];
+            const qValues = [];
+            const qParameters = [];
+
+            const addQuestion =
+              (
+                column,
+                value
+              ) => {
+                if (
+                  questionColumns.includes(
+                    column
+                  )
+                ) {
+                  qColumns.push(
+                    `"${column}"`
+                  );
+
+                  qValues.push(
+                    value
+                  );
+
+                  qParameters.push(
+                    `$${qParameters.length + 1}`
+                  );
+                }
+              };
+
+            addQuestion(
+              "assignment_id",
+              assignment.id
+            );
+
+            if (
+              questionColumns.includes(
+                "question"
+              )
+            ) {
+              addQuestion(
+                "question",
+                question.question
+              );
+            }
+
+            addQuestion(
+              "option_a",
+              question.optionA
+            );
+
+            addQuestion(
+              "option_b",
+              question.optionB
+            );
+
+            addQuestion(
+              "option_c",
+              question.optionC
+            );
+
+            addQuestion(
+              "option_d",
+              question.optionD
+            );
+
+            addQuestion(
+              "correct_answer",
+              question.correctAnswer
+            );
+
+            addQuestion(
+              "marks",
+              question.marks
+            );
+
+            if (
+              questionColumns.includes(
+                "created_at"
+              )
+            ) {
+              addQuestion(
+                "created_at",
+                new Date()
+              );
+            }
+
+            if (
+              qColumns.length
+            ) {
+              await client.query(
+                `
+                  INSERT INTO academy_assignment_questions
+                  (${qColumns.join(
+                    ", "
+                  )})
+                  VALUES
+                  (${qParameters.join(
+                    ", "
+                  )})
+                `,
+                qValues
+              );
+            }
+          }
+        }
+
+        await client.query(
+          "COMMIT"
+        );
+
+        const finalQuestions =
+          await getAssignmentQuestions(
+            assignment.id
+          );
+
+        const formatted =
+          formatAssignment(
+            assignment,
+            finalQuestions
+          );
+
+        return res.status(201).json({
+          success: true,
+
+          message:
+            "Assignment created successfully.",
+
+          assignment:
+            formatted,
+
+          data:
+            formatted,
+        });
+      } catch (error) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        throw error;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error(
+        "CREATE ASSIGNMENT ERROR:",
+        error
+      );
+
+      if (
+        uploadedFilePath &&
+        fs.existsSync(
+          uploadedFilePath
+        )
+      ) {
+        try {
+          fs.unlinkSync(
+            uploadedFilePath
+          );
+        } catch {
+          // ignore
+        }
+      }
+
+      return res.status(500).json({
+        success: false,
+        message:
+          error.message ||
+          "Unable to create assignment.",
+      });
+    }
+  }
+);
+
+/* ============================================================
+   TUTOR ASSIGNMENTS
 ============================================================ */
 
 router.get(
@@ -1277,13 +1497,30 @@ router.get(
       const tutorReference =
         getTutorReference(req);
 
-      if (!tutorReference) {
-        return res.status(400).json({
+      if (
+        !tutorReference ||
+        !isValidTutorReference(
+          tutorReference
+        )
+      ) {
+        return res.status(401).json({
           success: false,
           message:
-            "Tutor reference is required.",
+            "A valid SQA tutor reference is required.",
         });
       }
+
+      const columns =
+        await getTableColumns(
+          "academy_assignments"
+        );
+
+      const orderColumn =
+        columns.includes(
+          "created_at"
+        )
+          ? "created_at"
+          : "id";
 
       const result =
         await pool.query(
@@ -1291,94 +1528,84 @@ router.get(
             SELECT *
             FROM academy_assignments
             WHERE tutor_reference = $1
-            ORDER BY created_at DESC
+            ORDER BY ${orderColumn} DESC, id DESC
           `,
-          [tutorReference]
+          [
+            tutorReference,
+          ]
         );
 
-      const assignments = [];
+      const assignments =
+        await Promise.all(
+          result.rows.map(
+            async (
+              assignment
+            ) => {
+              const questions =
+                await getAssignmentQuestions(
+                  assignment.id
+                );
 
-      for (
-        const assignment of result.rows
-      ) {
-        const questions =
-          await getAssignmentQuestions(
-            pool,
-            assignment.id
-          );
-
-        assignments.push(
-          formatAssignment(
-            assignment,
-            questions
+              return formatAssignment(
+                assignment,
+                questions
+              );
+            }
           )
         );
-      }
 
       return res.json({
         success: true,
-
         assignments,
-
         data:
           assignments,
-
         results:
           assignments,
-
         count:
           assignments.length,
       });
     } catch (error) {
       console.error(
-        "Tutor assignments error:",
+        "TUTOR ASSIGNMENTS ERROR:",
         error
       );
 
       return res.status(500).json({
         success: false,
         message:
-          "Unable to load assignments.",
-        error: error.message,
+          "Unable to load tutor assignments.",
       });
     }
   }
 );
 
 /* ============================================================
-   TUTOR — GET SINGLE ASSIGNMENT
+   TUTOR SINGLE ASSIGNMENT
 ============================================================ */
 
 router.get(
   "/tutor/assignments/:id",
   async (req, res) => {
     try {
-      const assignmentId =
-        clean(req.params.id);
-
       const tutorReference =
         getTutorReference(req);
 
-      if (!assignmentId) {
-        return res.status(400).json({
+      if (
+        !tutorReference ||
+        !isValidTutorReference(
+          tutorReference
+        )
+      ) {
+        return res.status(401).json({
           success: false,
           message:
-            "Assignment ID is required.",
-        });
-      }
-
-      if (!tutorReference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
+            "A valid SQA tutor reference is required.",
         });
       }
 
       const assignment =
         await verifyTutorOwnsAssignment(
-          pool,
-          assignmentId,
+          req.params.id,
           tutorReference
         );
 
@@ -1392,8 +1619,7 @@ router.get(
 
       const questions =
         await getAssignmentQuestions(
-          pool,
-          assignmentId
+          assignment.id
         );
 
       const formatted =
@@ -1404,24 +1630,14 @@ router.get(
 
       return res.json({
         success: true,
-
         assignment:
           formatted,
-
-        questions:
-          formatted.questions,
-
-        data: {
-          assignment:
-            formatted,
-
-          questions:
-            formatted.questions,
-        },
+        data:
+          formatted,
       });
     } catch (error) {
       console.error(
-        "Tutor single assignment error:",
+        "TUTOR ASSIGNMENT ERROR:",
         error
       );
 
@@ -1429,585 +1645,276 @@ router.get(
         success: false,
         message:
           "Unable to load assignment.",
-        error: error.message,
       });
     }
   }
 );
 
 /* ============================================================
-   TUTOR — CREATE ASSIGNMENT
-============================================================ */
-
-router.post(
-  "/tutor/assignments",
-  async (req, res) => {
-    const client =
-      await pool.connect();
-
-    try {
-      const tutorReference =
-        getTutorReference(req);
-
-      if (!tutorReference) {
-        client.release();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      const body =
-        req.body || {};
-
-      const title =
-        clean(body.title);
-
-      const description =
-        clean(body.description);
-
-      const subject =
-        clean(body.subject);
-
-      const className =
-        clean(
-          body.class ??
-            body.className ??
-            body.class_name
-        );
-
-      const duration =
-        toNumber(
-          body.duration ??
-            body.duration_minutes,
-          0
-        );
-
-      const dueDate =
-        body.dueDate ??
-        body.due_date ??
-        null;
-
-      const questions =
-        Array.isArray(
-          body.questions
-        )
-          ? body.questions
-          : [];
-
-      if (!title) {
-        client.release();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Assignment title is required.",
-        });
-      }
-
-      if (
-        questions.length === 0
-      ) {
-        client.release();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "At least one question is required.",
-        });
-      }
-
-      await client.query(
-        "BEGIN"
-      );
-
-      const assignmentColumns =
-        await getTableColumns(
-          "academy_assignments",
-          client
-        );
-
-      const assignmentInsertColumns =
-        [];
-
-      const assignmentValues =
-        [];
-
-      const assignmentParams =
-        [];
-
-      const addAssignmentColumn =
-        (
-          column,
-          value
-        ) => {
-          if (
-            assignmentColumns[column]
-          ) {
-            assignmentInsertColumns.push(
-              column
-            );
-
-            assignmentValues.push(
-              value
-            );
-
-            assignmentParams.push(
-              `$${assignmentValues.length}`
-            );
-          }
-        };
-
-      addAssignmentColumn(
-        "title",
-        title
-      );
-
-      addAssignmentColumn(
-        "description",
-        description
-      );
-
-      addAssignmentColumn(
-        "subject",
-        subject
-      );
-
-      if (
-        assignmentColumns.class_name
-      ) {
-        addAssignmentColumn(
-          "class_name",
-          className
-        );
-      } else if (
-        assignmentColumns.class
-      ) {
-        addAssignmentColumn(
-          "class",
-          className
-        );
-      }
-
-      addAssignmentColumn(
-        "tutor_reference",
-        tutorReference
-      );
-
-      if (
-        assignmentColumns.duration
-      ) {
-        addAssignmentColumn(
-          "duration",
-          duration
-        );
-      } else if (
-        assignmentColumns.duration_minutes
-      ) {
-        addAssignmentColumn(
-          "duration_minutes",
-          duration
-        );
-      }
-
-      if (
-        assignmentColumns.due_date
-      ) {
-        addAssignmentColumn(
-          "due_date",
-          dueDate
-        );
-      }
-
-      if (
-        assignmentColumns.status
-      ) {
-        addAssignmentColumn(
-          "status",
-          "active"
-        );
-      }
-
-      if (
-        assignmentColumns.total_questions
-      ) {
-        addAssignmentColumn(
-          "total_questions",
-          questions.length
-        );
-      }
-
-      const totalMarks =
-        questions.reduce(
-          (
-            total,
-            question
-          ) =>
-            total +
-            toNumber(
-              question.marks,
-              1
-            ),
-          0
-        );
-
-      if (
-        assignmentColumns.total_marks
-      ) {
-        addAssignmentColumn(
-          "total_marks",
-          totalMarks
-        );
-      }
-
-      const assignmentResult =
-        await client.query(
-          `
-            INSERT INTO academy_assignments
-            (
-              ${assignmentInsertColumns.join(
-                ", "
-              )}
-            )
-            VALUES
-            (
-              ${assignmentParams.join(
-                ", "
-              )}
-            )
-            RETURNING *
-          `,
-          assignmentValues
-        );
-
-      const assignment =
-        assignmentResult.rows[0];
-
-      /* ======================================================
-         QUESTIONS
-      ====================================================== */
-
-      const questionColumns =
-        await getTableColumns(
-          "academy_assignment_questions",
-          client
-        );
-
-      for (
-        const question of questions
-      ) {
-        const insertColumns =
-          [];
-
-        const values =
-          [];
-
-        const params =
-          [];
-
-        const addColumn =
-          (
-            column,
-            value
-          ) => {
-            if (
-              questionColumns[column]
-            ) {
-              insertColumns.push(
-                column
-              );
-
-              values.push(
-                value
-              );
-
-              params.push(
-                `$${values.length}`
-              );
-            }
-          };
-
-        addColumn(
-          "assignment_id",
-          assignment.id
-        );
-
-        addColumn(
-          "question",
-          clean(
-            question.question
-          )
-        );
-
-        addColumn(
-          "option_a",
-          clean(
-            question.optionA ??
-              question.option_a
-          )
-        );
-
-        addColumn(
-          "option_b",
-          clean(
-            question.optionB ??
-              question.option_b
-          )
-        );
-
-        addColumn(
-          "option_c",
-          clean(
-            question.optionC ??
-              question.option_c
-          )
-        );
-
-        addColumn(
-          "option_d",
-          clean(
-            question.optionD ??
-              question.option_d
-          )
-        );
-
-        addColumn(
-          "correct_answer",
-          clean(
-            question.correctAnswer ??
-              question.correct_answer
-          )
-        );
-
-        addColumn(
-          "marks",
-          toNumber(
-            question.marks,
-            1
-          )
-        );
-
-        await client.query(
-          `
-            INSERT INTO academy_assignment_questions
-            (
-              ${insertColumns.join(
-                ", "
-              )}
-            )
-            VALUES
-            (
-              ${params.join(
-                ", "
-              )}
-            )
-          `,
-          values
-        );
-      }
-
-      await client.query(
-        "COMMIT"
-      );
-
-      const savedQuestions =
-        await getAssignmentQuestions(
-          pool,
-          assignment.id
-        );
-
-      return res.status(201).json({
-        success: true,
-
-        message:
-          "Assignment created successfully.",
-
-        assignment:
-          formatAssignment(
-            assignment,
-            savedQuestions
-          ),
-      });
-    } catch (error) {
-      try {
-        await client.query(
-          "ROLLBACK"
-        );
-      } catch {}
-
-      console.error(
-        "Create assignment error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to create assignment.",
-        error: error.message,
-      });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* ============================================================
-   TUTOR — DELETE ASSIGNMENT
-============================================================ */
-
-router.delete(
-  "/tutor/assignments/:id",
-  async (req, res) => {
-    try {
-      const assignmentId =
-        clean(req.params.id);
-
-      const tutorReference =
-        getTutorReference(req);
-
-      if (!assignmentId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Assignment ID is required.",
-        });
-      }
-
-      if (!tutorReference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      const assignment =
-        await verifyTutorOwnsAssignment(
-          pool,
-          assignmentId,
-          tutorReference
-        );
-
-      if (!assignment) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Assignment not found.",
-        });
-      }
-
-      await pool.query(
-        `
-          DELETE FROM academy_assignments
-          WHERE id = $1
-            AND tutor_reference = $2
-        `,
-        [
-          assignmentId,
-          tutorReference,
-        ]
-      );
-
-      return res.json({
-        success: true,
-
-        message:
-          "Assignment deleted successfully.",
-      });
-    } catch (error) {
-      console.error(
-        "Delete assignment error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to delete assignment.",
-        error: error.message,
-      });
-    }
-  }
-);
-
-/* ============================================================
-   STUDENT — GET ASSIGNMENTS
+   STUDENT ASSIGNMENTS
+   IMPORTANT:
+   ONLY ASSIGNMENTS MATCHING THE STUDENT'S CLASS
+   ARE RETURNED.
 ============================================================ */
 
 router.get(
   "/student/assignments",
   async (req, res) => {
     try {
-      const enrollmentId =
-        getEnrollmentId(req);
+      const authenticated =
+        await authenticateStudent(
+          req,
+          res
+        );
 
-      const studentReference =
-        getStudentReference(req);
+      if (!authenticated) {
+        return;
+      }
 
-      if (
-        !enrollmentId &&
-        !studentReference
-      ) {
-        return res.status(400).json({
+      const studentClass =
+        authenticated.studentClass;
+
+      const requestedSubject =
+        clean(
+          req.query.subject
+        );
+
+      const assignmentColumns =
+        await getTableColumns(
+          "academy_assignments"
+        );
+
+      const classColumns =
+        await getAssignmentClassColumns();
+
+      if (!classColumns.length) {
+        return res.status(500).json({
           success: false,
           message:
-            "Student enrollment ID or student reference is required.",
+            "Assignment class fields could not be found.",
         });
       }
 
-      let result;
+      const classWhere =
+        buildAssignmentClassWhere(
+          classColumns,
+          1
+        );
 
-      if (enrollmentId) {
-        result =
-          await pool.query(
-            `
-              SELECT *
-              FROM academy_assignments
-              WHERE class_name = (
-                SELECT class
-                FROM academy_student_enrollments
-                WHERE enrollment_id = $1
-                LIMIT 1
+      const values = [
+        studentClass,
+      ];
+
+      let whereSql =
+        `WHERE ${classWhere.sql}`;
+
+      if (
+        requestedSubject &&
+        assignmentColumns.includes(
+          "subject"
+        )
+      ) {
+        values.push(
+          requestedSubject
+        );
+
+        whereSql += `
+          AND LOWER(TRIM(subject::text))
+              =
+              LOWER(TRIM($${values.length}::text))
+        `;
+      }
+
+      const orderColumn =
+        assignmentColumns.includes(
+          "created_at"
+        )
+          ? "created_at"
+          : "id";
+
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            ${whereSql}
+            ORDER BY ${orderColumn} DESC, id DESC
+          `,
+          values
+        );
+
+      let assignmentRows =
+        result.rows.filter(
+          (assignment) =>
+            classesMatch(
+              getAssignmentClass(
+                assignment
+              ),
+              studentClass
+            )
+        );
+
+      if (
+        requestedSubject
+      ) {
+        assignmentRows =
+          assignmentRows.filter(
+            (assignment) =>
+              subjectsMatch(
+                assignment.subject,
+                requestedSubject
               )
-              ORDER BY created_at DESC
-            `,
-            [enrollmentId]
-          );
-      } else {
-        result =
-          await pool.query(
-            `
-              SELECT *
-              FROM academy_assignments
-              ORDER BY created_at DESC
-            `
           );
       }
 
-      const assignments = [];
+      const studentReference =
+        getAuthenticatedStudentReference(
+          authenticated
+        );
 
-      for (
-        const assignment of result.rows
-      ) {
-        const questions =
-          await getAssignmentQuestions(
-            pool,
-            assignment.id
-          );
+      const assignments =
+        await Promise.all(
+          assignmentRows.map(
+            async (
+              assignment
+            ) => {
+              const questions =
+                await getAssignmentQuestions(
+                  assignment.id
+                );
 
-        assignments.push(
-          formatAssignment(
-            assignment,
-            questions
+              const submission =
+                await getLatestStudentSubmission(
+                  assignment.id,
+                  studentReference
+                );
+
+              /*
+               * IMPORTANT:
+               * Students must NEVER receive
+               * correctAnswer from this endpoint.
+               */
+              const studentQuestions =
+                questions.map(
+                  (question) => ({
+                    id:
+                      question.id,
+
+                    assignmentId:
+                      question.assignmentId,
+
+                    question:
+                      question.question,
+
+                    questionText:
+                      question.questionText,
+
+                    optionA:
+                      question.optionA,
+
+                    optionB:
+                      question.optionB,
+
+                    optionC:
+                      question.optionC,
+
+                    optionD:
+                      question.optionD,
+
+                    marks:
+                      question.marks,
+                  })
+                );
+
+              const formatted =
+                formatAssignment(
+                  assignment,
+                  studentQuestions,
+                  submission
+                );
+
+              if (
+                formatted.fileName
+              ) {
+                formatted.fileUrl =
+                  `/api/academy/student/assignments/${assignment.id}/file`;
+              }
+
+              formatted.file_url =
+                formatted.fileUrl;
+
+              return formatted;
+            }
           )
         );
-      }
+
+      const subjectMap =
+        new Map();
+
+      assignments.forEach(
+        (assignment) => {
+          const subject =
+            clean(
+              assignment.subject
+            );
+
+          if (!subject) {
+            return;
+          }
+
+          const key =
+            safeNormalizeSubject(
+              subject
+            );
+
+          if (
+            !subjectMap.has(
+              key
+            )
+          ) {
+            subjectMap.set(
+              key,
+              {
+                name:
+                  subject,
+
+                normalizedName:
+                  key,
+
+                count: 0,
+              }
+            );
+          }
+
+          subjectMap.get(
+            key
+          ).count += 1;
+        }
+      );
+
+      const subjects =
+        Array.from(
+          subjectMap.values()
+        ).sort(
+          (a, b) =>
+            a.name.localeCompare(
+              b.name
+            )
+        );
 
       return res.json({
         success: true,
+
+        student:
+          authenticated.serialized,
+
+        class:
+          studentClass,
+
+        studentClass:
+          studentClass,
+
+        subjects,
 
         assignments,
 
@@ -2022,38 +1929,49 @@ router.get(
       });
     } catch (error) {
       console.error(
-        "Student assignments error:",
+        "STUDENT ASSIGNMENTS ERROR:",
         error
       );
 
       return res.status(500).json({
         success: false,
         message:
-          "Unable to load assignments.",
-        error: error.message,
+          error.message ||
+          "Unable to load student assignments.",
       });
     }
   }
 );
 
 /* ============================================================
-   STUDENT — GET SINGLE ASSIGNMENT
+   STUDENT SINGLE ASSIGNMENT
 ============================================================ */
 
 router.get(
   "/student/assignments/:id",
   async (req, res) => {
     try {
-      const assignmentId =
-        clean(req.params.id);
+      const authenticated =
+        await authenticateStudent(
+          req,
+          res
+        );
 
-      if (!assignmentId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Assignment ID is required.",
-        });
+      if (!authenticated) {
+        return;
       }
+
+      const studentClass =
+        authenticated.studentClass;
+
+      const classColumns =
+        await getAssignmentClassColumns();
+
+      const classWhere =
+        buildAssignmentClassWhere(
+          classColumns,
+          2
+        );
 
       const result =
         await pool.query(
@@ -2061,51 +1979,119 @@ router.get(
             SELECT *
             FROM academy_assignments
             WHERE id = $1
+              AND ${classWhere.sql}
             LIMIT 1
           `,
-          [assignmentId]
+          [
+            req.params.id,
+            studentClass,
+          ]
         );
 
+      const assignment =
+        result.rows[0];
+
       if (
-        result.rows.length === 0
+        !assignment ||
+        !classesMatch(
+          getAssignmentClass(
+            assignment
+          ),
+          studentClass
+        )
       ) {
         return res.status(404).json({
           success: false,
           message:
-            "Assignment not found.",
+            "Assignment not found for your class.",
         });
       }
 
       const questions =
         await getAssignmentQuestions(
-          pool,
-          assignmentId
+          assignment.id
         );
 
-      const assignment =
-        formatAssignment(
-          result.rows[0],
-          questions
+      const studentQuestions =
+        questions.map(
+          (question) => ({
+            id:
+              question.id,
+
+            assignmentId:
+              question.assignmentId,
+
+            question:
+              question.question,
+
+            questionText:
+              question.questionText,
+
+            optionA:
+              question.optionA,
+
+            optionB:
+              question.optionB,
+
+            optionC:
+              question.optionC,
+
+            optionD:
+              question.optionD,
+
+            marks:
+              question.marks,
+          })
         );
+
+      const studentReference =
+        getAuthenticatedStudentReference(
+          authenticated
+        );
+
+      const submission =
+        await getLatestStudentSubmission(
+          assignment.id,
+          studentReference
+        );
+
+      const formatted =
+        formatAssignment(
+          assignment,
+          studentQuestions,
+          submission
+        );
+
+      if (
+        formatted.fileName
+      ) {
+        formatted.fileUrl =
+          `/api/academy/student/assignments/${assignment.id}/file`;
+
+        formatted.file_url =
+          formatted.fileUrl;
+      }
 
       return res.json({
         success: true,
 
-        assignment,
+        student:
+          authenticated.serialized,
 
-        questions:
-          assignment.questions,
+        class:
+          studentClass,
 
-        data: {
-          assignment,
+        assignment:
+          formatted,
 
-          questions:
-            assignment.questions,
-        },
+        data:
+          formatted,
+
+        submission,
       });
     } catch (error) {
       console.error(
-        "Student single assignment error:",
+        "STUDENT ASSIGNMENT DETAIL ERROR:",
         error
       );
 
@@ -2113,349 +2099,330 @@ router.get(
         success: false,
         message:
           "Unable to load assignment.",
-        error: error.message,
       });
     }
   }
 );
 
 /* ============================================================
-   STUDENT — SUBMIT ASSIGNMENT
+   STUDENT AUTHENTICATED FILE
+============================================================ */
+
+router.get(
+  "/student/assignments/:id/file",
+  async (req, res) => {
+    try {
+      const authenticated =
+        await authenticateStudent(
+          req,
+          res
+        );
+
+      if (!authenticated) {
+        return;
+      }
+
+      const studentClass =
+        authenticated.studentClass;
+
+      const classColumns =
+        await getAssignmentClassColumns();
+
+      const classWhere =
+        buildAssignmentClassWhere(
+          classColumns,
+          2
+        );
+
+      const result =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE id = $1
+              AND ${classWhere.sql}
+            LIMIT 1
+          `,
+          [
+            req.params.id,
+            studentClass,
+          ]
+        );
+
+      const assignment =
+        result.rows[0];
+
+      if (
+        !assignment ||
+        !classesMatch(
+          getAssignmentClass(
+            assignment
+          ),
+          studentClass
+        )
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Assignment not found for your class.",
+        });
+      }
+
+      const file =
+        extractFileInfo(
+          assignment
+        );
+
+      if (!file.filename) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "This assignment does not have a file.",
+        });
+      }
+
+      const filename =
+        path.basename(
+          file.filename
+        );
+
+      const filePath =
+        file.filePath &&
+        path.isAbsolute(
+          file.filePath
+        )
+          ? file.filePath
+          : path.join(
+              uploadDirectory,
+              filename
+            );
+
+      if (
+        !fs.existsSync(
+          filePath
+        )
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Assignment file not found.",
+        });
+      }
+
+      return res.sendFile(
+        filePath
+      );
+    } catch (error) {
+      console.error(
+        "STUDENT FILE ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to open assignment file.",
+      });
+    }
+  }
+);
+
+/* ============================================================
+   STUDENT SUBMIT
 ============================================================ */
 
 router.post(
   "/student/assignments/:id/submit",
   async (req, res) => {
-    const client =
-      await pool.connect();
-
     try {
-      const assignmentId =
-        clean(req.params.id);
+      const authenticated =
+        await authenticateStudent(
+          req,
+          res
+        );
 
-      const enrollmentId =
-        getEnrollmentId(req);
-
-      const studentReference =
-        getStudentReference(req);
-
-      const studentName =
-        getStudentName(req);
-
-      const body =
-        req.body || {};
-
-      /* ======================================================
-         NORMALIZE ANSWERS
-
-         Supports:
-
-         [
-           {
-             questionId: 1,
-             studentAnswer: "A"
-           }
-         ]
-
-         AND:
-
-         {
-           "1": "A",
-           "2": "B"
-         }
-      ====================================================== */
-
-      const rawSubmittedAnswers =
-        body.answers ??
-        body.answerRecords ??
-        body.answer_records ??
-        body.responses ??
-        body.answersMap ??
-        [];
-
-      let submittedAnswers;
-
-      if (
-        Array.isArray(
-          rawSubmittedAnswers
-        )
-      ) {
-        submittedAnswers =
-          rawSubmittedAnswers;
-      } else if (
-        rawSubmittedAnswers &&
-        typeof rawSubmittedAnswers ===
-          "object"
-      ) {
-        submittedAnswers =
-          Object.entries(
-            rawSubmittedAnswers
-          ).map(
-            ([
-              questionId,
-              value,
-            ]) => {
-              if (
-                value &&
-                typeof value ===
-                  "object"
-              ) {
-                return {
-                  ...value,
-
-                  questionId:
-                    value.questionId ??
-                    value.question_id ??
-                    questionId,
-                };
-              }
-
-              return {
-                questionId,
-
-                studentAnswer:
-                  value,
-              };
-            }
-          );
-      } else {
-        submittedAnswers = [];
+      if (!authenticated) {
+        return;
       }
 
-      if (!assignmentId) {
-        client.release();
+      const studentClass =
+        authenticated.studentClass;
 
-        return res.status(400).json({
-          success: false,
-          message:
-            "Assignment ID is required.",
-        });
-      }
+      const classColumns =
+        await getAssignmentClassColumns();
 
-      if (
-        !enrollmentId &&
-        !studentReference
-      ) {
-        client.release();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Student enrollment ID or student reference is required.",
-        });
-      }
+      const classWhere =
+        buildAssignmentClassWhere(
+          classColumns,
+          2
+        );
 
       const assignmentResult =
-        await client.query(
+        await pool.query(
           `
             SELECT *
             FROM academy_assignments
             WHERE id = $1
+              AND ${classWhere.sql}
             LIMIT 1
           `,
-          [assignmentId]
+          [
+            req.params.id,
+            studentClass,
+          ]
         );
-
-      if (
-        assignmentResult.rows.length ===
-        0
-      ) {
-        client.release();
-
-        return res.status(404).json({
-          success: false,
-          message:
-            "Assignment not found.",
-        });
-      }
 
       const assignment =
         assignmentResult.rows[0];
 
-      const questions =
-        await getAssignmentQuestions(
-          client,
-          assignmentId
-        );
-
-      const questionMap =
-        new Map(
-          questions.map(
-            (question) => [
-              String(question.id),
-              question,
-            ]
-          )
-        );
-
-      /* ======================================================
-         NORMALIZE ANSWERS AGAINST QUESTIONS
-      ====================================================== */
-
-      const normalizedAnswers =
-        [];
-
-      for (
-        let index = 0;
-        index <
-        submittedAnswers.length;
-        index++
+      if (
+        !assignment ||
+        !classesMatch(
+          getAssignmentClass(
+            assignment
+          ),
+          studentClass
+        )
       ) {
-        const answer =
-          submittedAnswers[index] ||
-          {};
-
-        const questionId =
-          answer.questionId ??
-          answer.question_id ??
-          answer.questionRecordId ??
-          answer.question_record_id ??
-          answer.id;
-
-        let question =
-          questionMap.get(
-            String(
-              questionId
-            )
-          );
-
-        /* Match by question number */
-
-        if (
-          !question &&
-          (
-            answer.questionNumber ??
-            answer.question_number
-          ) !== undefined
-        ) {
-          const questionNumber =
-            Number(
-              answer.questionNumber ??
-                answer.question_number
-            );
-
-          if (
-            Number.isFinite(
-              questionNumber
-            )
-          ) {
-            question =
-              questions[
-                questionNumber - 1
-              ];
-          }
-        }
-
-        /* Match by position */
-
-        if (
-          !question &&
-          questions[index]
-        ) {
-          question =
-            questions[index];
-        }
-
-        if (!question) {
-          console.warn(
-            "⚠️ Could not match submitted answer to question:",
-            {
-              index,
-              questionId,
-              answer,
-            }
-          );
-
-          continue;
-        }
-
-        const selected =
-          clean(
-            answer.studentAnswer ??
-              answer.student_answer ??
-              answer.answer ??
-              answer.selectedAnswer ??
-              answer.selected_answer ??
-              answer.value
-          );
-
-        const correct =
-          clean(
-            question.correct_answer
-          );
-
-        const isCorrect =
-          selected !== "" &&
-          correct !== "" &&
-          selected.toLowerCase() ===
-            correct.toLowerCase();
-
-        const marks =
-          toNumber(
-            question.marks,
-            1
-          );
-
-        normalizedAnswers.push({
-          questionId:
-            question.id,
-
-          questionNumber:
-            index + 1,
-
-          selected,
-
-          correct,
-
-          isCorrect,
-
-          marks,
-
-          marksAwarded:
-            isCorrect
-              ? marks
-              : 0,
+        return res.status(404).json({
+          success: false,
+          message:
+            "Assignment not found for your class.",
         });
       }
 
-      /* ======================================================
-         SCORE
-      ====================================================== */
-
-      const score =
-        normalizedAnswers.reduce(
-          (
-            total,
-            answer
-          ) =>
-            total +
-            toNumber(
-              answer.marksAwarded,
-              0
-            ),
-          0
+      const questions =
+        await getAssignmentQuestions(
+          assignment.id
         );
 
-      const totalMarks =
-        questions.reduce(
-          (
-            total,
-            question
-          ) =>
-            total +
-            toNumber(
-              question.marks,
-              1
-            ),
-          0
+      if (!questions.length) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "This assignment has no questions to submit.",
+        });
+      }
+
+      const rawAnswers =
+        req.body?.answers;
+
+      const answers =
+        Array.isArray(
+          rawAnswers
+        )
+          ? rawAnswers
+          : rawAnswers &&
+              typeof rawAnswers ===
+                "object"
+            ? Object.entries(
+                rawAnswers
+              ).map(
+                ([
+                  questionId,
+                  studentAnswer,
+                ]) => ({
+                  questionId,
+                  studentAnswer,
+                })
+              )
+            : [];
+
+      const answerMap =
+        new Map();
+
+      answers.forEach(
+        (answer) => {
+          const questionId =
+            clean(
+              answer.questionId ||
+                answer.question_id ||
+                answer.id
+            );
+
+          const studentAnswer =
+            clean(
+              answer.studentAnswer ||
+                answer.student_answer ||
+                answer.answer
+            ).toUpperCase();
+
+          if (
+            questionId
+          ) {
+            answerMap.set(
+              String(
+                questionId
+              ),
+              studentAnswer
+            );
+          }
+        }
+      );
+
+      let score = 0;
+      let maxScore = 0;
+
+      const gradedAnswers =
+        questions.map(
+          (question) => {
+            const marks =
+              Math.max(
+                1,
+                toNumber(
+                  question.marks,
+                  1
+                )
+              );
+
+            maxScore += marks;
+
+            const studentAnswer =
+              answerMap.get(
+                String(
+                  question.id
+                )
+              ) || "";
+
+            const correctAnswer =
+              clean(
+                question.correctAnswer
+              ).toUpperCase();
+
+            const isCorrect =
+              studentAnswer !== "" &&
+              studentAnswer ===
+                correctAnswer;
+
+            const marksAwarded =
+              isCorrect
+                ? marks
+                : 0;
+
+            score +=
+              marksAwarded;
+
+            return {
+              questionId:
+                question.id,
+
+              studentAnswer,
+
+              correctAnswer,
+
+              isCorrect,
+
+              marksAwarded,
+            };
+          }
         );
 
       const percentage =
-        totalMarks > 0
+        maxScore > 0
           ? Number(
               (
                 (score /
-                  totalMarks) *
+                  maxScore) *
                 100
               ).toFixed(2)
             )
@@ -2466,1260 +2433,425 @@ router.post(
           percentage
         );
 
-      await client.query(
-        "BEGIN"
-      );
+      const studentReference =
+        getAuthenticatedStudentReference(
+          authenticated
+        );
 
-      /* ======================================================
-         SUBMISSION
-      ====================================================== */
+      if (
+        !studentReference
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Your student reference could not be determined. Please log out and log in again.",
+        });
+      }
+
+      const submissionsExist =
+        await tableExists(
+          "academy_assignment_submissions"
+        );
+
+      if (!submissionsExist) {
+        return res.status(500).json({
+          success: false,
+          message:
+            "Assignment submissions table was not found.",
+        });
+      }
 
       const submissionColumns =
         await getTableColumns(
-          "academy_assignment_submissions",
-          client
+          "academy_assignment_submissions"
         );
 
-      const insertColumns =
-        [];
+      const columns = [];
+      const values = [];
+      const parameters = [];
 
-      const values =
-        [];
+      const addColumn = (
+        column,
+        value
+      ) => {
+        if (
+          submissionColumns.includes(
+            column
+          )
+        ) {
+          columns.push(
+            `"${column}"`
+          );
 
-      const params =
-        [];
+          values.push(
+            value
+          );
 
-      const addSubmissionColumn =
-        (
-          column,
-          value
-        ) => {
-          if (
-            submissionColumns[column]
-          ) {
-            insertColumns.push(
-              column
-            );
+          parameters.push(
+            `$${parameters.length + 1}`
+          );
+        }
+      };
 
-            values.push(
-              value
-            );
-
-            params.push(
-              `$${values.length}`
-            );
-          }
-        };
-
-      addSubmissionColumn(
+      addColumn(
         "assignment_id",
-        assignmentId
+        assignment.id
+      );
+
+      addColumn(
+        "student_reference",
+        studentReference
+      );
+
+      addColumn(
+        "score",
+        score
+      );
+
+      addColumn(
+        "max_score",
+        maxScore
+      );
+
+      addColumn(
+        "percentage",
+        percentage
+      );
+
+      addColumn(
+        "grade",
+        grade
+      );
+
+      addColumn(
+        "status",
+        "submitted"
+      );
+
+      addColumn(
+        "submitted_at",
+        new Date()
       );
 
       if (
-        submissionColumns.enrollment_id
+        submissionColumns.includes(
+          "created_at"
+        )
       ) {
-        addSubmissionColumn(
-          "enrollment_id",
-          enrollmentId ||
-            null
-        );
-      }
-
-      if (
-        submissionColumns.student_reference
-      ) {
-        addSubmissionColumn(
-          "student_reference",
-          studentReference ||
-            null
-        );
-      }
-
-      if (
-        submissionColumns.student_name
-      ) {
-        addSubmissionColumn(
-          "student_name",
-          studentName
-        );
-      }
-
-      /*
-        Save the original answers as JSON.
-
-        This is important because it gives us a second source
-        of truth if answer rows are unavailable.
-      */
-
-      if (
-        submissionColumns.answer
-      ) {
-        addSubmissionColumn(
-          "answer",
-          JSON.stringify(
-            submittedAnswers
-          )
-        );
-      }
-
-      if (
-        submissionColumns.score
-      ) {
-        addSubmissionColumn(
-          "score",
-          score
-        );
-      }
-
-      if (
-        submissionColumns.total_marks
-      ) {
-        addSubmissionColumn(
-          "total_marks",
-          totalMarks
-        );
-      }
-
-      if (
-        submissionColumns.percentage
-      ) {
-        addSubmissionColumn(
-          "percentage",
-          percentage
-        );
-      }
-
-      if (
-        submissionColumns.grade
-      ) {
-        addSubmissionColumn(
-          "grade",
-          grade
-        );
-      }
-
-      if (
-        submissionColumns.status
-      ) {
-        addSubmissionColumn(
-          "status",
-          "submitted"
-        );
-      }
-
-      if (
-        submissionColumns.submitted_at
-      ) {
-        addSubmissionColumn(
-          "submitted_at",
+        addColumn(
+          "created_at",
           new Date()
         );
       }
 
-      const submissionResult =
+      const client =
+        await pool.connect();
+
+      try {
         await client.query(
-          `
-            INSERT INTO academy_assignment_submissions
-            (
-              ${insertColumns.join(
-                ", "
-              )}
-            )
-            VALUES
-            (
-              ${params.join(
-                ", "
-              )}
-            )
-            RETURNING *
-          `,
-          values
+          "BEGIN"
         );
 
-      const submission =
-        submissionResult.rows[0];
-
-      /* ======================================================
-         ANSWER RECORDS
-      ====================================================== */
-
-      const answersTableExists =
-        await tableExists(
-          "academy_assignment_answers",
-          client
-        );
-
-      if (
-        answersTableExists &&
-        normalizedAnswers.length > 0
-      ) {
-        const answerColumns =
-          await getTableColumns(
-            "academy_assignment_answers",
-            client
+        const submissionResult =
+          await client.query(
+            `
+              INSERT INTO academy_assignment_submissions
+              (${columns.join(", ")})
+              VALUES
+              (${parameters.join(", ")})
+              RETURNING *
+            `,
+            values
           );
 
-        for (
-          const answer of
-            normalizedAnswers
-        ) {
-          const answerInsertColumns =
-            [];
+        const submission =
+          submissionResult.rows[0];
 
-          const answerValues =
-            [];
-
-          const answerParams =
-            [];
-
-          const addAnswerColumn =
-            (
-              column,
-              value
-            ) => {
-              if (
-                answerColumns[column]
-              ) {
-                answerInsertColumns.push(
-                  column
-                );
-
-                answerValues.push(
-                  value
-                );
-
-                answerParams.push(
-                  `$${answerValues.length}`
-                );
-              }
-            };
-
-          addAnswerColumn(
-            "submission_id",
-            submission.id
+        const answersExist =
+          await tableExists(
+            "academy_assignment_answers"
           );
 
-          addAnswerColumn(
-            "question_id",
-            answer.questionId
-          );
+        if (answersExist) {
+          const answerColumns =
+            await getTableColumns(
+              "academy_assignment_answers"
+            );
 
-          addAnswerColumn(
-            "question_number",
-            answer.questionNumber
-          );
-
-          if (
-            answerColumns.student_answer
+          for (
+            const answer of gradedAnswers
           ) {
-            addAnswerColumn(
+            const answerInsertColumns =
+              [];
+
+            const answerValues =
+              [];
+
+            const answerParameters =
+              [];
+
+            const addAnswer =
+              (
+                column,
+                value
+              ) => {
+                if (
+                  answerColumns.includes(
+                    column
+                  )
+                ) {
+                  answerInsertColumns.push(
+                    `"${column}"`
+                  );
+
+                  answerValues.push(
+                    value
+                  );
+
+                  answerParameters.push(
+                    `$${answerParameters.length + 1}`
+                  );
+                }
+              };
+
+            addAnswer(
+              "submission_id",
+              submission.id
+            );
+
+            addAnswer(
+              "question_id",
+              answer.questionId
+            );
+
+            addAnswer(
               "student_answer",
-              answer.selected
+              answer.studentAnswer
             );
-          }
 
-          if (
-            answerColumns.correct_answer
-          ) {
-            addAnswerColumn(
+            addAnswer(
               "correct_answer",
-              answer.correct
+              answer.correctAnswer
             );
-          }
 
-          if (
-            answerColumns.is_correct
-          ) {
-            addAnswerColumn(
+            addAnswer(
               "is_correct",
               answer.isCorrect
             );
-          }
 
-          if (
-            answerColumns.marks_awarded
-          ) {
-            addAnswerColumn(
+            addAnswer(
               "marks_awarded",
               answer.marksAwarded
             );
-          }
 
-          if (
-            answerColumns.score
-          ) {
-            addAnswerColumn(
-              "score",
-              answer.marksAwarded
-            );
-          }
-
-          if (
-            answerInsertColumns.length ===
-            0
-          ) {
-            continue;
-          }
-
-          /*
-            Only use ON CONFLICT if the expected unique
-            constraint exists.
-
-            This avoids breaking submission when the database
-            does not have a unique constraint on
-            (submission_id, question_id).
-          */
-
-          let hasUniqueConstraint =
-            false;
-
-          try {
-            const constraintResult =
+            if (
+              answerInsertColumns.length
+            ) {
               await client.query(
                 `
-                  SELECT 1
-                  FROM pg_constraint c
-                  JOIN pg_class t
-                    ON t.oid = c.conrelid
-                  JOIN pg_attribute a
-                    ON a.attrelid = t.oid
-                  WHERE t.relname =
-                    'academy_assignment_answers'
-                    AND c.contype = 'u'
-                  GROUP BY c.oid
-                  HAVING
-                    array_agg(a.attname ORDER BY a.attnum)
-                    @>
-                    ARRAY[
-                      'submission_id',
-                      'question_id'
-                    ]::text[]
-                    AND
-                    cardinality(
-                      array_agg(
-                        a.attname
-                        ORDER BY a.attnum
-                      )
-                    ) = 2
-                `
+                  INSERT INTO academy_assignment_answers
+                  (${answerInsertColumns.join(
+                    ", "
+                  )})
+                  VALUES
+                  (${answerParameters.join(
+                    ", "
+                  )})
+                `,
+                answerValues
               );
-
-            hasUniqueConstraint =
-              constraintResult.rows.length >
-              0;
-          } catch {
-            hasUniqueConstraint =
-              false;
-          }
-
-          if (
-            hasUniqueConstraint
-          ) {
-            await client.query(
-              `
-                INSERT INTO academy_assignment_answers
-                (
-                  ${answerInsertColumns.join(
-                    ", "
-                  )}
-                )
-                VALUES
-                (
-                  ${answerParams.join(
-                    ", "
-                  )}
-                )
-                ON CONFLICT
-                (
-                  submission_id,
-                  question_id
-                )
-                DO UPDATE SET
-                  student_answer =
-                    EXCLUDED.student_answer,
-                  correct_answer =
-                    EXCLUDED.correct_answer,
-                  is_correct =
-                    EXCLUDED.is_correct,
-                  marks_awarded =
-                    EXCLUDED.marks_awarded
-              `,
-              answerValues
-            );
-          } else {
-            await client.query(
-              `
-                INSERT INTO academy_assignment_answers
-                (
-                  ${answerInsertColumns.join(
-                    ", "
-                  )}
-                )
-                VALUES
-                (
-                  ${answerParams.join(
-                    ", "
-                  )}
-                )
-              `,
-              answerValues
-            );
+            }
           }
         }
-      }
 
-      await client.query(
-        "COMMIT"
-      );
-
-      /* ======================================================
-         LOAD SAVED ANSWERS
-      ====================================================== */
-
-      const savedAnswers =
-        await getSubmissionAnswers(
-          pool,
-          submission.id
+        await client.query(
+          "COMMIT"
         );
 
-      console.log(
-        "✅ SUBMISSION SAVED:",
-        {
-          submissionId:
-            submission.id,
+        return res.status(201).json({
+          success: true,
 
-          assignmentId,
+          message:
+            "Assignment submitted successfully.",
 
-          submittedAnswerCount:
-            submittedAnswers.length,
+          submission,
 
-          normalizedAnswerCount:
-            normalizedAnswers.length,
-
-          savedAnswerCount:
-            savedAnswers.length,
-        }
-      );
-
-      return res.status(201).json({
-        success: true,
-
-        message:
-          "Assignment submitted successfully.",
-
-        submission: {
-          ...submission,
-
-          score,
-
-          totalMarks,
-
-          percentage,
-
-          grade,
-
-          answerCount:
-            savedAnswers.length,
-
-          answers:
-            savedAnswers,
-
-          answersAvailable:
-            savedAnswers.length > 0,
-        },
-
-        answers:
-          savedAnswers,
-
-        answerCount:
-          savedAnswers.length,
-
-        answersAvailable:
-          savedAnswers.length > 0,
-      });
-    } catch (error) {
-      try {
+          result: {
+            score,
+            maxScore,
+            percentage,
+            grade,
+          },
+        });
+      } catch (error) {
         await client.query(
           "ROLLBACK"
         );
-      } catch {}
 
+        throw error;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
       console.error(
-        "Submit assignment error:",
+        "STUDENT SUBMISSION ERROR:",
         error
       );
 
       return res.status(500).json({
         success: false,
         message:
+          error.message ||
           "Unable to submit assignment.",
-        error: error.message,
-      });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* ============================================================
-   TUTOR — GET SUBMISSIONS
-============================================================ */
-
-router.get(
-  "/tutor/assignments/:id/submissions",
-  async (req, res) => {
-    try {
-      const assignmentId =
-        clean(req.params.id);
-
-      const tutorReference =
-        getTutorReference(req);
-
-      if (!assignmentId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Assignment ID is required.",
-        });
-      }
-
-      if (!tutorReference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      const assignment =
-        await verifyTutorOwnsAssignment(
-          pool,
-          assignmentId,
-          tutorReference
-        );
-
-      if (!assignment) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Assignment not found.",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            SELECT *
-            FROM academy_assignment_submissions
-            WHERE assignment_id = $1
-            ORDER BY submitted_at DESC NULLS LAST, id DESC
-          `,
-          [assignmentId]
-        );
-
-      const submissions =
-        [];
-
-      const questions =
-        await getAssignmentQuestions(
-          pool,
-          assignmentId
-        );
-
-      const totalMarks =
-        questions.reduce(
-          (
-            total,
-            question
-          ) =>
-            total +
-            toNumber(
-              question.marks,
-              1
-            ),
-          0
-        );
-
-      for (
-        const row of result.rows
-      ) {
-        const answers =
-          await getSubmissionAnswers(
-            pool,
-            row.id
-          );
-
-        const score =
-          toNumber(
-            row.score,
-            answers.reduce(
-              (
-                total,
-                answer
-              ) =>
-                total +
-                toNumber(
-                  answer.marksAwarded,
-                  0
-                ),
-              0
-            )
-          );
-
-        const percentage =
-          totalMarks > 0
-            ? Number(
-                (
-                  (score /
-                    totalMarks) *
-                  100
-                ).toFixed(2)
-              )
-            : 0;
-
-        submissions.push({
-          ...row,
-
-          enrollmentId:
-            row.enrollment_id,
-
-          studentName:
-            row.student_name ||
-            "Student",
-
-          score,
-
-          totalMarks,
-
-          percentage,
-
-          grade:
-            row.grade ??
-            getGrade(
-              percentage
-            ),
-
-          status:
-            row.status ??
-            "submitted",
-
-          answerCount:
-            answers.length,
-
-          answersAvailable:
-            answers.length > 0,
-        });
-      }
-
-      return res.json({
-        success: true,
-
-        assignment:
-          formatAssignment(
-            assignment,
-            questions
-          ),
-
-        submissions,
-
-        data: {
-          submissions,
-        },
-
-        results:
-          submissions,
-
-        count:
-          submissions.length,
-      });
-    } catch (error) {
-      console.error(
-        "Tutor assignment submissions error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to load assignment submissions.",
-        error: error.message,
       });
     }
   }
 );
 
 /* ============================================================
-   TUTOR — GET SINGLE SUBMISSION
-============================================================ */
-
-router.get(
-  "/tutor/assignments/:id/submissions/:submissionId",
-  async (req, res) => {
-    try {
-      const assignmentId =
-        clean(req.params.id);
-
-      const submissionId =
-        clean(
-          req.params.submissionId
-        );
-
-      const tutorReference =
-        getTutorReference(req);
-
-      if (!assignmentId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Assignment ID is required.",
-        });
-      }
-
-      if (!submissionId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Submission ID is required.",
-        });
-      }
-
-      if (!tutorReference) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      const assignment =
-        await verifyTutorOwnsAssignment(
-          pool,
-          assignmentId,
-          tutorReference
-        );
-
-      if (!assignment) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Assignment not found.",
-        });
-      }
-
-      const submission =
-        await getTutorSubmission(
-          pool,
-          assignmentId,
-          submissionId
-        );
-
-      if (!submission) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Submission not found.",
-        });
-      }
-
-      console.log(
-        "📄 SINGLE SUBMISSION RESPONSE:",
-        {
-          submissionId,
-
-          answerCount:
-            submission.answerCount,
-
-          answersAvailable:
-            submission.answersAvailable,
-        }
-      );
-
-      return res.json({
-        success: true,
-
-        submission,
-
-        answers:
-          submission.answers,
-
-        answerCount:
-          submission.answerCount,
-
-        answersAvailable:
-          submission.answersAvailable,
-
-        data: {
-          submission,
-
-          answers:
-            submission.answers,
-        },
-
-        result: {
-          submission,
-
-          answers:
-            submission.answers,
-        },
-      });
-    } catch (error) {
-      console.error(
-        "Tutor single submission error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to load submission.",
-        error: error.message,
-      });
-    }
-  }
-);
-
-/* ============================================================
-   TUTOR — RELEASE RESULT
-============================================================ */
-
-router.patch(
-  "/tutor/assignments/:id/submissions/:submissionId/release",
-  async (req, res) => {
-    const client =
-      await pool.connect();
-
-    try {
-      const assignmentId =
-        clean(req.params.id);
-
-      const submissionId =
-        clean(
-          req.params.submissionId
-        );
-
-      const tutorReference =
-        getTutorReference(req);
-
-      if (
-        !assignmentId ||
-        !submissionId
-      ) {
-        client.release();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Assignment ID and submission ID are required.",
-        });
-      }
-
-      if (!tutorReference) {
-        client.release();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Tutor reference is required.",
-        });
-      }
-
-      const assignment =
-        await verifyTutorOwnsAssignment(
-          client,
-          assignmentId,
-          tutorReference
-        );
-
-      if (!assignment) {
-        client.release();
-
-        return res.status(404).json({
-          success: false,
-          message:
-            "Assignment not found.",
-        });
-      }
-
-      const submissionResult =
-        await client.query(
-          `
-            SELECT *
-            FROM academy_assignment_submissions
-            WHERE id = $1
-              AND assignment_id = $2
-            LIMIT 1
-          `,
-          [
-            submissionId,
-            assignmentId,
-          ]
-        );
-
-      if (
-        submissionResult.rows.length ===
-        0
-      ) {
-        client.release();
-
-        return res.status(404).json({
-          success: false,
-          message:
-            "Submission not found.",
-        });
-      }
-
-      const body =
-        req.body || {};
-
-      const feedback =
-        clean(
-          body.feedback
-        );
-
-      const columns =
-        await getTableColumns(
-          "academy_assignment_submissions",
-          client
-        );
-
-      const updates =
-        [];
-
-      const values =
-        [];
-
-      const params =
-        [];
-
-      const addUpdate =
-        (
-          column,
-          value
-        ) => {
-          if (
-            columns[column]
-          ) {
-            values.push(
-              value
-            );
-
-            params.push(
-              `$${values.length}`
-            );
-
-            updates.push(
-              `${column} = ${params[params.length - 1]}`
-            );
-          }
-        };
-
-      if (
-        columns.status
-      ) {
-        addUpdate(
-          "status",
-          "released"
-        );
-      }
-
-      if (
-        columns.feedback
-      ) {
-        addUpdate(
-          "feedback",
-          feedback
-        );
-      }
-
-      if (
-        columns.result_released
-      ) {
-        addUpdate(
-          "result_released",
-          true
-        );
-      }
-
-      if (
-        updates.length === 0
-      ) {
-        client.release();
-
-        return res.status(500).json({
-          success: false,
-          message:
-            "No releasable submission columns were found.",
-        });
-      }
-
-      values.push(
-        submissionId
-      );
-
-      params.push(
-        `$${values.length}`
-      );
-
-      await client.query(
-        `
-          UPDATE academy_assignment_submissions
-          SET ${updates.join(
-            ", "
-          )}
-          WHERE id = ${params[params.length - 1]}
-        `,
-        values
-      );
-
-      await client.query(
-        "COMMIT"
-      );
-
-      return res.json({
-        success: true,
-
-        message:
-          "Assignment result released successfully.",
-      });
-    } catch (error) {
-      try {
-        await client.query(
-          "ROLLBACK"
-        );
-      } catch {}
-
-      console.error(
-        "Release assignment result error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Unable to release assignment result.",
-        error: error.message,
-      });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* ============================================================
-   STUDENT — GET RESULT
+   STUDENT RESULT
 ============================================================ */
 
 router.get(
   "/student/assignments/:id/result",
   async (req, res) => {
     try {
-      const assignmentId =
-        clean(req.params.id);
+      const authenticated =
+        await authenticateStudent(
+          req,
+          res
+        );
 
-      const enrollmentId =
-        getEnrollmentId(req);
+      if (!authenticated) {
+        return;
+      }
 
-      const studentReference =
-        getStudentReference(req);
+      const studentClass =
+        authenticated.studentClass;
+
+      const classColumns =
+        await getAssignmentClassColumns();
+
+      const classWhere =
+        buildAssignmentClassWhere(
+          classColumns,
+          2
+        );
+
+      const assignmentResult =
+        await pool.query(
+          `
+            SELECT *
+            FROM academy_assignments
+            WHERE id = $1
+              AND ${classWhere.sql}
+            LIMIT 1
+          `,
+          [
+            req.params.id,
+            studentClass,
+          ]
+        );
+
+      const assignment =
+        assignmentResult.rows[0];
 
       if (
-        !enrollmentId &&
+        !assignment ||
+        !classesMatch(
+          getAssignmentClass(
+            assignment
+          ),
+          studentClass
+        )
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Assignment not found for your class.",
+        });
+      }
+
+      const studentReference =
+        getAuthenticatedStudentReference(
+          authenticated
+        );
+
+      if (
         !studentReference
       ) {
         return res.status(400).json({
           success: false,
           message:
-            "Student enrollment ID or student reference is required.",
-        });
-      }
-
-      let result;
-
-      if (enrollmentId) {
-        result =
-          await pool.query(
-            `
-              SELECT *
-              FROM academy_assignment_submissions
-              WHERE assignment_id = $1
-                AND enrollment_id = $2
-              ORDER BY id DESC
-              LIMIT 1
-            `,
-            [
-              assignmentId,
-              enrollmentId,
-            ]
-          );
-      } else {
-        result =
-          await pool.query(
-            `
-              SELECT *
-              FROM academy_assignment_submissions
-              WHERE assignment_id = $1
-                AND student_reference = $2
-              ORDER BY id DESC
-              LIMIT 1
-            `,
-            [
-              assignmentId,
-              studentReference,
-            ]
-          );
-      }
-
-      if (
-        result.rows.length ===
-        0
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Assignment submission not found.",
+            "Your student reference could not be determined.",
         });
       }
 
       const submission =
-        result.rows[0];
-
-      const answers =
-        await getSubmissionAnswers(
-          pool,
-          submission.id
+        await getLatestStudentSubmission(
+          assignment.id,
+          studentReference
         );
 
-      const questions =
-        await getAssignmentQuestions(
-          pool,
-          assignmentId
-        );
-
-      const totalMarks =
-        questions.reduce(
-          (
-            total,
-            question
-          ) =>
-            total +
-            toNumber(
-              question.marks,
-              1
-            ),
-          0
-        );
-
-      const score =
-        toNumber(
-          submission.score,
-          answers.reduce(
-            (
-              total,
-              answer
-            ) =>
-              total +
-              toNumber(
-                answer.marksAwarded,
-                0
-              ),
-            0
-          )
-        );
-
-      const percentage =
-        totalMarks > 0
-          ? Number(
-              (
-                (score /
-                  totalMarks) *
-                100
-              ).toFixed(2)
-            )
-          : 0;
-
-      const grade =
-        submission.grade ??
-        getGrade(
-          percentage
-        );
-
-      const status =
-        submission.status ??
-        "submitted";
-
-      const resultReleased =
-        Boolean(
-          submission.result_released
-        ) ||
-        String(status).toLowerCase() ===
-          "released";
-
-      if (
-        !resultReleased
-      ) {
-        return res.status(403).json({
+      if (!submission) {
+        return res.status(404).json({
           success: false,
           message:
-            "Assignment result has not been released yet.",
+            "Result not found. This assignment has not been submitted yet.",
         });
       }
-
-      const formattedSubmission = {
-        ...submission,
-
-        score,
-
-        totalMarks,
-
-        percentage,
-
-        grade,
-
-        status,
-
-        resultReleased,
-
-        answerCount:
-          answers.length,
-
-        answers,
-
-        answersAvailable:
-          answers.length > 0,
-      };
 
       return res.json({
         success: true,
 
-        submission:
-          formattedSubmission,
+        assignment: {
+          id:
+            assignment.id,
 
-        answers,
+          title:
+            assignment.title,
 
-        answerCount:
-          answers.length,
+          subject:
+            assignment.subject ||
+            "",
 
-        answersAvailable:
-          answers.length > 0,
-
-        data: {
-          submission:
-            formattedSubmission,
-
-          answers,
+          class:
+            getAssignmentClass(
+              assignment
+            ),
         },
 
-        result: {
-          submission:
-            formattedSubmission,
+        submission,
 
-          answers,
+        result: {
+          score:
+            submission.score ??
+            0,
+
+          maxScore:
+            submission.max_score ??
+            0,
+
+          percentage:
+            submission.percentage ??
+            0,
+
+          grade:
+            submission.grade ||
+            null,
+
+          status:
+            submission.status ||
+            "submitted",
+
+          submittedAt:
+            submission.submitted_at ||
+            null,
         },
       });
     } catch (error) {
       console.error(
-        "Student assignment result error:",
+        "STUDENT RESULT ERROR:",
         error
       );
 
@@ -3727,14 +2859,120 @@ router.get(
         success: false,
         message:
           "Unable to load assignment result.",
-        error: error.message,
       });
     }
   }
 );
 
 /* ============================================================
-   EXPORT
+   LEGACY FILE ACCESS
 ============================================================ */
+
+router.get(
+  "/assignment-files/:filename",
+  async (req, res) => {
+    try {
+      const filename =
+        path.basename(
+          clean(
+            req.params.filename
+          )
+        );
+
+      if (!filename) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid assignment file.",
+        });
+      }
+
+      const filePath =
+        path.join(
+          uploadDirectory,
+          filename
+        );
+
+      if (
+        !fs.existsSync(
+          filePath
+        )
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Assignment file not found.",
+        });
+      }
+
+      return res.sendFile(
+        filePath
+      );
+    } catch (error) {
+      console.error(
+        "ASSIGNMENT FILE ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to open assignment file.",
+      });
+    }
+  }
+);
+
+/* ============================================================
+   MULTER ERROR HANDLER
+============================================================ */
+
+router.use(
+  (
+    error,
+    req,
+    res,
+    next
+  ) => {
+    if (
+      error instanceof
+      multer.MulterError
+    ) {
+      if (
+        error.code ===
+        "LIMIT_FILE_SIZE"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "The uploaded file is too large. Maximum size is 250 MB.",
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message:
+          error.message ||
+          "File upload failed.",
+      });
+    }
+
+    if (error) {
+      console.error(
+        "ACADEMY ASSIGNMENTS ERROR:",
+        error
+      );
+
+      return res.status(400).json({
+        success: false,
+        message:
+          error.message ||
+          "Request failed.",
+      });
+    }
+
+    next();
+  }
+);
 
 export default router;

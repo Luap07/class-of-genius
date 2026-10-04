@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 import pool from "./lib/db.js";
@@ -25,7 +26,6 @@ import taskRoutes from "./routes/taskRoutes.js";
 import learningMaterialsRouter from "./routes/learningMaterials.js";
 import tutorAssignmentsRouter from "./routes/academyTutorAssignments.js";
 
-
 // ============================================================
 // SCHOLIQEN ACADEMY ROUTES
 // ============================================================
@@ -34,7 +34,9 @@ import academyTaskManagementRoutes from "./routes/academyTaskManagementRoutes.js
 import academyTaskSubmissionRoutes from "./routes/academyTaskSubmissionRoutes.js";
 import academyRoutes from "./routes/academyRoutes.js";
 import academyTeachingRoutes from "./routes/academyTeaching.js";
+
 import academyAssignmentRoutes from "./routes/academyAssignmentRoutes.js";
+
 import academyLessonRoutes from "./routes/academyLessonRoutes.js";
 import academyLiveClassRoutes from "./routes/academyLiveClassRoutes.js";
 import academyTutorAttendanceRoutes from "./routes/academyTutorAttendance.js";
@@ -44,24 +46,6 @@ import academyEnrollmentRoutes from "./routes/academyEnrollmentRoutes.js";
 import academyStudentMaterialsRoutes from "./routes/academyStudentMaterials.js";
 
 // ============================================================
-// NOTE
-// ============================================================
-// materialRoutes.js is intentionally NOT imported/mounted here.
-//
-// Previously you had:
-//
-// app.use("/api/admin/lms/materials", learningMaterialsRouter);
-// app.use("/api/admin/lms/materials", materialRoutes);
-//
-// That creates two routers on the same endpoint and can cause
-// requests to reach the wrong handler.
-//
-// learningMaterials.js is now the ADMIN material router.
-// academyStudentMaterials.js is the STUDENT material router.
-// ============================================================
-
-
-// ============================================================
 // PATH CONFIGURATION
 // ============================================================
 
@@ -69,7 +53,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.resolve(__dirname, "..");
-const ENV_PATH = path.join(ROOT_DIR, ".env");
+
+const ENV_PATH = path.join(
+  ROOT_DIR,
+  ".env"
+);
 
 // ============================================================
 // LOAD ENVIRONMENT
@@ -84,7 +72,10 @@ if (envResult.error) {
   console.warn("");
   console.warn("⚠️ Could not load .env");
   console.warn("📁 Expected:", ENV_PATH);
-  console.warn("Reason:", envResult.error.message);
+  console.warn(
+    "Reason:",
+    envResult.error.message
+  );
   console.warn("");
 } else {
   console.log(
@@ -107,6 +98,11 @@ const UPLOADS_DIR = path.join(
   "uploads"
 );
 
+const ACADEMY_ASSIGNMENTS_DIR = path.join(
+  UPLOADS_DIR,
+  "academy-assignments"
+);
+
 const NOVEL_COVERS_DIR = path.join(
   UPLOADS_DIR,
   "covers"
@@ -127,11 +123,31 @@ const VIDEOS_DIR = path.join(
   "videos"
 );
 
-// Keep these variables available for future upload handling.
-void NOVEL_COVERS_DIR;
-void DOCUMENTS_DIR;
-void THUMBNAILS_DIR;
-void VIDEOS_DIR;
+// ============================================================
+// CREATE UPLOAD DIRECTORIES
+// ============================================================
+
+for (const directory of [
+  UPLOADS_DIR,
+  ACADEMY_ASSIGNMENTS_DIR,
+  NOVEL_COVERS_DIR,
+  DOCUMENTS_DIR,
+  THUMBNAILS_DIR,
+  VIDEOS_DIR,
+]) {
+  try {
+    if (!fs.existsSync(directory)) {
+      fs.mkdirSync(directory, {
+        recursive: true,
+      });
+    }
+  } catch (error) {
+    console.error(
+      `❌ Unable to prepare upload directory: ${directory}`,
+      error?.message
+    );
+  }
+}
 
 // ============================================================
 // PORT
@@ -357,6 +373,7 @@ app.use(
       "x-paystack-signature",
       "x-tutor-reference",
       "x-academy-token",
+      "x-student-token",
       "x-material-access-token",
     ],
 
@@ -366,9 +383,6 @@ app.use(
 
 // ============================================================
 // PAYSTACK WEBHOOK RAW BODY
-// ============================================================
-// IMPORTANT:
-// This MUST remain BEFORE express.json().
 // ============================================================
 
 app.use(
@@ -382,23 +396,11 @@ app.use(
 // ============================================================
 // JSON BODY PARSER
 // ============================================================
-// IMPORTANT:
-// This MUST come BEFORE ALL API ROUTES that use req.body.
-//
-// This fixes:
-//
-// Cannot destructure property 'title'
-// of 'req.body' as it is undefined
-// ============================================================
 
 app.use(
   express.json({
     limit: "2mb",
   })
-);
-app.use(
-  "/api/academy/tutor/assignments",
-  tutorAssignmentsRouter
 );
 
 // ============================================================
@@ -440,32 +442,22 @@ app.use(
 // ============================================================
 // STATIC UPLOADS
 // ============================================================
-//
-// IMPORTANT SECURITY NOTE:
-//
-// This currently exposes everything inside /uploads.
-//
-// If your protected textbooks are stored inside:
-//   server/uploads/materials
-//
-// they can potentially be opened directly without the
-// textbook access code.
-//
-// We will move protected textbook files behind the student
-// material route after the body-parser problem is fixed.
-//
-// For now this keeps your existing upload behavior working.
-// ============================================================
 
 app.use(
   "/uploads",
   express.static(
     UPLOADS_DIR,
     {
+      fallthrough: true,
+
       setHeaders: (
         res,
         filePath
       ) => {
+        // ======================================================
+        // CORS
+        // ======================================================
+
         res.setHeader(
           "Access-Control-Allow-Origin",
           FRONTEND_URL
@@ -490,12 +482,25 @@ app.use(
             "Accept",
             "X-Requested-With",
             "x-academy-token",
+            "x-student-token",
             "x-material-access-token",
+            "x-tutor-reference",
           ].join(", ")
         );
 
+        res.setHeader(
+          "Cache-Control",
+          "public, max-age=3600"
+        );
+
         const lowerPath =
-          filePath.toLowerCase();
+          String(
+            filePath || ""
+          ).toLowerCase();
+
+        // ======================================================
+        // PDF
+        // ======================================================
 
         if (
           lowerPath.endsWith(".pdf")
@@ -504,7 +509,23 @@ app.use(
             "Content-Type",
             "application/pdf"
           );
+
+          res.setHeader(
+            "Content-Disposition",
+            "inline"
+          );
+
+          res.setHeader(
+            "X-Content-Type-Options",
+            "nosniff"
+          );
+
+          return;
         }
+
+        // ======================================================
+        // MP4
+        // ======================================================
 
         if (
           lowerPath.endsWith(".mp4")
@@ -513,7 +534,18 @@ app.use(
             "Content-Type",
             "video/mp4"
           );
+
+          res.setHeader(
+            "Content-Disposition",
+            "inline"
+          );
+
+          return;
         }
+
+        // ======================================================
+        // WEBM
+        // ======================================================
 
         if (
           lowerPath.endsWith(".webm")
@@ -522,7 +554,18 @@ app.use(
             "Content-Type",
             "video/webm"
           );
+
+          res.setHeader(
+            "Content-Disposition",
+            "inline"
+          );
+
+          return;
         }
+
+        // ======================================================
+        // MOV
+        // ======================================================
 
         if (
           lowerPath.endsWith(".mov")
@@ -531,6 +574,43 @@ app.use(
             "Content-Type",
             "video/quicktime"
           );
+
+          res.setHeader(
+            "Content-Disposition",
+            "inline"
+          );
+
+          return;
+        }
+
+        // ======================================================
+        // DOC
+        // ======================================================
+
+        if (
+          lowerPath.endsWith(".doc")
+        ) {
+          res.setHeader(
+            "Content-Type",
+            "application/msword"
+          );
+
+          return;
+        }
+
+        // ======================================================
+        // DOCX
+        // ======================================================
+
+        if (
+          lowerPath.endsWith(".docx")
+        ) {
+          res.setHeader(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          );
+
+          return;
         }
       },
     }
@@ -538,21 +618,16 @@ app.use(
 );
 
 // ============================================================
-// ADMIN MATERIAL ROUTES
+// LEGACY / EXISTING TUTOR ASSIGNMENT ROUTER
 // ============================================================
-//
-// ONLY ONE ADMIN MATERIAL ROUTER.
-//
-// This handles:
-//
-// GET    /api/admin/lms/materials
-// GET    /api/admin/lms/materials/:id
-// POST   /api/admin/lms/materials
-// PUT    /api/admin/lms/materials/:id
-// DELETE /api/admin/lms/materials/:id
-//
-// The route is mounted AFTER express.json(), so req.body
-// will be available.
+
+app.use(
+  "/api/academy/tutor/assignments",
+  tutorAssignmentsRouter
+);
+
+// ============================================================
+// ADMIN MATERIAL ROUTES
 // ============================================================
 
 app.use(
@@ -562,15 +637,6 @@ app.use(
 
 // ============================================================
 // STUDENT MATERIAL ROUTES
-// ============================================================
-//
-// Handles:
-//
-// GET  /api/academy/student/materials
-// POST /api/academy/student/materials/:id/unlock
-// GET  /api/academy/student/materials/:id/access
-//
-// Also mounted AFTER express.json().
 // ============================================================
 
 app.use(
@@ -632,6 +698,24 @@ app.get(
         studentMaterials:
           "/api/academy/student/materials",
 
+        studentAssignments:
+          "GET /api/academy/student/assignments",
+
+        studentAssignment:
+          "GET /api/academy/student/assignments/:id",
+
+        studentAssignmentFile:
+          "GET /api/academy/student/assignments/:id/file",
+
+        submitStudentAssignment:
+          "POST /api/academy/student/assignments/:id/submit",
+
+        studentAssignmentResult:
+          "GET /api/academy/student/assignments/:id/result",
+
+        tutorAssignments:
+          "/api/academy/tutor/assignments",
+
         courses:
           "/api/courses",
 
@@ -647,50 +731,11 @@ app.get(
         resources:
           "/api/resources",
 
-        resourceTopics:
-          "GET /api/resources/topics",
-
-        resourceList:
-          "GET /api/resources",
-
-        singleResource:
-          "GET /api/resources/:id",
-
         tasks:
           "/api/tasks",
 
-        taskTest:
-          "GET /api/tasks/test",
-
-        taskList:
-          "GET /api/tasks",
-
-        taskByTopic:
-          "GET /api/tasks/topic/:topicId",
-
-        singleTask:
-          "GET /api/tasks/:id",
-
-        createTask:
-          "POST /api/tasks",
-
-        updateTask:
-          "PUT /api/tasks/:id",
-
-        deleteTask:
-          "DELETE /api/tasks/:id",
-
         novels:
           "/api/novels",
-
-        singleNovel:
-          "GET /api/novels/:id",
-
-        cbtQuestions:
-          "GET /api/cbt/questions",
-
-        cbtQuestionCount:
-          "GET /api/cbt/questions/count",
 
         tutor:
           "/api/tutor",
@@ -700,132 +745,6 @@ app.get(
 
         academy:
           "/api/academy",
-
-        studentEnrollment:
-          "POST /api/academy/student-enrollment",
-
-        tutorApplication:
-          "POST /api/academy/tutor-application",
-
-        studentEnrollmentByUser:
-          "GET /api/academy/student/:userId",
-
-        tutorApplicationByReference:
-          "GET /api/academy/tutor-application/:reference",
-
-        studentSubjects:
-          "GET /api/academy/student/subjects",
-
-        tutorTasks:
-          "GET /api/academy/tutor/tasks",
-
-        tutorTaskDetails:
-          "GET /api/academy/tutor/tasks/:taskId",
-
-        updateTutorTask:
-          "PATCH /api/academy/tutor/tasks/:taskId",
-
-        deleteTutorTask:
-          "DELETE /api/academy/tutor/tasks/:taskId",
-
-        createTutorTask:
-          "POST /api/academy/tutor/tasks",
-
-        tutorTaskSubmissions:
-          "GET /api/academy/tutor/tasks/submissions",
-
-        submitStudentTask:
-          "POST /api/academy/student/tasks/:taskId/submission",
-
-        tutorClasses:
-          "GET /api/academy/tutor/classes",
-
-        tutorLiveClasses:
-          "GET /api/academy/tutor/live-classes",
-
-        createLiveClass:
-          "POST /api/academy/tutor/live-classes",
-
-        startLiveClass:
-          "PATCH /api/academy/tutor/live-classes/:id/start",
-
-        endLiveClass:
-          "PATCH /api/academy/tutor/live-classes/:id/end",
-
-        liveClassDetails:
-          "GET /api/academy/tutor/live-classes/:id",
-
-        joinLiveClass:
-          "POST /api/academy/tutor/live-classes/:id/join",
-
-        leaveLiveClass:
-          "POST /api/academy/tutor/live-classes/:id/leave",
-
-        liveParticipants:
-          "GET /api/academy/tutor/live-classes/:id/participants",
-
-        tutorLessons:
-          "GET /api/academy/tutor/lessons",
-
-        createTutorLesson:
-          "POST /api/academy/tutor/lessons",
-
-        tutorAttendanceClasses:
-          "GET /api/academy/tutor/attendance/classes",
-
-        tutorAttendance:
-          "GET /api/academy/tutor/attendance",
-
-        liveAttendance:
-          "GET /api/academy/tutor/live-classes/:id/attendance",
-
-        liveChat:
-          "GET /api/academy/tutor/live-classes/:id/chat",
-
-        sendLiveChat:
-          "POST /api/academy/tutor/live-classes/:id/chat",
-
-        tutorMaterials:
-          "GET /api/academy/tutor/materials",
-
-        uploadTutorMaterial:
-          "POST /api/academy/tutor/materials",
-
-        saveRecording:
-          "POST /api/academy/tutor/live-classes/:id/recording",
-
-        whiteboard:
-          "GET /api/academy/tutor/live-classes/:id/whiteboard",
-
-        saveWhiteboard:
-          "POST /api/academy/tutor/live-classes/:id/whiteboard",
-
-        tutorStudentMessages:
-          "GET /api/academy/tutor/messages",
-
-        tutorConversationMessages:
-          "GET /api/academy/tutor/messages/:conversationId",
-
-        sendTutorStudentMessage:
-          "POST /api/academy/tutor/messages/:conversationId",
-
-        startTutorStudentConversation:
-          "POST /api/academy/tutor/messages/start",
-
-        tutorAnnouncements:
-          "GET /api/academy/tutor/announcements",
-
-        tutorAnnouncement:
-          "GET /api/academy/tutor/announcements/:id",
-
-        createTutorAnnouncement:
-          "POST /api/academy/tutor/announcements",
-
-        updateTutorAnnouncement:
-          "PATCH /api/academy/tutor/announcements/:id",
-
-        deleteTutorAnnouncement:
-          "DELETE /api/academy/tutor/announcements/:id",
 
         health:
           "GET /api/health",
@@ -919,6 +838,9 @@ app.get(
           databaseConfigured,
 
         studentMaterials:
+          databaseConfigured,
+
+        studentAssignments:
           databaseConfigured,
 
         adminMaterials:
@@ -1054,30 +976,6 @@ app.get(
           req.query.subjects || ""
         ).trim();
 
-      console.log("");
-
-      console.log(
-        "=================================================="
-      );
-
-      console.log(
-        "📝 CBT QUESTIONS REQUEST"
-      );
-
-      console.log(
-        "=================================================="
-      );
-
-      console.log(
-        "📚 Exam:",
-        exam || "NONE"
-      );
-
-      console.log(
-        "📖 Subjects:",
-        subjectsParam || "ALL"
-      );
-
       if (!exam) {
         return res.status(400).json({
           success: false,
@@ -1163,15 +1061,6 @@ app.get(
           created_at DESC
       `;
 
-      console.log(
-        "🔎 Running CBT query..."
-      );
-
-      console.log(
-        "📌 SQL parameters:",
-        values
-      );
-
       const result =
         await pool.query(
           query,
@@ -1198,30 +1087,6 @@ app.get(
         }
       );
 
-      console.log(
-        `✅ CBT QUESTIONS FOUND: ${result.rows.length}`
-      );
-
-      console.log(
-        "📊 SUBJECT BREAKDOWN:"
-      );
-
-      Object.entries(
-        subjectCounts
-      ).forEach(
-        ([subject, count]) => {
-          console.log(
-            `   • ${subject}: ${count}`
-          );
-        }
-      );
-
-      console.log(
-        "=================================================="
-      );
-
-      console.log("");
-
       return res.status(200).json({
         success: true,
 
@@ -1237,55 +1102,10 @@ app.get(
         subjectCounts,
       });
     } catch (error) {
-      console.error("");
-
       console.error(
-        "=================================================="
+        "❌ CBT QUESTIONS API ERROR:",
+        error
       );
-
-      console.error(
-        "❌ CBT QUESTIONS API ERROR"
-      );
-
-      console.error(
-        "=================================================="
-      );
-
-      console.error(
-        "Message:",
-        error?.message
-      );
-
-      console.error(
-        "Code:",
-        error?.code
-      );
-
-      console.error(
-        "Detail:",
-        error?.detail
-      );
-
-      console.error(
-        "Hint:",
-        error?.hint
-      );
-
-      console.error(
-        "Position:",
-        error?.position
-      );
-
-      console.error(
-        "Stack:",
-        error?.stack
-      );
-
-      console.error(
-        "=================================================="
-      );
-
-      console.error("");
 
       return res.status(500).json({
         success: false,
@@ -1317,10 +1137,6 @@ app.get(
   "/api/cbt/questions/count",
   async (req, res) => {
     try {
-      console.log(
-        "🔎 Counting CBT questions from Neon..."
-      );
-
       const result =
         await pool.query(`
           SELECT
@@ -1334,10 +1150,6 @@ app.get(
           0
         );
 
-      console.log(
-        `📝 CBT Question Count: ${count}`
-      );
-
       return res.status(200).json({
         success: true,
 
@@ -1350,45 +1162,10 @@ app.get(
           count,
       });
     } catch (error) {
-      console.error("");
-
       console.error(
-        "=================================================="
+        "❌ CBT QUESTION COUNT ERROR:",
+        error
       );
-
-      console.error(
-        "❌ CBT QUESTION COUNT ERROR"
-      );
-
-      console.error(
-        "=================================================="
-      );
-
-      console.error(
-        "Message:",
-        error?.message
-      );
-
-      console.error(
-        "Code:",
-        error?.code
-      );
-
-      console.error(
-        "Detail:",
-        error?.detail
-      );
-
-      console.error(
-        "Hint:",
-        error?.hint
-      );
-
-      console.error(
-        "=================================================="
-      );
-
-      console.error("");
 
       return res.status(500).json({
         success: false,
@@ -1458,7 +1235,7 @@ app.use(
 );
 
 // ============================================================
-// VIDEO RESOURCE ROUTES
+// RESOURCE ROUTES
 // ============================================================
 
 app.use(
@@ -1467,7 +1244,7 @@ app.use(
 );
 
 // ============================================================
-// WEEKLY / MONTHLY TASK ROUTES
+// TASK ROUTES
 // ============================================================
 
 app.use(
@@ -1503,7 +1280,7 @@ app.use(
 );
 
 // ============================================================
-// ACADEMY TASK MANAGEMENT ROUTES
+// ACADEMY TASK MANAGEMENT
 // ============================================================
 
 app.use(
@@ -1512,7 +1289,7 @@ app.use(
 );
 
 // ============================================================
-// ACADEMY TASK SUBMISSION ROUTES
+// ACADEMY TASK SUBMISSIONS
 // ============================================================
 
 app.use(
@@ -1521,7 +1298,7 @@ app.use(
 );
 
 // ============================================================
-// SCHOLIQEN ACADEMY MAIN ROUTES
+// ACADEMY MAIN ROUTES
 // ============================================================
 
 app.use(
@@ -1529,10 +1306,43 @@ app.use(
   academyRoutes
 );
 
+// ============================================================
+// ACADEMY ASSIGNMENTS
+// ============================================================
+//
+// IMPORTANT:
+//
+// This now uses:
+//
+// academyAssignments.js
+//
+// and therefore exposes:
+//
+// GET
+// /api/academy/student/assignments
+//
+// GET
+// /api/academy/student/assignments/:id
+//
+// GET
+// /api/academy/student/assignments/:id/file
+//
+// POST
+// /api/academy/student/assignments/:id/submit
+//
+// GET
+// /api/academy/student/assignments/:id/result
+//
+// ============================================================
+
 app.use(
   "/api/academy",
   academyAssignmentRoutes
 );
+
+// ============================================================
+// ACADEMY LESSONS
+// ============================================================
 
 app.use(
   "/api/academy",
@@ -1540,7 +1350,7 @@ app.use(
 );
 
 // ============================================================
-// SCHOLIQEN ACADEMY TEACHING ROUTES
+// ACADEMY TEACHING
 // ============================================================
 
 app.use(
@@ -1549,7 +1359,7 @@ app.use(
 );
 
 // ============================================================
-// SCHOLIQEN ACADEMY LIVE CLASS ROUTES
+// ACADEMY LIVE CLASSES
 // ============================================================
 
 app.use(
@@ -1558,7 +1368,7 @@ app.use(
 );
 
 // ============================================================
-// SCHOLIQEN ACADEMY TUTOR ATTENDANCE ROUTES
+// ACADEMY TUTOR ATTENDANCE
 // ============================================================
 
 app.use(
@@ -1567,7 +1377,7 @@ app.use(
 );
 
 // ============================================================
-// SCHOLIQEN ACADEMY TUTOR STUDENT MESSAGES
+// ACADEMY TUTOR MESSAGES
 // ============================================================
 
 app.use(
@@ -1576,7 +1386,7 @@ app.use(
 );
 
 // ============================================================
-// SCHOLIQEN ACADEMY TUTOR ANNOUNCEMENTS
+// ACADEMY TUTOR ANNOUNCEMENTS
 // ============================================================
 
 app.use(
@@ -1596,9 +1406,15 @@ app.use(
 
     return res.status(404).json({
       success: false,
-      error: "Route not found.",
-      path: req.originalUrl,
-      method: req.method,
+
+      error:
+        "Route not found.",
+
+      path:
+        req.originalUrl,
+
+      method:
+        req.method,
     });
   }
 );
@@ -1695,9 +1511,17 @@ const server = app.listen(
     );
 
     console.log(
+      `📂 Uploads: ${UPLOADS_DIR}`
+    );
+
+    console.log(
+      `📄 Assignment uploads: ${ACADEMY_ASSIGNMENTS_DIR}`
+    );
+
+    console.log(
       `🗄️ Database: ${
         databaseConfigured
-          ? "Connected / Configured ✅"
+          ? "Configured ✅"
           : "Not configured ❌"
       }`
     );
@@ -1729,23 +1553,51 @@ const server = app.listen(
     console.log("");
 
     console.log(
-      "📚 Academy routes:"
+      "📝 STUDENT ASSIGNMENT ROUTES:"
     );
 
     console.log(
-      "   GET    /api/academy/student/subjects"
+      "   GET    /api/academy/student/assignments"
     );
 
     console.log(
-      "   GET    /api/academy/student/materials"
+      "   GET    /api/academy/student/assignments/:id"
     );
 
     console.log(
-      "   POST   /api/academy/student/materials/:id/unlock"
+      "   GET    /api/academy/student/assignments/:id/file"
     );
 
     console.log(
-      "   GET    /api/academy/student/materials/:id/access"
+      "   POST   /api/academy/student/assignments/:id/submit"
+    );
+
+    console.log(
+      "   GET    /api/academy/student/assignments/:id/result"
+    );
+
+    console.log("");
+
+    console.log(
+      "👨‍🏫 TUTOR ASSIGNMENT ROUTES:"
+    );
+
+    console.log(
+      "   POST   /api/academy/tutor/assignments"
+    );
+
+    console.log(
+      "   GET    /api/academy/tutor/assignments"
+    );
+
+    console.log(
+      "   GET    /api/academy/tutor/assignments/:id"
+    );
+
+    console.log("");
+
+    console.log(
+      "📚 ACADEMY TASK ROUTES:"
     );
 
     console.log(
@@ -1776,18 +1628,10 @@ const server = app.listen(
       "   POST   /api/academy/student/tasks/:taskId/submission"
     );
 
-    console.log(
-      "   GET    /api/academy/tutor/attendance/classes"
-    );
-
-    console.log(
-      "   GET    /api/academy/tutor/attendance"
-    );
-
     console.log("");
 
     console.log(
-      "📚 Admin material routes:"
+      "📚 MATERIAL ROUTES:"
     );
 
     console.log(
@@ -1795,93 +1639,27 @@ const server = app.listen(
     );
 
     console.log(
-      "   GET    /api/admin/lms/materials/:id"
-    );
-
-    console.log(
-      "   POST   /api/admin/lms/materials"
-    );
-
-    console.log(
-      "   PUT    /api/admin/lms/materials/:id"
-    );
-
-    console.log(
-      "   DELETE /api/admin/lms/materials/:id"
+      "   GET    /api/academy/student/materials"
     );
 
     console.log("");
 
     console.log(
-      "🔐 Material access:"
+      "❤️ HEALTH:"
     );
 
     console.log(
-      "   Admin generates access code."
-    );
-
-    console.log(
-      "   Backend stores only the hashed code."
-    );
-
-    console.log(
-      "   Student submits the code."
-    );
-
-    console.log(
-      "   Backend verifies the code."
-    );
-
-    console.log(
-      "   Student receives temporary material access."
+      "   GET    /api/health"
     );
 
     console.log("");
 
     console.log(
-      "💬 Tutor student messaging routes:"
+      "=================================================="
     );
 
     console.log(
-      "   GET    /api/academy/tutor/messages"
-    );
-
-    console.log(
-      "   GET    /api/academy/tutor/messages/:conversationId"
-    );
-
-    console.log(
-      "   POST   /api/academy/tutor/messages/:conversationId"
-    );
-
-    console.log(
-      "   POST   /api/academy/tutor/messages/start"
-    );
-
-    console.log("");
-
-    console.log(
-      "📢 Tutor announcement routes:"
-    );
-
-    console.log(
-      "   GET    /api/academy/tutor/announcements"
-    );
-
-    console.log(
-      "   GET    /api/academy/tutor/announcements/:id"
-    );
-
-    console.log(
-      "   POST   /api/academy/tutor/announcements"
-    );
-
-    console.log(
-      "   PATCH  /api/academy/tutor/announcements/:id"
-    );
-
-    console.log(
-      "   DELETE /api/academy/tutor/announcements/:id"
+      "✅ SCHOLIQEN SERVER READY"
     );
 
     console.log(

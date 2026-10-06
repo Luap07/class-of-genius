@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { fileURLToPath } from "url";
 
 import pool from "../lib/db.js";
+
 import {
   resolveAuthenticatedStudent,
   normalizeSubject,
@@ -33,18 +34,24 @@ if (!fs.existsSync(uploadDirectory)) {
 }
 
 /* ============================================================
-   HELPERS
+   BASIC HELPERS
 ============================================================ */
 
 const clean = (value) => {
-  if (value === undefined || value === null) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
     return "";
   }
 
   return String(value).trim();
 };
 
-const toNumber = (value, fallback = 0) => {
+const toNumber = (
+  value,
+  fallback = 0
+) => {
   const number = Number(value);
 
   return Number.isFinite(number)
@@ -52,7 +59,10 @@ const toNumber = (value, fallback = 0) => {
     : fallback;
 };
 
-const parseJsonValue = (value, fallback = null) => {
+const parseJsonValue = (
+  value,
+  fallback = null
+) => {
   if (
     value === undefined ||
     value === null ||
@@ -61,7 +71,9 @@ const parseJsonValue = (value, fallback = null) => {
     return fallback;
   }
 
-  if (typeof value !== "string") {
+  if (
+    typeof value !== "string"
+  ) {
     return value;
   }
 
@@ -72,19 +84,42 @@ const parseJsonValue = (value, fallback = null) => {
   }
 };
 
-const getGrade = (percentage) => {
-  const score = Number(percentage) || 0;
+const getGrade = (
+  percentage
+) => {
+  const score =
+    Number(percentage) || 0;
 
-  if (score >= 80) return "A";
-  if (score >= 70) return "B";
-  if (score >= 60) return "C";
-  if (score >= 50) return "D";
-  if (score >= 40) return "E";
+  if (score >= 80) {
+    return "A";
+  }
+
+  if (score >= 70) {
+    return "B";
+  }
+
+  if (score >= 60) {
+    return "C";
+  }
+
+  if (score >= 50) {
+    return "D";
+  }
+
+  if (score >= 40) {
+    return "E";
+  }
 
   return "F";
 };
 
-const safeNormalizeClass = (value) => {
+/* ============================================================
+   CLASS NORMALIZATION
+============================================================ */
+
+const safeNormalizeClass = (
+  value
+) => {
   const text = clean(value);
 
   if (!text) {
@@ -92,25 +127,38 @@ const safeNormalizeClass = (value) => {
   }
 
   try {
-    const normalized = normalizeClass(text);
+    const normalized =
+      normalizeClass(text);
 
     if (normalized) {
       return clean(normalized)
         .toLowerCase()
-        .replace(/[^a-z0-9]/g, "");
+        .replace(
+          /[^a-z0-9]/g,
+          ""
+        );
     }
   } catch {
-    // fallback below
+    // fallback
   }
 
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+    .replace(
+      /[^a-z0-9]/g,
+      ""
+    );
 };
 
-const classesMatch = (first, second) => {
-  const a = safeNormalizeClass(first);
-  const b = safeNormalizeClass(second);
+const classesMatch = (
+  first,
+  second
+) => {
+  const a =
+    safeNormalizeClass(first);
+
+  const b =
+    safeNormalizeClass(second);
 
   if (!a || !b) {
     return false;
@@ -119,7 +167,13 @@ const classesMatch = (first, second) => {
   return a === b;
 };
 
-const safeNormalizeSubject = (value) => {
+/* ============================================================
+   SUBJECT NORMALIZATION
+============================================================ */
+
+const safeNormalizeSubject = (
+  value
+) => {
   const text = clean(value);
 
   if (!text) {
@@ -127,14 +181,18 @@ const safeNormalizeSubject = (value) => {
   }
 
   try {
-    return clean(normalizeSubject(text))
-      .toLowerCase();
+    return clean(
+      normalizeSubject(text)
+    ).toLowerCase();
   } catch {
     return text.toLowerCase();
   }
 };
 
-const subjectsMatch = (first, second) => {
+const subjectsMatch = (
+  first,
+  second
+) => {
   return (
     safeNormalizeSubject(first) ===
     safeNormalizeSubject(second)
@@ -145,36 +203,45 @@ const subjectsMatch = (first, second) => {
    DATABASE HELPERS
 ============================================================ */
 
-const tableExists = async (tableName) => {
-  const result = await pool.query(
-    `
-      SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = 'public'
-          AND table_name = $1
-      ) AS exists
-    `,
-    [tableName]
-  );
+const tableExists = async (
+  tableName
+) => {
+  const result =
+    await pool.query(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_name = $1
+        ) AS exists
+      `,
+      [tableName]
+    );
 
-  return Boolean(result.rows[0]?.exists);
+  return Boolean(
+    result.rows[0]?.exists
+  );
 };
 
-const getTableColumns = async (tableName) => {
-  const result = await pool.query(
-    `
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = $1
-      ORDER BY ordinal_position
-    `,
-    [tableName]
-  );
+const getTableColumns = async (
+  tableName
+) => {
+  const result =
+    await pool.query(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = $1
+        ORDER BY ordinal_position
+      `,
+      [tableName]
+    );
 
   return result.rows.map(
-    (row) => row.column_name
+    (row) =>
+      row.column_name
   );
 };
 
@@ -182,18 +249,50 @@ const getTableColumns = async (tableName) => {
    TUTOR REFERENCE
 ============================================================ */
 
-const getTutorReference = (req) => {
-  return clean(
-    req.query?.tutorReference ||
-      req.query?.reference ||
-      req.body?.tutorReference ||
-      req.body?.tutor_reference ||
-      req.body?.reference ||
-      req.headers["x-tutor-reference"]
-  );
+const getTutorReference = (
+  req
+) => {
+  const candidates = [
+    req.query?.tutorReference,
+    req.query?.tutor_reference,
+    req.query?.reference,
+    req.query?.applicationReference,
+    req.query?.application_reference,
+
+    req.body?.tutorReference,
+    req.body?.tutor_reference,
+    req.body?.reference,
+    req.body?.applicationReference,
+    req.body?.application_reference,
+
+    req.headers[
+      "x-tutor-reference"
+    ],
+
+    req.headers[
+      "x-tutor-ref"
+    ],
+  ];
+
+  for (
+    const candidate of candidates
+  ) {
+    const value =
+      clean(candidate);
+
+    if (
+      /^SQA-/i.test(value)
+    ) {
+      return value;
+    }
+  }
+
+  return "";
 };
 
-const isValidTutorReference = (reference) => {
+const isValidTutorReference = (
+  reference
+) => {
   return /^SQA-/i.test(
     clean(reference)
   );
@@ -203,7 +302,17 @@ const isValidTutorReference = (reference) => {
    FILE HELPERS
 ============================================================ */
 
-const createFileUrl = (filename) => {
+const normalizeStoredFilePath = (
+  value
+) => {
+  return clean(value)
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+};
+
+const createFileUrl = (
+  filename
+) => {
   if (!filename) {
     return null;
   }
@@ -213,47 +322,202 @@ const createFileUrl = (filename) => {
   )}`;
 };
 
-const extractFileInfo = (assignment) => {
+const extractFileInfo = (
+  assignment
+) => {
   const filename =
     assignment.file_name ||
     assignment.filename ||
     assignment.fileName ||
     assignment.attachment_name ||
+    assignment.attachmentName ||
     assignment.document_name ||
+    assignment.documentName ||
+    null;
+
+  const filePath =
+    assignment.file_path ||
+    assignment.filePath ||
+    assignment.attachment_path ||
+    assignment.attachmentPath ||
+    assignment.document_path ||
+    assignment.documentPath ||
     null;
 
   const fileUrl =
     assignment.file_url ||
     assignment.fileUrl ||
     assignment.attachment_url ||
+    assignment.attachmentUrl ||
     assignment.document_url ||
+    assignment.documentUrl ||
     (filename
       ? createFileUrl(filename)
       : null);
 
-  const filePath =
-    assignment.file_path ||
-    assignment.filePath ||
-    assignment.attachment_path ||
-    assignment.document_path ||
+  const fileType =
+    assignment.file_type ||
+    assignment.fileType ||
+    assignment.mime_type ||
+    assignment.attachment_type ||
+    null;
+
+  const fileSize =
+    assignment.file_size ||
+    assignment.fileSize ||
     null;
 
   return {
     filename,
     fileName: filename,
-    fileUrl,
-    file_url: fileUrl,
+
     filePath,
     file_path: filePath,
-    fileType:
-      assignment.file_type ||
-      assignment.fileType ||
-      assignment.attachment_type ||
-      null,
-    fileSize:
-      assignment.file_size ||
-      assignment.fileSize ||
-      null,
+
+    fileUrl,
+    file_url: fileUrl,
+
+    fileType,
+    file_type: fileType,
+
+    fileSize,
+    file_size: fileSize,
+  };
+};
+
+/* ============================================================
+   SECURE FILE RESOLUTION
+============================================================ */
+
+const resolveAssignmentPhysicalFile = (
+  assignment
+) => {
+  const file =
+    extractFileInfo(
+      assignment
+    );
+
+  const candidates = [];
+
+  const storedPath =
+    normalizeStoredFilePath(
+      file.filePath
+    );
+
+  const storedFilename =
+    path.basename(
+      storedPath ||
+        clean(
+          file.filename
+        )
+    );
+
+  const databaseFilename =
+    path.basename(
+      clean(
+        file.filename
+      )
+    );
+
+  /*
+   * 1. Stored absolute path.
+   */
+  if (
+    file.filePath &&
+    path.isAbsolute(
+      file.filePath
+    )
+  ) {
+    candidates.push(
+      path.resolve(
+        file.filePath
+      )
+    );
+  }
+
+  /*
+   * 2. Stored relative path resolved
+   *    from the server root.
+   */
+  if (
+    storedPath &&
+    !path.isAbsolute(
+      file.filePath || ""
+    )
+  ) {
+    candidates.push(
+      path.resolve(
+        __dirname,
+        "..",
+        storedPath
+      )
+    );
+  }
+
+  /*
+   * 3. Filename in the current upload directory.
+   */
+  if (storedFilename) {
+    candidates.push(
+      path.join(
+        uploadDirectory,
+        storedFilename
+      )
+    );
+  }
+
+  /*
+   * 4. file_name in the current upload directory.
+   */
+  if (databaseFilename) {
+    candidates.push(
+      path.join(
+        uploadDirectory,
+        databaseFilename
+      )
+    );
+  }
+
+  const uniqueCandidates =
+    [
+      ...new Set(
+        candidates.map(
+          (candidate) =>
+            path.resolve(
+              candidate
+            )
+        )
+      ),
+    ];
+
+  const found =
+    uniqueCandidates.find(
+      (candidate) => {
+        try {
+          return (
+            fs.existsSync(
+              candidate
+            ) &&
+            fs.statSync(
+              candidate
+            ).isFile()
+          );
+        } catch {
+          return false;
+        }
+      }
+    );
+
+  return {
+    file,
+    filename:
+      databaseFilename ||
+      storedFilename ||
+      "assignment-file",
+    candidates:
+      uniqueCandidates,
+    path:
+      found || null,
   };
 };
 
@@ -261,27 +525,33 @@ const extractFileInfo = (assignment) => {
    ASSIGNMENT CLASS
 ============================================================ */
 
-const getAssignmentClassColumns = async () => {
-  const columns = await getTableColumns(
-    "academy_assignments"
-  );
+const getAssignmentClassColumns =
+  async () => {
+    const columns =
+      await getTableColumns(
+        "academy_assignments"
+      );
 
-  const possibleColumns = [
-    "class_name",
-    "class",
-    "grade",
-    "className",
-    "current_class",
-    "student_class",
-  ];
+    const possibleColumns = [
+      "class_name",
+      "class",
+      "grade",
+      "className",
+      "current_class",
+      "student_class",
+    ];
 
-  return possibleColumns.filter(
-    (column) =>
-      columns.includes(column)
-  );
-};
+    return possibleColumns.filter(
+      (column) =>
+        columns.includes(
+          column
+        )
+    );
+  };
 
-const getAssignmentClass = (assignment) => {
+const getAssignmentClass = (
+  assignment
+) => {
   return (
     assignment.class_name ||
     assignment.className ||
@@ -297,7 +567,9 @@ const buildAssignmentClassWhere = (
   classColumns,
   parameterNumber = 1
 ) => {
-  if (!classColumns.length) {
+  if (
+    !classColumns.length
+  ) {
     return {
       sql: "FALSE",
     };
@@ -337,9 +609,12 @@ const buildAssignmentClassWhere = (
    QUESTIONS
 ============================================================ */
 
-const formatQuestion = (question) => {
+const formatQuestion = (
+  question
+) => {
   return {
-    id: question.id,
+    id:
+      question.id,
 
     assignmentId:
       question.assignment_id,
@@ -381,10 +656,11 @@ const formatQuestion = (question) => {
       question.correctAnswer ||
       "",
 
-    marks: toNumber(
-      question.marks,
-      1
-    ),
+    marks:
+      toNumber(
+        question.marks,
+        1
+      ),
 
     createdAt:
       question.created_at ||
@@ -392,51 +668,54 @@ const formatQuestion = (question) => {
   };
 };
 
-const getAssignmentQuestions = async (
-  assignmentId
-) => {
-  const exists =
-    await tableExists(
-      "academy_assignment_questions"
+const getAssignmentQuestions =
+  async (
+    assignmentId
+  ) => {
+    const exists =
+      await tableExists(
+        "academy_assignment_questions"
+      );
+
+    if (!exists) {
+      return [];
+    }
+
+    const columns =
+      await getTableColumns(
+        "academy_assignment_questions"
+      );
+
+    if (
+      !columns.includes(
+        "assignment_id"
+      )
+    ) {
+      return [];
+    }
+
+    const orderColumn =
+      columns.includes(
+        "created_at"
+      )
+        ? "created_at"
+        : "id";
+
+    const result =
+      await pool.query(
+        `
+          SELECT *
+          FROM academy_assignment_questions
+          WHERE assignment_id = $1
+          ORDER BY ${orderColumn} ASC, id ASC
+        `,
+        [assignmentId]
+      );
+
+    return result.rows.map(
+      formatQuestion
     );
-
-  if (!exists) {
-    return [];
-  }
-
-  const columns =
-    await getTableColumns(
-      "academy_assignment_questions"
-    );
-
-  if (
-    !columns.includes(
-      "assignment_id"
-    )
-  ) {
-    return [];
-  }
-
-  const orderColumn =
-    columns.includes("created_at")
-      ? "created_at"
-      : "id";
-
-  const result =
-    await pool.query(
-      `
-        SELECT *
-        FROM academy_assignment_questions
-        WHERE assignment_id = $1
-        ORDER BY ${orderColumn} ASC, id ASC
-      `,
-      [assignmentId]
-    );
-
-  return result.rows.map(
-    formatQuestion
-  );
-};
+  };
 
 /* ============================================================
    ASSIGNMENT FORMATTER
@@ -458,11 +737,13 @@ const formatAssignment = (
     );
 
   const subject =
-    assignment.subject ||
-    "";
+    clean(
+      assignment.subject
+    );
 
   return {
-    id: assignment.id,
+    id:
+      assignment.id,
 
     tutorReference:
       assignment.tutor_reference ||
@@ -503,6 +784,12 @@ const formatAssignment = (
 
     dueDate:
       assignment.due_date ||
+      assignment.due_at ||
+      null,
+
+    due_date:
+      assignment.due_date ||
+      assignment.due_at ||
       null,
 
     status:
@@ -514,7 +801,18 @@ const formatAssignment = (
         assignment.result_released
       ),
 
+    result_released:
+      Boolean(
+        assignment.result_released
+      ),
+
     totalQuestions:
+      toNumber(
+        assignment.total_questions,
+        questions.length
+      ),
+
+    total_questions:
       toNumber(
         assignment.total_questions,
         questions.length
@@ -524,8 +822,28 @@ const formatAssignment = (
       toNumber(
         assignment.total_marks,
         questions.reduce(
-          (sum, question) =>
-            sum +
+          (
+            total,
+            question
+          ) =>
+            total +
+            toNumber(
+              question.marks,
+              1
+            ),
+          0
+        )
+      ),
+
+    total_marks:
+      toNumber(
+        assignment.total_marks,
+        questions.reduce(
+          (
+            total,
+            question
+          ) =>
+            total +
             toNumber(
               question.marks,
               1
@@ -539,6 +857,9 @@ const formatAssignment = (
 
     filename:
       file.filename,
+
+    file_name:
+      file.fileName,
 
     fileUrl:
       file.fileUrl,
@@ -555,8 +876,57 @@ const formatAssignment = (
     fileType:
       file.fileType,
 
+    file_type:
+      file.file_type,
+
     fileSize:
       file.fileSize,
+
+    file_size:
+      file.file_size,
+
+    attachmentName:
+      file.fileName,
+
+    attachment_name:
+      file.fileName,
+
+    attachmentUrl:
+      file.fileUrl,
+
+    attachment_url:
+      file.file_url,
+
+    file:
+      file.fileName ||
+      file.filePath ||
+      file.fileUrl
+        ? {
+            name:
+              file.fileName,
+
+            fileName:
+              file.fileName,
+
+            url:
+              file.fileUrl,
+
+            fileUrl:
+              file.fileUrl,
+
+            path:
+              file.filePath,
+
+            filePath:
+              file.filePath,
+
+            type:
+              file.fileType,
+
+            size:
+              file.fileSize,
+          }
+        : null,
 
     questions,
 
@@ -567,7 +937,9 @@ const formatAssignment = (
       "pending",
 
     submitted:
-      Boolean(submission),
+      Boolean(
+        submission
+      ),
 
     score:
       submission?.score ??
@@ -600,23 +972,69 @@ const formatAssignment = (
 };
 
 /* ============================================================
-   STUDENT AUTH
+   STUDENT AUTHENTICATION
 ============================================================ */
 
-const authenticateStudent = async (
-  req,
-  res
-) => {
-  try {
-    const authenticated =
-      await resolveAuthenticatedStudent(
-        req
+const authenticateStudent =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const authenticated =
+        await resolveAuthenticatedStudent(
+          req
+        );
+
+      if (
+        !authenticated ||
+        !authenticated.student
+      ) {
+        res.status(401).json({
+          success: false,
+          message:
+            "Student authentication is required. Please log in again.",
+        });
+
+        return null;
+      }
+
+      const studentClass =
+        authenticated.studentClass ||
+        authenticated.serialized
+          ?.className ||
+        authenticated.serialized
+          ?.class ||
+        authenticated.serialized
+          ?.grade ||
+        authenticated.student
+          ?.className ||
+        authenticated.student
+          ?.class ||
+        authenticated.student
+          ?.grade ||
+        "";
+
+      if (!studentClass) {
+        res.status(400).json({
+          success: false,
+          message:
+            "Your student profile does not have a class assigned. Please contact the administrator.",
+        });
+
+        return null;
+      }
+
+      return {
+        ...authenticated,
+        studentClass,
+      };
+    } catch (error) {
+      console.error(
+        "STUDENT AUTH ERROR:",
+        error
       );
 
-    if (
-      !authenticated ||
-      !authenticated.student
-    ) {
       res.status(401).json({
         success: false,
         message:
@@ -625,167 +1043,153 @@ const authenticateStudent = async (
 
       return null;
     }
+  };
 
-    const studentClass =
-      authenticated.studentClass ||
-      authenticated.serialized?.className ||
-      authenticated.serialized?.class ||
-      authenticated.serialized?.grade ||
-      "";
+const getAuthenticatedStudentReference =
+  (
+    authenticated
+  ) => {
+    const serialized =
+      authenticated?.serialized ||
+      {};
 
-    if (!studentClass) {
-      res.status(400).json({
-        success: false,
-        message:
-          "Your student profile does not have a class assigned. Please contact the administrator.",
-      });
+    const student =
+      authenticated?.student ||
+      {};
 
+    const decoded =
+      authenticated?.decoded ||
+      {};
+
+    return clean(
+      serialized.studentId ||
+        serialized.student_id ||
+        serialized.registrationNumber ||
+        serialized.registration_number ||
+        serialized.reference ||
+        serialized.enrollmentId ||
+        serialized.enrollment_id ||
+
+        student.studentId ||
+        student.student_id ||
+        student.registrationNumber ||
+        student.registration_number ||
+        student.reference ||
+        student.enrollmentId ||
+        student.enrollment_id ||
+
+        decoded.studentId ||
+        decoded.student_id ||
+        decoded.registrationNumber ||
+        decoded.registration_number ||
+        decoded.reference ||
+        decoded.enrollmentId ||
+        decoded.enrollment_id
+    );
+  };
+
+/* ============================================================
+   STUDENT SUBMISSIONS
+============================================================ */
+
+const getLatestStudentSubmission =
+  async (
+    assignmentId,
+    studentReference
+  ) => {
+    if (
+      !studentReference
+    ) {
       return null;
     }
 
-    return {
-      ...authenticated,
-      studentClass,
-    };
-  } catch (error) {
-    console.error(
-      "STUDENT AUTH ERROR:",
-      error
+    const exists =
+      await tableExists(
+        "academy_assignment_submissions"
+      );
+
+    if (!exists) {
+      return null;
+    }
+
+    const columns =
+      await getTableColumns(
+        "academy_assignment_submissions"
+      );
+
+    if (
+      !columns.includes(
+        "assignment_id"
+      ) ||
+      !columns.includes(
+        "student_reference"
+      )
+    ) {
+      return null;
+    }
+
+    const orderColumn =
+      columns.includes(
+        "submitted_at"
+      )
+        ? "submitted_at"
+        : columns.includes(
+            "created_at"
+          )
+          ? "created_at"
+          : "id";
+
+    const result =
+      await pool.query(
+        `
+          SELECT *
+          FROM academy_assignment_submissions
+          WHERE assignment_id = $1
+            AND student_reference = $2
+          ORDER BY ${orderColumn} DESC, id DESC
+          LIMIT 1
+        `,
+        [
+          assignmentId,
+          studentReference,
+        ]
+      );
+
+    return (
+      result.rows[0] ||
+      null
     );
-
-    res.status(401).json({
-      success: false,
-      message:
-        "Student authentication is required. Please log in again.",
-    });
-
-    return null;
-  }
-};
-
-const getAuthenticatedStudentReference = (
-  authenticated
-) => {
-  const serialized =
-    authenticated?.serialized ||
-    {};
-
-  const student =
-    authenticated?.student ||
-    {};
-
-  return clean(
-    serialized.studentId ||
-      serialized.student_id ||
-      serialized.registrationNumber ||
-      serialized.registration_number ||
-      serialized.reference ||
-      serialized.enrollmentId ||
-      serialized.enrollment_id ||
-      student.studentId ||
-      student.student_id ||
-      student.registrationNumber ||
-      student.registration_number ||
-      student.reference ||
-      authenticated?.decoded
-        ?.studentId ||
-      authenticated?.decoded
-        ?.student_id ||
-      authenticated?.decoded
-        ?.enrollmentId
-  );
-};
-
-/* ============================================================
-   STUDENT SUBMISSION
-============================================================ */
-
-const getLatestStudentSubmission = async (
-  assignmentId,
-  studentReference
-) => {
-  if (!studentReference) {
-    return null;
-  }
-
-  const exists =
-    await tableExists(
-      "academy_assignment_submissions"
-    );
-
-  if (!exists) {
-    return null;
-  }
-
-  const columns =
-    await getTableColumns(
-      "academy_assignment_submissions"
-    );
-
-  if (
-    !columns.includes(
-      "assignment_id"
-    ) ||
-    !columns.includes(
-      "student_reference"
-    )
-  ) {
-    return null;
-  }
-
-  const orderColumn =
-    columns.includes("submitted_at")
-      ? "submitted_at"
-      : columns.includes(
-          "created_at"
-        )
-        ? "created_at"
-        : "id";
-
-  const result =
-    await pool.query(
-      `
-        SELECT *
-        FROM academy_assignment_submissions
-        WHERE assignment_id = $1
-          AND student_reference = $2
-        ORDER BY ${orderColumn} DESC, id DESC
-        LIMIT 1
-      `,
-      [
-        assignmentId,
-        studentReference,
-      ]
-    );
-
-  return result.rows[0] || null;
-};
+  };
 
 /* ============================================================
    TUTOR OWNERSHIP
 ============================================================ */
 
-const verifyTutorOwnsAssignment = async (
-  assignmentId,
-  tutorReference
-) => {
-  const result =
-    await pool.query(
-      `
-        SELECT *
-        FROM academy_assignments
-        WHERE id = $1
-          AND tutor_reference = $2
-        LIMIT 1
-      `,
-      [
-        assignmentId,
-        tutorReference,
-      ]
-    );
+const verifyTutorOwnsAssignment =
+  async (
+    assignmentId,
+    tutorReference
+  ) => {
+    const result =
+      await pool.query(
+        `
+          SELECT *
+          FROM academy_assignments
+          WHERE id = $1
+            AND tutor_reference = $2
+          LIMIT 1
+        `,
+        [
+          assignmentId,
+          tutorReference,
+        ]
+      );
 
-  return result.rows[0] || null;
-};
+    return (
+      result.rows[0] ||
+      null
+    );
+  };
 
 /* ============================================================
    MULTER
@@ -806,6 +1210,9 @@ const allowedExtensions =
     ".png",
     ".webp",
     ".zip",
+    ".mp4",
+    ".webm",
+    ".mov",
   ]);
 
 const storage =
@@ -828,7 +1235,8 @@ const storage =
     ) => {
       const extension =
         path.extname(
-          file.originalname || ""
+          file.originalname ||
+            ""
         ).toLowerCase();
 
       const safeExtension =
@@ -868,7 +1276,8 @@ const upload =
     ) => {
       const extension =
         path.extname(
-          file.originalname || ""
+          file.originalname ||
+            ""
         ).toLowerCase();
 
       if (
@@ -900,13 +1309,18 @@ const upload =
 router.post(
   "/tutor/assignments",
   upload.single("file"),
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     let uploadedFilePath =
       null;
 
     try {
       const tutorReference =
-        getTutorReference(req);
+        getTutorReference(
+          req
+        );
 
       if (
         !tutorReference ||
@@ -969,7 +1383,8 @@ router.post(
       const dueDate =
         clean(
           req.body.due_date ||
-            req.body.dueDate
+            req.body.dueDate ||
+            req.body.due_at
         ) || null;
 
       if (
@@ -1035,7 +1450,9 @@ router.post(
       const validQuestions =
         questions
           .map(
-            (question) => ({
+            (
+              question
+            ) => ({
               question:
                 clean(
                   question.question ||
@@ -1084,7 +1501,9 @@ router.post(
             })
           )
           .filter(
-            (question) =>
+            (
+              question
+            ) =>
               question.question &&
               question.optionA &&
               question.optionB &&
@@ -1246,9 +1665,28 @@ router.post(
         fileUrl
       );
 
+      /*
+       * Store the relative path as well.
+       * This prevents old absolute server paths
+       * from becoming unusable after deployment.
+       */
+      const relativeFilePath =
+        path
+          .relative(
+            path.join(
+              __dirname,
+              ".."
+            ),
+            req.file.path
+          )
+          .replace(
+            /\\/g,
+            "/"
+          );
+
       addColumn(
         "file_path",
-        req.file.path
+        relativeFilePath
       );
 
       addColumn(
@@ -1318,45 +1756,43 @@ router.post(
             const qValues = [];
             const qParameters = [];
 
-            const addQuestion =
-              (
-                column,
-                value
-              ) => {
-                if (
-                  questionColumns.includes(
-                    column
-                  )
-                ) {
-                  qColumns.push(
-                    `"${column}"`
-                  );
+            const addQuestion = (
+              column,
+              value
+            ) => {
+              if (
+                questionColumns.includes(
+                  column
+                )
+              ) {
+                qColumns.push(
+                  `"${column}"`
+                );
 
-                  qValues.push(
-                    value
-                  );
+                qValues.push(
+                  value
+                );
 
-                  qParameters.push(
-                    `$${qParameters.length + 1}`
-                  );
-                }
-              };
+                qParameters.push(
+                  `$${qParameters.length + 1}`
+                );
+              }
+            };
 
             addQuestion(
               "assignment_id",
               assignment.id
             );
 
-            if (
-              questionColumns.includes(
-                "question"
-              )
-            ) {
-              addQuestion(
-                "question",
-                question.question
-              );
-            }
+            addQuestion(
+              "question",
+              question.question
+            );
+
+            addQuestion(
+              "question_text",
+              question.question
+            );
 
             addQuestion(
               "option_a",
@@ -1405,13 +1841,9 @@ router.post(
               await client.query(
                 `
                   INSERT INTO academy_assignment_questions
-                  (${qColumns.join(
-                    ", "
-                  )})
+                  (${qColumns.join(", ")})
                   VALUES
-                  (${qParameters.join(
-                    ", "
-                  )})
+                  (${qParameters.join(", ")})
                 `,
                 qValues
               );
@@ -1492,10 +1924,15 @@ router.post(
 
 router.get(
   "/tutor/assignments",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const tutorReference =
-        getTutorReference(req);
+        getTutorReference(
+          req
+        );
 
       if (
         !tutorReference ||
@@ -1557,10 +1994,13 @@ router.get(
       return res.json({
         success: true,
         assignments,
+
         data:
           assignments,
+
         results:
           assignments,
+
         count:
           assignments.length,
       });
@@ -1585,10 +2025,15 @@ router.get(
 
 router.get(
   "/tutor/assignments/:id",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const tutorReference =
-        getTutorReference(req);
+        getTutorReference(
+          req
+        );
 
       if (
         !tutorReference ||
@@ -1630,8 +2075,10 @@ router.get(
 
       return res.json({
         success: true,
+
         assignment:
           formatted,
+
         data:
           formatted,
       });
@@ -1652,14 +2099,16 @@ router.get(
 
 /* ============================================================
    STUDENT ASSIGNMENTS
-   IMPORTANT:
-   ONLY ASSIGNMENTS MATCHING THE STUDENT'S CLASS
-   ARE RETURNED.
+   ONLY ASSIGNMENTS MATCHING THE
+   STUDENT'S CLASS ARE RETURNED.
 ============================================================ */
 
 router.get(
   "/student/assignments",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const authenticated =
         await authenticateStudent(
@@ -1687,7 +2136,9 @@ router.get(
       const classColumns =
         await getAssignmentClassColumns();
 
-      if (!classColumns.length) {
+      if (
+        !classColumns.length
+      ) {
         return res.status(500).json({
           success: false,
           message:
@@ -1745,7 +2196,9 @@ router.get(
 
       let assignmentRows =
         result.rows.filter(
-          (assignment) =>
+          (
+            assignment
+          ) =>
             classesMatch(
               getAssignmentClass(
                 assignment
@@ -1759,7 +2212,9 @@ router.get(
       ) {
         assignmentRows =
           assignmentRows.filter(
-            (assignment) =>
+            (
+              assignment
+            ) =>
               subjectsMatch(
                 assignment.subject,
                 requestedSubject
@@ -1790,13 +2245,13 @@ router.get(
                 );
 
               /*
-               * IMPORTANT:
-               * Students must NEVER receive
-               * correctAnswer from this endpoint.
+               * Never send correct answers to students.
                */
               const studentQuestions =
                 questions.map(
-                  (question) => ({
+                  (
+                    question
+                  ) => ({
                     id:
                       question.id,
 
@@ -1837,11 +2292,13 @@ router.get(
                 formatted.fileName
               ) {
                 formatted.fileUrl =
-                  `/api/academy/student/assignments/${assignment.id}/file`;
-              }
+                  `/api/academy/student/assignments/${encodeURIComponent(
+                    assignment.id
+                  )}/file`;
 
-              formatted.file_url =
-                formatted.fileUrl;
+                formatted.file_url =
+                  formatted.fileUrl;
+              }
 
               return formatted;
             }
@@ -1852,7 +2309,9 @@ router.get(
         new Map();
 
       assignments.forEach(
-        (assignment) => {
+        (
+          assignment
+        ) => {
           const subject =
             clean(
               assignment.subject
@@ -1881,7 +2340,8 @@ router.get(
                 normalizedName:
                   key,
 
-                count: 0,
+                count:
+                  0,
               }
             );
           }
@@ -1896,7 +2356,10 @@ router.get(
         Array.from(
           subjectMap.values()
         ).sort(
-          (a, b) =>
+          (
+            a,
+            b
+          ) =>
             a.name.localeCompare(
               b.name
             )
@@ -1949,7 +2412,10 @@ router.get(
 
 router.get(
   "/student/assignments/:id",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const authenticated =
         await authenticateStudent(
@@ -2014,7 +2480,9 @@ router.get(
 
       const studentQuestions =
         questions.map(
-          (question) => ({
+          (
+            question
+          ) => ({
             id:
               question.id,
 
@@ -2066,7 +2534,9 @@ router.get(
         formatted.fileName
       ) {
         formatted.fileUrl =
-          `/api/academy/student/assignments/${assignment.id}/file`;
+          `/api/academy/student/assignments/${encodeURIComponent(
+            assignment.id
+          )}/file`;
 
         formatted.file_url =
           formatted.fileUrl;
@@ -2106,12 +2576,19 @@ router.get(
 
 /* ============================================================
    STUDENT AUTHENTICATED FILE
+   FIXED PROTECTED FILE ROUTE
 ============================================================ */
 
 router.get(
   "/student/assignments/:id/file",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
+      /*
+       * Authenticate the student first.
+       */
       const authenticated =
         await authenticateStudent(
           req,
@@ -2125,6 +2602,10 @@ router.get(
       const studentClass =
         authenticated.studentClass;
 
+      /*
+       * Only allow a student to access
+       * assignments belonging to their class.
+       */
       const classColumns =
         await getAssignmentClassColumns();
 
@@ -2168,12 +2649,19 @@ router.get(
         });
       }
 
+      /*
+       * Extract every possible file field
+       * supported by the assignment table.
+       */
       const file =
         extractFileInfo(
           assignment
         );
 
-      if (!file.filename) {
+      if (
+        !file.filename &&
+        !file.filePath
+      ) {
         return res.status(404).json({
           success: false,
           message:
@@ -2181,27 +2669,56 @@ router.get(
         });
       }
 
-      const filename =
-        path.basename(
-          file.filename
+      /*
+       * IMPORTANT FIX:
+       *
+       * Do NOT assume file_path is still a valid
+       * absolute path.
+       *
+       * The application may have been moved,
+       * redeployed, or the database may contain
+       * a path from an older server location.
+       *
+       * resolveAssignmentPhysicalFile()
+       * checks:
+       *
+       * 1. Stored absolute path
+       * 2. Stored relative path
+       * 3. Current uploads directory + stored filename
+       * 4. Current uploads directory + file_name
+       */
+      const resolved =
+        resolveAssignmentPhysicalFile(
+          assignment
         );
 
-      const filePath =
-        file.filePath &&
-        path.isAbsolute(
-          file.filePath
-        )
-          ? file.filePath
-          : path.join(
-              uploadDirectory,
-              filename
-            );
-
       if (
-        !fs.existsSync(
-          filePath
-        )
+        !resolved.path
       ) {
+        console.error(
+          "STUDENT ASSIGNMENT FILE NOT FOUND",
+          {
+            assignmentId:
+              req.params.id,
+
+            studentClass,
+
+            databaseFileName:
+              file.filename,
+
+            databaseFilePath:
+              file.filePath,
+
+            databaseFileUrl:
+              file.fileUrl,
+
+            uploadDirectory,
+
+            candidates:
+              resolved.candidates,
+          }
+        );
+
         return res.status(404).json({
           success: false,
           message:
@@ -2209,8 +2726,117 @@ router.get(
         });
       }
 
+      /*
+       * Determine a safe display filename.
+       */
+      const displayFilename =
+        path.basename(
+          clean(
+            file.filename
+          ) ||
+            path.basename(
+              resolved.path
+            )
+        );
+
+      /*
+       * Correct MIME type when the database
+       * contains one.
+       */
+      if (
+        file.fileType
+      ) {
+        res.type(
+          file.fileType
+        );
+      } else {
+        const extension =
+          path.extname(
+            resolved.path
+          ).toLowerCase();
+
+        const mimeTypes = {
+          ".pdf":
+            "application/pdf",
+
+          ".doc":
+            "application/msword",
+
+          ".docx":
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+
+          ".ppt":
+            "application/vnd.ms-powerpoint",
+
+          ".pptx":
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+
+          ".xls":
+            "application/vnd.ms-excel",
+
+          ".xlsx":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+          ".txt":
+            "text/plain",
+
+          ".jpg":
+            "image/jpeg",
+
+          ".jpeg":
+            "image/jpeg",
+
+          ".png":
+            "image/png",
+
+          ".webp":
+            "image/webp",
+
+          ".mp4":
+            "video/mp4",
+
+          ".webm":
+            "video/webm",
+
+          ".mov":
+            "video/quicktime",
+        };
+
+        if (
+          mimeTypes[
+            extension
+          ]
+        ) {
+          res.type(
+            mimeTypes[
+              extension
+            ]
+          );
+        }
+      }
+
+      /*
+       * Inline is important for PDF preview.
+       * The frontend can still download the
+       * returned Blob itself.
+       */
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${encodeURIComponent(
+          displayFilename
+        )}"`
+      );
+
+      /*
+       * Prevent caching protected student files.
+       */
+      res.setHeader(
+        "Cache-Control",
+        "private, no-store, max-age=0"
+      );
+
       return res.sendFile(
-        filePath
+        resolved.path
       );
     } catch (error) {
       console.error(
@@ -2233,7 +2859,10 @@ router.get(
 
 router.post(
   "/student/assignments/:id/submit",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const authenticated =
         await authenticateStudent(
@@ -2296,7 +2925,9 @@ router.post(
           assignment.id
         );
 
-      if (!questions.length) {
+      if (
+        !questions.length
+      ) {
         return res.status(400).json({
           success: false,
           message:
@@ -2332,7 +2963,9 @@ router.post(
         new Map();
 
       answers.forEach(
-        (answer) => {
+        (
+          answer
+        ) => {
           const questionId =
             clean(
               answer.questionId ||
@@ -2365,7 +2998,9 @@ router.post(
 
       const gradedAnswers =
         questions.map(
-          (question) => {
+          (
+            question
+          ) => {
             const marks =
               Math.max(
                 1,
@@ -2453,7 +3088,9 @@ router.post(
           "academy_assignment_submissions"
         );
 
-      if (!submissionsExist) {
+      if (
+        !submissionsExist
+      ) {
         return res.status(500).json({
           success: false,
           message:
@@ -2533,15 +3170,19 @@ router.post(
         new Date()
       );
 
+      addColumn(
+        "created_at",
+        new Date()
+      );
+
       if (
-        submissionColumns.includes(
-          "created_at"
-        )
+        !columns.length
       ) {
-        addColumn(
-          "created_at",
-          new Date()
-        );
+        return res.status(500).json({
+          success: false,
+          message:
+            "No compatible submission fields were found.",
+        });
       }
 
       const client =
@@ -2572,7 +3213,9 @@ router.post(
             "academy_assignment_answers"
           );
 
-        if (answersExist) {
+        if (
+          answersExist
+        ) {
           const answerColumns =
             await getTableColumns(
               "academy_assignment_answers"
@@ -2590,29 +3233,28 @@ router.post(
             const answerParameters =
               [];
 
-            const addAnswer =
-              (
-                column,
-                value
-              ) => {
-                if (
-                  answerColumns.includes(
-                    column
-                  )
-                ) {
-                  answerInsertColumns.push(
-                    `"${column}"`
-                  );
+            const addAnswer = (
+              column,
+              value
+            ) => {
+              if (
+                answerColumns.includes(
+                  column
+                )
+              ) {
+                answerInsertColumns.push(
+                  `"${column}"`
+                );
 
-                  answerValues.push(
-                    value
-                  );
+                answerValues.push(
+                  value
+                );
 
-                  answerParameters.push(
-                    `$${answerParameters.length + 1}`
-                  );
-                }
-              };
+                answerParameters.push(
+                  `$${answerParameters.length + 1}`
+                );
+              }
+            };
 
             addAnswer(
               "submission_id",
@@ -2714,7 +3356,10 @@ router.post(
 
 router.get(
   "/student/assignments/:id/result",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const authenticated =
         await authenticateStudent(
@@ -2870,7 +3515,10 @@ router.get(
 
 router.get(
   "/assignment-files/:filename",
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const filename =
         path.basename(
@@ -2924,7 +3572,7 @@ router.get(
 );
 
 /* ============================================================
-   MULTER ERROR HANDLER
+   MULTER / GENERAL ERROR HANDLER
 ============================================================ */
 
 router.use(

@@ -1240,10 +1240,6 @@ const StudentAssignmentDetails =
       getStudentIdentity()
     );
 
-    /*
-     * NEW:
-     * Student's completed assignment file.
-     */
     const [
       studentSubmissionFile,
       setStudentSubmissionFile,
@@ -1580,10 +1576,6 @@ const StudentAssignmentDetails =
               }
             }
 
-            /*
-             * Detect an existing submission returned by the
-             * assignment endpoint.
-             */
             const existingSubmission =
               extractSubmission(
                 data
@@ -1821,10 +1813,6 @@ const StudentAssignmentDetails =
         assignmentFile.url
       );
 
-    /*
-     * Document assignment means tutor supplied a file and there
-     * are no multiple-choice questions.
-     */
     const isDocumentAssignment =
       hasAssignmentDocument &&
       questions.length === 0;
@@ -2108,10 +2096,6 @@ const StudentAssignmentDetails =
           return;
         }
 
-        /*
-         * Keep the limit aligned with the tutor assignment
-         * upload limit: 250 MB.
-         */
         const MAX_SIZE =
           250 *
           1024 *
@@ -2566,41 +2550,23 @@ const StudentAssignmentDetails =
 
         try {
           setSubmitting(true);
-          setSubmitError(
-            ""
-          );
-          setSubmissionFileError(
-            ""
-          );
+          setSubmitError("");
+          setSubmissionFileError("");
 
-          /*
-           * IMPORTANT:
-           * Document assignments are submitted as multipart/form-data
-           * so the student's completed file can reach the server.
-           *
-           * Do NOT manually set Content-Type here.
-           * The browser adds the multipart boundary automatically.
-           */
           const formData =
             new FormData();
 
           formData.append(
             "assignmentId",
-            String(
-              assignment.id
-            )
+            String(assignment.id)
           );
 
           formData.append(
             "assignment_id",
-            String(
-              assignment.id
-            )
+            String(assignment.id)
           );
 
-          if (
-            enrollmentId
-          ) {
+          if (enrollmentId) {
             formData.append(
               "enrollmentId",
               enrollmentId
@@ -2612,9 +2578,7 @@ const StudentAssignmentDetails =
             );
           }
 
-          if (
-            studentReference
-          ) {
+          if (studentReference) {
             formData.append(
               "studentReference",
               studentReference
@@ -2631,9 +2595,7 @@ const StudentAssignmentDetails =
             );
           }
 
-          if (
-            studentId
-          ) {
+          if (studentId) {
             formData.append(
               "studentId",
               studentId
@@ -2647,14 +2609,12 @@ const StudentAssignmentDetails =
 
           formData.append(
             "studentName",
-            studentName ||
-              "Student"
+            studentName || "Student"
           );
 
           formData.append(
             "student_name",
-            studentName ||
-              "Student"
+            studentName || "Student"
           );
 
           formData.append(
@@ -2678,30 +2638,12 @@ const StudentAssignmentDetails =
           );
 
           /*
-           * Send the file under several common field names.
-           *
-           * The primary field is "file".
+           * FIX:
+           * Upload the student's file only once.
+           * The backend expects the "file" field.
            */
           formData.append(
             "file",
-            studentSubmissionFile,
-            studentSubmissionFile.name
-          );
-
-          formData.append(
-            "submissionFile",
-            studentSubmissionFile,
-            studentSubmissionFile.name
-          );
-
-          formData.append(
-            "submission_file",
-            studentSubmissionFile,
-            studentSubmissionFile.name
-          );
-
-          formData.append(
-            "attachment",
             studentSubmissionFile,
             studentSubmissionFile.name
           );
@@ -2727,17 +2669,10 @@ const StudentAssignmentDetails =
                 assignment.id
               )}/submit`,
               {
-                method:
-                  "POST",
-
-                headers:
-                  getAuthHeaders(),
-
-                credentials:
-                  "include",
-
-                body:
-                  formData,
+                method: "POST",
+                headers: getAuthHeaders(),
+                credentials: "include",
+                body: formData,
               }
             );
 
@@ -2749,9 +2684,7 @@ const StudentAssignmentDetails =
           try {
             data =
               rawText
-                ? JSON.parse(
-                    rawText
-                  )
+                ? JSON.parse(rawText)
                 : {};
           } catch {
             data = {
@@ -2767,25 +2700,16 @@ const StudentAssignmentDetails =
             data
           );
 
-          if (
-            response.status ===
-            409
-          ) {
+          if (response.status === 409) {
             const existingSubmission =
-              extractSubmission(
-                data
-              );
+              extractSubmission(data);
 
-            if (
-              existingSubmission
-            ) {
+            if (existingSubmission) {
               setSavedSubmission(
                 existingSubmission
               );
 
-              setSubmitted(
-                true
-              );
+              setSubmitted(true);
 
               return;
             }
@@ -2798,9 +2722,7 @@ const StudentAssignmentDetails =
             );
           }
 
-          if (
-            !response.ok
-          ) {
+          if (!response.ok) {
             throw new Error(
               extractServerMessage(
                 data,
@@ -2810,38 +2732,24 @@ const StudentAssignmentDetails =
           }
 
           const saved =
-            extractSubmission(
-              data
-            );
+            extractSubmission(data);
 
-          setSavedSubmission(
-            saved
+          setSavedSubmission(saved);
+          setSubmitted(true);
+
+          setAssignment((previous) =>
+            previous
+              ? {
+                  ...previous,
+                  status: "submitted",
+                }
+              : previous
           );
 
-          setSubmitted(
-            true
-          );
+          setStudentSubmissionFile(null);
 
-          setAssignment(
-            (previous) =>
-              previous
-                ? {
-                    ...previous,
-                    status:
-                      "submitted",
-                  }
-                : previous
-          );
-
-          setStudentSubmissionFile(
-            null
-          );
-
-          if (
-            fileInputRef.current
-          ) {
-            fileInputRef.current.value =
-              "";
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
           }
         } catch (err) {
           console.error(
@@ -2854,9 +2762,7 @@ const StudentAssignmentDetails =
               "Unable to submit your assignment."
           );
         } finally {
-          setSubmitting(
-            false
-          );
+          setSubmitting(false);
         }
       };
 
@@ -2866,16 +2772,12 @@ const StudentAssignmentDetails =
 
     const submitAssignment =
       async () => {
-        if (
-          questions.length
-        ) {
+        if (questions.length) {
           await submitQuestionAssignment();
           return;
         }
 
-        if (
-          isDocumentAssignment
-        ) {
+        if (isDocumentAssignment) {
           await submitDocumentAssignment();
           return;
         }
@@ -2920,23 +2822,16 @@ const StudentAssignmentDetails =
 
         try {
           const anchor =
-            document.createElement(
-              "a"
-            );
+            document.createElement("a");
 
-          anchor.href =
-            url;
+          anchor.href = url;
 
           anchor.download =
             assignmentFile.name ||
             "assignment-document";
 
-          document.body.appendChild(
-            anchor
-          );
-
+          document.body.appendChild(anchor);
           anchor.click();
-
           anchor.remove();
         } catch (err) {
           console.error(
@@ -2960,9 +2855,7 @@ const StudentAssignmentDetails =
       async () => {
         if (
           protectedFileUrl &&
-          protectedFileUrl.startsWith(
-            "blob:"
-          )
+          protectedFileUrl.startsWith("blob:")
         ) {
           URL.revokeObjectURL(
             protectedFileUrl
@@ -2970,7 +2863,6 @@ const StudentAssignmentDetails =
         }
 
         setProtectedFileUrl("");
-
         setProtectedFileError("");
 
         await loadProtectedFile({
@@ -3022,10 +2914,7 @@ const StudentAssignmentDetails =
               onClick={goBack}
               className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-8"
             >
-              <ArrowLeft
-                size={18}
-              />
-
+              <ArrowLeft size={18} />
               Back to Assignments
             </button>
 
@@ -3065,10 +2954,7 @@ const StudentAssignmentDetails =
               onClick={goBack}
               className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-8"
             >
-              <ArrowLeft
-                size={18}
-              />
-
+              <ArrowLeft size={18} />
               Back to Assignments
             </button>
 
@@ -3135,9 +3021,7 @@ const StudentAssignmentDetails =
                       Submission ID:
 
                       <span className="font-mono text-white">
-                        {
-                          savedSubmission.id
-                        }
+                        {savedSubmission.id}
                       </span>
                     </div>
                   ) : null}
@@ -3151,15 +3035,10 @@ const StudentAssignmentDetails =
                         </p>
 
                         <p className="text-xl font-bold mt-1">
-                          {
-                            savedSubmission.score
-                          }
-                          /
-                          {
-                            savedSubmission.totalMarks ??
+                          {savedSubmission.score}/
+                          {savedSubmission.totalMarks ??
                             savedSubmission.total_marks ??
-                            0
-                          }
+                            0}
                         </p>
                       </div>
 
@@ -3169,11 +3048,7 @@ const StudentAssignmentDetails =
                         </p>
 
                         <p className="text-xl font-bold mt-1">
-                          {
-                            savedSubmission.percentage ??
-                            0
-                          }
-                          %
+                          {savedSubmission.percentage ?? 0}%
                         </p>
                       </div>
 
@@ -3183,10 +3058,7 @@ const StudentAssignmentDetails =
                         </p>
 
                         <p className="text-xl font-bold mt-1">
-                          {
-                            savedSubmission.grade ??
-                            "—"
-                          }
+                          {savedSubmission.grade ?? "—"}
                         </p>
                       </div>
                     </div>
@@ -3228,22 +3100,14 @@ const StudentAssignmentDetails =
     return (
       <div className="min-h-screen bg-[#050816] text-white px-4 sm:px-6 py-6 sm:py-10">
         <div className="max-w-4xl mx-auto">
-
-          {/* BACK */}
-
           <button
             type="button"
             onClick={goBack}
             className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-6"
           >
-            <ArrowLeft
-              size={18}
-            />
-
+            <ArrowLeft size={18} />
             Back to Assignments
           </button>
-
-          {/* HEADER */}
 
           <div className="rounded-3xl border border-white/10 bg-[#071426] p-6 sm:p-8 mb-6">
             <div className="flex items-start gap-4">
@@ -3256,23 +3120,18 @@ const StudentAssignmentDetails =
 
               <div className="min-w-0 flex-1">
                 <h1 className="text-2xl sm:text-3xl font-bold">
-                  {assignment.title ||
-                    "Assignment"}
+                  {assignment.title || "Assignment"}
                 </h1>
 
                 {assignment.subject ? (
                   <p className="text-cyan-400 text-sm mt-2">
-                    {
-                      assignment.subject
-                    }
+                    {assignment.subject}
                   </p>
                 ) : null}
 
                 {assignment.description ? (
                   <p className="text-slate-400 mt-3 leading-relaxed">
-                    {
-                      assignment.description
-                    }
+                    {assignment.description}
                   </p>
                 ) : null}
 
@@ -3283,24 +3142,18 @@ const StudentAssignmentDetails =
                     </p>
 
                     <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                      {
-                        assignment.instructions
-                      }
+                      {assignment.instructions}
                     </p>
                   </div>
                 ) : null}
 
                 <div className="flex flex-wrap gap-3 mt-5">
                   <div className="inline-flex items-center gap-2 rounded-lg bg-black/20 border border-white/5 px-3 py-2 text-xs text-slate-400">
-                    <FileText
-                      size={14}
-                    />
+                    <FileText size={14} />
 
-                    {questions.length >
-                    0
+                    {questions.length > 0
                       ? `${questions.length} ${
-                          questions.length ===
-                          1
+                          questions.length === 1
                             ? "Question"
                             : "Questions"
                         }`
@@ -3314,9 +3167,7 @@ const StudentAssignmentDetails =
                   assignment.dueAt ||
                   assignment.due_at ? (
                     <div className="inline-flex items-center gap-2 rounded-lg bg-black/20 border border-white/5 px-3 py-2 text-xs text-slate-400">
-                      <Clock3
-                        size={14}
-                      />
+                      <Clock3 size={14} />
 
                       Due{" "}
 
@@ -3333,10 +3184,6 @@ const StudentAssignmentDetails =
             </div>
           </div>
 
-          {/* ====================================================
-              TUTOR DOCUMENT
-          ==================================================== */}
-
           {hasAssignmentDocument &&
           !questions.length ? (
             <motion.div
@@ -3350,8 +3197,6 @@ const StudentAssignmentDetails =
               }}
               className="rounded-3xl border border-cyan-400/15 bg-[#071426] overflow-hidden mb-6"
             >
-              {/* DOCUMENT HEADER */}
-
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 border-b border-white/10">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-11 h-11 rounded-xl bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center shrink-0">
@@ -3374,18 +3219,14 @@ const StudentAssignmentDetails =
                     </p>
 
                     <h2 className="mt-1 font-semibold truncate">
-                      {
-                        assignmentFile.name ||
-                        "Assignment Document"
-                      }
+                      {assignmentFile.name ||
+                        "Assignment Document"}
                     </h2>
 
                     <div className="flex flex-wrap gap-2 mt-1 text-xs text-slate-500">
                       {assignmentFileExtension ? (
                         <span className="uppercase">
-                          {
-                            assignmentFileExtension
-                          }
+                          {assignmentFileExtension}
                         </span>
                       ) : null}
 
@@ -3393,16 +3234,12 @@ const StudentAssignmentDetails =
                         assignmentFile.size
                       ) ? (
                         <>
-                          <span>
-                            •
-                          </span>
+                          <span>•</span>
 
                           <span>
-                            {
-                              formatFileSize(
-                                assignmentFile.size
-                              )
-                            }
+                            {formatFileSize(
+                              assignmentFile.size
+                            )}
                           </span>
                         </>
                       ) : null}
@@ -3413,9 +3250,7 @@ const StudentAssignmentDetails =
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={
-                      openAssignmentDocument
-                    }
+                    onClick={openAssignmentDocument}
                     disabled={
                       protectedFileLoading ||
                       !assignmentFileUrl
@@ -3428,9 +3263,7 @@ const StudentAssignmentDetails =
                         className="animate-spin"
                       />
                     ) : (
-                      <ExternalLink
-                        size={16}
-                      />
+                      <ExternalLink size={16} />
                     )}
 
                     {protectedFileLoading
@@ -3440,25 +3273,18 @@ const StudentAssignmentDetails =
 
                   <button
                     type="button"
-                    onClick={
-                      downloadAssignmentDocument
-                    }
+                    onClick={downloadAssignmentDocument}
                     disabled={
                       protectedFileLoading ||
                       !assignmentFileUrl
                     }
                     className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
-                    <Download
-                      size={16}
-                    />
-
+                    <Download size={16} />
                     Download
                   </button>
                 </div>
               </div>
-
-              {/* PROTECTED FILE ERROR */}
 
               {protectedFileError ? (
                 <div className="p-4 sm:p-6">
@@ -3475,22 +3301,15 @@ const StudentAssignmentDetails =
                         </h3>
 
                         <p className="mt-2 text-sm text-red-200/80">
-                          {
-                            protectedFileError
-                          }
+                          {protectedFileError}
                         </p>
 
                         <button
                           type="button"
-                          onClick={
-                            retryProtectedFile
-                          }
+                          onClick={retryProtectedFile}
                           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-400/10 border border-red-400/20 px-4 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-400/20 transition"
                         >
-                          <RefreshCw
-                            size={16}
-                          />
-
+                          <RefreshCw size={16} />
                           Try Again
                         </button>
                       </div>
@@ -3498,8 +3317,6 @@ const StudentAssignmentDetails =
                   </div>
                 </div>
               ) : null}
-
-              {/* FILE LOADING */}
 
               {protectedFileLoading &&
               !protectedFileUrl ? (
@@ -3525,8 +3342,6 @@ const StudentAssignmentDetails =
                 </div>
               ) : null}
 
-              {/* PDF */}
-
               {assignmentIsPdf &&
               protectedFileUrl ? (
                 <div className="p-4 sm:p-6">
@@ -3536,21 +3351,15 @@ const StudentAssignmentDetails =
                         size={16}
                         className="text-cyan-400"
                       />
-
                       Secure PDF Preview
                     </div>
 
                     <button
                       type="button"
-                      onClick={
-                        openAssignmentDocument
-                      }
+                      onClick={openAssignmentDocument}
                       className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/10 transition"
                     >
-                      <ExternalLink
-                        size={14}
-                      />
-
+                      <ExternalLink size={14} />
                       Open Full Screen
                     </button>
                   </div>
@@ -3568,28 +3377,21 @@ const StudentAssignmentDetails =
                 </div>
               ) : null}
 
-              {/* VIDEO */}
-
               {assignmentIsVideo &&
               protectedFileUrl ? (
                 <div className="p-4 sm:p-6">
                   <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
                     <video
-                      src={
-                        protectedFileUrl
-                      }
+                      src={protectedFileUrl}
                       controls
                       playsInline
                       className="w-full max-h-[70vh]"
                     >
-                      Your browser does not
-                      support video playback.
+                      Your browser does not support video playback.
                     </video>
                   </div>
                 </div>
               ) : null}
-
-              {/* OTHER DOCUMENTS */}
 
               {!assignmentIsPdf &&
               !assignmentIsVideo &&
@@ -3618,9 +3420,7 @@ const StudentAssignmentDetails =
                     <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
                         type="button"
-                        onClick={
-                          openAssignmentDocument
-                        }
+                        onClick={openAssignmentDocument}
                         disabled={
                           protectedFileLoading ||
                           !assignmentFileUrl
@@ -3633,9 +3433,7 @@ const StudentAssignmentDetails =
                             className="animate-spin"
                           />
                         ) : (
-                          <ExternalLink
-                            size={18}
-                          />
+                          <ExternalLink size={18} />
                         )}
 
                         {protectedFileLoading
@@ -3645,19 +3443,14 @@ const StudentAssignmentDetails =
 
                       <button
                         type="button"
-                        onClick={
-                          downloadAssignmentDocument
-                        }
+                        onClick={downloadAssignmentDocument}
                         disabled={
                           protectedFileLoading ||
                           !assignmentFileUrl
                         }
                         className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-medium text-slate-200 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
-                        <Download
-                          size={18}
-                        />
-
+                        <Download size={18} />
                         Download
                       </button>
                     </div>
@@ -3666,10 +3459,6 @@ const StudentAssignmentDetails =
               ) : null}
             </motion.div>
           ) : null}
-
-          {/* ====================================================
-              DOCUMENT SUBMISSION
-          ==================================================== */}
 
           {isDocumentAssignment ? (
             <motion.div
@@ -3698,10 +3487,7 @@ const StudentAssignmentDetails =
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-400 leading-relaxed">
-                      Complete the assignment above,
-                      save your work as a file, then
-                      upload it here for your tutor to
-                      review.
+                      Complete the assignment above, save your work as a file, then upload it here for your tutor to review.
                     </p>
                   </div>
                 </div>
@@ -3709,15 +3495,11 @@ const StudentAssignmentDetails =
 
               <div className="p-5 sm:p-6">
                 <input
-                  ref={
-                    fileInputRef
-                  }
+                  ref={fileInputRef}
                   type="file"
                   className="hidden"
                   accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.zip,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
-                  onChange={
-                    handleSubmissionFileChange
-                  }
+                  onChange={handleSubmissionFileChange}
                 />
 
                 {!studentSubmissionFile ? (
@@ -3726,9 +3508,7 @@ const StudentAssignmentDetails =
                     onClick={() =>
                       fileInputRef.current?.click()
                     }
-                    disabled={
-                      submitting
-                    }
+                    disabled={submitting}
                     className="w-full rounded-2xl border-2 border-dashed border-white/10 bg-black/20 hover:border-cyan-400/30 hover:bg-cyan-400/[0.03] p-8 sm:p-10 transition disabled:opacity-50"
                   >
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
@@ -3747,9 +3527,7 @@ const StudentAssignmentDetails =
                     </p>
 
                     <p className="mt-3 text-xs text-slate-600">
-                      PDF, DOC, DOCX, images,
-                      spreadsheets, presentations,
-                      TXT or ZIP • Maximum 250 MB
+                      PDF, DOC, DOCX, images, spreadsheets, presentations, TXT or ZIP • Maximum 250 MB
                     </p>
                   </button>
                 ) : (
@@ -3764,47 +3542,33 @@ const StudentAssignmentDetails =
 
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-slate-200 break-all">
-                          {
-                            studentSubmissionFile.name
-                          }
+                          {studentSubmissionFile.name}
                         </p>
 
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <span>
-                            {
-                              studentSubmissionFile.type ||
-                              "Document"
-                            }
+                            {studentSubmissionFile.type ||
+                              "Document"}
                           </span>
 
-                          <span>
-                            •
-                          </span>
+                          <span>•</span>
 
                           <span>
-                            {
-                              formatFileSize(
-                                studentSubmissionFile.size
-                              )
-                            }
+                            {formatFileSize(
+                              studentSubmissionFile.size
+                            )}
                           </span>
                         </div>
                       </div>
 
                       <button
                         type="button"
-                        onClick={
-                          removeSubmissionFile
-                        }
-                        disabled={
-                          submitting
-                        }
+                        onClick={removeSubmissionFile}
+                        disabled={submitting}
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition disabled:opacity-50"
                         aria-label="Remove selected file"
                       >
-                        <X
-                          size={17}
-                        />
+                        <X size={17} />
                       </button>
                     </div>
 
@@ -3813,15 +3577,10 @@ const StudentAssignmentDetails =
                       onClick={() =>
                         fileInputRef.current?.click()
                       }
-                      disabled={
-                        submitting
-                      }
+                      disabled={submitting}
                       className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/10 transition disabled:opacity-50"
                     >
-                      <RefreshCw
-                        size={15}
-                      />
-
+                      <RefreshCw size={15} />
                       Choose another file
                     </button>
                   </div>
@@ -3836,9 +3595,7 @@ const StudentAssignmentDetails =
                       />
 
                       <p className="text-sm text-red-300">
-                        {
-                          submissionFileError
-                        }
+                        {submissionFileError}
                       </p>
                     </div>
                   </div>
@@ -3854,9 +3611,7 @@ const StudentAssignmentDetails =
 
                       <div className="flex-1">
                         <p className="text-sm text-red-300">
-                          {
-                            submitError
-                          }
+                          {submitError}
                         </p>
                       </div>
                     </div>
@@ -3871,17 +3626,13 @@ const StudentAssignmentDetails =
                       </h3>
 
                       <p className="text-sm text-slate-500 mt-1">
-                        Make sure this is the
-                        completed version you want
-                        your tutor to review.
+                        Make sure this is the completed version you want your tutor to review.
                       </p>
                     </div>
 
                     <button
                       type="button"
-                      onClick={
-                        submitAssignment
-                      }
+                      onClick={submitAssignment}
                       disabled={
                         submitting ||
                         !studentSubmissionFile
@@ -3894,15 +3645,11 @@ const StudentAssignmentDetails =
                             size={18}
                             className="animate-spin"
                           />
-
                           Submitting...
                         </>
                       ) : (
                         <>
-                          <Send
-                            size={18}
-                          />
-
+                          <Send size={18} />
                           Submit Assignment
                         </>
                       )}
@@ -3916,35 +3663,22 @@ const StudentAssignmentDetails =
                     className="text-emerald-500"
                   />
 
-                  Your uploaded file will be
-                  attached to this assignment
-                  submission for your tutor.
+                  Your uploaded file will be attached to this assignment submission for your tutor.
                 </div>
               </div>
             </motion.div>
           ) : null}
 
-          {/* ====================================================
-              QUESTIONS
-          ==================================================== */}
-
           {questions.length > 0 ? (
             <>
               <div className="space-y-4">
                 {questions.map(
-                  (
-                    question,
-                    index
-                  ) => {
+                  (question, index) => {
                     const questionId =
-                      String(
-                        question.id
-                      );
+                      String(question.id);
 
                     const selectedAnswer =
-                      answers[
-                        questionId
-                      ] || "";
+                      answers[questionId] || "";
 
                     const expanded =
                       expandedQuestion ===
@@ -3952,9 +3686,7 @@ const StudentAssignmentDetails =
 
                     return (
                       <motion.div
-                        key={
-                          questionId
-                        }
+                        key={questionId}
                         initial={{
                           opacity: 0,
                           y: 10,
@@ -3964,9 +3696,7 @@ const StudentAssignmentDetails =
                           y: 0,
                         }}
                         transition={{
-                          delay:
-                            index *
-                            0.03,
+                          delay: index * 0.03,
                         }}
                         className="rounded-2xl border border-white/10 bg-[#071426] overflow-hidden"
                       >
@@ -3983,28 +3713,19 @@ const StudentAssignmentDetails =
                         >
                           <div className="flex items-start gap-4">
                             <div className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-sm font-semibold">
-                              {
-                                index +
-                                1
-                              }
+                              {index + 1}
                             </div>
 
                             <div>
                               <p className="font-medium leading-relaxed">
-                                {
-                                  question.question ||
-                                  "Question"
-                                }
+                                {question.question ||
+                                  "Question"}
                               </p>
 
                               <p className="text-xs text-slate-500 mt-2">
-                                {
-                                  question.marks ||
-                                  1
-                                }{" "}
+                                {question.marks || 1}{" "}
                                 mark
-                                {(question.marks ||
-                                  1) !==
+                                {(question.marks || 1) !==
                                 1
                                   ? "s"
                                   : ""}
@@ -4029,30 +3750,13 @@ const StudentAssignmentDetails =
                           <div className="px-5 pb-5">
                             <div className="border-t border-white/5 pt-5 space-y-3">
                               {[
-                                [
-                                  "A",
-                                  question.optionA,
-                                ],
-                                [
-                                  "B",
-                                  question.optionB,
-                                ],
-                                [
-                                  "C",
-                                  question.optionC,
-                                ],
-                                [
-                                  "D",
-                                  question.optionD,
-                                ],
+                                ["A", question.optionA],
+                                ["B", question.optionB],
+                                ["C", question.optionC],
+                                ["D", question.optionD],
                               ].map(
-                                ([
-                                  letter,
-                                  option,
-                                ]) => {
-                                  if (
-                                    !option
-                                  ) {
+                                ([letter, option]) => {
+                                  if (!option) {
                                     return null;
                                   }
 
@@ -4064,9 +3768,7 @@ const StudentAssignmentDetails =
 
                                   return (
                                     <button
-                                      key={
-                                        letter
-                                      }
+                                      key={letter}
                                       type="button"
                                       onClick={() =>
                                         handleAnswer(
@@ -4088,15 +3790,11 @@ const StudentAssignmentDetails =
                                               : "bg-white/5 text-slate-300"
                                           }`}
                                         >
-                                          {
-                                            letter
-                                          }
+                                          {letter}
                                         </span>
 
                                         <span className="text-sm text-slate-200">
-                                          {
-                                            option
-                                          }
+                                          {option}
                                         </span>
                                       </div>
                                     </button>
@@ -4107,10 +3805,7 @@ const StudentAssignmentDetails =
 
                             {selectedAnswer ? (
                               <div className="mt-4 flex items-center gap-2 text-xs text-emerald-400">
-                                <CheckCircle2
-                                  size={15}
-                                />
-
+                                <CheckCircle2 size={15} />
                                 Answer selected
                               </div>
                             ) : null}
@@ -4132,9 +3827,7 @@ const StudentAssignmentDetails =
 
                     <div className="flex-1">
                       <p className="text-sm text-red-300">
-                        {
-                          submitError
-                        }
+                        {submitError}
                       </p>
                     </div>
                   </div>
@@ -4149,20 +3842,14 @@ const StudentAssignmentDetails =
                     </h2>
 
                     <p className="text-sm text-slate-500 mt-1">
-                      Make sure you have answered
-                      every question before
-                      submitting.
+                      Make sure you have answered every question before submitting.
                     </p>
                   </div>
 
                   <button
                     type="button"
-                    onClick={
-                      submitAssignment
-                    }
-                    disabled={
-                      submitting
-                    }
+                    onClick={submitAssignment}
+                    disabled={submitting}
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-cyan-500 text-slate-950 font-semibold hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     {submitting ? (
@@ -4171,15 +3858,11 @@ const StudentAssignmentDetails =
                           size={18}
                           className="animate-spin"
                         />
-
                         Submitting...
                       </>
                     ) : (
                       <>
-                        <Send
-                          size={18}
-                        />
-
+                        <Send size={18} />
                         Submit Assignment
                       </>
                     )}
@@ -4189,13 +3872,9 @@ const StudentAssignmentDetails =
 
               <div className="mt-5 rounded-xl border border-white/5 bg-black/10 p-4">
                 <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <RefreshCw
-                    size={13}
-                  />
+                  <RefreshCw size={13} />
 
-                  <span>
-                    Enrollment:
-                  </span>
+                  <span>Enrollment:</span>
 
                   <span className="font-mono text-slate-400">
                     {studentIdentity.enrollmentId ||
@@ -4205,8 +3884,6 @@ const StudentAssignmentDetails =
               </div>
             </>
           ) : !hasAssignmentDocument ? (
-            /* NO QUESTIONS / NO DOCUMENT */
-
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
               <div className="flex items-start gap-3">
                 <AlertCircle
@@ -4220,9 +3897,7 @@ const StudentAssignmentDetails =
                   </h2>
 
                   <p className="text-sm text-amber-200/70 mt-2">
-                    This assignment has been
-                    created, but no questions or
-                    document have been added yet.
+                    This assignment has been created, but no questions or document have been added yet.
                   </p>
                 </div>
               </div>

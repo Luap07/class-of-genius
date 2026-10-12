@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 
 // ============================================================
-// API
+// CONFIGURATION
 // ============================================================
 
 const API_BASE_URL = (
@@ -36,37 +36,38 @@ const API_BASE_URL = (
 const ASSIGNMENTS_URL =
   `${API_BASE_URL}/api/academy/tutor/assignments`;
 
-// ============================================================
-// HELPERS
-// ============================================================
+const clean = (value) =>
+  value === undefined || value === null
+    ? ""
+    : String(value).trim();
 
-const clean = (value) => {
-  if (
-    value === undefined ||
-    value === null
-  ) {
-    return "";
-  }
-
-  return String(value).trim();
+const number = (value) => {
+  const result = Number(value);
+  return Number.isFinite(result) ? result : 0;
 };
 
-const formatNumber = (value) => {
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) {
-    return 0;
+const getToken = () => {
+  for (const key of [
+    "scholiqen_academy_token",
+    "academy_token",
+    "scholiqen_token",
+    "access_token",
+    "token",
+  ]) {
+    try {
+      const token = localStorage.getItem(key);
+      if (token) return token;
+    } catch {
+      // Ignore storage errors.
+    }
   }
 
-  return number;
+  return "";
 };
 
-// ============================================================
-// TUTOR REFERENCE
-// ============================================================
-
+// Only accept the actual SQA tutor reference.
 const getTutorReference = () => {
-  const possibleKeys = [
+  const keys = [
     "scholiqen_academy_user",
     "tutorReference",
     "tutor_reference",
@@ -74,27 +75,21 @@ const getTutorReference = () => {
     "academyTutor",
   ];
 
-  for (const key of possibleKeys) {
+  for (const key of keys) {
     try {
       const raw = localStorage.getItem(key);
-
-      if (!raw) {
-        continue;
-      }
+      if (!raw) continue;
 
       let value = raw;
 
       try {
         value = JSON.parse(raw);
       } catch {
-        // Plain string.
+        // The stored value may be a plain string.
       }
 
-      const references = [
-        typeof value === "string"
-          ? value
-          : null,
-
+      const candidates = [
+        typeof value === "string" ? value : "",
         value?.reference,
         value?.tutorReference,
         value?.tutor_reference,
@@ -102,201 +97,152 @@ const getTutorReference = () => {
         value?.application_reference,
       ];
 
-      for (const referenceValue of references) {
-        const reference = clean(referenceValue);
+      for (const candidate of candidates) {
+        const reference = clean(candidate);
 
-        if (
-          reference &&
-          reference.toUpperCase().startsWith("SQA-")
-        ) {
+        if (/^SQA-/i.test(reference)) {
           return reference;
         }
       }
     } catch {
-      // Ignore malformed localStorage values.
+      // Ignore malformed storage.
     }
   }
 
   return "";
 };
 
-// ============================================================
-// TOKEN
-// ============================================================
+const buildHeaders = () => {
+  const headers = {
+    Accept: "application/json",
+  };
 
-const getToken = () => {
-  const keys = [
-    "scholiqen_academy_token",
-    "academy_token",
-    "scholiqen_token",
-    "access_token",
-    "token",
-  ];
+  const token = getToken();
+  const reference = getTutorReference();
 
-  for (const key of keys) {
-    try {
-      const value = localStorage.getItem(key);
-
-      if (value) {
-        return value;
-      }
-    } catch {
-      // Ignore localStorage errors.
-    }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  return "";
-};
-
-// ============================================================
-// ERROR
-// ============================================================
-
-const getErrorMessage = (
-  error,
-  fallback
-) => {
-  if (
-    error?.message &&
-    !error.message.includes("HTTP")
-  ) {
-    return error.message;
+  if (reference) {
+    headers["x-tutor-reference"] = reference;
   }
 
-  return fallback;
+  return headers;
 };
 
-// ============================================================
-// SUBMISSION ID
-// ============================================================
+const readResponse = async (response) => {
+  let data = {};
 
-const getSubmissionId = (
-  submission
-) => {
-  return (
-    submission?.submissionId ??
-    submission?.submission_id ??
-    submission?.id ??
-    null
-  );
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+      data?.error ||
+      `Request failed (${response.status}).`
+    );
+  }
+
+  return data;
 };
 
-// ============================================================
-// STUDENT REFERENCE
-// ============================================================
+const getErrorMessage = (error, fallback) =>
+  error?.message || fallback;
 
-const getStudentReference = (
-  submission
-) => {
-  return clean(
-    submission?.studentReference ??
-    submission?.student_reference ??
-    submission?.reference ??
+const getSubmissionId = (item) =>
+  item?.submissionId ??
+  item?.submission_id ??
+  item?.id ??
+  null;
+
+const getStudentReference = (item) =>
+  clean(
+    item?.studentReference ??
+    item?.student_reference ??
+    item?.reference ??
     ""
   );
-};
 
-// ============================================================
-// STUDENT ID
-// ============================================================
-
-const getStudentId = (
-  submission
-) => {
-  return clean(
-    submission?.studentId ??
-    submission?.student_id ??
-    submission?.enrollmentId ??
-    submission?.enrollment_id ??
+const getStudentId = (item) =>
+  clean(
+    item?.studentId ??
+    item?.student_id ??
+    item?.enrollmentId ??
+    item?.enrollment_id ??
     ""
   );
-};
 
-// ============================================================
-// STUDENT NAME
-// ============================================================
+const getStudentName = (item) =>
+  clean(
+    item?.studentName ??
+    item?.student_name ??
+    item?.name ??
+    ""
+  ) ||
+  getStudentReference(item) ||
+  getStudentId(item) ||
+  "Student";
 
-const getStudentName = (
-  submission
-) => {
-  return (
-    clean(
-      submission?.studentName ??
-      submission?.student_name ??
-      submission?.name ??
-      ""
-    ) ||
-    getStudentReference(submission) ||
-    getStudentId(submission) ||
-    "Student"
-  );
-};
-
-// ============================================================
-// DATE
-// ============================================================
-
-const formatDate = (
-  value
-) => {
-  if (!value) {
-    return "Unknown date";
-  }
+const formatDate = (value) => {
+  if (!value) return "Unknown date";
 
   const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return String(value);
   }
 
-  return date.toLocaleString(
-    undefined,
-    {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }
-  );
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 };
 
 // ============================================================
-// ANSWER NORMALIZER
+// RESPONSE NORMALIZERS
 // ============================================================
 
-const normalizeAnswer = (
-  answer,
-  index = 0
-) => {
-  if (!answer) {
+const getQuestionText = (answer) => {
+  const question = answer?.question;
+
+  if (question && typeof question === "object") {
+    return clean(
+      question.question_text ??
+      question.questionText ??
+      question.text ??
+      question.question ??
+      ""
+    );
+  }
+
+  return clean(
+    answer?.questionText ??
+    answer?.question_text ??
+    answer?.question ??
+    ""
+  );
+};
+
+const normalizeAnswer = (answer, index = 0) => {
+  if (!answer || typeof answer !== "object") {
     return null;
   }
 
-  const question =
-    typeof answer.question === "object" &&
-    answer.question !== null
-      ? (
-          answer.question.text ??
-          answer.question.question ??
-          ""
-        )
-      : (
-          answer.question ??
-          answer.questionText ??
-          answer.question_text ??
-          ""
-        );
+  const question = answer.question;
 
   const studentAnswer =
     answer.studentAnswer ??
     answer.student_answer ??
-    answer.answer ??
     answer.selectedAnswer ??
     answer.selected_answer ??
-    answer.response ??
     answer.response_text ??
+    answer.response ??
+    answer.answer ??
     "";
 
   const correctAnswer =
@@ -306,34 +252,18 @@ const normalizeAnswer = (
     answer.answer_key ??
     answer.questionCorrectAnswer ??
     answer.question_correct_answer ??
+    question?.correctAnswer ??
+    question?.correct_answer ??
     "";
 
-  const marksAwarded =
-    formatNumber(
-      answer.marksAwarded ??
-      answer.marks_awarded ??
-      answer.score ??
-      0
-    );
-
-  const marks =
-    formatNumber(
-      answer.marks ??
-      answer.maxMarks ??
-      answer.max_marks ??
-      answer.questionMarks ??
-      answer.question_marks ??
-      0
-    );
+  const rawCorrect =
+    answer.isCorrect ??
+    answer.is_correct;
 
   const isCorrect =
-    answer.isCorrect === true ||
-    answer.is_correct === true ||
-    String(
-      answer.isCorrect ??
-      answer.is_correct ??
-      ""
-    ).toLowerCase() === "true";
+    rawCorrect === true ||
+    rawCorrect === 1 ||
+    String(rawCorrect).toLowerCase() === "true";
 
   return {
     ...answer,
@@ -350,98 +280,96 @@ const normalizeAnswer = (
       answer.id ??
       `${index}`,
 
-    submissionId:
-      answer.submissionId ??
-      answer.submission_id ??
-      null,
-
     questionId:
       answer.questionId ??
       answer.question_id ??
-      (
-        typeof answer.question === "object"
-          ? answer.question?.id
-          : null
-      ) ??
+      question?.id ??
       null,
 
     questionNumber:
       answer.questionNumber ??
       answer.question_number ??
+      question?.question_number ??
       answer.number ??
       index + 1,
 
-    question: clean(question),
+    question: getQuestionText(answer),
 
     optionA: clean(
-      answer.optionA ??
-      answer.option_a ??
-      ""
+      answer.optionA ?? answer.option_a ??
+      question?.option_a ?? question?.optionA ?? ""
     ),
 
     optionB: clean(
-      answer.optionB ??
-      answer.option_b ??
-      ""
+      answer.optionB ?? answer.option_b ??
+      question?.option_b ?? question?.optionB ?? ""
     ),
 
     optionC: clean(
-      answer.optionC ??
-      answer.option_c ??
-      ""
+      answer.optionC ?? answer.option_c ??
+      question?.option_c ?? question?.optionC ?? ""
     ),
 
     optionD: clean(
-      answer.optionD ??
-      answer.option_d ??
-      ""
+      answer.optionD ?? answer.option_d ??
+      question?.option_d ?? question?.optionD ?? ""
     ),
 
-    studentAnswer:
-      clean(studentAnswer),
+    studentAnswer: clean(
+      typeof studentAnswer === "object"
+        ? JSON.stringify(studentAnswer)
+        : studentAnswer
+    ),
 
-    correctAnswer:
-      clean(correctAnswer),
+    correctAnswer: clean(correctAnswer),
 
-    marksAwarded,
+    marksAwarded: number(
+      answer.marksAwarded ??
+      answer.marks_awarded ??
+      answer.marks_obtained ??
+      answer.score ??
+      0
+    ),
 
-    marks,
+    marks: number(
+      answer.marks ??
+      answer.maxMarks ??
+      answer.max_marks ??
+      answer.questionMarks ??
+      answer.question_marks ??
+      question?.marks ??
+      0
+    ),
 
     isCorrect,
 
-    reason:
+    reason: clean(
       answer.reason ??
       answer.explanation ??
-      "",
+      question?.explanation ??
+      ""
+    ),
   };
 };
 
-// ============================================================
-// ANSWER LIST NORMALIZER
-// ============================================================
+const getAnswers = (item) => {
+  if (!item) return [];
 
-const getAnswers = (
-  submission
-) => {
-  if (!submission) {
-    return [];
-  }
-
-  const possibleArrays = [
-    submission.answers,
-    submission.submittedAnswers,
-    submission.submitted_answers,
-    submission.answerRecords,
-    submission.answer_records,
-    submission.responses,
-    submission.data?.answers,
-    submission.data?.submittedAnswers,
-    submission.data?.submitted_answers,
+  const candidates = [
+    item.answers,
+    item.answerRecords,
+    item.answer_records,
+    item.submittedAnswers,
+    item.submitted_answers,
+    item.responses,
+    item.data?.answers,
+    item.submission?.answers,
+    item.data?.submission?.answers,
   ];
 
-  for (const possible of possibleArrays) {
-    if (Array.isArray(possible)) {
-      return possible
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate
         .map(normalizeAnswer)
         .filter(Boolean);
     }
@@ -450,191 +378,162 @@ const getAnswers = (
   return [];
 };
 
-// ============================================================
-// ASSIGNMENT NORMALIZER
-// ============================================================
-
-const normalizeAssignment = (
-  assignment
-) => {
-  if (!assignment) {
+const normalizeAssignment = (item) => {
+  if (!item || typeof item !== "object") {
     return null;
   }
 
   return {
-    ...assignment,
+    ...item,
 
     id:
-      assignment.id ??
-      assignment.assignmentId ??
-      assignment.assignment_id,
+      item.id ??
+      item.assignmentId ??
+      item.assignment_id,
 
-    title:
-      assignment.title ||
-      "Assignment",
+    title: clean(item.title) || "Assignment",
 
-    subject:
-      assignment.subject ||
-      assignment.subjectName ||
-      assignment.subject_name ||
-      "",
+    subject: clean(
+      item.subject ??
+      item.subjectName ??
+      item.subject_name
+    ),
 
-    grade:
-      assignment.grade ||
-      assignment.className ||
-      assignment.class_name ||
-      assignment.class ||
-      "",
+    grade: clean(
+      item.grade ??
+      item.className ??
+      item.class_name ??
+      item.class ??
+      item.className
+    ),
 
-    totalQuestions:
-      assignment.totalQuestions ??
-      assignment.total_questions ??
-      assignment.questionCount ??
-      assignment.question_count ??
-      0,
+    totalQuestions: number(
+      item.totalQuestions ??
+      item.total_questions ??
+      item.questionCount ??
+      item.question_count ??
+      0
+    ),
 
-    totalMarks:
-      formatNumber(
-        assignment.totalMarks ??
-        assignment.total_marks ??
-        assignment.maxMarks ??
-        assignment.max_marks ??
-        0
-      ),
+    totalMarks: number(
+      item.totalMarks ??
+      item.total_marks ??
+      item.maxMarks ??
+      item.max_marks ??
+      item.max_score ??
+      0
+    ),
   };
 };
 
-// ============================================================
-// SUBMISSION NORMALIZER
-// ============================================================
+const normalizeSubmission = (item, assignment) => {
+  if (!item) return null;
 
-const normalizeSubmission = (
-  submission,
-  assignment
-) => {
-  if (!submission) {
-    return null;
-  }
+  const answers = getAnswers(item);
 
-  const answers =
-    getAnswers(submission);
+  const score = number(
+    item.score ??
+    item.marksObtained ??
+    item.marks_obtained ??
+    0
+  );
 
-  const score =
-    formatNumber(
-      submission.score ??
-      submission.marksObtained ??
-      submission.marks_obtained ??
-      0
-    );
+  const totalMarks = number(
+    item.totalMarks ??
+    item.total_marks ??
+    item.maxMarks ??
+    item.max_marks ??
+    item.max_score ??
+    assignment?.totalMarks ??
+    answers.reduce((sum, answer) => sum + answer.marks, 0)
+  );
 
-  const totalMarks =
-    formatNumber(
-      submission.totalMarks ??
-      submission.total_marks ??
-      submission.maxMarks ??
-      submission.max_marks ??
-      assignment?.totalMarks ??
-      answers.reduce(
-        (
-          total,
-          answer
-        ) =>
-          total +
-          formatNumber(
-            answer.marks
-          ),
-        0
-      )
-    );
-
-  let percentage =
-    submission.percentage;
-
-  if (
-    percentage === undefined ||
-    percentage === null
-  ) {
-    percentage =
-      totalMarks > 0
-        ? Number(
-            (
-              (score /
-                totalMarks) *
-              100
-            ).toFixed(2)
-          )
+  const percentage =
+    item.percentage !== undefined &&
+    item.percentage !== null
+      ? number(item.percentage)
+      : totalMarks > 0
+        ? Number(((score / totalMarks) * 100).toFixed(2))
         : 0;
-  }
 
   return {
-    ...submission,
+    ...item,
 
-    id:
-      getSubmissionId(
-        submission
-      ),
-
-    submissionId:
-      getSubmissionId(
-        submission
-      ),
+    id: getSubmissionId(item),
+    submissionId: getSubmissionId(item),
 
     assignmentId:
-      submission.assignmentId ??
-      submission.assignment_id ??
+      item.assignmentId ??
+      item.assignment_id ??
       assignment?.id ??
       "",
 
-    studentId:
-      getStudentId(
-        submission
-      ),
-
-    studentReference:
-      getStudentReference(
-        submission
-      ),
-
-    studentName:
-      getStudentName(
-        submission
-      ),
+    studentId: getStudentId(item),
+    studentReference: getStudentReference(item),
+    studentName: getStudentName(item),
 
     score,
-
     totalMarks,
+    percentage,
 
-    percentage:
-      formatNumber(
-        percentage
-      ),
+    grade: clean(item.grade),
 
-    grade:
-      submission.grade ||
-      "",
-
-    status:
-      submission.status ||
-      "submitted",
+    status: clean(item.status) || "submitted",
 
     submittedAt:
-      submission.submittedAt ||
-      submission.submitted_at ||
-      submission.createdAt ||
-      submission.created_at ||
+      item.submittedAt ??
+      item.submitted_at ??
+      item.createdAt ??
+      item.created_at ??
       null,
 
     resultReleased:
-      submission.resultReleased ===
-        true ||
-      submission.result_released ===
-        true,
+      item.resultReleased === true ||
+      item.result_released === true,
 
     answers,
-
-    answerCount:
-      answers.length,
+    answerCount: answers.length,
   };
+};
+
+const extractAssignments = (data) => {
+  const candidates = [
+    data?.assignments,
+    data?.results,
+    data?.data?.assignments,
+    data?.data?.results,
+    data?.data,
+    data?.result,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate
+        .map(normalizeAssignment)
+        .filter((item) => item?.id !== undefined && item?.id !== null);
+    }
+  }
+
+  return [];
+};
+
+const extractSubmissions = (data) => {
+  const candidates = [
+    data?.submissions,
+    data?.results,
+    data?.data?.submissions,
+    data?.data?.results,
+    data?.data,
+    data?.result,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+  }
+
+  return [];
 };
 
 // ============================================================
@@ -642,1018 +541,445 @@ const normalizeSubmission = (
 // ============================================================
 
 export default function TutorAssignmentSubmissions() {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
+  const params = useParams();
 
-  const params =
-    useParams();
+  const routeAssignmentId =
+    params.assignmentId ??
+    params.assignment_id ??
+    params.id ??
+    "";
+
+  const [tutorReference, setTutorReference] = useState(
+    getTutorReference
+  );
+
+  const [assignments, setAssignments] = useState([]);
+  const [selectedAssignmentId, setSelectedAssignmentId] =
+    useState(String(routeAssignmentId));
+
+  const [assignment, setAssignment] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
+  const [expandedSubmission, setExpandedSubmission] =
+    useState(null);
+
+  const [loadingAnswers, setLoadingAnswers] = useState({});
+  const [answerErrors, setAnswerErrors] = useState({});
+
+  const activeAssignmentId =
+    String(routeAssignmentId || selectedAssignmentId || "");
+
+  const assignmentById = useMemo(() => {
+    const map = new Map();
+
+    for (const item of assignments) {
+      map.set(String(item.id), item);
+    }
+
+    if (assignment?.id !== undefined && assignment?.id !== null) {
+      map.set(String(assignment.id), assignment);
+    }
+
+    return map;
+  }, [assignments, assignment]);
 
   // ==========================================================
-  // ASSIGNMENT ID
+  // LOAD AVAILABLE ASSIGNMENTS
+  // Required by /academy/tutor/assignments/submissions
   // ==========================================================
 
-  const assignmentId =
-    useMemo(() => {
-      return (
-        params.assignmentId ||
-        params.assignment_id ||
-        params.id ||
-        ""
+  const loadAssignments = useCallback(async () => {
+    const reference = getTutorReference();
+    setTutorReference(reference);
+
+    if (!reference) {
+      throw new Error(
+        "A valid SQA tutor reference could not be found. Please log in to your tutor account again."
       );
-    }, [
-      params.assignmentId,
-      params.assignment_id,
-      params.id,
-    ]);
+    }
 
-  // ==========================================================
-  // STATE
-  // ==========================================================
+    const query = new URLSearchParams({
+      reference,
+      tutorReference: reference,
+    });
 
-  const [
-    tutorReference,
-    setTutorReference,
-  ] = useState("");
-
-  const [
-    assignment,
-    setAssignment,
-  ] = useState(null);
-
-  const [
-    submissions,
-    setSubmissions,
-  ] = useState([]);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const [
-    expandedSubmission,
-    setExpandedSubmission,
-  ] = useState(null);
-
-  const [
-    loadingAnswers,
-    setLoadingAnswers,
-  ] = useState({});
-
-  const [
-    answerErrors,
-    setAnswerErrors,
-  ] = useState({});
-
-  // ==========================================================
-  // HEADERS
-  // ==========================================================
-
-  const buildHeaders =
-    useCallback(() => {
-      const token =
-        getToken();
-
-      const reference =
-        getTutorReference();
-
-      const headers = {
-        Accept:
-          "application/json",
-      };
-
-      if (token) {
-        headers.Authorization =
-          `Bearer ${token}`;
+    const response = await fetch(
+      `${ASSIGNMENTS_URL}?${query.toString()}`,
+      {
+        method: "GET",
+        headers: buildHeaders(),
       }
+    );
 
-      if (reference) {
-        headers[
-          "x-tutor-reference"
-        ] = reference;
-      }
+    const data = await readResponse(response);
+    const list = extractAssignments(data);
 
-      return headers;
-    }, []);
+    setAssignments(list);
+
+    return list;
+  }, []);
 
   // ==========================================================
-  // LOAD ASSIGNMENT + SUBMISSIONS
+  // LOAD ASSIGNMENT AND SUBMISSIONS
   // ==========================================================
 
-  const loadData =
-    useCallback(
-      async ({
-        silent = false,
-      } = {}) => {
-        if (!assignmentId) {
-          setError(
-            "Assignment ID could not be found in the URL."
-          );
+  const loadData = useCallback(
+    async ({ silent = false, requestedId = "" } = {}) => {
+      const id = String(requestedId || activeAssignmentId || "");
 
-          setLoading(false);
+      setError("");
 
+      if (!silent) setLoading(true);
+      if (silent) setRefreshing(true);
+
+      try {
+        const list = await loadAssignments();
+
+        // Landing route: show assignments for selection.
+        if (!id) {
+          setAssignment(null);
+          setSubmissions([]);
+          setExpandedSubmission(null);
           return;
         }
 
-        const reference =
-          getTutorReference();
+        const query = new URLSearchParams();
 
-        setTutorReference(
-          reference
-        );
+        const reference = getTutorReference();
 
-        if (!silent) {
-          setLoading(true);
+        if (reference) {
+          query.set("reference", reference);
+          query.set("tutorReference", reference);
         }
 
-        if (silent) {
-          setRefreshing(true);
-        }
+        const suffix = query.toString()
+          ? `?${query.toString()}`
+          : "";
 
-        setError("");
+        const encodedId = encodeURIComponent(id);
 
-        try {
-          const query =
-            new URLSearchParams();
-
-          if (reference) {
-            query.set(
-              "reference",
-              reference
-            );
-
-            query.set(
-              "tutorReference",
-              reference
-            );
-          }
-
-          const encodedId =
-            encodeURIComponent(
-              assignmentId
-            );
-
-          const queryString =
-            query.toString();
-
-          const assignmentUrl =
-            `${ASSIGNMENTS_URL}/${encodedId}${
-              queryString
-                ? `?${queryString}`
-                : ""
-            }`;
-
-          const submissionsUrl =
-            `${ASSIGNMENTS_URL}/${encodedId}/submissions${
-              queryString
-                ? `?${queryString}`
-                : ""
-            }`;
-
-          const headers =
-            buildHeaders();
-
-          console.log(
-            "=============================================="
-          );
-
-          console.log(
-            "📚 TUTOR ASSIGNMENT SUBMISSIONS"
-          );
-
-          console.log(
-            "Assignment ID:",
-            assignmentId
-          );
-
-          console.log(
-            "Tutor Reference:",
-            reference ||
-              "NONE"
-          );
-
-          console.log(
-            "Submissions URL:",
-            submissionsUrl
-          );
-
-          console.log(
-            "=============================================="
-          );
-
-          const [
-            assignmentResponse,
-            submissionsResponse,
-          ] = await Promise.all([
-            fetch(
-              assignmentUrl,
-              {
-                method: "GET",
-                headers,
-              }
-            ),
+        const [assignmentResponse, submissionsResponse] =
+          await Promise.all([
+            fetch(`${ASSIGNMENTS_URL}/${encodedId}${suffix}`, {
+              method: "GET",
+              headers: buildHeaders(),
+            }),
 
             fetch(
-              submissionsUrl,
+              `${ASSIGNMENTS_URL}/${encodedId}/submissions${suffix}`,
               {
                 method: "GET",
-                headers,
+                headers: buildHeaders(),
               }
             ),
           ]);
 
-          let assignmentData =
-            {};
+        const [assignmentData, submissionsData] =
+          await Promise.all([
+            readResponse(assignmentResponse),
+            readResponse(submissionsResponse),
+          ]);
 
-          let submissionsData =
-            {};
+        const rawAssignment =
+          assignmentData?.assignment ??
+          assignmentData?.data?.assignment ??
+          assignmentData?.data ??
+          assignmentData?.result ??
+          list.find((item) => String(item.id) === id) ??
+          null;
 
-          try {
-            assignmentData =
-              await assignmentResponse.json();
-          } catch {
-            assignmentData = {};
-          }
+        const loadedAssignment =
+          normalizeAssignment(rawAssignment);
 
-          try {
-            submissionsData =
-              await submissionsResponse.json();
-          } catch {
-            submissionsData = {};
-          }
+        setAssignment(loadedAssignment);
 
-          console.log(
-            "📌 Assignment HTTP:",
-            assignmentResponse.status
-          );
+        const loadedSubmissions =
+          extractSubmissions(submissionsData);
 
-          console.log(
-            "📌 Submissions HTTP:",
-            submissionsResponse.status
-          );
+        const normalized = loadedSubmissions
+          .map((item) =>
+            normalizeSubmission(item, loadedAssignment)
+          )
+          .filter(Boolean);
 
-          console.log(
-            "📌 Assignment response:",
-            assignmentData
-          );
+        setSubmissions(normalized);
 
-          console.log(
-            "📌 Submissions response:",
-            submissionsData
-          );
+        setExpandedSubmission(null);
+        setAnswerErrors({});
+      } catch (requestError) {
+        console.error(
+          "Tutor assignment submissions error:",
+          requestError
+        );
 
-          if (
-            !assignmentResponse.ok
-          ) {
-            throw new Error(
-              assignmentData?.message ||
-              "Unable to load assignment."
-            );
-          }
+        setError(
+          getErrorMessage(
+            requestError,
+            "Unable to load assignment submissions."
+          )
+        );
 
-          if (
-            !submissionsResponse.ok
-          ) {
-            throw new Error(
-              submissionsData?.message ||
-              "Unable to load submissions."
-            );
-          }
-
-          // ==================================================
-          // ASSIGNMENT
-          // ==================================================
-
-          const loadedAssignment =
-            assignmentData?.assignment ||
-            assignmentData?.data?.assignment ||
-            assignmentData?.data ||
-            null;
-
-          const normalizedAssignment =
-            normalizeAssignment(
-              loadedAssignment
-            );
-
-          setAssignment(
-            normalizedAssignment
-          );
-
-          // ==================================================
-          // SUBMISSIONS
-          // ==================================================
-
-          let loadedSubmissions =
-            [];
-
-          if (
-            Array.isArray(
-              submissionsData?.submissions
-            )
-          ) {
-            loadedSubmissions =
-              submissionsData.submissions;
-          } else if (
-            Array.isArray(
-              submissionsData?.results
-            )
-          ) {
-            loadedSubmissions =
-              submissionsData.results;
-          } else if (
-            Array.isArray(
-              submissionsData?.data?.submissions
-            )
-          ) {
-            loadedSubmissions =
-              submissionsData.data.submissions;
-          } else if (
-            Array.isArray(
-              submissionsData?.data
-            )
-          ) {
-            loadedSubmissions =
-              submissionsData.data;
-          } else if (
-            Array.isArray(
-              submissionsData?.result
-            )
-          ) {
-            loadedSubmissions =
-              submissionsData.result;
-          }
-
-          const normalized =
-            loadedSubmissions
-              .map(
-                (submission) =>
-                  normalizeSubmission(
-                    submission,
-                    normalizedAssignment
-                  )
-              )
-              .filter(Boolean);
-
-          console.log(
-            "✅ NORMALIZED SUBMISSIONS:",
-            normalized
-          );
-
-          setSubmissions(
-            normalized
-          );
-
-          // ==================================================
-          // IMPORTANT
-          //
-          // Automatically select the most recent submission
-          // when the API returns multiple records for the
-          // same student.
-          // ==================================================
-
-          if (normalized.length > 0) {
-            const sorted =
-              [...normalized].sort(
-                (a, b) => {
-                  const dateA =
-                    new Date(
-                      a.submittedAt || 0
-                    ).getTime();
-
-                  const dateB =
-                    new Date(
-                      b.submittedAt || 0
-                    ).getTime();
-
-                  if (
-                    dateA !== dateB
-                  ) {
-                    return (
-                      dateB - dateA
-                    );
-                  }
-
-                  return (
-                    Number(
-                      b.id || 0
-                    ) -
-                    Number(
-                      a.id || 0
-                    )
-                  );
-                }
-              );
-
-            console.log(
-              "🎯 Most recent submission:",
-              sorted[0]
-            );
-          }
-        } catch (requestError) {
-          console.error(
-            "❌ Tutor submissions error:",
-            requestError
-          );
-
-          setError(
-            getErrorMessage(
-              requestError,
-              "Unable to load submitted assignments."
-            )
-          );
-
-          setSubmissions([]);
-        } finally {
-          setLoading(false);
-          setRefreshing(false);
-        }
-      },
-      [
-        assignmentId,
-        buildHeaders,
-      ]
-    );
-
-  // ==========================================================
-  // INITIAL LOAD
-  // ==========================================================
+        setSubmissions([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [activeAssignmentId, loadAssignments]
+  );
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData({
+      requestedId: routeAssignmentId,
+    });
+  }, [routeAssignmentId, loadData]);
 
   // ==========================================================
-  // LOAD FULL SUBMISSION
+  // SELECT ASSIGNMENT FROM THE LANDING PAGE
   // ==========================================================
 
-  const loadSubmissionAnswers =
-    useCallback(
-      async (submission) => {
-        const submissionId =
-          getSubmissionId(
-            submission
-          );
-
-        if (!submissionId) {
-          console.error(
-            "❌ Cannot load answers: submission ID missing.",
-            submission
-          );
-
-          setAnswerErrors(
-            (current) => ({
-              ...current,
-              unknown:
-                "The submission ID could not be found.",
-            })
-          );
-
-          return;
-        }
-
-        // ----------------------------------------------------
-        // If answers are already available, do not request
-        // them again.
-        // ----------------------------------------------------
-
-        if (
-          Array.isArray(
-            submission.answers
-          ) &&
-          submission.answers.length > 0
-        ) {
-          return;
-        }
-
-        setLoadingAnswers(
-          (current) => ({
-            ...current,
-            [submissionId]: true,
-          })
-        );
-
-        setAnswerErrors(
-          (current) => ({
-            ...current,
-            [submissionId]: "",
-          })
-        );
-
-        try {
-          const reference =
-            tutorReference ||
-            getTutorReference();
-
-          const query =
-            new URLSearchParams();
-
-          if (reference) {
-            query.set(
-              "reference",
-              reference
-            );
-
-            query.set(
-              "tutorReference",
-              reference
-            );
-          }
-
-          const queryString =
-            query.toString();
-
-          const url =
-            `${ASSIGNMENTS_URL}/${encodeURIComponent(
-              assignmentId
-            )}/submissions/${encodeURIComponent(
-              submissionId
-            )}${
-              queryString
-                ? `?${queryString}`
-                : ""
-            }`;
-
-          console.log(
-            "📥 Loading FULL tutor submission:",
-            {
-              assignmentId,
-              submissionId,
-              url,
-            }
-          );
-
-          const response =
-            await fetch(
-              url,
-              {
-                method: "GET",
-                headers:
-                  buildHeaders(),
-              }
-            );
-
-          let data = {};
-
-          try {
-            data =
-              await response.json();
-          } catch {
-            data = {};
-          }
-
-          console.log(
-            "📥 FULL SUBMISSION HTTP:",
-            response.status
-          );
-
-          console.log(
-            "📥 FULL SUBMISSION RESPONSE:",
-            data
-          );
-
-          if (!response.ok) {
-            throw new Error(
-              data?.message ||
-              data?.error ||
-              "Unable to load submission answers."
-            );
-          }
-
-          // --------------------------------------------------
-          // Find the actual submission object.
-          // --------------------------------------------------
-
-          const fullSubmission =
-            data?.submission ||
-            data?.data?.submission ||
-            (
-              data?.data &&
-              !Array.isArray(data.data)
-                ? data.data
-                : null
-            ) ||
-            data?.result ||
-            null;
-
-          // --------------------------------------------------
-          // Find answer array directly from response first.
-          //
-          // This is important because the backend currently
-          // returns:
-          //
-          // {
-          //   submission,
-          //   answers,
-          //   data: {
-          //     submission,
-          //     answers
-          //   }
-          // }
-          // --------------------------------------------------
-
-          let fullAnswers = [];
-
-          if (
-            Array.isArray(
-              data?.answers
-            )
-          ) {
-            fullAnswers =
-              data.answers;
-          } else if (
-            Array.isArray(
-              data?.data?.answers
-            )
-          ) {
-            fullAnswers =
-              data.data.answers;
-          } else if (
-            Array.isArray(
-              fullSubmission?.answers
-            )
-          ) {
-            fullAnswers =
-              fullSubmission.answers;
-          } else {
-            fullAnswers =
-              getAnswers(
-                fullSubmission
-              );
-          }
-
-          fullAnswers =
-            fullAnswers
-              .map(
-                normalizeAnswer
-              )
-              .filter(Boolean);
-
-          console.log(
-            "📝 FULL ANSWERS:",
-            fullAnswers
-          );
-
-          // --------------------------------------------------
-          // Verify that the server returned the same
-          // submission that we requested.
-          // --------------------------------------------------
-
-          const returnedSubmissionId =
-            getSubmissionId(
-              fullSubmission
-            );
-
-          console.log(
-            "🔐 Requested submission:",
-            submissionId
-          );
-
-          console.log(
-            "🔐 Returned submission:",
-            returnedSubmissionId
-          );
-
-          if (
-            returnedSubmissionId &&
-            String(
-              returnedSubmissionId
-            ) !==
-              String(
-                submissionId
-              )
-          ) {
-            throw new Error(
-              `The server returned submission ${returnedSubmissionId} instead of submission ${submissionId}.`
-            );
-          }
-
-          // --------------------------------------------------
-          // If answers are empty, make one direct diagnostic
-          // request through the same endpoint response shape.
-          // --------------------------------------------------
-
-          if (
-            fullAnswers.length === 0
-          ) {
-            console.warn(
-              "⚠️ Submission exists but answer array is empty.",
-              {
-                submissionId,
-                response: data,
-              }
-            );
-
-            setAnswerErrors(
-              (current) => ({
-                ...current,
-                [submissionId]:
-                  "The submission was found, but the server returned no answer records.",
-              })
-            );
-
-            // Keep the submission open so the tutor can see
-            // the actual diagnostic state.
-            setSubmissions(
-              (current) =>
-                current.map(
-                  (item) => {
-                    const itemId =
-                      getSubmissionId(
-                        item
-                      );
-
-                    if (
-                      String(
-                        itemId
-                      ) !==
-                      String(
-                        submissionId
-                      )
-                    ) {
-                      return item;
-                    }
-
-                    return {
-                      ...item,
-                      answers: [],
-                      answerCount: 0,
-                    };
-                  }
-                )
-            );
-
-            return;
-          }
-
-          // --------------------------------------------------
-          // Merge server submission + server answers.
-          // --------------------------------------------------
-
-          setSubmissions(
-            (current) =>
-              current.map(
-                (item) => {
-                  const itemId =
-                    getSubmissionId(
-                      item
-                    );
-
-                  if (
-                    String(
-                      itemId
-                    ) !==
-                    String(
-                      submissionId
-                    )
-                  ) {
-                    return item;
-                  }
-
-                  const merged =
-                    {
-                      ...item,
-                      ...(fullSubmission || {}),
-
-                      id:
-                        itemId,
-
-                      submissionId:
-                        itemId,
-
-                      studentId:
-                        getStudentId(
-                          fullSubmission
-                        ) ||
-                        item.studentId,
-
-                      studentReference:
-                        getStudentReference(
-                          fullSubmission
-                        ) ||
-                        item.studentReference,
-
-                      studentName:
-                        getStudentName(
-                          fullSubmission
-                        ) ||
-                        item.studentName,
-
-                      score:
-                        formatNumber(
-                          fullSubmission?.score ??
-                          item.score
-                        ),
-
-                      totalMarks:
-                        formatNumber(
-                          fullSubmission?.totalMarks ??
-                          fullSubmission?.total_marks ??
-                          item.totalMarks
-                        ),
-
-                      percentage:
-                        formatNumber(
-                          fullSubmission?.percentage ??
-                          item.percentage
-                        ),
-
-                      grade:
-                        fullSubmission?.grade ||
-                        item.grade ||
-                        "",
-
-                      status:
-                        fullSubmission?.status ||
-                        item.status ||
-                        "submitted",
-
-                      submittedAt:
-                        fullSubmission?.submittedAt ||
-                        fullSubmission?.submitted_at ||
-                        item.submittedAt ||
-                        null,
-
-                      resultReleased:
-                        fullSubmission?.resultReleased ===
-                          true ||
-                        fullSubmission?.result_released ===
-                          true ||
-                        item.resultReleased ===
-                          true,
-
-                      answers:
-                        fullAnswers,
-
-                      answerCount:
-                        fullAnswers.length,
-                    };
-
-                  return merged;
-                }
-              )
-          );
-
-          setAnswerErrors(
-            (current) => ({
-              ...current,
-              [submissionId]: "",
-            })
-          );
-
-          console.log(
-            "✅ ANSWERS LOADED SUCCESSFULLY:",
-            {
-              submissionId,
-              answerCount:
-                fullAnswers.length,
-              answers:
-                fullAnswers,
-            }
-          );
-        } catch (requestError) {
-          console.error(
-            "❌ Full submission error:",
-            requestError
-          );
-
-          setAnswerErrors(
-            (current) => ({
-              ...current,
-              [submissionId]:
-                getErrorMessage(
-                  requestError,
-                  "Unable to load the student's answers."
-                ),
-            })
-          );
-        } finally {
-          setLoadingAnswers(
-            (current) => ({
-              ...current,
-              [submissionId]: false,
-            })
-          );
-        }
-      },
-      [
-        assignmentId,
-        buildHeaders,
-        tutorReference,
-      ]
-    );
-
-  // ==========================================================
-  // TOGGLE
-  // ==========================================================
-
-  const toggleSubmission =
-    async (
-      submission
-    ) => {
-      const submissionId =
-        getSubmissionId(
-          submission
-        );
-
-      if (!submissionId) {
-        return;
-      }
-
-      const willExpand =
-        String(
-          expandedSubmission
-        ) !==
-        String(
-          submissionId
-        );
-
-      setExpandedSubmission(
-        willExpand
-          ? submissionId
-          : null
-      );
-
-      if (willExpand) {
-        await loadSubmissionAnswers(
-          submission
-        );
-      }
-    };
-
-  // ==========================================================
-  // OPEN GRADING PAGE
-  // ==========================================================
-
-  const openGradePage = (
-    submission
-  ) => {
-    const submissionId =
-      getSubmissionId(
-        submission
-      );
-
-    if (!submissionId) {
-      console.error(
-        "❌ Submission ID missing:",
-        submission
-      );
-
+  const handleAssignmentChange = (event) => {
+    const id = event.target.value;
+
+    setSelectedAssignmentId(id);
+    setExpandedSubmission(null);
+    setAnswerErrors({});
+
+    if (!id) {
+      setAssignment(null);
+      setSubmissions([]);
       return;
     }
 
-    navigate(
-      `/academy/tutor/assignments/${assignmentId}/submissions/${submissionId}`
-    );
+    setLoading(true);
+
+    loadData({
+      requestedId: id,
+    });
   };
 
   // ==========================================================
-  // STATS
+  // LOAD SAVED ANSWERS FOR A SUBMISSION
   // ==========================================================
 
-  const stats =
-    useMemo(() => {
-      const submitted =
-        submissions.length;
+  const loadSubmissionAnswers = useCallback(
+    async (submission) => {
+      const submissionId = getSubmissionId(submission);
 
-      const graded =
-        submissions.filter(
-          (submission) =>
-            Boolean(
-              submission.grade
-            ) ||
-            submission.status ===
-              "graded" ||
-            submission.status ===
-              "reviewed"
-        ).length;
+      if (!submissionId) {
+        setAnswerErrors((current) => ({
+          ...current,
+          unknown: "The submission ID is missing.",
+        }));
+        return;
+      }
 
-      const pending =
-        Math.max(
-          submitted - graded,
-          0
+      if (getAnswers(submission).length > 0) {
+        return;
+      }
+
+      setLoadingAnswers((current) => ({
+        ...current,
+        [submissionId]: true,
+      }));
+
+      setAnswerErrors((current) => ({
+        ...current,
+        [submissionId]: "",
+      }));
+
+      try {
+        const reference = tutorReference || getTutorReference();
+
+        const query = new URLSearchParams();
+
+        if (reference) {
+          query.set("reference", reference);
+          query.set("tutorReference", reference);
+        }
+
+        const suffix = query.toString()
+          ? `?${query.toString()}`
+          : "";
+
+        const url =
+          `${ASSIGNMENTS_URL}/` +
+          `${encodeURIComponent(activeAssignmentId)}/submissions/` +
+          `${encodeURIComponent(submissionId)}${suffix}`;
+
+        const response = await fetch(url, {
+          method: "GET",
+          headers: buildHeaders(),
+        });
+
+        const data = await readResponse(response);
+
+        const fullSubmission =
+          data?.submission ??
+          data?.data?.submission ??
+          data?.result?.submission ??
+          data?.result ??
+          (
+            data?.data &&
+            !Array.isArray(data.data)
+              ? data.data
+              : null
+          );
+
+        const returnedId = getSubmissionId(fullSubmission);
+
+        if (
+          returnedId !== null &&
+          String(returnedId) !== String(submissionId)
+        ) {
+          throw new Error(
+            "The server returned a different submission."
+          );
+        }
+
+        let rawAnswers = [];
+
+        if (Array.isArray(data?.answers)) {
+          rawAnswers = data.answers;
+        } else if (Array.isArray(data?.data?.answers)) {
+          rawAnswers = data.data.answers;
+        } else if (
+          Array.isArray(data?.result?.answers)
+        ) {
+          rawAnswers = data.result.answers;
+        } else {
+          rawAnswers = getAnswers(fullSubmission);
+        }
+
+        const answers = rawAnswers
+          .map(normalizeAnswer)
+          .filter(Boolean);
+
+        if (answers.length === 0) {
+          throw new Error(
+            "The submission was found, but the server returned no saved answer records. Check that the backend retrieves academy_assignment_answers using the correct submission_id."
+          );
+        }
+
+        setSubmissions((current) =>
+          current.map((item) => {
+            if (
+              String(getSubmissionId(item)) !==
+              String(submissionId)
+            ) {
+              return item;
+            }
+
+            return {
+              ...item,
+              ...(fullSubmission || {}),
+
+              id: submissionId,
+              submissionId,
+
+              studentId:
+                getStudentId(fullSubmission || {}) ||
+                item.studentId,
+
+              studentReference:
+                getStudentReference(fullSubmission || {}) ||
+                item.studentReference,
+
+              studentName:
+                getStudentName(fullSubmission || {}) !== "Student"
+                  ? getStudentName(fullSubmission || {})
+                  : item.studentName,
+
+              score: number(
+                fullSubmission?.score ?? item.score
+              ),
+
+              totalMarks: number(
+                fullSubmission?.totalMarks ??
+                fullSubmission?.total_marks ??
+                fullSubmission?.max_score ??
+                item.totalMarks
+              ),
+
+              answers,
+              answerCount: answers.length,
+            };
+          })
+        );
+      } catch (requestError) {
+        console.error(
+          "Unable to load saved submission answers:",
+          requestError
         );
 
-      return {
-        submitted,
-        graded,
-        pending,
-      };
-    }, [
-      submissions,
-    ]);
+        setAnswerErrors((current) => ({
+          ...current,
+          [submissionId]: getErrorMessage(
+            requestError,
+            "Unable to load the student's answers."
+          ),
+        }));
+      } finally {
+        setLoadingAnswers((current) => ({
+          ...current,
+          [submissionId]: false,
+        }));
+      }
+    },
+    [activeAssignmentId, tutorReference]
+  );
+
+  const toggleSubmission = async (submission) => {
+    const id = getSubmissionId(submission);
+
+    if (!id) return;
+
+    const opening =
+      String(expandedSubmission) !== String(id);
+
+    setExpandedSubmission(opening ? id : null);
+
+    if (opening) {
+      await loadSubmissionAnswers(submission);
+    }
+  };
+
+  const openGradePage = (submission) => {
+    const id = getSubmissionId(submission);
+
+    if (!id || !activeAssignmentId) return;
+
+    navigate(
+      `/academy/tutor/assignments/${encodeURIComponent(
+        activeAssignmentId
+      )}/submissions/${encodeURIComponent(id)}`
+    );
+  };
+
+  const stats = useMemo(() => {
+    const submitted = submissions.length;
+
+    const graded = submissions.filter((item) =>
+      Boolean(item.grade) ||
+      ["graded", "reviewed"].includes(
+        clean(item.status).toLowerCase()
+      )
+    ).length;
+
+    return {
+      submitted,
+      graded,
+      pending: Math.max(submitted - graded, 0),
+    };
+  }, [submissions]);
 
   // ==========================================================
-  // LOADING
+  // LOADING SCREEN
   // ==========================================================
 
   if (loading) {
@@ -1664,9 +990,8 @@ export default function TutorAssignmentSubmissions() {
             className="animate-spin text-cyan-400"
             size={38}
           />
-
           <p className="text-slate-300">
-            Loading submitted assignments...
+            Loading assignment submissions...
           </p>
         </div>
       </div>
@@ -1674,29 +999,22 @@ export default function TutorAssignmentSubmissions() {
   }
 
   // ==========================================================
-  // RENDER
+  // PAGE
   // ==========================================================
 
   return (
     <div className="min-h-screen bg-[#050816] text-white px-4 py-6 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
 
-        {/* HEADER */}
-
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
-
+        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
           <div className="flex items-start gap-3">
-
             <button
               type="button"
-              onClick={() =>
-                navigate(-1)
-              }
-              className="mt-1 h-10 w-10 rounded-xl border border-white/10 bg-white/[0.04] flex items-center justify-center hover:bg-white/[0.08] transition"
+              onClick={() => navigate(-1)}
+              className="mt-1 h-10 w-10 rounded-xl border border-white/10 bg-white/[0.04] flex items-center justify-center hover:bg-white/[0.08]"
+              aria-label="Go back"
             >
-              <ArrowLeft
-                size={19}
-              />
+              <ArrowLeft size={19} />
             </button>
 
             <div>
@@ -1705,19 +1023,17 @@ export default function TutorAssignmentSubmissions() {
                   size={18}
                   className="text-cyan-400"
                 />
-
                 <span className="text-xs uppercase tracking-[0.2em] text-cyan-400 font-semibold">
                   Tutor
                 </span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-bold">
-                Submitted Assignments
+                Assignment Submissions
               </h1>
 
               <p className="text-slate-400 mt-1">
-                {assignment?.title ||
-                  "Assignment submissions"}
+                View student work and review submitted answers.
               </p>
             </div>
           </div>
@@ -1728,36 +1044,28 @@ export default function TutorAssignmentSubmissions() {
             onClick={() =>
               loadData({
                 silent: true,
+                requestedId: activeAssignmentId,
               })
             }
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium hover:bg-white/[0.08] disabled:opacity-50 transition"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium hover:bg-white/[0.08] disabled:opacity-50"
           >
             <RefreshCw
               size={17}
-              className={
-                refreshing
-                  ? "animate-spin"
-                  : ""
-              }
+              className={refreshing ? "animate-spin" : ""}
             />
-
             Refresh
           </button>
-        </div>
-
-        {/* ERROR */}
+        </header>
 
         {error && (
           <div className="mb-6 rounded-2xl border border-red-500/20 bg-red-500/[0.07] p-5">
             <div className="flex items-start gap-3">
-
               <XCircle
                 className="text-red-400 shrink-0"
                 size={21}
               />
 
-              <div className="flex-1">
-
+              <div>
                 <h3 className="font-semibold text-red-300">
                   Unable to load submissions
                 </h3>
@@ -1769,27 +1077,62 @@ export default function TutorAssignmentSubmissions() {
                 <button
                   type="button"
                   onClick={() =>
-                    loadData()
+                    loadData({
+                      requestedId: activeAssignmentId,
+                    })
                   }
-                  className="mt-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"
+                  className="mt-4 rounded-lg border border-red-500/20 px-4 py-2 text-sm text-red-300 hover:bg-red-500/10"
                 >
                   Try again
                 </button>
-
               </div>
             </div>
           </div>
         )}
 
-        {/* ASSIGNMENT INFO */}
+        {/* ASSIGNMENT SELECTOR */}
+        <section className="rounded-2xl border border-white/10 bg-[#071426] p-5 mb-6">
+          <label
+            htmlFor="submission-assignment"
+            className="block text-sm font-medium text-slate-300 mb-2"
+          >
+            Select assignment
+          </label>
 
+          <select
+            id="submission-assignment"
+            value={activeAssignmentId}
+            onChange={handleAssignmentChange}
+            className="w-full rounded-xl border border-white/10 bg-[#050816] px-4 py-3 text-white outline-none focus:border-cyan-500 sm:max-w-2xl"
+          >
+            <option value="">
+              Choose an assignment to view submissions
+            </option>
+
+            {assignments.map((item) => (
+              <option
+                key={item.id}
+                value={String(item.id)}
+              >
+                {item.title}
+                {item.subject ? ` — ${item.subject}` : ""}
+                {item.grade ? ` (${item.grade})` : ""}
+              </option>
+            ))}
+          </select>
+
+          {!activeAssignmentId && (
+            <p className="text-sm text-slate-400 mt-3">
+              Select an assignment above to view the students who submitted it.
+            </p>
+          )}
+        </section>
+
+        {/* ASSIGNMENT INFORMATION */}
         {assignment && (
-          <div className="rounded-2xl border border-white/10 bg-[#071426] p-5 mb-6">
-
+          <section className="rounded-2xl border border-white/10 bg-[#071426] p-5 mb-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-
               <div className="flex items-start gap-4">
-
                 <div className="h-12 w-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
                   <BookOpen
                     className="text-cyan-400"
@@ -1798,717 +1141,433 @@ export default function TutorAssignmentSubmissions() {
                 </div>
 
                 <div>
-
                   <h2 className="font-semibold text-lg">
-                    {assignment.title ||
-                      "Assignment"}
+                    {assignment.title}
                   </h2>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-400 mt-1">
-
                     <span>
-                      Subject:{" "}
-                      {assignment.subject ||
-                        "—"}
+                      Subject: {assignment.subject || "—"}
                     </span>
-
                     <span>
-                      Class:{" "}
-                      {assignment.grade ||
-                        "—"}
+                      Class: {assignment.grade || "—"}
                     </span>
-
                     <span>
-                      Questions:{" "}
-                      {assignment.totalQuestions ??
-                        "—"}
+                      Questions: {assignment.totalQuestions}
                     </span>
-
                     <span>
-                      Marks:{" "}
-                      {assignment.totalMarks ||
-                        "—"}
+                      Marks: {assignment.totalMarks || "—"}
                     </span>
-
                   </div>
                 </div>
               </div>
 
-              <div className="text-sm text-slate-500">
+              <p className="text-sm text-slate-500">
                 Assignment ID:{" "}
                 <span className="text-slate-300 font-mono">
-                  {assignmentId}
+                  {activeAssignmentId}
                 </span>
-              </div>
-
+              </p>
             </div>
-          </div>
+          </section>
         )}
 
-        {/* STATS */}
+        {/* STATISTICS */}
+        {activeAssignmentId && (
+          <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-7">
+            {[
+              {
+                label: "Submitted",
+                value: stats.submitted,
+                icon: FileText,
+                color: "text-cyan-400",
+              },
+              {
+                label: "Graded",
+                value: stats.graded,
+                icon: CheckCircle2,
+                color: "text-emerald-400",
+              },
+              {
+                label: "Awaiting Review",
+                value: stats.pending,
+                icon: Clock3,
+                color: "text-amber-400",
+              },
+            ].map((stat) => {
+              const Icon = stat.icon;
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-7">
+              return (
+                <div
+                  key={stat.label}
+                  className="rounded-2xl border border-white/10 bg-[#071426] p-5"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-400">
+                        {stat.label}
+                      </p>
+                      <p className="text-3xl font-bold mt-1">
+                        {stat.value}
+                      </p>
+                    </div>
 
-          <div className="rounded-2xl border border-white/10 bg-[#071426] p-5">
+                    <div className="h-11 w-11 rounded-xl bg-white/[0.04] flex items-center justify-center">
+                      <Icon
+                        className={stat.color}
+                        size={21}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        )}
 
-            <div className="flex items-center justify-between">
-
-              <div>
-                <p className="text-sm text-slate-400">
-                  Submitted
-                </p>
-
-                <p className="text-3xl font-bold mt-1">
-                  {stats.submitted}
-                </p>
-              </div>
-
-              <div className="h-11 w-11 rounded-xl bg-cyan-500/10 flex items-center justify-center">
-                <FileText
-                  className="text-cyan-400"
-                  size={21}
-                />
-              </div>
-
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-[#071426] p-5">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-                <p className="text-sm text-slate-400">
-                  Graded
-                </p>
-
-                <p className="text-3xl font-bold mt-1">
-                  {stats.graded}
-                </p>
-              </div>
-
-              <div className="h-11 w-11 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle2
-                  className="text-emerald-400"
-                  size={21}
-                />
-              </div>
-
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-[#071426] p-5">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-                <p className="text-sm text-slate-400">
-                  Awaiting Review
-                </p>
-
-                <p className="text-3xl font-bold mt-1">
-                  {stats.pending}
-                </p>
-              </div>
-
-              <div className="h-11 w-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                <Clock3
-                  className="text-amber-400"
-                  size={21}
-                />
-              </div>
-
-            </div>
-          </div>
-
-        </div>
-
-        {/* NO SUBMISSIONS */}
-
-        {!error &&
+        {/* EMPTY STATE */}
+        {activeAssignmentId &&
+          !error &&
           submissions.length === 0 && (
-            <div className="rounded-2xl border border-white/10 bg-[#071426] p-10 text-center">
-
-              <div className="mx-auto h-16 w-16 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mb-4">
-                <FileText
-                  size={28}
-                  className="text-slate-500"
-                />
-              </div>
+            <section className="rounded-2xl border border-white/10 bg-[#071426] p-10 text-center">
+              <FileText
+                size={30}
+                className="mx-auto text-slate-500 mb-4"
+              />
 
               <h2 className="text-lg font-semibold">
                 No submissions yet
               </h2>
 
-              <p className="text-slate-400 text-sm mt-2 max-w-md mx-auto">
-                No student submission has
-                been found for this
-                assignment.
+              <p className="text-slate-400 text-sm mt-2">
+                No student submissions were returned for this assignment.
               </p>
-
-              <div className="mt-5 text-xs text-slate-600 font-mono">
-                Assignment ID:{" "}
-                {assignmentId}
-              </div>
 
               <button
                 type="button"
                 onClick={() =>
-                  loadData()
+                  loadData({
+                    silent: true,
+                    requestedId: activeAssignmentId,
+                  })
                 }
-                className="mt-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm hover:bg-white/[0.08] transition"
+                className="mt-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm hover:bg-white/[0.08]"
               >
-                <RefreshCw
-                  size={16}
-                />
-                Check Again
+                <RefreshCw size={16} />
+                Check again
               </button>
-
-            </div>
+            </section>
           )}
 
-        {/* SUBMISSIONS */}
+        {/* SUBMISSION LIST */}
+        <div className="space-y-4">
+          {submissions.map((submission, index) => {
+            const id = getSubmissionId(submission);
+            const answers = getAnswers(submission);
 
-        {submissions.length > 0 && (
-          <div className="space-y-4">
+            const expanded =
+              String(expandedSubmission) === String(id);
 
-            {submissions.map(
-              (
-                submission,
-                index
-              ) => {
-                const submissionId =
-                  getSubmissionId(
-                    submission
-                  );
+            const answerLoading = Boolean(loadingAnswers[id]);
+            const answerError = answerErrors[id];
 
-                const answers =
-                  getAnswers(
-                    submission
-                  );
-
-                const expanded =
-                  String(
-                    expandedSubmission
-                  ) ===
-                  String(
-                    submissionId
-                  );
-
-                const isLoadingAnswers =
-                  Boolean(
-                    loadingAnswers[
-                      submissionId
-                    ]
-                  );
-
-                const submissionAnswerError =
-                  answerErrors[
-                    submissionId
-                  ];
-
-                return (
-                  <div
-                    key={
-                      submissionId ||
-                      `${index}-${getStudentReference(
-                        submission
-                      )}`
-                    }
-                    className="rounded-2xl border border-white/10 bg-[#071426] overflow-hidden"
-                  >
-
-                    {/* SUBMISSION HEADER */}
-
-                    <div className="p-5">
-
-                      <div className="flex flex-col xl:flex-row xl:items-center gap-5">
-
-                        <div className="flex items-center gap-4 flex-1">
-
-                          <div className="h-12 w-12 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
-                            <User
-                              size={21}
-                              className="text-cyan-400"
-                            />
-                          </div>
-
-                          <div className="min-w-0">
-
-                            <h3 className="font-semibold text-lg truncate">
-                              {getStudentName(
-                                submission
-                              )}
-                            </h3>
-
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-400 mt-1">
-
-                              {getStudentReference(
-                                submission
-                              ) && (
-                                <span className="font-mono">
-                                  {getStudentReference(
-                                    submission
-                                  )}
-                                </span>
-                              )}
-
-                              {getStudentId(
-                                submission
-                              ) && (
-                                <span>
-                                  ID:{" "}
-                                  {getStudentId(
-                                    submission
-                                  )}
-                                </span>
-                              )}
-
-                              <span>
-                                Submitted:{" "}
-                                {formatDate(
-                                  submission.submittedAt
-                                )}
-                              </span>
-
-                              <span className="font-mono text-slate-500">
-                                Submission:{" "}
-                                {submissionId}
-                              </span>
-
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* RESULT */}
-
-                        <div className="flex flex-wrap items-center gap-3">
-
-                          <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-2">
-                            <p className="text-[11px] uppercase tracking-wider text-slate-500">
-                              Score
-                            </p>
-
-                            <p className="font-semibold">
-                              {submission.score}{" "}
-                              /{" "}
-                              {submission.totalMarks ||
-                                "—"}
-                            </p>
-                          </div>
-
-                          <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-2">
-                            <p className="text-[11px] uppercase tracking-wider text-slate-500">
-                              Percentage
-                            </p>
-
-                            <p className="font-semibold">
-                              {
-                                submission.percentage
-                              }
-                              %
-                            </p>
-                          </div>
-
-                          <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-2">
-                            <p className="text-[11px] uppercase tracking-wider text-slate-500">
-                              Grade
-                            </p>
-
-                            <p className="font-semibold">
-                              {submission.grade ||
-                                "Pending"}
-                            </p>
-                          </div>
-
-                        </div>
+            return (
+              <article
+                key={id ?? `${index}-${getStudentName(submission)}`}
+                className="rounded-2xl border border-white/10 bg-[#071426] overflow-hidden"
+              >
+                <div className="p-5">
+                  <div className="flex flex-col xl:flex-row xl:items-center gap-5">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="h-12 w-12 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
+                        <User
+                          size={21}
+                          className="text-cyan-400"
+                        />
                       </div>
 
-                      {/* ACTIONS */}
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-lg">
+                          {getStudentName(submission)}
+                        </h3>
 
-                      <div className="flex flex-wrap items-center gap-3 mt-5 pt-5 border-t border-white/5">
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            toggleSubmission(
-                              submission
-                            )
-                          }
-                          disabled={
-                            isLoadingAnswers
-                          }
-                          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium hover:bg-white/[0.08] disabled:opacity-60 transition"
-                        >
-
-                          {isLoadingAnswers ? (
-                            <Loader2
-                              size={17}
-                              className="animate-spin"
-                            />
-                          ) : expanded ? (
-                            <ChevronUp
-                              size={17}
-                            />
-                          ) : (
-                            <ChevronDown
-                              size={17}
-                            />
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-400 mt-1">
+                          {getStudentReference(submission) && (
+                            <span className="font-mono">
+                              {getStudentReference(submission)}
+                            </span>
                           )}
 
-                          {isLoadingAnswers
-                            ? "Loading Answers..."
-                            : expanded
-                              ? "Hide Answers"
-                              : `View Answers${
-                                  answers.length
-                                    ? ` (${answers.length})`
-                                    : ""
-                                }`}
-                        </button>
+                          {getStudentId(submission) && (
+                            <span>
+                              Enrollment ID: {getStudentId(submission)}
+                            </span>
+                          )}
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openGradePage(
-                              submission
-                            )
-                          }
-                          className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 transition"
-                        >
-                          Grade Submission
-                        </button>
+                          <span>
+                            Submitted: {formatDate(submission.submittedAt)}
+                          </span>
 
+                          <span className="font-mono text-slate-500">
+                            Submission: {id}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* ANSWERS */}
-
-                    {expanded && (
-                      <div className="border-t border-white/10 bg-black/10 p-5">
-
-                        {/* ANSWER ERROR */}
-
-                        {submissionAnswerError && (
-                          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4">
-
-                            <div className="flex items-start gap-3">
-
-                              <XCircle
-                                className="text-red-400 shrink-0"
-                                size={20}
-                              />
-
-                              <div>
-
-                                <p className="text-red-300 font-medium">
-                                  Unable to load answers
-                                </p>
-
-                                <p className="text-sm text-slate-400 mt-1">
-                                  {
-                                    submissionAnswerError
-                                  }
-                                </p>
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    loadSubmissionAnswers(
-                                      submission
-                                    )
-                                  }
-                                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm hover:bg-white/[0.08]"
-                                >
-                                  <RefreshCw
-                                    size={15}
-                                  />
-
-                                  Try Again
-                                </button>
-
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* LOADING */}
-
-                        {isLoadingAnswers ? (
-                          <div className="py-10 flex flex-col items-center justify-center">
-
-                            <Loader2
-                              size={30}
-                              className="animate-spin text-cyan-400"
-                            />
-
-                            <p className="text-slate-400 text-sm mt-3">
-                              Loading student answers...
-                            </p>
-
-                          </div>
-                        ) : answers.length === 0 ? (
-
-                          <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] p-5 text-center">
-
-                            <FileText
-                              size={27}
-                              className="mx-auto text-amber-400 mb-3"
-                            />
-
-                            <p className="text-amber-300 font-medium">
-                              No answer records were returned.
-                            </p>
-
-                            <p className="text-sm text-slate-500 mt-1">
-                              Submission{" "}
-                              <span className="font-mono text-slate-400">
-                                {submissionId}
-                              </span>{" "}
-                              was found, but the server did not
-                              return its saved answers.
-                            </p>
-
-                          </div>
-
-                        ) : (
-
-                          <div className="space-y-4">
-
-                            {answers.map(
-                              (
-                                answer,
-                                answerIndex
-                              ) => {
-                                const correct =
-                                  answer.isCorrect ===
-                                  true;
-
-                                return (
-                                  <div
-                                    key={
-                                      answer.id ||
-                                      answer.answerId ||
-                                      `${submissionId}-${answerIndex}`
-                                    }
-                                    className="rounded-xl border border-white/10 bg-[#050816] p-5"
-                                  >
-
-                                    {/* QUESTION */}
-
-                                    <div className="flex items-start justify-between gap-4">
-
-                                      <div className="flex items-start gap-3 flex-1">
-
-                                        <div className="h-8 w-8 rounded-lg bg-white/[0.05] flex items-center justify-center text-xs font-bold shrink-0">
-                                          {answer.questionNumber ||
-                                            answerIndex +
-                                              1}
-                                        </div>
-
-                                        <div className="flex-1">
-
-                                          <p className="font-medium leading-relaxed">
-                                            {answer.question ||
-                                              "Question unavailable"}
-                                          </p>
-
-                                          {answer.questionId && (
-                                            <p className="text-[11px] text-slate-600 font-mono mt-1">
-                                              Question ID:{" "}
-                                              {
-                                                answer.questionId
-                                              }
-                                            </p>
-                                          )}
-
-                                        </div>
-                                      </div>
-
-                                      <div>
-                                        {correct ? (
-                                          <CheckCircle2
-                                            size={20}
-                                            className="text-emerald-400"
-                                          />
-                                        ) : (
-                                          <XCircle
-                                            size={20}
-                                            className="text-red-400"
-                                          />
-                                        )}
-                                      </div>
-
-                                    </div>
-
-                                    {/* OPTIONS */}
-
-                                    {(answer.optionA ||
-                                      answer.optionB ||
-                                      answer.optionC ||
-                                      answer.optionD) && (
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
-
-                                        {[
-                                          [
-                                            "A",
-                                            answer.optionA,
-                                          ],
-                                          [
-                                            "B",
-                                            answer.optionB,
-                                          ],
-                                          [
-                                            "C",
-                                            answer.optionC,
-                                          ],
-                                          [
-                                            "D",
-                                            answer.optionD,
-                                          ],
-                                        ].map(
-                                          ([
-                                            letter,
-                                            text,
-                                          ]) =>
-                                            text ? (
-                                              <div
-                                                key={
-                                                  letter
-                                                }
-                                                className={`rounded-lg border p-3 ${
-                                                  clean(
-                                                    answer.studentAnswer
-                                                  ).toUpperCase() ===
-                                                  letter
-                                                    ? "border-cyan-500/30 bg-cyan-500/[0.06]"
-                                                    : "border-white/5 bg-white/[0.02]"
-                                                }`}
-                                              >
-                                                <span className="font-semibold mr-2">
-                                                  {letter}.
-                                                </span>
-
-                                                <span className="text-slate-300">
-                                                  {text}
-                                                </span>
-                                              </div>
-                                            ) : null
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* STUDENT / CORRECT */}
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
-
-                                      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-
-                                        <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">
-                                          Student Answer
-                                        </p>
-
-                                        <p
-                                          className={
-                                            correct
-                                              ? "text-emerald-300 font-medium"
-                                              : "text-red-300 font-medium"
-                                          }
-                                        >
-                                          {answer.studentAnswer ||
-                                            "No answer"}
-                                        </p>
-
-                                      </div>
-
-                                      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-
-                                        <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">
-                                          Correct Answer
-                                        </p>
-
-                                        <p className="text-emerald-300 font-medium">
-                                          {answer.correctAnswer ||
-                                            "Not available"}
-                                        </p>
-
-                                      </div>
-
-                                    </div>
-
-                                    {/* MARKS */}
-
-                                    <div className="flex flex-wrap gap-3 mt-4 text-sm">
-
-                                      <div className="rounded-lg bg-white/[0.03] px-3 py-2">
-
-                                        <span className="text-slate-500">
-                                          Marks:
-                                        </span>{" "}
-
-                                        <span className="font-medium">
-                                          {
-                                            answer.marksAwarded
-                                          }{" "}
-                                          /{" "}
-                                          {
-                                            answer.marks
-                                          }
-                                        </span>
-
-                                      </div>
-
-                                      <div
-                                        className={`rounded-lg px-3 py-2 ${
-                                          correct
-                                            ? "bg-emerald-500/10 text-emerald-300"
-                                            : "bg-red-500/10 text-red-300"
-                                        }`}
-                                      >
-                                        {correct
-                                          ? "Correct"
-                                          : "Incorrect"}
-                                      </div>
-
-                                    </div>
-
-                                    {/* EXPLANATION */}
-
-                                    {answer.reason && (
-                                      <div className="mt-4 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-
-                                        <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
-                                          Explanation
-                                        </p>
-
-                                        <p className="text-sm text-slate-300 leading-relaxed">
-                                          {
-                                            answer.reason
-                                          }
-                                        </p>
-
-                                      </div>
-                                    )}
-
-                                  </div>
-                                );
-                              }
-                            )}
-
-                          </div>
-                        )}
-
+                    <div className="flex flex-wrap items-center gap-3">
+                      {[
+                        {
+                          label: "Score",
+                          value: `${submission.score} / ${submission.totalMarks || "—"}`,
+                        },
+                        {
+                          label: "Percentage",
+                          value: `${submission.percentage}%`,
+                        },
+                        {
+                          label: "Grade",
+                          value: submission.grade || "Pending",
+                        },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-2"
+                        >
+                          <p className="text-[11px] uppercase tracking-wider text-slate-500">
+                            {item.label}
+                          </p>
+                          <p className="font-semibold">
+                            {item.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 mt-5 pt-5 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => toggleSubmission(submission)}
+                      disabled={answerLoading}
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm hover:bg-white/[0.08] disabled:opacity-60"
+                    >
+                      {answerLoading ? (
+                        <Loader2
+                          size={17}
+                          className="animate-spin"
+                        />
+                      ) : expanded ? (
+                        <ChevronUp size={17} />
+                      ) : (
+                        <ChevronDown size={17} />
+                      )}
+
+                      {answerLoading
+                        ? "Loading answers..."
+                        : expanded
+                          ? "Hide answers"
+                          : `View answers${answers.length ? ` (${answers.length})` : ""}`}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => openGradePage(submission)}
+                      className="rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
+                    >
+                      Grade submission
+                    </button>
+                  </div>
+                </div>
+
+                {/* ANSWERS */}
+                {expanded && (
+                  <div className="border-t border-white/10 bg-black/10 p-5">
+                    {answerError && (
+                      <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4">
+                        <p className="text-red-300 font-medium">
+                          Unable to load answers
+                        </p>
+
+                        <p className="text-sm text-slate-400 mt-1">
+                          {answerError}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            loadSubmissionAnswers(submission)
+                          }
+                          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm hover:bg-white/[0.08]"
+                        >
+                          <RefreshCw size={15} />
+                          Try again
+                        </button>
                       </div>
                     )}
 
+                    {answerLoading ? (
+                      <div className="py-10 flex flex-col items-center">
+                        <Loader2
+                          size={30}
+                          className="animate-spin text-cyan-400"
+                        />
+                        <p className="text-slate-400 text-sm mt-3">
+                          Loading saved student answers...
+                        </p>
+                      </div>
+                    ) : answers.length === 0 ? (
+                      <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] p-5 text-center">
+                        <FileText
+                          size={27}
+                          className="mx-auto text-amber-400 mb-3"
+                        />
+
+                        <p className="text-amber-300 font-medium">
+                          No answer records available
+                        </p>
+
+                        <p className="text-sm text-slate-400 mt-2">
+                          {answerError
+                            ? "Resolve the error above and try again."
+                            : "The submission has no answers loaded yet."}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {answers.map((answer, answerIndex) => {
+                          const correct = answer.isCorrect;
+
+                          return (
+                            <div
+                              key={
+                                answer.id ??
+                                `${id}-${answerIndex}`
+                              }
+                              className="rounded-xl border border-white/10 bg-[#050816] p-5"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex items-start gap-3 flex-1">
+                                  <div className="h-8 w-8 rounded-lg bg-white/[0.05] flex items-center justify-center text-xs font-bold shrink-0">
+                                    {answer.questionNumber || answerIndex + 1}
+                                  </div>
+
+                                  <div>
+                                    <p className="font-medium leading-relaxed">
+                                      {answer.question || "Question unavailable"}
+                                    </p>
+
+                                    {answer.questionId && (
+                                      <p className="text-[11px] text-slate-600 font-mono mt-1">
+                                        Question ID: {answer.questionId}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {correct ? (
+                                  <CheckCircle2
+                                    size={20}
+                                    className="text-emerald-400"
+                                  />
+                                ) : (
+                                  <XCircle
+                                    size={20}
+                                    className="text-red-400"
+                                  />
+                                )}
+                              </div>
+
+                              {(answer.optionA ||
+                                answer.optionB ||
+                                answer.optionC ||
+                                answer.optionD) && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+                                  {[
+                                    ["A", answer.optionA],
+                                    ["B", answer.optionB],
+                                    ["C", answer.optionC],
+                                    ["D", answer.optionD],
+                                  ].map(([letter, option]) =>
+                                    option ? (
+                                      <div
+                                        key={letter}
+                                        className="rounded-lg border border-white/10 bg-white/[0.02] p-3"
+                                      >
+                                        <span className="font-semibold mr-2">
+                                          {letter}.
+                                        </span>
+                                        <span className="text-slate-300">
+                                          {option}
+                                        </span>
+                                      </div>
+                                    ) : null
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
+                                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                                  <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">
+                                    Student answer
+                                  </p>
+                                  <p className="text-slate-200 font-medium whitespace-pre-wrap break-words">
+                                    {answer.studentAnswer || "No answer"}
+                                  </p>
+                                </div>
+
+                                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                                  <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">
+                                    Correct answer
+                                  </p>
+                                  <p className="text-emerald-300 font-medium whitespace-pre-wrap break-words">
+                                    {answer.correctAnswer || "Not available"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-3 mt-4 text-sm">
+                                <div className="rounded-lg bg-white/[0.03] px-3 py-2">
+                                  <span className="text-slate-500">
+                                    Marks:
+                                  </span>{" "}
+                                  <span className="font-medium">
+                                    {answer.marksAwarded} / {answer.marks}
+                                  </span>
+                                </div>
+
+                                <div
+                                  className={`rounded-lg px-3 py-2 ${
+                                    correct
+                                      ? "bg-emerald-500/10 text-emerald-300"
+                                      : "bg-red-500/10 text-red-300"
+                                  }`}
+                                >
+                                  {correct ? "Correct" : "Incorrect"}
+                                </div>
+                              </div>
+
+                              {answer.reason && (
+                                <div className="mt-4 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                                  <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">
+                                    Explanation
+                                  </p>
+                                  <p className="text-sm text-slate-300 leading-relaxed">
+                                    {answer.reason}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                );
-              }
-            )}
-
-          </div>
-        )}
-
+                )}
+              </article>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -237,11 +237,33 @@ import DashboardLayout from "./layout/DashboardLayout";
    ACADEMY AUTH KEYS
 ============================================================ */
 
-const ACADEMY_TOKEN_KEY =
-  "scholiqen_academy_token";
+const ACADEMY_TOKEN_KEY = "scholiqen_academy_token";
+const ACADEMY_USER_KEY = "scholiqen_academy_user";
 
-const ACADEMY_USER_KEY =
-  "scholiqen_academy_user";
+/*
+ * Academy login should use the canonical keys above. These fallbacks support
+ * older tutor-login implementations while the login flow is being unified.
+ */
+const getAcademyToken = () => {
+  try {
+    const tokenKeys = [
+      ACADEMY_TOKEN_KEY,
+      "academy_token",
+      "scholiqen_token",
+      "access_token",
+      "token",
+    ];
+
+    for (const key of tokenKeys) {
+      const value = localStorage.getItem(key);
+      if (value && value.trim()) return value.trim();
+    }
+  } catch (error) {
+    console.error("Unable to read Academy token:", error);
+  }
+
+  return "";
+};
 
 /* ============================================================
    GET ACADEMY USER
@@ -249,24 +271,51 @@ const ACADEMY_USER_KEY =
 
 const getAcademyUser = () => {
   try {
-    const raw =
-      localStorage.getItem(
-        ACADEMY_USER_KEY
-      );
+    const candidates = [
+      { key: ACADEMY_USER_KEY, tutorHint: false },
+      { key: "tutor", tutorHint: true },
+      { key: "academyTutor", tutorHint: true },
+      { key: "scholiqen_user", tutorHint: false },
+    ];
 
-    if (!raw) {
-      return null;
+    for (const candidate of candidates) {
+      const raw = localStorage.getItem(candidate.key);
+      if (!raw) continue;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+
+      if (!parsed || typeof parsed !== "object") continue;
+
+      const user =
+        parsed.user && typeof parsed.user === "object"
+          ? { ...parsed, ...parsed.user }
+          : parsed;
+
+      const userType = String(
+        user.userType ||
+          user.user_type ||
+          user.role ||
+          user.accountType ||
+          ""
+      ).trim().toLowerCase();
+
+      // Infer tutor type only when the legacy key explicitly names a tutor.
+      if (!userType && candidate.tutorHint) {
+        return { ...user, userType: "tutor" };
+      }
+
+      return user;
     }
-
-    return JSON.parse(raw);
   } catch (error) {
-    console.error(
-      "Unable to read Academy user:",
-      error
-    );
-
-    return null;
+    console.error("Unable to read Academy user:", error);
   }
+
+  return null;
 };
 
 /* ============================================================
@@ -292,10 +341,7 @@ const AcademyProtectedRoute = ({
     const checkAcademyAuthentication =
       () => {
         try {
-          const token =
-            localStorage.getItem(
-              ACADEMY_TOKEN_KEY
-            );
+          const token = getAcademyToken();
 
           const user =
             getAcademyUser();
@@ -410,10 +456,7 @@ const TutorProtectedRoute = ({
     const checkTutorAuthentication =
       () => {
         try {
-          const token =
-            localStorage.getItem(
-              ACADEMY_TOKEN_KEY
-            );
+          const token = getAcademyToken();
 
           const user =
             getAcademyUser();

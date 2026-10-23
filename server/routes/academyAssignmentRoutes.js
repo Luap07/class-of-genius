@@ -1823,6 +1823,8 @@ router.post(
     let transactionStarted = false;
     let uploadedFilePath = submittedFile?.path || null;
     let keepUploadedFile = false;
+    let previousAttachmentPath = null;
+    let existingSubmission = null;
 
     try {
       /*
@@ -2011,7 +2013,14 @@ router.post(
         [assignment.id, enrollmentId]
       );
 
-      if (existingResult.rows.length) {
+      existingSubmission = existingResult.rows[0] || null;
+
+      /*
+       * MCQ/question assignments are final after submission.
+       * Document assignments may be resubmitted: update the existing row
+       * instead of creating a duplicate submission record.
+       */
+      if (existingSubmission && !isDocumentSubmission) {
         await client.query("ROLLBACK");
         transactionStarted = false;
 
@@ -2022,8 +2031,14 @@ router.post(
           success: false,
           message:
             "You have already submitted this assignment.",
-          submission: existingResult.rows[0],
+          submission: existingSubmission,
         });
+      }
+
+      if (existingSubmission && isDocumentSubmission) {
+        previousAttachmentPath = getSubmissionFilePath(
+          existingSubmission.attachment_url
+        );
       }
 
       const studentName =
@@ -2167,15 +2182,29 @@ router.post(
       const submissionInsertColumns = [];
       const submissionInsertValues = [];
       const submissionPlaceholders = [];
+      const submissionUpdateAssignments = [];
+      const submissionUpdateValues = [];
 
       for (const [column, value] of Object.entries(
         submissionValuesByColumn
       )) {
-        if (submissionColumns.includes(column)) {
-          submissionInsertColumns.push(`"${column}"`);
-          submissionInsertValues.push(value);
-          submissionPlaceholders.push(
-            `$${submissionInsertValues.length}`
+        if (!submissionColumns.includes(column)) continue;
+
+        submissionInsertColumns.push(`"${column}"`);
+        submissionInsertValues.push(value);
+        submissionPlaceholders.push(
+          `$${submissionInsertValues.length}`
+        );
+
+        // Keep the identity of the existing submission stable on resubmission.
+        if (
+          existingSubmission &&
+          column !== "assignment_id" &&
+          column !== "enrollment_id"
+        ) {
+          submissionUpdateValues.push(value);
+          submissionUpdateAssignments.push(
+            `"${column}" = $${submissionUpdateValues.length}`
           );
         }
       }
@@ -2203,18 +2232,52 @@ router.post(
         );
       }
 
-      const submissionResult = await client.query(
-        `
-          INSERT INTO academy_assignment_submissions
-            (${submissionInsertColumns.join(", ")})
-          VALUES
-            (${submissionPlaceholders.join(", ")})
-          RETURNING *
-        `,
-        submissionInsertValues
-      );
+      let submissionResult;
+
+      if (existingSubmission) {
+        if (!submissionUpdateAssignments.length) {
+          throw new Error(
+            "No compatible columns were found for updating the existing submission."
+          );
+        }
+
+        submissionUpdateValues.push(existingSubmission.id);
+
+        submissionResult = await client.query(
+          `
+            UPDATE academy_assignment_submissions
+            SET ${submissionUpdateAssignments.join(", ")}
+            WHERE id = $${submissionUpdateValues.length}
+              AND assignment_id = $${submissionUpdateValues.length + 1}
+              AND enrollment_id = $${submissionUpdateValues.length + 2}
+            RETURNING *
+          `,
+          [
+            ...submissionUpdateValues,
+            assignment.id,
+            enrollmentId,
+          ]
+        );
+      } else {
+        submissionResult = await client.query(
+          `
+            INSERT INTO academy_assignment_submissions
+              (${submissionInsertColumns.join(", ")})
+            VALUES
+              (${submissionPlaceholders.join(", ")})
+            RETURNING *
+          `,
+          submissionInsertValues
+        );
+      }
 
       const submission = submissionResult.rows[0];
+
+      if (!submission) {
+        throw new Error(
+          "The assignment submission could not be saved. Please try again."
+        );
+      }
 
       if (!isDocumentSubmission) {
         if (
@@ -2283,6 +2346,14 @@ router.post(
 
       keepUploadedFile = isDocumentSubmission;
 
+      // Only delete the previous document after the database update commits.
+      if (
+        previousAttachmentPath &&
+        previousAttachmentPath !== uploadedFilePath
+      ) {
+        removeUploadedFile(previousAttachmentPath);
+      }
+
       const protectedAttachmentUrl =
         isDocumentSubmission
           ? `/api/academy/student/assignments/${encodeURIComponent(
@@ -2290,12 +2361,14 @@ router.post(
             )}/submission-file`
           : null;
 
-      return res.status(201).json({
+      return res.status(existingSubmission ? 200 : 201).json({
         success: true,
 
-        message: isDocumentSubmission
-          ? "Your document has been submitted successfully."
-          : "Assignment submitted successfully.",
+        message: existingSubmission
+          ? "Your assignment submission has been updated successfully."
+          : isDocumentSubmission
+            ? "Your document has been submitted successfully."
+            : "Assignment submitted successfully.",
 
         submission: {
           ...submission,

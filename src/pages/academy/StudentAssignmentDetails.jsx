@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useEffect,
@@ -5,50 +6,31 @@ import React, {
   useRef,
   useState,
 } from "react";
-
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  AlertCircle,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Clock3,
+  Download,
+  ExternalLink,
   FileText,
   Loader2,
+  Paperclip,
   Send,
-  AlertCircle,
-  Award,
-  RefreshCw,
-  ExternalLink,
-  Download,
-  PlayCircle,
-  Eye,
   Upload,
   X,
-  Paperclip,
+  Pencil,
+  Video,
+  RotateCcw,
 } from "lucide-react";
-
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-} from "react-router-dom";
-
 import { motion } from "framer-motion";
 
-/* ============================================================
-   API
-============================================================ */
-
 const API_URL = (
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).replace(/\/$/, "");
 
-/* ============================================================
-   STORAGE KEYS
-============================================================ */
-
-const ACADEMY_TOKEN_KEYS = [
+const TOKEN_KEYS = [
   "scholiqen_academy_token",
   "scholiqen_auth_token",
   "academy_token",
@@ -57,7 +39,7 @@ const ACADEMY_TOKEN_KEYS = [
   "token",
 ];
 
-const STUDENT_OBJECT_KEYS = [
+const STUDENT_KEYS = [
   "scholiqen_academy_student",
   "scholiqen_academy_user",
   "academy_student",
@@ -71,824 +53,81 @@ const STUDENT_OBJECT_KEYS = [
   "logged_in_student",
 ];
 
-const STUDENT_REFERENCE_KEYS = [
-  "studentReference",
-  "student_reference",
-  "studentRef",
-  "student_ref",
-  "studentNumber",
-  "student_number",
-  "studentCode",
-  "student_code",
-  "reference",
-  "enrollmentReference",
-  "enrollment_reference",
-];
+const MAX_FILE_SIZE = 250 * 1024 * 1024;
 
-const STUDENT_ID_KEYS = [
-  "studentId",
-  "student_id",
-  "studentID",
-];
+const ACCEPTED_FILES =
+  ".pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.zip,.mp4,.webm,.mov,.m4v";
 
-const ENROLLMENT_KEYS = [
-  "enrollmentId",
-  "enrollment_id",
-  "enrollmentID",
-  "enrollment",
-];
+const clean = (value) =>
+  value === undefined || value === null ? "" : String(value).trim();
 
-/* ============================================================
-   GENERAL HELPERS
-============================================================ */
-
-const cleanValue = (value) => {
-  if (
-    value === undefined ||
-    value === null
-  ) {
-    return "";
-  }
-
-  return String(value).trim();
-};
-
-const firstNonEmpty = (...values) => {
-  for (const value of values) {
-    const cleaned = cleanValue(value);
-
-    if (cleaned) {
-      return cleaned;
-    }
-  }
-
-  return "";
-};
-
-const isUsableIdentity = (value) => {
-  const cleaned = cleanValue(value);
-
-  if (!cleaned) {
-    return false;
-  }
-
-  const lower = cleaned.toLowerCase();
-
-  return ![
-    "undefined",
-    "null",
-    "nan",
-    "[object object]",
-  ].includes(lower);
-};
-
-const safelyParseJSON = (value) => {
-  if (
-    typeof value !== "string"
-  ) {
-    return value;
-  }
-
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return value;
-  }
-
+function readJson(key) {
   try {
-    return JSON.parse(trimmed);
-  } catch {
-    return value;
-  }
-};
-
-const readLocalStorageObject = (
-  key
-) => {
-  try {
-    const raw =
-      localStorage.getItem(key);
-
-    if (!raw) {
-      return null;
-    }
-
-    const parsed =
-      safelyParseJSON(raw);
-
-    if (
-      parsed &&
-      typeof parsed === "object"
-    ) {
-      return parsed;
-    }
-
-    return null;
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : null;
   } catch {
     return null;
   }
-};
+}
 
-const readLocalStorageValue = (
-  keys
-) => {
-  for (const key of keys) {
-    try {
-      const value =
-        localStorage.getItem(key);
-
-      if (
-        isUsableIdentity(value)
-      ) {
-        return cleanValue(value);
-      }
-    } catch {
-      // Ignore storage errors.
-    }
+function getToken() {
+  for (const key of TOKEN_KEYS) {
+    const value = clean(localStorage.getItem(key));
+    if (value) return value;
   }
-
   return "";
-};
+}
 
-const findIdentityInObject = (
-  object,
-  keys
-) => {
-  if (
-    !object ||
-    typeof object !== "object"
-  ) {
-    return "";
-  }
+function getStudentIdentity() {
+  const objects = STUDENT_KEYS.map(readJson).filter(Boolean);
+  const flat = {};
 
-  for (const key of keys) {
-    const value =
-      object[key];
-
-    if (
-      isUsableIdentity(value)
-    ) {
-      return cleanValue(value);
+  for (const item of objects) {
+    if (item && typeof item === "object") {
+      Object.assign(flat, item);
     }
   }
 
-  return "";
-};
+  const pick = (...values) => values.map(clean).find(Boolean) || "";
 
-/* ============================================================
-   FILE HELPERS
-============================================================ */
-
-const parsePossibleObject = (
-  value
-) => {
-  if (!value) {
-    return null;
-  }
-
-  if (
-    typeof value === "object"
-  ) {
-    return value;
-  }
-
-  if (
-    typeof value === "string"
-  ) {
-    const parsed =
-      safelyParseJSON(value);
-
-    if (
-      parsed &&
-      typeof parsed === "object"
-    ) {
-      return parsed;
-    }
-  }
-
-  return null;
-};
-
-const deriveFileNameFromUrl = (
-  url
-) => {
-  if (!url) {
-    return "";
-  }
-
-  try {
-    const cleanUrl =
-      String(url).split("?")[0];
-
-    const parts =
-      cleanUrl.split("/");
-
-    const last =
-      parts[parts.length - 1] || "";
-
-    return decodeURIComponent(
-      last
-    );
-  } catch {
-    return "";
-  }
-};
-
-const normalizeFileCandidate = (
-  candidate
-) => {
-  if (!candidate) {
-    return {
-      url: "",
-      name: "",
-      type: "",
-      size: null,
-    };
-  }
-
-  if (
-    typeof candidate === "string"
-  ) {
-    const url =
-      candidate.trim();
-
-    return {
-      url,
-      name:
-        deriveFileNameFromUrl(
-          url
-        ),
-      type: "",
-      size: null,
-    };
-  }
-
-  if (
-    typeof candidate !== "object"
-  ) {
-    return {
-      url: "",
-      name: "",
-      type: "",
-      size: null,
-    };
-  }
-
-  const url = firstNonEmpty(
-    candidate.url,
-    candidate.fileUrl,
-    candidate.file_url,
-    candidate.documentUrl,
-    candidate.document_url,
-    candidate.attachmentUrl,
-    candidate.attachment_url,
-    candidate.uploadUrl,
-    candidate.upload_url,
-    candidate.publicUrl,
-    candidate.public_url,
-    candidate.downloadUrl,
-    candidate.download_url,
-    candidate.href,
-    candidate.src,
-    candidate.filePath,
-    candidate.file_path,
-    candidate.documentPath,
-    candidate.document_path,
-    candidate.storagePath,
-    candidate.storage_path,
-    candidate.path
+  const studentReference = pick(
+    flat.studentReference,
+    flat.student_reference,
+    flat.studentRef,
+    flat.student_ref,
+    flat.reference,
+    flat.studentNumber,
+    flat.student_number,
+    localStorage.getItem("studentReference"),
+    localStorage.getItem("student_reference")
   );
 
-  const name =
-    firstNonEmpty(
-      candidate.name,
-      candidate.fileName,
-      candidate.file_name,
-      candidate.filename,
-      candidate.documentName,
-      candidate.document_name,
-      candidate.attachmentName,
-      candidate.attachment_name,
-      candidate.originalName,
-      candidate.original_name
-    ) ||
-    deriveFileNameFromUrl(
-      url
-    );
-
-  const type =
-    firstNonEmpty(
-      candidate.type,
-      candidate.fileType,
-      candidate.file_type,
-      candidate.mimeType,
-      candidate.mime_type,
-      candidate.contentType,
-      candidate.content_type
-    );
-
-  const sizeValue =
-    candidate.size ??
-    candidate.fileSize ??
-    candidate.file_size;
-
-  const size =
-    Number.isFinite(
-      Number(sizeValue)
-    )
-      ? Number(sizeValue)
-      : null;
-
-  return {
-    url,
-    name,
-    type,
-    size,
-  };
-};
-
-const getAssignmentFile = (
-  source
-) => {
-  if (!source) {
-    return {
-      url: "",
-      name: "",
-      type: "",
-      size: null,
-    };
-  }
-
-  const object =
-    parsePossibleObject(
-      source
-    );
-
-  if (!object) {
-    return normalizeFileCandidate(
-      source
-    );
-  }
-
-  const directCandidates = [
-    object.file,
-    object.document,
-    object.attachment,
-    object.upload,
-    object.uploadedFile,
-    object.uploaded_file,
-    object.assignmentFile,
-    object.assignment_file,
-    object.fileData,
-    object.file_data,
-    object.documentFile,
-    object.document_file,
-  ];
-
-  for (
-    const candidate of
-    directCandidates
-  ) {
-    const normalized =
-      normalizeFileCandidate(
-        candidate
-      );
-
-    if (normalized.url) {
-      return normalized;
-    }
-  }
-
-  const arrays = [
-    object.attachments,
-    object.files,
-    object.documents,
-    object.uploads,
-    object.resources,
-  ];
-
-  for (
-    const list of arrays
-  ) {
-    if (
-      !Array.isArray(list)
-    ) {
-      continue;
-    }
-
-    for (
-      const candidate of list
-    ) {
-      const normalized =
-        normalizeFileCandidate(
-          candidate
-        );
-
-      if (normalized.url) {
-        return normalized;
-      }
-    }
-  }
-
-  const directUrl =
-    firstNonEmpty(
-      object.fileUrl,
-      object.file_url,
-      object.documentUrl,
-      object.document_url,
-      object.attachmentUrl,
-      object.attachment_url,
-      object.uploadUrl,
-      object.upload_url,
-      object.publicUrl,
-      object.public_url,
-      object.downloadUrl,
-      object.download_url,
-      object.href,
-      object.src,
-      object.filePath,
-      object.file_path,
-      object.documentPath,
-      object.document_path,
-      object.storagePath,
-      object.storage_path,
-      object.path
-    );
-
-  if (directUrl) {
-    return normalizeFileCandidate(
-      {
-        url: directUrl,
-        name:
-          firstNonEmpty(
-            object.fileName,
-            object.file_name,
-            object.documentName,
-            object.document_name,
-            object.attachmentName,
-            object.attachment_name
-          ),
-        type:
-          firstNonEmpty(
-            object.fileType,
-            object.file_type,
-            object.documentType,
-            object.document_type,
-            object.mimeType,
-            object.mime_type
-          ),
-        size:
-          object.fileSize ??
-          object.file_size,
-      }
-    );
-  }
-
-  const nestedContainers = [
-    object.data,
-    object.result,
-    object.assignment,
-    object.activity,
-    object.task,
-  ];
-
-  for (
-    const nested of
-    nestedContainers
-  ) {
-    const normalized =
-      getAssignmentFile(
-        nested
-      );
-
-    if (normalized.url) {
-      return normalized;
-    }
-  }
-
-  return {
-    url: "",
-    name: "",
-    type: "",
-    size: null,
-  };
-};
-
-const resolveFileUrl = (
-  value
-) => {
-  if (!value) {
-    return "";
-  }
-
-  const url =
-    String(value).trim();
-
-  if (!url) {
-    return "";
-  }
-
-  if (
-    url.startsWith("blob:")
-  ) {
-    return url;
-  }
-
-  if (
-    url.startsWith("data:")
-  ) {
-    return url;
-  }
-
-  if (
-    /^https?:\/\//i.test(
-      url
-    )
-  ) {
-    return url;
-  }
-
-  if (
-    url.startsWith("//")
-  ) {
-    return `${window.location.protocol}${url}`;
-  }
-
-  if (
-    url.startsWith("/")
-  ) {
-    return `${API_URL}${url}`;
-  }
-
-  return `${API_URL}/${url.replace(
-    /^\/+/,
-    ""
-  )}`;
-};
-
-const getFileExtension = (
-  name,
-  type,
-  url
-) => {
-  const source =
-    firstNonEmpty(
-      name,
-      url
-    );
-
-  if (source) {
-    const clean =
-      source
-        .split("?")[0]
-        .split("#")[0];
-
-    const match =
-      clean.match(
-        /\.([a-zA-Z0-9]+)$/
-      );
-
-    if (match?.[1]) {
-      return match[1].toLowerCase();
-    }
-  }
-
-  if (
-    type &&
-    type.includes("/")
-  ) {
-    return type
-      .split("/")
-      .pop()
-      .toLowerCase();
-  }
-
-  return "";
-};
-
-const isPdfFile = (
-  name,
-  type,
-  url
-) => {
-  const extension =
-    getFileExtension(
-      name,
-      type,
-      url
-    );
-
-  return (
-    extension === "pdf" ||
-    cleanValue(type)
-      .toLowerCase()
-      .includes("pdf")
+  const studentId = pick(
+    flat.studentId,
+    flat.student_id,
+    flat.id,
+    flat.userId,
+    flat.user_id
   );
-};
 
-const isVideoFile = (
-  name,
-  type,
-  url
-) => {
-  const extension =
-    getFileExtension(
-      name,
-      type,
-      url
-    );
+  const enrollmentId = pick(
+    flat.enrollmentId,
+    flat.enrollment_id,
+    flat.studentEnrollmentId,
+    flat.student_enrollment_id,
+    localStorage.getItem("enrollmentId"),
+    localStorage.getItem("enrollment_id")
+  );
 
-  return [
-    "mp4",
-    "webm",
-    "ogg",
-    "mov",
-    "m4v",
-  ].includes(extension);
-};
-
-const formatFileSize = (
-  size
-) => {
-  if (
-    size === undefined ||
-    size === null ||
-    size === ""
-  ) {
-    return "";
-  }
-
-  const number =
-    Number(size);
-
-  if (
-    !Number.isFinite(number) ||
-    number <= 0
-  ) {
-    return "";
-  }
-
-  if (number < 1024) {
-    return `${number} B`;
-  }
-
-  if (
-    number <
-    1024 * 1024
-  ) {
-    return `${(
-      number / 1024
-    ).toFixed(1)} KB`;
-  }
-
-  if (
-    number <
-    1024 * 1024 * 1024
-  ) {
-    return `${(
-      number /
-      (1024 * 1024)
-    ).toFixed(1)} MB`;
-  }
-
-  return `${(
-    number /
-    (1024 * 1024 * 1024)
-  ).toFixed(1)} GB`;
-};
-
-/* ============================================================
-   STUDENT IDENTITY
-============================================================ */
-
-const getStudentIdentity = () => {
-  const objects = [];
-
-  for (
-    const key of
-    STUDENT_OBJECT_KEYS
-  ) {
-    const object =
-      readLocalStorageObject(
-        key
-      );
-
-    if (object) {
-      objects.push(object);
-    }
-  }
-
-  const enrollmentObject =
-    readLocalStorageObject(
-      "enrollment"
-    );
-
-  if (
-    enrollmentObject
-  ) {
-    objects.push(
-      enrollmentObject
-    );
-  }
-
-  let studentReference = "";
-  let studentId = "";
-  let enrollmentId = "";
-  let studentName = "";
-
-  for (
-    const object of objects
-  ) {
-    if (
-      !studentReference
-    ) {
-      studentReference =
-        findIdentityInObject(
-          object,
-          STUDENT_REFERENCE_KEYS
-        );
-    }
-
-    if (!studentId) {
-      studentId =
-        findIdentityInObject(
-          object,
-          STUDENT_ID_KEYS
-        );
-    }
-
-    if (!enrollmentId) {
-      enrollmentId =
-        findIdentityInObject(
-          object,
-          ENROLLMENT_KEYS
-        );
-    }
-
-    if (!studentName) {
-      studentName =
-        firstNonEmpty(
-          object.name,
-          object.fullName,
-          object.full_name,
-          object.studentName,
-          object.student_name,
-          object.displayName,
-          object.display_name
-        );
-    }
-
-    const nestedEnrollment =
-      object.enrollment ||
-      object.enrollmentData ||
-      object.enrollment_data;
-
-    if (
-      nestedEnrollment &&
-      typeof nestedEnrollment ===
-        "object"
-    ) {
-      if (!enrollmentId) {
-        enrollmentId =
-          findIdentityInObject(
-            nestedEnrollment,
-            ENROLLMENT_KEYS
-          ) ||
-          firstNonEmpty(
-            nestedEnrollment.id
-          );
-      }
-
-      if (!studentReference) {
-        studentReference =
-          findIdentityInObject(
-            nestedEnrollment,
-            STUDENT_REFERENCE_KEYS
-          );
-      }
-    }
-  }
-
-  if (!studentReference) {
-    studentReference =
-      readLocalStorageValue(
-        STUDENT_REFERENCE_KEYS
-      );
-  }
-
-  if (!studentId) {
-    studentId =
-      readLocalStorageValue(
-        STUDENT_ID_KEYS
-      );
-  }
-
-  if (!enrollmentId) {
-    enrollmentId =
-      readLocalStorageValue(
-        ENROLLMENT_KEYS
-      );
-  }
+  const studentName =
+    pick(
+      flat.studentName,
+      flat.student_name,
+      flat.fullName,
+      flat.full_name,
+      flat.name,
+      [flat.firstName, flat.lastName].filter(Boolean).join(" ")
+    ) || "Student";
 
   return {
     studentReference,
@@ -896,3016 +135,1636 @@ const getStudentIdentity = () => {
     enrollmentId,
     studentName,
   };
-};
+}
 
-/* ============================================================
-   TOKEN
-============================================================ */
+function authHeaders(json = false) {
+  const token = getToken();
+  const headers = { Accept: "application/json" };
 
-const getAcademyToken = () => {
-  return readLocalStorageValue(
-    ACADEMY_TOKEN_KEYS
-  );
-};
-
-const getAuthHeaders = () => {
-  const token =
-    getAcademyToken();
-
-  return {
-    Accept:
-      "application/json",
-
-    ...(token
-      ? {
-          Authorization:
-            `Bearer ${token}`,
-          "x-academy-token":
-            token,
-          "x-student-token":
-            token,
-        }
-      : {}),
-  };
-};
-
-const getJsonAuthHeaders = () => ({
-  ...getAuthHeaders(),
-  "Content-Type":
-    "application/json",
-});
-
-/* ============================================================
-   QUESTION HELPERS
-============================================================ */
-
-const normalizeQuestion = (
-  question,
-  index
-) => {
-  if (!question) {
-    return null;
+  if (json) {
+    headers["Content-Type"] = "application/json";
   }
 
-  return {
-    id:
-      question.id ??
-      question.question_id ??
-      question.questionId ??
-      index + 1,
+  if (token) {
+    headers.Authorization = /^Bearer\s/i.test(token)
+      ? token
+      : `Bearer ${token}`;
+  }
 
-    question:
-      question.question ??
-      question.question_text ??
-      question.questionText ??
-      question.text ??
-      "",
+  return headers;
+}
 
-    optionA:
-      question.optionA ??
-      question.option_a ??
-      question.a ??
-      "",
+function getPayload(data) {
+  return (
+    data?.assignment ||
+    data?.data?.assignment ||
+    data?.data ||
+    data?.result?.assignment ||
+    data?.result ||
+    data?.activity ||
+    data?.task ||
+    data
+  );
+}
 
-    optionB:
-      question.optionB ??
-      question.option_b ??
-      question.b ??
-      "",
+function getQuestions(data) {
+  const candidates = [
+    data?.questions,
+    data?.assignment?.questions,
+    data?.data?.questions,
+    data?.data?.assignment?.questions,
+    data?.activity?.questions,
+  ];
 
-    optionC:
-      question.optionC ??
-      question.option_c ??
-      question.c ??
-      "",
+  return candidates.find(Array.isArray) || [];
+}
 
-    optionD:
-      question.optionD ??
-      question.option_d ??
-      question.d ??
-      "",
+function getExistingSubmission(data) {
+  const candidates = [
+    data?.submission,
+    data?.savedSubmission,
+    data?.data?.submission,
+    data?.data?.savedSubmission,
+    data?.result?.submission,
+    data?.existingSubmission,
+  ];
 
-    marks:
-      question.marks ??
-      question.mark ??
-      question.points ??
-      1,
+  return (
+    candidates.find(
+      (item) => item && typeof item === "object"
+    ) || null
+  );
+}
 
-    correctAnswer:
-      question.correctAnswer ??
-      question.correct_answer ??
-      "",
-  };
-};
+function getAssignmentFile(assignment) {
+  const file =
+    assignment?.file ||
+    assignment?.document ||
+    assignment?.attachment ||
+    {};
 
-const parseQuestionsValue = (
-  value
-) => {
-  if (
-    Array.isArray(value)
-  ) {
+  const url = clean(
+    file.url ||
+      file.fileUrl ||
+      file.file_url ||
+      file.filePath ||
+      file.file_path ||
+      assignment?.fileUrl ||
+      assignment?.file_url ||
+      assignment?.filePath ||
+      assignment?.file_path ||
+      assignment?.documentUrl ||
+      assignment?.document_url ||
+      assignment?.attachmentUrl ||
+      assignment?.attachment_url
+  );
+
+  const name = clean(
+    file.name ||
+      file.fileName ||
+      file.file_name ||
+      assignment?.fileName ||
+      assignment?.file_name ||
+      assignment?.documentName ||
+      assignment?.document_name
+  );
+
+  const type = clean(
+    file.type ||
+      file.mimeType ||
+      file.mime_type ||
+      assignment?.fileType ||
+      assignment?.file_type
+  );
+
+  return { url, name, type };
+}
+
+function getSubmissionFile(submission) {
+  const file =
+    submission?.file ||
+    submission?.attachment ||
+    submission?.document ||
+    {};
+
+  const url = clean(
+    file.url ||
+      file.fileUrl ||
+      file.file_url ||
+      file.filePath ||
+      file.file_path ||
+      submission?.submissionFileUrl ||
+      submission?.submission_file_url ||
+      submission?.fileUrl ||
+      submission?.file_url ||
+      submission?.filePath ||
+      submission?.file_path ||
+      submission?.attachmentUrl ||
+      submission?.attachment_url ||
+      submission?.documentUrl ||
+      submission?.document_url ||
+      submission?.url
+  );
+
+  const name = clean(
+    file.name ||
+      file.fileName ||
+      file.file_name ||
+      submission?.fileName ||
+      submission?.file_name ||
+      submission?.attachmentName ||
+      submission?.attachment_name ||
+      submission?.originalName ||
+      submission?.original_name ||
+      submission?.filename
+  );
+
+  const type = clean(
+    file.type ||
+      file.mimeType ||
+      file.mime_type ||
+      submission?.mimeType ||
+      submission?.mime_type ||
+      submission?.fileType ||
+      submission?.file_type ||
+      submission?.contentType ||
+      submission?.content_type
+  );
+
+  return { url, name, type };
+}
+
+function resolveUrl(value) {
+  if (!value) return "";
+
+  if (/^(https?:|blob:|data:)/i.test(value)) {
     return value;
   }
 
-  if (
-    typeof value === "string"
-  ) {
-    const parsed =
-      safelyParseJSON(value);
-
-    if (
-      Array.isArray(parsed)
-    ) {
-      return parsed;
-    }
+  if (value.startsWith("//")) {
+    return `${window.location.protocol}${value}`;
   }
 
-  if (
-    value &&
-    typeof value === "object"
-  ) {
-    if (
-      Array.isArray(
-        value.questions
-      )
-    ) {
-      return value.questions;
-    }
+  return value.startsWith("/")
+    ? `${API_URL}${value}`
+    : `${API_URL}/${value}`;
+}
 
-    if (
-      Array.isArray(
-        value.items
-      )
-    ) {
-      return value.items;
-    }
+function formatSize(bytes) {
+  if (!Number.isFinite(Number(bytes))) return "";
 
-    if (
-      Array.isArray(
-        value.data
-      )
-    ) {
-      return value.data;
-    }
+  const size = Number(bytes);
+
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
   }
 
-  return [];
-};
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
 
-const extractQuestions = (
-  payload
-) => {
-  if (!payload) {
-    return [];
+function parseResponseText(text) {
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return {
+      message: text || "The server returned an invalid response.",
+    };
   }
+}
 
-  const candidates = [
-    payload.questions,
-    payload.questionData,
-    payload.items,
-    payload.data?.questions,
-    payload.data?.questionData,
-    payload.data?.items,
-    payload.result?.questions,
-    payload.result?.questionData,
-    payload.result?.items,
-    payload.assignment?.questions,
-    payload.assignment?.questionData,
-    payload.data?.assignment?.questions,
-    payload.result?.assignment?.questions,
-  ];
-
-  for (
-    const candidate of
-    candidates
-  ) {
-    const parsed =
-      parseQuestionsValue(
-        candidate
-      );
-
-    if (
-      parsed.length
-    ) {
-      return parsed
-        .map(
-          normalizeQuestion
-        )
-        .filter(Boolean);
-    }
-  }
-
-  return [];
-};
-
-const extractAssignment = (
-  payload
-) => {
+function isVideoFile(name = "", type = "") {
   return (
-    payload?.assignment ||
-    payload?.data?.assignment ||
-    payload?.result?.assignment ||
-    payload?.data ||
-    payload?.result ||
-    null
+    /^video\//i.test(type) ||
+    /\.(mp4|webm|mov|m4v|ogv)$/i.test(name)
   );
-};
+}
 
-const extractServerMessage = (
-  payload,
-  fallback
-) => {
-  return firstNonEmpty(
-    payload?.message,
-    payload?.error,
-    payload?.details,
-    payload?.data?.message,
-    payload?.data?.error,
-    payload?.result?.message,
-    fallback
-  );
-};
-
-const extractSubmission = (
-  payload
-) => {
+function isImageFile(name = "", type = "") {
   return (
-    payload?.submission ||
-    payload?.data?.submission ||
-    payload?.result?.submission ||
-    payload?.result ||
-    payload?.data ||
-    null
+    /^image\//i.test(type) ||
+    /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(name)
   );
-};
+}
 
-/* ============================================================
-   COMPONENT
-============================================================ */
+function isPdfFile(name = "", type = "") {
+  return (
+    type.toLowerCase().includes("pdf") ||
+    /\.pdf$/i.test(name)
+  );
+}
 
-const StudentAssignmentDetails =
-  () => {
-    const navigate =
-      useNavigate();
+function FilePreview({ url, name, type, localFile }) {
+  const previewUrl = useMemo(() => {
+    if (localFile) {
+      return URL.createObjectURL(localFile);
+    }
 
-    const location =
-      useLocation();
+    return resolveUrl(url);
+  }, [localFile, url]);
 
-    const params =
-      useParams();
+  useEffect(() => {
+    if (!localFile || !previewUrl) return undefined;
 
-    const assignmentId =
-      params.assignmentId ||
-      params.id ||
-      location.state?.assignment?.id ||
-      location.state?.assignmentId;
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [localFile, previewUrl]);
 
-    const fileInputRef =
-      useRef(null);
+  if (!previewUrl) return null;
 
-    const [
-      assignment,
-      setAssignment,
-    ] = useState(null);
-
-    const [
-      questions,
-      setQuestions,
-    ] = useState([]);
-
-    const [
-      answers,
-      setAnswers,
-    ] = useState({});
-
-    const [
-      loading,
-      setLoading,
-    ] = useState(true);
-
-    const [
-      submitting,
-      setSubmitting,
-    ] = useState(false);
-
-    const [
-      error,
-      setError,
-    ] = useState("");
-
-    const [
-      submitError,
-      setSubmitError,
-    ] = useState("");
-
-    const [
-      submitted,
-      setSubmitted,
-    ] = useState(false);
-
-    const [
-      savedSubmission,
-      setSavedSubmission,
-    ] = useState(null);
-
-    const [
-      expandedQuestion,
-      setExpandedQuestion,
-    ] = useState(null);
-
-    const [
-      protectedFileUrl,
-      setProtectedFileUrl,
-    ] = useState("");
-
-    const [
-      protectedFileLoading,
-      setProtectedFileLoading,
-    ] = useState(false);
-
-    const [
-      protectedFileError,
-      setProtectedFileError,
-    ] = useState("");
-
-    const [
-      protectedFileType,
-      setProtectedFileType,
-    ] = useState("");
-
-    const [
-      studentIdentity,
-      setStudentIdentity,
-    ] = useState(
-      getStudentIdentity()
+  if (isVideoFile(name, type)) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+        <video
+          key={previewUrl}
+          src={previewUrl}
+          controls
+          playsInline
+          preload="metadata"
+          className="max-h-[480px] w-full bg-black"
+        >
+          Your browser does not support video playback.
+        </video>
+      </div>
     );
-
-    const [
-      studentSubmissionFile,
-      setStudentSubmissionFile,
-    ] = useState(null);
-
-    const [
-      submissionFileError,
-      setSubmissionFileError,
-    ] = useState("");
-
-    /* ========================================================
-       STUDENT IDENTITY
-    ======================================================== */
-
-    useEffect(() => {
-      const identity =
-        getStudentIdentity();
-
-      setStudentIdentity(
-        identity
-      );
-
-      console.log(
-        "🎓 STUDENT IDENTITY FOUND:",
-        identity
-      );
-    }, []);
-
-    /* ========================================================
-       LOAD ASSIGNMENT
-    ======================================================== */
-
-    const loadAssignment =
-      useCallback(
-        async () => {
-          if (!assignmentId) {
-            setError(
-              "A valid assignment ID was not provided."
-            );
-
-            setLoading(false);
-
-            return;
-          }
-
-          const token =
-            getAcademyToken();
-
-          const stateAssignment =
-            location.state
-              ?.assignment ||
-            null;
-
-          const stateFile =
-            getAssignmentFile(
-              stateAssignment
-            );
-
-          if (!token) {
-            if (
-              stateAssignment
-            ) {
-              setAssignment(
-                stateAssignment
-              );
-
-              setQuestions(
-                extractQuestions(
-                  stateAssignment
-                )
-              );
-
-              setLoading(false);
-
-              return;
-            }
-
-            setError(
-              "Your student session has expired. Please log in again."
-            );
-
-            setLoading(false);
-
-            return;
-          }
-
-          try {
-            setLoading(true);
-            setError("");
-
-            const response =
-              await fetch(
-                `${API_URL}/api/academy/student/assignments/${encodeURIComponent(
-                  assignmentId
-                )}`,
-                {
-                  method:
-                    "GET",
-                  credentials:
-                    "include",
-                  headers:
-                    getAuthHeaders(),
-                }
-              );
-
-            const rawText =
-              await response
-                .text();
-
-            let data = {};
-
-            try {
-              data =
-                rawText
-                  ? JSON.parse(
-                      rawText
-                    )
-                  : {};
-            } catch {
-              data = {
-                message:
-                  rawText ||
-                  "The server returned an invalid response.",
-              };
-            }
-
-            console.log(
-              "📚 ASSIGNMENT DETAILS RESPONSE:",
-              data
-            );
-
-            const assignmentData =
-              extractAssignment(
-                data
-              );
-
-            const detailFile =
-              getAssignmentFile(
-                assignmentData
-              );
-
-            let mergedAssignment =
-              {
-                ...(stateAssignment ||
-                  {}),
-                ...(assignmentData ||
-                  {}),
-              };
-
-            if (
-              !detailFile.url &&
-              stateFile.url
-            ) {
-              mergedAssignment.file =
-                {
-                  url:
-                    stateFile.url,
-                  name:
-                    stateFile.name,
-                  type:
-                    stateFile.type,
-                  size:
-                    stateFile.size,
-                };
-
-              mergedAssignment.fileUrl =
-                stateFile.url;
-
-              mergedAssignment.fileName =
-                stateFile.name;
-
-              mergedAssignment.fileType =
-                stateFile.type;
-
-              mergedAssignment.fileSize =
-                stateFile.size;
-            }
-
-            const finalFile =
-              getAssignmentFile(
-                mergedAssignment
-              );
-
-            if (
-              finalFile.url
-            ) {
-              mergedAssignment.file =
-                {
-                  url:
-                    finalFile.url,
-                  name:
-                    finalFile.name,
-                  type:
-                    finalFile.type,
-                  size:
-                    finalFile.size,
-                };
-
-              mergedAssignment.fileUrl =
-                finalFile.url;
-
-              mergedAssignment.fileName =
-                finalFile.name;
-
-              mergedAssignment.fileType =
-                finalFile.type;
-
-              mergedAssignment.fileSize =
-                finalFile.size;
-            }
-
-            if (
-              stateAssignment?.document &&
-              !mergedAssignment.document
-            ) {
-              mergedAssignment.document =
-                stateAssignment.document;
-            }
-
-            if (
-              stateAssignment?.attachment &&
-              !mergedAssignment.attachment
-            ) {
-              mergedAssignment.attachment =
-                stateAssignment.attachment;
-            }
-
-            const questionData =
-              extractQuestions(
-                data
-              );
-
-            if (
-              !response.ok
-            ) {
-              if (
-                stateAssignment
-              ) {
-                setAssignment(
-                  mergedAssignment
-                );
-
-                setQuestions(
-                  extractQuestions(
-                    mergedAssignment
-                  )
-                );
-
-                setLoading(
-                  false
-                );
-
-                return;
-              }
-
-              throw new Error(
-                extractServerMessage(
-                  data,
-                  "Unable to load assignment."
-                )
-              );
-            }
-
-            if (
-              !assignmentData &&
-              !stateAssignment
-            ) {
-              throw new Error(
-                "The assignment was not found."
-              );
-            }
-
-            setAssignment(
-              mergedAssignment
-            );
-
-            setQuestions(
-              questionData.length
-                ? questionData
-                : extractQuestions(
-                    mergedAssignment
-                  )
-            );
-
-            const existingAnswers =
-              data?.answers ||
-              data?.data?.answers ||
-              data?.assignment?.answers ||
-              [];
-
-            if (
-              Array.isArray(
-                existingAnswers
-              )
-            ) {
-              const answerMap =
-                {};
-
-              existingAnswers.forEach(
-                (item) => {
-                  const qid =
-                    item.question_id ??
-                    item.questionId ??
-                    item.question?.id;
-
-                  const selected =
-                    item.student_answer ??
-                    item.studentAnswer ??
-                    item.answer ??
-                    item.selected_answer ??
-                    "";
-
-                  if (
-                    qid !==
-                      undefined &&
-                    qid !== null
-                  ) {
-                    answerMap[
-                      String(qid)
-                    ] =
-                      selected;
-                  }
-                }
-              );
-
-              if (
-                Object.keys(
-                  answerMap
-                ).length
-              ) {
-                setAnswers(
-                  answerMap
-                );
-              }
-            }
-
-            const existingSubmission =
-              extractSubmission(
-                data
-              );
-
-            if (
-              existingSubmission &&
-              (
-                existingSubmission.id ||
-                existingSubmission.submissionId ||
-                existingSubmission.submission_id
-              )
-            ) {
-              const submissionStatus =
-                cleanValue(
-                  existingSubmission.status
-                ).toLowerCase();
-
-              if (
-                [
-                  "submitted",
-                  "reviewed",
-                  "graded",
-                  "completed",
-                ].includes(
-                  submissionStatus
-                )
-              ) {
-                setSavedSubmission(
-                  existingSubmission
-                );
-
-                setSubmitted(
-                  true
-                );
-              }
-            }
-
-            console.log(
-              "📝 QUESTIONS FOUND:",
-              questionData.length
-            );
-
-            console.log(
-              "📎 STATE FILE:",
-              stateFile
-            );
-
-            console.log(
-              "📎 DETAIL FILE:",
-              detailFile
-            );
-
-            console.log(
-              "📎 FINAL FILE:",
-              getAssignmentFile(
-                mergedAssignment
-              )
-            );
-
-            console.log(
-              "📚 FINAL ASSIGNMENT:",
-              mergedAssignment
-            );
-          } catch (err) {
-            console.error(
-              "StudentAssignmentDetails load error:",
-              err
-            );
-
-            if (
-              stateAssignment
-            ) {
-              const fallbackAssignment =
-                {
-                  ...stateAssignment,
-                };
-
-              const fallbackFile =
-                getAssignmentFile(
-                  fallbackAssignment
-                );
-
-              if (
-                fallbackFile.url
-              ) {
-                fallbackAssignment.file =
-                  {
-                    url:
-                      fallbackFile.url,
-                    name:
-                      fallbackFile.name,
-                    type:
-                      fallbackFile.type,
-                    size:
-                      fallbackFile.size,
-                  };
-
-                fallbackAssignment.fileUrl =
-                  fallbackFile.url;
-
-                fallbackAssignment.fileName =
-                  fallbackFile.name;
-
-                fallbackAssignment.fileType =
-                  fallbackFile.type;
-
-                fallbackAssignment.fileSize =
-                  fallbackFile.size;
-              }
-
-              setAssignment(
-                fallbackAssignment
-              );
-
-              setQuestions(
-                extractQuestions(
-                  fallbackAssignment
-                )
-              );
-
-              setError("");
-            } else {
-              setError(
-                err?.message ||
-                  "Unable to load this assignment."
-              );
-            }
-          } finally {
-            setLoading(false);
-          }
-        },
-        [
-          assignmentId,
-          location.state,
-        ]
-      );
-
-    useEffect(() => {
-      loadAssignment();
-    }, [
-      loadAssignment,
-    ]);
-
-    /* ========================================================
-       ASSIGNMENT DOCUMENT
-    ======================================================== */
-
-    const assignmentFile =
-      useMemo(() => {
-        const fromAssignment =
-          getAssignmentFile(
-            assignment
-          );
-
-        if (
-          fromAssignment.url
-        ) {
-          return fromAssignment;
-        }
-
-        const fromStateDocument =
-          getAssignmentFile(
-            location.state
-              ?.document
-          );
-
-        if (
-          fromStateDocument.url
-        ) {
-          return fromStateDocument;
-        }
-
-        const fromStateAssignment =
-          getAssignmentFile(
-            location.state
-              ?.assignment
-          );
-
-        if (
-          fromStateAssignment.url
-        ) {
-          return fromStateAssignment;
-        }
-
-        return {
-          url: "",
-          name: "",
-          type: "",
-          size: null,
-        };
-      }, [
-        assignment,
-        location.state,
-      ]);
-
-    const assignmentFileUrl =
-      useMemo(() => {
-        return resolveFileUrl(
-          assignmentFile.url
-        );
-      }, [
-        assignmentFile.url,
-      ]);
-
-    const assignmentFileExtension =
-      useMemo(() => {
-        return getFileExtension(
-          assignmentFile.name,
-          assignmentFile.type,
-          assignmentFile.url
-        );
-      }, [
-        assignmentFile.name,
-        assignmentFile.type,
-        assignmentFile.url,
-      ]);
-
-    const hasAssignmentDocument =
-      Boolean(
-        assignmentFileUrl
-      );
-
-    const assignmentIsPdf =
-      isPdfFile(
-        assignmentFile.name,
-        assignmentFile.type,
-        assignmentFile.url
-      );
-
-    const assignmentIsVideo =
-      isVideoFile(
-        assignmentFile.name,
-        assignmentFile.type,
-        assignmentFile.url
-      );
-
-    const isDocumentAssignment =
-      hasAssignmentDocument &&
-      questions.length === 0;
-
-    /* ========================================================
-       PROTECTED FILE ENDPOINT
-    ======================================================== */
-
-    const protectedFileEndpoint =
-      useMemo(() => {
-        if (!assignmentId) {
-          return "";
-        }
-
-        return `${API_URL}/api/academy/student/assignments/${encodeURIComponent(
+  }
+
+  if (isImageFile(name, type)) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+        <img
+          src={previewUrl}
+          alt={name || "Submission preview"}
+          className="max-h-[480px] w-full object-contain"
+        />
+      </div>
+    );
+  }
+
+  if (isPdfFile(name, type)) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white">
+        <iframe
+          title={name || "PDF submission preview"}
+          src={previewUrl}
+          className="h-[480px] w-full"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+      <FileText className="shrink-0 text-cyan-300" size={24} />
+      <div className="min-w-0">
+        <p className="truncate font-medium">
+          {name || "Submitted file"}
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          Preview is not available for this file type. Use Open or Download.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function StudentAssignmentDetails() {
+  const { assignmentId: routeAssignmentId, id: routeId } = useParams();
+  const assignmentId = routeAssignmentId || routeId;
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+
+  const [assignment, setAssignment] = useState(
+    location.state?.assignment || location.state?.activity || null
+  );
+
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileError, setFileError] = useState("");
+  const [savedSubmission, setSavedSubmission] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [isReplacingSubmission, setIsReplacingSubmission] = useState(false);
+  const [identity, setIdentity] = useState(getStudentIdentity);
+
+  // Used to show the replacement immediately if the server does not return
+  // a usable file URL in its success response.
+  const [localSubmittedFile, setLocalSubmittedFile] = useState(null);
+
+  const file = useMemo(
+    () => getAssignmentFile(assignment),
+    [assignment]
+  );
+
+  const submittedFile = useMemo(
+    () => getSubmissionFile(savedSubmission),
+    [savedSubmission]
+  );
+
+  const isQuestionAssignment = questions.length > 0;
+  const dueAt =
+    assignment?.dueAt ||
+    assignment?.due_at ||
+    assignment?.dueDate ||
+    assignment?.due_date;
+
+  const assignmentTitle =
+    assignment?.title ||
+    assignment?.name ||
+    assignment?.assignmentTitle ||
+    "Assignment";
+
+  const assignmentDescription =
+    assignment?.description ||
+    assignment?.instructions ||
+    assignment?.details ||
+    "";
+
+  const displayedSubmissionName =
+    submittedFile.name ||
+    localSubmittedFile?.name ||
+    selectedFile?.name ||
+    "Submitted assignment";
+
+  const displayedSubmissionUrl =
+    submittedFile.url || localSubmittedFile?.url || "";
+
+  const displayedSubmissionType =
+    submittedFile.type || localSubmittedFile?.type || "";
+
+  const loadAssignment = useCallback(async () => {
+    if (!assignmentId) {
+      setLoading(false);
+      setError("Assignment ID is missing from the page URL.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/academy/student/assignments/${encodeURIComponent(
           assignmentId
-        )}/file`;
-      }, [
-        assignmentId,
-      ]);
-
-    /* ========================================================
-       LOAD PROTECTED FILE
-    ======================================================== */
-
-    const loadProtectedFile =
-      useCallback(
-        async ({
-          force = false,
-        } = {}) => {
-          if (
-            !protectedFileEndpoint
-          ) {
-            return "";
-          }
-
-          if (
-            protectedFileUrl &&
-            !force
-          ) {
-            return protectedFileUrl;
-          }
-
-          const token =
-            getAcademyToken();
-
-          if (!token) {
-            setProtectedFileError(
-              "Your student session has expired. Please log in again."
-            );
-
-            return "";
-          }
-
-          try {
-            setProtectedFileLoading(
-              true
-            );
-
-            setProtectedFileError("");
-
-            const response =
-              await fetch(
-                protectedFileEndpoint,
-                {
-                  method:
-                    "GET",
-
-                  credentials:
-                    "include",
-
-                  headers:
-                    getAuthHeaders(),
-                }
-              );
-
-            if (
-              !response.ok
-            ) {
-              const raw =
-                await response
-                  .text()
-                  .catch(
-                    () => ""
-                  );
-
-              let data = {};
-
-              try {
-                data =
-                  raw
-                    ? JSON.parse(
-                        raw
-                      )
-                    : {};
-              } catch {
-                data = {};
-              }
-
-              throw new Error(
-                extractServerMessage(
-                  data,
-                  `Unable to load assignment file. Server returned ${response.status}.`
-                )
-              );
-            }
-
-            const blob =
-              await response.blob();
-
-            if (
-              !blob ||
-              blob.size === 0
-            ) {
-              throw new Error(
-                "The assignment file is empty."
-              );
-            }
-
-            let finalType =
-              blob.type ||
-              assignmentFile.type ||
-              "";
-
-            if (
-              assignmentIsPdf &&
-              !finalType.includes(
-                "pdf"
-              )
-            ) {
-              finalType =
-                "application/pdf";
-            }
-
-            if (
-              finalType &&
-              blob.type !==
-                finalType
-            ) {
-              const typedBlob =
-                blob.slice(
-                  0,
-                  blob.size,
-                  finalType
-                );
-
-              const objectUrl =
-                URL.createObjectURL(
-                  typedBlob
-                );
-
-              setProtectedFileType(
-                finalType
-              );
-
-              setProtectedFileUrl(
-                objectUrl
-              );
-
-              return objectUrl;
-            }
-
-            const objectUrl =
-              URL.createObjectURL(
-                blob
-              );
-
-            setProtectedFileType(
-              finalType
-            );
-
-            setProtectedFileUrl(
-              objectUrl
-            );
-
-            return objectUrl;
-          } catch (err) {
-            console.error(
-              "❌ PROTECTED ASSIGNMENT FILE ERROR:",
-              err
-            );
-
-            setProtectedFileError(
-              err?.message ||
-                "Unable to load the assignment file."
-            );
-
-            return "";
-          } finally {
-            setProtectedFileLoading(
-              false
-            );
-          }
-        },
-        [
-          protectedFileEndpoint,
-          protectedFileUrl,
-          assignmentFile.type,
-          assignmentIsPdf,
-        ]
+        )}`,
+        {
+          headers: authHeaders(),
+          credentials: "include",
+        }
       );
 
-    /* ========================================================
-       LOAD FILE WHEN ASSIGNMENT DOCUMENT EXISTS
-    ======================================================== */
+      const raw = await response.text();
+      const data = parseResponseText(raw);
 
-    useEffect(() => {
-      if (
-        !assignmentId ||
-        !hasAssignmentDocument
-      ) {
-        return;
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            `Unable to load assignment (${response.status}).`
+        );
       }
 
-      loadProtectedFile();
-    }, [
-      assignmentId,
-      hasAssignmentDocument,
-      loadProtectedFile,
-    ]);
-
-    /* ========================================================
-       CLEAN OBJECT URL
-    ======================================================== */
-
-    useEffect(() => {
-      return () => {
-        if (
-          protectedFileUrl &&
-          protectedFileUrl.startsWith(
-            "blob:"
-          )
-        ) {
-          URL.revokeObjectURL(
-            protectedFileUrl
-          );
-        }
+      const payload = getPayload(data);
+      const merged = {
+        ...(location.state?.assignment || {}),
+        ...(payload || {}),
       };
-    }, [
-      protectedFileUrl,
-    ]);
 
-    /* ========================================================
-       HANDLE ANSWER
-    ======================================================== */
+      setAssignment(merged);
 
-    const handleAnswer = (
-      questionId,
-      answer
-    ) => {
-      setAnswers(
-        (previous) => ({
-          ...previous,
-
-          [String(questionId)]:
-            answer,
-        })
+      const loadedQuestions = getQuestions(data);
+      setQuestions(
+        loadedQuestions.length
+          ? loadedQuestions
+          : getQuestions(merged)
       );
 
-      setSubmitError("");
-    };
+      const existing = getExistingSubmission(data);
 
-    /* ========================================================
-       HANDLE STUDENT SUBMISSION FILE
-    ======================================================== */
+      if (existing) {
+        setSavedSubmission(existing);
 
-    const handleSubmissionFileChange =
-      (event) => {
-        const file =
-          event.target.files?.[0];
-
-        setSubmissionFileError(
-          ""
-        );
-
-        if (!file) {
-          setStudentSubmissionFile(
-            null
-          );
-
-          return;
-        }
-
-        const MAX_SIZE =
-          250 *
-          1024 *
-          1024;
+        const status = clean(existing.status).toLowerCase();
 
         if (
-          file.size >
-          MAX_SIZE
+          [
+            "submitted",
+            "reviewed",
+            "graded",
+            "completed",
+            "returned",
+          ].includes(status) ||
+          existing.id
         ) {
-          setStudentSubmissionFile(
-            null
-          );
-
-          setSubmissionFileError(
-            "The selected file is larger than 250 MB."
-          );
-
-          if (
-            fileInputRef.current
-          ) {
-            fileInputRef.current.value =
-              "";
-          }
-
-          return;
-        }
-
-        const allowedExtensions = [
-          "pdf",
-          "doc",
-          "docx",
-          "txt",
-          "ppt",
-          "pptx",
-          "xls",
-          "xlsx",
-          "jpg",
-          "jpeg",
-          "png",
-          "webp",
-          "zip",
-        ];
-
-        const extension =
-          getFileExtension(
-            file.name,
-            file.type,
-            ""
-          );
-
-        if (
-          extension &&
-          !allowedExtensions.includes(
-            extension
-          )
-        ) {
-          setStudentSubmissionFile(
-            null
-          );
-
-          setSubmissionFileError(
-            `The file type ".${extension}" is not supported. Please upload PDF, DOC, DOCX, image, spreadsheet, presentation, TXT or ZIP files.`
-          );
-
-          if (
-            fileInputRef.current
-          ) {
-            fileInputRef.current.value =
-              "";
-          }
-
-          return;
-        }
-
-        setStudentSubmissionFile(
-          file
-        );
-        setSubmitError("");
-      };
-
-    const removeSubmissionFile =
-      () => {
-        setStudentSubmissionFile(
-          null
-        );
-
-        setSubmissionFileError(
-          ""
-        );
-
-        if (
-          fileInputRef.current
-        ) {
-          fileInputRef.current.value =
-            "";
-        }
-      };
-
-    /* ========================================================
-       SUBMIT QUESTION ASSIGNMENT
-    ======================================================== */
-
-    const submitQuestionAssignment =
-      async () => {
-        if (!assignment?.id) {
-          setSubmitError(
-            "This assignment does not have a valid ID."
-          );
-
-          return;
-        }
-
-        if (
-          !questions.length
-        ) {
-          setSubmitError(
-            "This assignment has no questions."
-          );
-
-          return;
-        }
-
-        const unansweredQuestions =
-          questions.filter(
-            (question) => {
-              const questionId =
-                String(
-                  question.id
-                );
-
-              return !cleanValue(
-                answers[
-                  questionId
-                ]
-              );
-            }
-          );
-
-        if (
-          unansweredQuestions.length
-        ) {
-          setSubmitError(
-            `Please answer all questions before submitting. ${
-              unansweredQuestions.length
-            } question${
-              unansweredQuestions.length ===
-              1
-                ? ""
-                : "s"
-            } remaining.`
-          );
-
-          return;
-        }
-
-        const identity =
-          getStudentIdentity();
-
-        setStudentIdentity(
-          identity
-        );
-
-        const {
-          studentReference,
-          studentId,
-          enrollmentId,
-          studentName,
-        } = identity;
-
-        if (
-          !enrollmentId &&
-          !studentReference
-        ) {
-          setSubmitError(
-            "Your student enrollment information could not be found. Please log out and log in again."
-          );
-
-          return;
-        }
-
-        try {
-          setSubmitting(true);
-          setSubmitError("");
-
-          const answerMap =
-            {};
-
-          const answerList =
-            [];
-
-          questions.forEach(
-            (question) => {
-              const questionId =
-                String(
-                  question.id
-                );
-
-              const selectedAnswer =
-                cleanValue(
-                  answers[
-                    questionId
-                  ]
-                );
-
-              answerMap[
-                questionId
-              ] =
-                selectedAnswer;
-
-              answerList.push({
-                questionId:
-                  question.id,
-
-                question_id:
-                  question.id,
-
-                answer:
-                  selectedAnswer,
-
-                studentAnswer:
-                  selectedAnswer,
-
-                student_answer:
-                  selectedAnswer,
-              });
-            }
-          );
-
-          const payload = {
-            assignmentId:
-              assignment.id,
-
-            assignment_id:
-              assignment.id,
-
-            enrollmentId:
-              enrollmentId || "",
-
-            enrollment_id:
-              enrollmentId || "",
-
-            studentReference:
-              studentReference || "",
-
-            student_reference:
-              studentReference || "",
-
-            reference:
-              studentReference || "",
-
-            studentId:
-              studentId || "",
-
-            student_id:
-              studentId || "",
-
-            studentName:
-              studentName ||
-              "Student",
-
-            student_name:
-              studentName ||
-              "Student",
-
-            answers:
-              answerMap,
-
-            answerList:
-              answerList,
-
-            responses:
-              answerMap,
-          };
-
-          const response =
-            await fetch(
-              `${API_URL}/api/academy/student/assignments/${encodeURIComponent(
-                assignment.id
-              )}/submit`,
-              {
-                method:
-                  "POST",
-
-                headers:
-                  getJsonAuthHeaders(),
-
-                credentials:
-                  "include",
-
-                body:
-                  JSON.stringify(
-                    payload
-                  ),
-              }
-            );
-
-          const rawText =
-            await response.text();
-
-          let data = {};
-
-          try {
-            data =
-              rawText
-                ? JSON.parse(
-                    rawText
-                  )
-                : {};
-          } catch {
-            data = {
-              message:
-                rawText ||
-                "The server returned an invalid response.",
-            };
-          }
-
-          if (
-            response.status ===
-            409
-          ) {
-            const existingSubmission =
-              extractSubmission(
-                data
-              );
-
-            if (
-              existingSubmission
-            ) {
-              setSavedSubmission(
-                existingSubmission
-              );
-
-              setSubmitted(
-                true
-              );
-
-              return;
-            }
-
-            throw new Error(
-              extractServerMessage(
-                data,
-                "This assignment has already been submitted."
-              )
-            );
-          }
-
-          if (
-            !response.ok
-          ) {
-            throw new Error(
-              extractServerMessage(
-                data,
-                `Unable to submit assignment. Server returned ${response.status}.`
-              )
-            );
-          }
-
-          const saved =
-            extractSubmission(
-              data
-            );
-
-          setSavedSubmission(
-            saved
-          );
-
-          setSubmitted(
-            true
-          );
-
-          setAssignment(
-            (previous) =>
-              previous
-                ? {
-                    ...previous,
-                    status:
-                      "submitted",
-                  }
-                : previous
-          );
-        } catch (err) {
-          console.error(
-            "❌ ASSIGNMENT SUBMISSION ERROR:",
-            err
-          );
-
-          setSubmitError(
-            err?.message ||
-              "Unable to submit assignment."
-          );
-        } finally {
-          setSubmitting(
-            false
-          );
-        }
-      };
-
-    /* ========================================================
-       SUBMIT DOCUMENT ASSIGNMENT
-    ======================================================== */
-
-    const submitDocumentAssignment =
-      async () => {
-        if (!assignment?.id) {
-          setSubmitError(
-            "This assignment does not have a valid ID."
-          );
-
-          return;
-        }
-
-        if (
-          !studentSubmissionFile
-        ) {
-          setSubmissionFileError(
-            "Please select your completed assignment before submitting."
-          );
-
-          setSubmitError(
-            "Please attach your completed assignment."
-          );
-
-          return;
-        }
-
-        const identity =
-          getStudentIdentity();
-
-        setStudentIdentity(
-          identity
-        );
-
-        const {
-          studentReference,
-          studentId,
-          enrollmentId,
-          studentName,
-        } = identity;
-
-        if (
-          !enrollmentId &&
-          !studentReference &&
-          !studentId
-        ) {
-          setSubmitError(
-            "Your student enrollment information could not be found. Please log out and log in again."
-          );
-
-          return;
-        }
-
-        try {
-          setSubmitting(true);
-          setSubmitError("");
-          setSubmissionFileError("");
-
-          const formData =
-            new FormData();
-
-          formData.append(
-            "assignmentId",
-            String(assignment.id)
-          );
-
-          formData.append(
-            "assignment_id",
-            String(assignment.id)
-          );
-
-          if (enrollmentId) {
-            formData.append(
-              "enrollmentId",
-              enrollmentId
-            );
-
-            formData.append(
-              "enrollment_id",
-              enrollmentId
-            );
-          }
-
-          if (studentReference) {
-            formData.append(
-              "studentReference",
-              studentReference
-            );
-
-            formData.append(
-              "student_reference",
-              studentReference
-            );
-
-            formData.append(
-              "reference",
-              studentReference
-            );
-          }
-
-          if (studentId) {
-            formData.append(
-              "studentId",
-              studentId
-            );
-
-            formData.append(
-              "student_id",
-              studentId
-            );
-          }
-
-          formData.append(
-            "studentName",
-            studentName || "Student"
-          );
-
-          formData.append(
-            "student_name",
-            studentName || "Student"
-          );
-
-          formData.append(
-            "submissionType",
-            "document"
-          );
-
-          formData.append(
-            "submission_type",
-            "document"
-          );
-
-          formData.append(
-            "activityType",
-            "assignment"
-          );
-
-          formData.append(
-            "activity_type",
-            "assignment"
-          );
-
-          /*
-           * FIX:
-           * Upload the student's file only once.
-           * The backend expects the "file" field.
-           */
-          formData.append(
-            "file",
-            studentSubmissionFile,
-            studentSubmissionFile.name
-          );
-
-          formData.append(
-            "attachmentName",
-            studentSubmissionFile.name
-          );
-
-          formData.append(
-            "fileName",
-            studentSubmissionFile.name
-          );
-
-          formData.append(
-            "file_name",
-            studentSubmissionFile.name
-          );
-
-          const response =
-            await fetch(
-              `${API_URL}/api/academy/student/assignments/${encodeURIComponent(
-                assignment.id
-              )}/submit`,
-              {
-                method: "POST",
-                headers: getAuthHeaders(),
-                credentials: "include",
-                body: formData,
-              }
-            );
-
-          const rawText =
-            await response.text();
-
-          let data = {};
-
-          try {
-            data =
-              rawText
-                ? JSON.parse(rawText)
-                : {};
-          } catch {
-            data = {
-              message:
-                rawText ||
-                "The server returned an invalid response.",
-            };
-          }
-
-          console.log(
-            "📤 DOCUMENT SUBMISSION RESPONSE:",
-            response.status,
-            data
-          );
-
-          if (response.status === 409) {
-            const existingSubmission =
-              extractSubmission(data);
-
-            if (existingSubmission) {
-              setSavedSubmission(
-                existingSubmission
-              );
-
-              setSubmitted(true);
-
-              return;
-            }
-
-            throw new Error(
-              extractServerMessage(
-                data,
-                "This assignment has already been submitted."
-              )
-            );
-          }
-
-          if (!response.ok) {
-            throw new Error(
-              extractServerMessage(
-                data,
-                `Unable to submit assignment. Server returned ${response.status}.`
-              )
-            );
-          }
-
-          const saved =
-            extractSubmission(data);
-
-          setSavedSubmission(saved);
           setSubmitted(true);
+        }
+      }
 
-          setAssignment((previous) =>
-            previous
-              ? {
-                  ...previous,
-                  status: "submitted",
-                }
-              : previous
-          );
+      const priorAnswers =
+        data?.answers ||
+        data?.data?.answers ||
+        existing?.answers ||
+        [];
 
-          setStudentSubmissionFile(null);
+      if (Array.isArray(priorAnswers)) {
+        const mapped = {};
 
-          if (fileInputRef.current) {
-            fileInputRef.current.value = "";
+        priorAnswers.forEach((row) => {
+          const qid =
+            row.question_id ??
+            row.questionId ??
+            row.question?.id;
+
+          const answer =
+            row.student_answer ??
+            row.studentAnswer ??
+            row.answer ??
+            row.selected_answer ??
+            "";
+
+          if (qid !== undefined && qid !== null) {
+            mapped[String(qid)] = answer;
           }
-        } catch (err) {
-          console.error(
-            "❌ DOCUMENT ASSIGNMENT SUBMISSION ERROR:",
-            err
-          );
-
-          setSubmitError(
-            err?.message ||
-              "Unable to submit your assignment."
-          );
-        } finally {
-          setSubmitting(false);
-        }
-      };
-
-    /* ========================================================
-       SUBMIT ASSIGNMENT
-    ======================================================== */
-
-    const submitAssignment =
-      async () => {
-        if (questions.length) {
-          await submitQuestionAssignment();
-          return;
-        }
-
-        if (isDocumentAssignment) {
-          await submitDocumentAssignment();
-          return;
-        }
-
-        setSubmitError(
-          "This assignment does not contain questions or a document to submit."
-        );
-      };
-
-    /* ========================================================
-       OPEN PROTECTED DOCUMENT
-    ======================================================== */
-
-    const openAssignmentDocument =
-      async () => {
-        const url =
-          await loadProtectedFile();
-
-        if (!url) {
-          return;
-        }
-
-        window.open(
-          url,
-          "_blank",
-          "noopener,noreferrer"
-        );
-      };
-
-    /* ========================================================
-       DOWNLOAD PROTECTED DOCUMENT
-    ======================================================== */
-
-    const downloadAssignmentDocument =
-      async () => {
-        const url =
-          await loadProtectedFile();
-
-        if (!url) {
-          return;
-        }
-
-        try {
-          const anchor =
-            document.createElement("a");
-
-          anchor.href = url;
-
-          anchor.download =
-            assignmentFile.name ||
-            "assignment-document";
-
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-        } catch (err) {
-          console.error(
-            "Assignment download error:",
-            err
-          );
-
-          window.open(
-            url,
-            "_blank",
-            "noopener,noreferrer"
-          );
-        }
-      };
-
-    /* ========================================================
-       RETRY FILE
-    ======================================================== */
-
-    const retryProtectedFile =
-      async () => {
-        if (
-          protectedFileUrl &&
-          protectedFileUrl.startsWith("blob:")
-        ) {
-          URL.revokeObjectURL(
-            protectedFileUrl
-          );
-        }
-
-        setProtectedFileUrl("");
-        setProtectedFileError("");
-
-        await loadProtectedFile({
-          force: true,
         });
+
+        if (Object.keys(mapped).length) {
+          setAnswers(mapped);
+        }
+      }
+    } catch (err) {
+      console.error("StudentAssignmentDetails load error:", err);
+
+      if (location.state?.assignment || location.state?.activity) {
+        const fallback =
+          location.state.assignment || location.state.activity;
+
+        setAssignment(fallback);
+        setQuestions(getQuestions(fallback));
+      } else {
+        setError(err?.message || "Unable to load this assignment.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [assignmentId, location.state]);
+
+  useEffect(() => {
+    loadAssignment();
+  }, [loadAssignment]);
+
+  useEffect(() => {
+    setIdentity(getStudentIdentity());
+  }, []);
+
+  // Release the temporary preview URL when it is replaced or the page closes.
+  useEffect(() => {
+    return () => {
+      if (localSubmittedFile?.url?.startsWith("blob:")) {
+        URL.revokeObjectURL(localSubmittedFile.url);
+      }
+    };
+  }, [localSubmittedFile]);
+
+  const handleFileChange = (event) => {
+    const picked = event.target.files?.[0] || null;
+
+    setFileError("");
+    setSubmitError("");
+
+    if (!picked) {
+      setSelectedFile(null);
+      return;
+    }
+
+    if (picked.size > MAX_FILE_SIZE) {
+      setSelectedFile(null);
+      setFileError(
+        "The file is too large. Maximum upload size is 250 MB."
+      );
+
+      event.target.value = "";
+      return;
+    }
+
+    setSelectedFile(picked);
+  };
+
+  const startReplacement = () => {
+    setIsReplacingSubmission(true);
+    setSelectedFile(null);
+    setFileError("");
+    setSubmitError("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const cancelReplacement = () => {
+    if (submitting) return;
+
+    setIsReplacingSubmission(false);
+    setSelectedFile(null);
+    setFileError("");
+    setSubmitError("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const validateIdentity = () => {
+    const current = getStudentIdentity();
+    setIdentity(current);
+
+    if (
+      !current.enrollmentId &&
+      !current.studentReference &&
+      !current.studentId
+    ) {
+      throw new Error(
+        "Your student enrollment information could not be found. Please log out and log in again."
+      );
+    }
+
+    return current;
+  };
+
+  const handleSubmit = async () => {
+    if (!assignment?.id && !assignmentId) {
+      setSubmitError("This assignment does not have a valid ID.");
+      return;
+    }
+
+    // A submitted assignment can only be sent again when the student
+    // explicitly enters replacement mode.
+    if (submitted && !isReplacingSubmission) return;
+
+    setSubmitError("");
+    setFileError("");
+
+    if (isQuestionAssignment) {
+      const missing = questions.filter((question, index) => {
+        const qid = String(
+          question.id ??
+            question.questionId ??
+            question.question_id ??
+            index
+        );
+
+        return !clean(answers[qid]);
+      });
+
+      if (missing.length) {
+        setSubmitError(
+          `Please answer all questions. ${missing.length} remaining.`
+        );
+        return;
+      }
+    } else if (!selectedFile) {
+      setFileError(
+        isReplacingSubmission
+          ? "Choose the new video or document you want to submit."
+          : "Please attach your completed assignment before submitting."
+      );
+
+      setSubmitError(
+        isReplacingSubmission
+          ? "Please select a replacement file first."
+          : "Please select the file you want your tutor to review."
+      );
+
+      return;
+    }
+
+    let student;
+
+    try {
+      student = validateIdentity();
+    } catch (err) {
+      setSubmitError(err.message);
+      return;
+    }
+
+    const id = assignment?.id ?? assignmentId;
+    setSubmitting(true);
+
+    try {
+      let response;
+
+      if (isQuestionAssignment) {
+        const answerList = questions.map((question, index) => {
+          const qid = String(
+            question.id ??
+              question.questionId ??
+              question.question_id ??
+              index
+          );
+
+          const questionId =
+            question.id ??
+            question.questionId ??
+            question.question_id ??
+            qid;
+
+          return {
+            questionId,
+            question_id: questionId,
+            answer: answers[qid],
+            studentAnswer: answers[qid],
+            student_answer: answers[qid],
+          };
+        });
+
+        const payload = {
+          assignmentId: id,
+          assignment_id: id,
+          enrollmentId: student.enrollmentId,
+          enrollment_id: student.enrollmentId,
+          studentReference: student.studentReference,
+          student_reference: student.studentReference,
+          reference: student.studentReference,
+          studentId: student.studentId,
+          student_id: student.studentId,
+          studentName: student.studentName,
+          student_name: student.studentName,
+          submissionType: "questions",
+          submission_type: "questions",
+          activityType: "assignment",
+          activity_type: "assignment",
+          answers,
+          responses: answers,
+          answerList,
+        };
+
+        response = await fetch(
+          `${API_URL}/api/academy/student/assignments/${encodeURIComponent(
+            id
+          )}/submit`,
+          {
+            method: "POST",
+            headers: authHeaders(true),
+            credentials: "include",
+            body: JSON.stringify(payload),
+          }
+        );
+      } else {
+        const form = new FormData();
+
+        const fields = {
+          assignmentId: id,
+          assignment_id: id,
+          enrollmentId: student.enrollmentId,
+          enrollment_id: student.enrollmentId,
+          studentReference: student.studentReference,
+          student_reference: student.studentReference,
+          reference: student.studentReference,
+          studentId: student.studentId,
+          student_id: student.studentId,
+          studentName: student.studentName,
+          student_name: student.studentName,
+          submissionType: "document",
+          submission_type: "document",
+          activityType: "assignment",
+          activity_type: "assignment",
+          attachmentName: selectedFile.name,
+          fileName: selectedFile.name,
+          file_name: selectedFile.name,
+          replaceSubmission: isReplacingSubmission ? "true" : "false",
+          replace_submission: isReplacingSubmission ? "true" : "false",
+        };
+
+        // Send the existing submission ID when available so the server
+        // can update the correct submission rather than create a duplicate.
+        const existingSubmissionId =
+          savedSubmission?.id ??
+          savedSubmission?.submissionId ??
+          savedSubmission?.submission_id;
+
+        if (existingSubmissionId) {
+          fields.submissionId = existingSubmissionId;
+          fields.submission_id = existingSubmissionId;
+        }
+
+        Object.entries(fields).forEach(([key, value]) => {
+          if (
+            value !== undefined &&
+            value !== null &&
+            String(value).trim() !== ""
+          ) {
+            form.append(key, String(value));
+          }
+        });
+
+        // The backend Multer upload field must be named "file".
+        form.append("file", selectedFile, selectedFile.name);
+
+        response = await fetch(
+          `${API_URL}/api/academy/student/assignments/${encodeURIComponent(
+            id
+          )}/submit`,
+          {
+            method: "POST",
+            headers: authHeaders(false),
+            credentials: "include",
+            body: form,
+          }
+        );
+      }
+
+      const data = parseResponseText(await response.text());
+
+      if (response.status === 409) {
+        const existing = getExistingSubmission(data);
+
+        if (existing && !isReplacingSubmission) {
+          setSavedSubmission(existing);
+          setSubmitted(true);
+          return;
+        }
+
+        if (isReplacingSubmission) {
+          throw new Error(
+            data?.message ||
+              "The server rejected the replacement. Your backend must allow replacing an existing submission."
+          );
+        }
+      }
+
+      if (!response.ok || data?.success === false) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            `Submission failed (${response.status}).`
+        );
+      }
+
+      const responseSubmission = getExistingSubmission(data);
+      const responseData = data?.data || data?.result || {};
+
+      const saved = {
+        ...(savedSubmission || {}),
+        ...(responseData && typeof responseData === "object"
+          ? responseData
+          : {}),
+        ...(responseSubmission || {}),
+        id:
+          responseSubmission?.id ??
+          responseData?.submissionId ??
+          responseData?.submission_id ??
+          savedSubmission?.id ??
+          data?.submissionId ??
+          data?.submission_id ??
+          null,
+        status:
+          responseSubmission?.status ||
+          responseData?.status ||
+          "submitted",
+        submittedAt:
+          responseSubmission?.submittedAt ||
+          responseSubmission?.submitted_at ||
+          responseData?.submittedAt ||
+          responseData?.submitted_at ||
+          new Date().toISOString(),
+        fileName: selectedFile?.name || submittedFile.name,
+        file_name: selectedFile?.name || submittedFile.name,
+        fileType: selectedFile?.type || submittedFile.type,
+        file_type: selectedFile?.type || submittedFile.type,
       };
 
-    /* ========================================================
-       BACK
-    ======================================================== */
+      const returnedFile = getSubmissionFile(saved);
 
-    const goBack = () => {
-      navigate(
-        "/academy/student/assignments"
+      // Keep a local video/document preview available immediately after
+      // success when the server response doesn't include a file URL.
+      let temporaryPreview = null;
+
+      if (selectedFile && !returnedFile.url) {
+        temporaryPreview = {
+          url: URL.createObjectURL(selectedFile),
+          name: selectedFile.name,
+          type: selectedFile.type,
+        };
+      }
+
+      setSavedSubmission(saved);
+      setLocalSubmittedFile(temporaryPreview);
+      setSubmitted(true);
+      setIsReplacingSubmission(false);
+
+      setAssignment((previous) =>
+        previous ? { ...previous, status: "submitted" } : previous
       );
-    };
 
-    /* ========================================================
-       LOADING
-    ======================================================== */
+      setSelectedFile(null);
 
-    if (loading) {
-      return (
-        <div className="min-h-screen bg-[#050816] text-white flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2
-              size={34}
-              className="animate-spin text-cyan-400"
-            />
-
-            <p className="text-slate-400">
-              Loading assignment...
-            </p>
-          </div>
-        </div>
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (err) {
+      console.error("Assignment submission error:", err);
+      setSubmitError(
+        err?.message || "Unable to submit your assignment."
       );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openFile = async (urlValue, filename, download = false) => {
+    const url = resolveUrl(urlValue);
+
+    if (!url) {
+      setSubmitError("The file URL is not available.");
+      return;
     }
 
-    /* ========================================================
-       ERROR
-    ======================================================== */
+    try {
+      const response = await fetch(url, {
+        headers: authHeaders(),
+        credentials: "include",
+      });
 
-    if (error) {
-      return (
-        <div className="min-h-screen bg-[#050816] text-white px-6 py-10">
-          <div className="max-w-3xl mx-auto">
-            <button
-              type="button"
-              onClick={goBack}
-              className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-8"
-            >
-              <ArrowLeft size={18} />
-              Back to Assignments
-            </button>
+      if (!response.ok) {
+        throw new Error("Unable to open this file.");
+      }
 
-            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle
-                  size={22}
-                  className="text-red-400 mt-0.5"
-                />
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
 
-                <div>
-                  <h2 className="font-semibold text-red-300">
-                    Unable to load assignment
-                  </h2>
+      if (download) {
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = filename || "assignment-file";
 
-                  <p className="text-sm text-red-200/80 mt-2">
-                    {error}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      } else {
+        window.open(objectUrl, "_blank", "noopener,noreferrer");
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      }
+    } catch (err) {
+      // Direct URLs can still be opened if the server doesn't expose
+      // the file through an authenticated fetch.
+      if (!download && /^https?:/i.test(url)) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        setSubmitError(
+          err?.message || "Unable to open this file."
+        );
+      }
     }
+  };
 
-    /* ========================================================
-       NO ASSIGNMENT
-    ======================================================== */
-
-    if (!assignment) {
-      return (
-        <div className="min-h-screen bg-[#050816] text-white px-6 py-10">
-          <div className="max-w-3xl mx-auto">
-            <button
-              type="button"
-              onClick={goBack}
-              className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-8"
-            >
-              <ArrowLeft size={18} />
-              Back to Assignments
-            </button>
-
-            <div className="rounded-2xl border border-white/10 bg-[#071426] p-8 text-center">
-              <FileText
-                size={42}
-                className="mx-auto text-slate-500 mb-4"
-              />
-
-              <h2 className="text-xl font-semibold">
-                Assignment not found
-              </h2>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    /* ========================================================
-       SUBMITTED
-    ======================================================== */
-
-    if (submitted) {
-      return (
-        <div className="min-h-screen bg-[#050816] text-white px-6 py-10">
-          <div className="max-w-3xl mx-auto">
-            <motion.div
-              initial={{
-                opacity: 0,
-                y: 20,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
-              className="rounded-3xl border border-emerald-500/20 bg-[#071426] p-8 md:p-10 text-center"
-            >
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-6">
-                <CheckCircle2
-                  size={34}
-                  className="text-emerald-400"
-                />
-              </div>
-
-              <h1 className="text-2xl md:text-3xl font-bold">
-                Assignment Submitted
-              </h1>
-
-              <p className="text-slate-400 mt-3 max-w-xl mx-auto">
-                {isDocumentAssignment
-                  ? "Your completed assignment has been successfully submitted. Your tutor can now review your work."
-                  : "Your answers have been successfully submitted. Your tutor can now review your submission."}
-              </p>
-
-              {savedSubmission ? (
-                <div className="mt-6 space-y-3">
-                  {savedSubmission.id ? (
-                    <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
-                      <Award
-                        size={17}
-                        className="text-cyan-400"
-                      />
-
-                      Submission ID:
-
-                      <span className="font-mono text-white">
-                        {savedSubmission.id}
-                      </span>
-                    </div>
-                  ) : null}
-
-                  {savedSubmission.score !==
-                  undefined ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <p className="text-xs text-slate-500">
-                          Score
-                        </p>
-
-                        <p className="text-xl font-bold mt-1">
-                          {savedSubmission.score}/
-                          {savedSubmission.totalMarks ??
-                            savedSubmission.total_marks ??
-                            0}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <p className="text-xs text-slate-500">
-                          Percentage
-                        </p>
-
-                        <p className="text-xl font-bold mt-1">
-                          {savedSubmission.percentage ?? 0}%
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                        <p className="text-xs text-slate-500">
-                          Grade
-                        </p>
-
-                        <p className="text-xl font-bold mt-1">
-                          {savedSubmission.grade ?? "—"}
-                        </p>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-                <button
-                  type="button"
-                  onClick={goBack}
-                  className="px-5 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition"
-                >
-                  Back to Assignments
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      `/academy/student/assignments/${assignment.id}/result`
-                    )
-                  }
-                  className="px-5 py-3 rounded-xl bg-cyan-500 text-slate-950 font-semibold hover:bg-cyan-400 transition"
-                >
-                  View Result
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      );
-    }
-
-    /* ========================================================
-       MAIN PAGE
-    ======================================================== */
-
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#050816] text-white px-4 sm:px-6 py-6 sm:py-10">
-        <div className="max-w-4xl mx-auto">
+      <div className="min-h-screen bg-[#050816] text-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 size={34} className="animate-spin text-cyan-400" />
+          <p className="text-slate-400">Loading assignment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !assignment) {
+    return (
+      <div className="min-h-screen bg-[#050816] text-white px-6 py-10">
+        <div className="max-w-3xl mx-auto">
           <button
-            type="button"
-            onClick={goBack}
-            className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-6"
+            onClick={() => navigate("/academy/student/assignments")}
+            className="flex items-center gap-2 text-slate-400 hover:text-white mb-8"
           >
             <ArrowLeft size={18} />
             Back to Assignments
           </button>
 
-          <div className="rounded-3xl border border-white/10 bg-[#071426] p-6 sm:p-8 mb-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
-                <FileText
-                  size={23}
-                  className="text-cyan-400"
-                />
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <h1 className="text-2xl sm:text-3xl font-bold">
-                  {assignment.title || "Assignment"}
-                </h1>
-
-                {assignment.subject ? (
-                  <p className="text-cyan-400 text-sm mt-2">
-                    {assignment.subject}
-                  </p>
-                ) : null}
-
-                {assignment.description ? (
-                  <p className="text-slate-400 mt-3 leading-relaxed">
-                    {assignment.description}
-                  </p>
-                ) : null}
-
-                {assignment.instructions ? (
-                  <div className="mt-4 rounded-xl border border-white/5 bg-black/20 p-4">
-                    <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">
-                      Instructions
-                    </p>
-
-                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                      {assignment.instructions}
-                    </p>
-                  </div>
-                ) : null}
-
-                <div className="flex flex-wrap gap-3 mt-5">
-                  <div className="inline-flex items-center gap-2 rounded-lg bg-black/20 border border-white/5 px-3 py-2 text-xs text-slate-400">
-                    <FileText size={14} />
-
-                    {questions.length > 0
-                      ? `${questions.length} ${
-                          questions.length === 1
-                            ? "Question"
-                            : "Questions"
-                        }`
-                      : hasAssignmentDocument
-                      ? "Assignment Document"
-                      : "Assignment"}
-                  </div>
-
-                  {assignment.due_date ||
-                  assignment.dueDate ||
-                  assignment.dueAt ||
-                  assignment.due_at ? (
-                    <div className="inline-flex items-center gap-2 rounded-lg bg-black/20 border border-white/5 px-3 py-2 text-xs text-slate-400">
-                      <Clock3 size={14} />
-
-                      Due{" "}
-
-                      {new Date(
-                        assignment.due_date ||
-                          assignment.dueDate ||
-                          assignment.dueAt ||
-                          assignment.due_at
-                      ).toLocaleDateString()}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6 flex gap-3">
+            <AlertCircle className="text-red-400 shrink-0" />
+            <div>
+              <h2 className="font-semibold text-red-200">
+                Unable to load assignment
+              </h2>
+              <p className="text-sm text-red-100/80 mt-2">{error}</p>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
 
-          {hasAssignmentDocument &&
-          !questions.length ? (
-            <motion.div
-              initial={{
-                opacity: 0,
-                y: 10,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
-              className="rounded-3xl border border-cyan-400/15 bg-[#071426] overflow-hidden mb-6"
+  return (
+    <div className="min-h-screen bg-[#050816] text-white px-4 py-6 sm:px-6 sm:py-10">
+      <div className="max-w-5xl mx-auto">
+        <button
+          onClick={() => navigate("/academy/student/assignments")}
+          className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition mb-6"
+        >
+          <ArrowLeft size={18} />
+          Back to Assignments
+        </button>
+
+        <motion.header
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#10213a] to-[#081120] p-6 sm:p-8 mb-6"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-3xl">
+              <p className="text-xs uppercase tracking-[0.22em] text-cyan-300 font-semibold mb-3">
+                Scholiqen Academy · Student Assignment
+              </p>
+
+              <h1 className="text-2xl sm:text-3xl font-bold">
+                {assignmentTitle}
+              </h1>
+
+              {assignmentDescription && (
+                <p className="text-slate-300 mt-3 leading-relaxed whitespace-pre-wrap">
+                  {assignmentDescription}
+                </p>
+              )}
+
+              <div className="flex flex-wrap gap-3 mt-5 text-sm text-slate-300">
+                {(assignment?.grade ||
+                  assignment?.className ||
+                  assignment?.class_name) && (
+                  <span className="rounded-full bg-white/5 border border-white/10 px-3 py-1">
+                    {assignment.grade ||
+                      assignment.className ||
+                      assignment.class_name}
+                  </span>
+                )}
+
+                {assignment?.subject && (
+                  <span className="rounded-full bg-white/5 border border-white/10 px-3 py-1">
+                    {assignment.subject}
+                  </span>
+                )}
+
+                {dueAt && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1">
+                    <Clock3 size={14} />
+                    Due {new Date(dueAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${
+                submitted
+                  ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                  : "border-amber-400/30 bg-amber-400/10 text-amber-200"
+              }`}
             >
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 border-b border-white/10">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center shrink-0">
-                    {assignmentIsVideo ? (
-                      <PlayCircle
-                        size={21}
-                        className="text-cyan-400"
-                      />
-                    ) : (
-                      <FileText
-                        size={21}
-                        className="text-cyan-400"
-                      />
-                    )}
-                  </div>
+              {submitted ? (
+                <CheckCircle2 size={16} />
+              ) : (
+                <Clock3 size={16} />
+              )}
+              {submitted ? "Submitted" : "Awaiting submission"}
+            </div>
+          </div>
+        </motion.header>
 
-                  <div className="min-w-0">
-                    <p className="text-xs uppercase tracking-wider text-slate-500">
-                      Tutor Assignment
-                    </p>
-
-                    <h2 className="mt-1 font-semibold truncate">
-                      {assignmentFile.name ||
-                        "Assignment Document"}
-                    </h2>
-
-                    <div className="flex flex-wrap gap-2 mt-1 text-xs text-slate-500">
-                      {assignmentFileExtension ? (
-                        <span className="uppercase">
-                          {assignmentFileExtension}
-                        </span>
-                      ) : null}
-
-                      {formatFileSize(
-                        assignmentFile.size
-                      ) ? (
-                        <>
-                          <span>•</span>
-
-                          <span>
-                            {formatFileSize(
-                              assignmentFile.size
-                            )}
-                          </span>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={openAssignmentDocument}
-                    disabled={
-                      protectedFileLoading ||
-                      !assignmentFileUrl
-                    }
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    {protectedFileLoading ? (
-                      <Loader2
-                        size={16}
-                        className="animate-spin"
-                      />
-                    ) : (
-                      <ExternalLink size={16} />
-                    )}
-
-                    {protectedFileLoading
-                      ? "Loading..."
-                      : "Open"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={downloadAssignmentDocument}
-                    disabled={
-                      protectedFileLoading ||
-                      !assignmentFileUrl
-                    }
-                    className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    <Download size={16} />
-                    Download
-                  </button>
-                </div>
+        {/* SUCCESS SCREEN */}
+        {submitted && (
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-3xl border border-emerald-400/20 bg-emerald-400/[0.06] p-6 sm:p-8"
+          >
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-emerald-400/10 flex items-center justify-center">
+                <CheckCircle2 className="text-emerald-300" size={25} />
               </div>
 
-              {protectedFileError ? (
-                <div className="p-4 sm:p-6">
-                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-5">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle
-                        size={20}
-                        className="text-red-400 mt-0.5 shrink-0"
-                      />
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-semibold text-emerald-200">
+                  Assignment submitted successfully
+                </h2>
 
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-red-300">
-                          Unable to load assignment file
-                        </h3>
+                <p className="text-slate-300 mt-2">
+                  Your submission has been saved. You can review the uploaded
+                  file below or replace it if you need to submit an updated
+                  version.
+                </p>
 
-                        <p className="mt-2 text-sm text-red-200/80">
-                          {protectedFileError}
+                {/* CURRENT SUBMISSION PREVIEW */}
+                {!isQuestionAssignment && (
+                  <div className="mt-6 rounded-2xl border border-white/10 bg-[#081120] p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+                      <div className="h-11 w-11 rounded-xl bg-cyan-400/10 flex items-center justify-center">
+                        {isVideoFile(
+                          displayedSubmissionName,
+                          displayedSubmissionType
+                        ) ? (
+                          <Video className="text-cyan-300" size={22} />
+                        ) : (
+                          <FileText className="text-cyan-300" size={22} />
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold truncate">
+                          {displayedSubmissionName}
                         </p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Your currently submitted file
+                        </p>
+                      </div>
 
-                        <button
-                          type="button"
-                          onClick={retryProtectedFile}
-                          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-400/10 border border-red-400/20 px-4 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-400/20 transition"
-                        >
-                          <RefreshCw size={16} />
-                          Try Again
-                        </button>
+                      <div className="flex flex-wrap gap-2">
+                        {displayedSubmissionUrl && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openFile(
+                                  displayedSubmissionUrl,
+                                  displayedSubmissionName,
+                                  false
+                                )
+                              }
+                              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
+                            >
+                              <ExternalLink size={15} />
+                              Open
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openFile(
+                                  displayedSubmissionUrl,
+                                  displayedSubmissionName,
+                                  true
+                                )
+                              }
+                              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
+                            >
+                              <Download size={15} />
+                              Download
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
-                  </div>
-                </div>
-              ) : null}
 
-              {protectedFileLoading &&
-              !protectedFileUrl ? (
-                <div className="flex min-h-[400px] items-center justify-center p-8">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
-                      <Loader2
-                        size={28}
-                        className="animate-spin text-cyan-400"
+                    {displayedSubmissionUrl && (
+                      <FilePreview
+                        url={displayedSubmissionUrl}
+                        name={displayedSubmissionName}
+                        type={displayedSubmissionType}
                       />
-                    </div>
+                    )}
 
-                    <div className="text-center">
-                      <p className="font-semibold">
-                        Loading assignment document
+                    {!displayedSubmissionUrl && (
+                      <p className="text-sm text-slate-400">
+                        The submission was saved, but the server did not
+                        return a preview URL. You can still replace the file
+                        below.
                       </p>
-
-                      <p className="mt-1 text-sm text-slate-500">
-                        Securely loading the file...
-                      </p>
-                    </div>
+                    )}
                   </div>
-                </div>
-              ) : null}
+                )}
 
-              {assignmentIsPdf &&
-              protectedFileUrl ? (
-                <div className="p-4 sm:p-6">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-sm text-slate-400">
-                      <Eye
-                        size={16}
-                        className="text-cyan-400"
-                      />
-                      Secure PDF Preview
-                    </div>
-
+                {/* EDIT & REVIEW / REPLACEMENT EDITOR */}
+                {!isQuestionAssignment && !isReplacingSubmission && (
+                  <div className="mt-6 flex flex-col sm:flex-row gap-3">
                     <button
                       type="button"
-                      onClick={openAssignmentDocument}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/10 transition"
+                      onClick={startReplacement}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-300 transition"
                     >
-                      <ExternalLink size={14} />
-                      Open Full Screen
+                      <Pencil size={17} />
+                      Edit &amp; Review
                     </button>
-                  </div>
-
-                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-                    <iframe
-                      src={`${protectedFileUrl}#toolbar=1&navpanes=0`}
-                      title={
-                        assignmentFile.name ||
-                        "Assignment PDF"
-                      }
-                      className="w-full h-[70vh] min-h-[500px]"
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              {assignmentIsVideo &&
-              protectedFileUrl ? (
-                <div className="p-4 sm:p-6">
-                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-                    <video
-                      src={protectedFileUrl}
-                      controls
-                      playsInline
-                      className="w-full max-h-[70vh]"
-                    >
-                      Your browser does not support video playback.
-                    </video>
-                  </div>
-                </div>
-              ) : null}
-
-              {!assignmentIsPdf &&
-              !assignmentIsVideo &&
-              !protectedFileError ? (
-                <div className="p-6 sm:p-10">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-8 text-center">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-400/10 border border-cyan-400/20">
-                      <FileText
-                        size={30}
-                        className="text-cyan-400"
-                      />
-                    </div>
-
-                    <h3 className="mt-5 text-lg font-semibold">
-                      Assignment Document
-                    </h3>
-
-                    <p className="mt-2 text-sm text-slate-400 max-w-md mx-auto">
-                      This assignment contains a{" "}
-                      {assignmentFileExtension
-                        ? assignmentFileExtension.toUpperCase()
-                        : "document"}{" "}
-                      uploaded by your tutor.
-                    </p>
-
-                    <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-                      <button
-                        type="button"
-                        onClick={openAssignmentDocument}
-                        disabled={
-                          protectedFileLoading ||
-                          !assignmentFileUrl
-                        }
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                      >
-                        {protectedFileLoading ? (
-                          <Loader2
-                            size={18}
-                            className="animate-spin"
-                          />
-                        ) : (
-                          <ExternalLink size={18} />
-                        )}
-
-                        {protectedFileLoading
-                          ? "Loading..."
-                          : "Open Document"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={downloadAssignmentDocument}
-                        disabled={
-                          protectedFileLoading ||
-                          !assignmentFileUrl
-                        }
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-medium text-slate-200 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                      >
-                        <Download size={18} />
-                        Download
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </motion.div>
-          ) : null}
-
-          {isDocumentAssignment ? (
-            <motion.div
-              initial={{
-                opacity: 0,
-                y: 10,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
-              className="rounded-3xl border border-emerald-400/15 bg-[#071426] overflow-hidden mb-6"
-            >
-              <div className="p-5 sm:p-6 border-b border-white/10">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/10">
-                    <Upload
-                      size={22}
-                      className="text-emerald-400"
-                    />
-                  </div>
-
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-semibold">
-                      Submit Your Work
-                    </h2>
-
-                    <p className="mt-1 text-sm text-slate-400 leading-relaxed">
-                      Complete the assignment above, save your work as a file, then upload it here for your tutor to review.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-5 sm:p-6">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.zip,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
-                  onChange={handleSubmissionFileChange}
-                />
-
-                {!studentSubmissionFile ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      fileInputRef.current?.click()
-                    }
-                    disabled={submitting}
-                    className="w-full rounded-2xl border-2 border-dashed border-white/10 bg-black/20 hover:border-cyan-400/30 hover:bg-cyan-400/[0.03] p-8 sm:p-10 transition disabled:opacity-50"
-                  >
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
-                      <Upload
-                        size={25}
-                        className="text-cyan-400"
-                      />
-                    </div>
-
-                    <p className="mt-4 font-semibold text-slate-200">
-                      Upload your completed assignment
-                    </p>
-
-                    <p className="mt-2 text-sm text-slate-500">
-                      Click to choose your file
-                    </p>
-
-                    <p className="mt-3 text-xs text-slate-600">
-                      PDF, DOC, DOCX, images, spreadsheets, presentations, TXT or ZIP • Maximum 250 MB
-                    </p>
-                  </button>
-                ) : (
-                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 sm:p-5">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 border border-cyan-400/20">
-                        <Paperclip
-                          size={21}
-                          className="text-cyan-400"
-                        />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-slate-200 break-all">
-                          {studentSubmissionFile.name}
-                        </p>
-
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <span>
-                            {studentSubmissionFile.type ||
-                              "Document"}
-                          </span>
-
-                          <span>•</span>
-
-                          <span>
-                            {formatFileSize(
-                              studentSubmissionFile.size
-                            )}
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={removeSubmissionFile}
-                        disabled={submitting}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition disabled:opacity-50"
-                        aria-label="Remove selected file"
-                      >
-                        <X size={17} />
-                      </button>
-                    </div>
 
                     <button
                       type="button"
                       onClick={() =>
-                        fileInputRef.current?.click()
+                        navigate("/academy/student/assignments")
                       }
-                      disabled={submitting}
-                      className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/10 transition disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white hover:bg-white/10 transition"
                     >
-                      <RefreshCw size={15} />
-                      Choose another file
+                      <ArrowLeft size={17} />
+                      Return to Assignments
                     </button>
                   </div>
                 )}
 
-                {submissionFileError ? (
-                  <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-4">
+                {isReplacingSubmission && (
+                  <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4 sm:p-6">
                     <div className="flex items-start gap-3">
-                      <AlertCircle
-                        size={18}
-                        className="text-red-400 mt-0.5 shrink-0"
-                      />
+                      <div className="h-10 w-10 shrink-0 rounded-xl bg-cyan-400/10 flex items-center justify-center">
+                        <RotateCcw className="text-cyan-300" size={20} />
+                      </div>
 
-                      <p className="text-sm text-red-300">
-                        {submissionFileError}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-
-                {submitError ? (
-                  <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle
-                        size={19}
-                        className="text-red-400 mt-0.5 shrink-0"
-                      />
-
-                      <div className="flex-1">
-                        <p className="text-sm text-red-300">
-                          {submitError}
+                      <div>
+                        <h3 className="font-semibold text-cyan-100">
+                          Replace your submission
+                        </h3>
+                        <p className="text-sm text-slate-400 mt-1">
+                          Choose a new video or document. Your current
+                          submission will remain visible until the replacement
+                          has been accepted by the server.
                         </p>
                       </div>
                     </div>
-                  </div>
-                ) : null}
 
-                <div className="mt-6 rounded-2xl border border-white/5 bg-black/20 p-4 sm:p-5">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-                    <div>
-                      <h3 className="font-semibold">
-                        Ready to submit?
-                      </h3>
-
-                      <p className="text-sm text-slate-500 mt-1">
-                        Make sure this is the completed version you want your tutor to review.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={submitAssignment}
-                      disabled={
-                        submitting ||
-                        !studentSubmissionFile
-                      }
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2
-                            size={18}
-                            className="animate-spin"
-                          />
-                          Submitting...
-                        </>
-                      ) : (
-                        <>
-                          <Send size={18} />
-                          Submit Assignment
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex items-center gap-2 text-xs text-slate-600">
-                  <CheckCircle2
-                    size={14}
-                    className="text-emerald-500"
-                  />
-
-                  Your uploaded file will be attached to this assignment submission for your tutor.
-                </div>
-              </div>
-            </motion.div>
-          ) : null}
-
-          {questions.length > 0 ? (
-            <>
-              <div className="space-y-4">
-                {questions.map(
-                  (question, index) => {
-                    const questionId =
-                      String(question.id);
-
-                    const selectedAnswer =
-                      answers[questionId] || "";
-
-                    const expanded =
-                      expandedQuestion ===
-                      questionId;
-
-                    return (
-                      <motion.div
-                        key={questionId}
-                        initial={{
-                          opacity: 0,
-                          y: 10,
-                        }}
-                        animate={{
-                          opacity: 1,
-                          y: 0,
-                        }}
-                        transition={{
-                          delay: index * 0.03,
-                        }}
-                        className="rounded-2xl border border-white/10 bg-[#071426] overflow-hidden"
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedQuestion(
-                              expanded
-                                ? null
-                                : questionId
-                            )
-                          }
-                          className="w-full flex items-center justify-between gap-4 p-5 text-left hover:bg-white/[0.02] transition"
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-sm font-semibold">
-                              {index + 1}
-                            </div>
-
-                            <div>
-                              <p className="font-medium leading-relaxed">
-                                {question.question ||
-                                  "Question"}
-                              </p>
-
-                              <p className="text-xs text-slate-500 mt-2">
-                                {question.marks || 1}{" "}
-                                mark
-                                {(question.marks || 1) !==
-                                1
-                                  ? "s"
-                                  : ""}
-                              </p>
-                            </div>
-                          </div>
-
-                          {expanded ? (
-                            <ChevronUp
-                              size={19}
-                              className="text-slate-500 shrink-0"
-                            />
-                          ) : (
-                            <ChevronDown
-                              size={19}
-                              className="text-slate-500 shrink-0"
-                            />
-                          )}
-                        </button>
-
-                        {expanded ? (
-                          <div className="px-5 pb-5">
-                            <div className="border-t border-white/5 pt-5 space-y-3">
-                              {[
-                                ["A", question.optionA],
-                                ["B", question.optionB],
-                                ["C", question.optionC],
-                                ["D", question.optionD],
-                              ].map(
-                                ([letter, option]) => {
-                                  if (!option) {
-                                    return null;
-                                  }
-
-                                  const isSelected =
-                                    selectedAnswer ===
-                                      letter ||
-                                    selectedAnswer ===
-                                      option;
-
-                                  return (
-                                    <button
-                                      key={letter}
-                                      type="button"
-                                      onClick={() =>
-                                        handleAnswer(
-                                          questionId,
-                                          letter
-                                        )
-                                      }
-                                      className={`w-full text-left rounded-xl border px-4 py-3 transition ${
-                                        isSelected
-                                          ? "border-cyan-400/50 bg-cyan-400/10"
-                                          : "border-white/10 bg-black/10 hover:bg-white/[0.03]"
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <span
-                                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold ${
-                                            isSelected
-                                              ? "bg-cyan-400 text-slate-950"
-                                              : "bg-white/5 text-slate-300"
-                                          }`}
-                                        >
-                                          {letter}
-                                        </span>
-
-                                        <span className="text-sm text-slate-200">
-                                          {option}
-                                        </span>
-                                      </div>
-                                    </button>
-                                  );
-                                }
-                              )}
-                            </div>
-
-                            {selectedAnswer ? (
-                              <div className="mt-4 flex items-center gap-2 text-xs text-emerald-400">
-                                <CheckCircle2 size={15} />
-                                Answer selected
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </motion.div>
-                    );
-                  }
-                )}
-              </div>
-
-              {submitError ? (
-                <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle
-                      size={19}
-                      className="text-red-400 mt-0.5 shrink-0"
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={ACCEPTED_FILES}
+                      onChange={handleFileChange}
+                      className="hidden"
                     />
 
-                    <div className="flex-1">
-                      <p className="text-sm text-red-300">
-                        {submitError}
+                    {!selectedFile ? (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="mt-5 w-full rounded-2xl border border-dashed border-cyan-400/30 bg-white/[0.02] p-7 text-center hover:border-cyan-400/60 hover:bg-cyan-400/[0.03] transition"
+                      >
+                        <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-cyan-400/10 flex items-center justify-center">
+                          <Upload size={23} className="text-cyan-300" />
+                        </div>
+
+                        <p className="font-semibold">
+                          Choose replacement video or document
+                        </p>
+
+                        <p className="text-sm text-slate-400 mt-2">
+                          MP4, WebM, MOV, PDF, Word, PowerPoint, Excel, TXT,
+                          images or ZIP
+                        </p>
+
+                        <p className="text-xs text-slate-500 mt-1">
+                          Maximum file size: 250 MB
+                        </p>
+
+                        <span className="inline-flex items-center gap-2 mt-4 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950">
+                          <Paperclip size={16} />
+                          Browse files
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="mt-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-cyan-400/20 bg-black/20 p-4">
+                          {isVideoFile(
+                            selectedFile.name,
+                            selectedFile.type
+                          ) ? (
+                            <Video
+                              size={25}
+                              className="shrink-0 text-cyan-300"
+                            />
+                          ) : (
+                            <FileText
+                              size={25}
+                              className="shrink-0 text-cyan-300"
+                            />
+                          )}
+
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium truncate">
+                              {selectedFile.name}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {formatSize(selectedFile.size)} · Replacement
+                              selected
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={submitting}
+                              onClick={() =>
+                                fileInputRef.current?.click()
+                              }
+                              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm hover:bg-white/5 disabled:opacity-50"
+                            >
+                              <RotateCcw size={15} />
+                              Change
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={submitting}
+                              onClick={() => {
+                                setSelectedFile(null);
+                                setFileError("");
+
+                                if (fileInputRef.current) {
+                                  fileInputRef.current.value = "";
+                                }
+                              }}
+                              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5 disabled:opacity-50"
+                            >
+                              <X size={15} />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <p className="text-sm font-medium text-slate-300 mb-3">
+                            Preview replacement
+                          </p>
+
+                          <FilePreview
+                            localFile={selectedFile}
+                            name={selectedFile.name}
+                            type={selectedFile.type}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {fileError && (
+                      <p className="flex items-center gap-2 text-sm text-red-300 mt-4">
+                        <AlertCircle size={16} />
+                        {fileError}
                       </p>
+                    )}
+
+                    {submitError && (
+                      <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/10 p-3 flex gap-2 text-sm text-red-200">
+                        <AlertCircle size={17} className="shrink-0" />
+                        <span>{submitError}</span>
+                      </div>
+                    )}
+
+                    <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={submitting || !selectedFile}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {submitting ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <Send size={18} />
+                        )}
+                        {submitting
+                          ? "Replacing submission..."
+                          : "Submit Replacement"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={cancelReplacement}
+                        disabled={submitting}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white hover:bg-white/10 disabled:opacity-50"
+                      >
+                        <X size={17} />
+                        Cancel
+                      </button>
                     </div>
+
+                    <p className="text-xs text-slate-500 mt-4">
+                      Your replacement will only be shown as submitted after
+                      the server accepts it.
+                    </p>
                   </div>
-                </div>
-              ) : null}
+                )}
 
-              <div className="mt-8 rounded-2xl border border-white/10 bg-[#071426] p-5 sm:p-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-                  <div>
-                    <h2 className="font-semibold">
-                      Ready to submit?
-                    </h2>
+                {isQuestionAssignment && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate("/academy/student/assignments")
+                    }
+                    className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-300"
+                  >
+                    <ArrowLeft size={17} />
+                    Return to Assignments
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.section>
+        )}
 
-                    <p className="text-sm text-slate-500 mt-1">
-                      Make sure you have answered every question before submitting.
+        {/* ORIGINAL ASSIGNMENT / FIRST SUBMISSION FORM */}
+        {!submitted && (
+          <>
+            {file.url && (
+              <section className="rounded-3xl border border-white/10 bg-[#0a1425] p-5 sm:p-6 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="h-12 w-12 rounded-xl bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
+                    <FileText className="text-cyan-300" size={23} />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-semibold">Assignment document</h2>
+                    <p className="text-sm text-slate-400 mt-1 truncate">
+                      {file.name || "Attached assignment material"}
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={submitAssignment}
-                    disabled={submitting}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-cyan-500 text-slate-950 font-semibold hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    {submitting ? (
-                      <>
-                        <Loader2
-                          size={18}
-                          className="animate-spin"
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openFile(file.url, file.name, false)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm hover:bg-white/10"
+                    >
+                      <ExternalLink size={16} />
+                      Open
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => openFile(file.url, file.name, true)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm hover:bg-white/10"
+                    >
+                      <Download size={16} />
+                      Download
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {isQuestionAssignment && (
+              <section className="rounded-3xl border border-white/10 bg-[#0a1425] p-5 sm:p-7 mb-6">
+                <h2 className="text-xl font-semibold mb-6">
+                  Answer the questions
+                </h2>
+
+                <div className="space-y-6">
+                  {questions.map((question, index) => {
+                    const qid = String(
+                      question.id ??
+                        question.questionId ??
+                        question.question_id ??
+                        index
+                    );
+
+                    const prompt =
+                      question.question ||
+                      question.questionText ||
+                      question.question_text ||
+                      question.text ||
+                      `Question ${index + 1}`;
+
+                    const options = [
+                      [
+                        "A",
+                        question.optionA ??
+                          question.option_a ??
+                          question.options?.A,
+                      ],
+                      [
+                        "B",
+                        question.optionB ??
+                          question.option_b ??
+                          question.options?.B,
+                      ],
+                      [
+                        "C",
+                        question.optionC ??
+                          question.option_c ??
+                          question.options?.C,
+                      ],
+                      [
+                        "D",
+                        question.optionD ??
+                          question.option_d ??
+                          question.options?.D,
+                      ],
+                    ].filter(
+                      ([, value]) =>
+                        value !== undefined &&
+                        value !== null &&
+                        clean(value)
+                    );
+
+                    return (
+                      <div
+                        key={qid}
+                        className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:p-5"
+                      >
+                        <p className="font-medium leading-relaxed">
+                          <span className="text-cyan-300 mr-2">
+                            {index + 1}.
+                          </span>
+                          {prompt}
+                        </p>
+
+                        {options.length ? (
+                          <div className="grid sm:grid-cols-2 gap-3 mt-4">
+                            {options.map(([letter, label]) => (
+                              <label
+                                key={letter}
+                                className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition ${
+                                  answers[qid] === letter
+                                    ? "border-cyan-400/50 bg-cyan-400/10"
+                                    : "border-white/10 hover:bg-white/[0.04]"
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`question-${qid}`}
+                                  value={letter}
+                                  checked={answers[qid] === letter}
+                                  onChange={() =>
+                                    setAnswers((prev) => ({
+                                      ...prev,
+                                      [qid]: letter,
+                                    }))
+                                  }
+                                  className="mt-1 accent-cyan-400"
+                                />
+
+                                <span className="text-sm text-slate-200">
+                                  <b className="text-cyan-300 mr-2">
+                                    {letter}.
+                                  </b>
+                                  {label}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <textarea
+                            value={answers[qid] || ""}
+                            onChange={(event) =>
+                              setAnswers((prev) => ({
+                                ...prev,
+                                [qid]: event.target.value,
+                              }))
+                            }
+                            rows={3}
+                            placeholder="Type your answer..."
+                            className="mt-4 w-full rounded-xl border border-white/10 bg-[#050816] px-4 py-3 text-white outline-none focus:border-cyan-400/50"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {!isQuestionAssignment && (
+              <section className="rounded-3xl border border-white/10 bg-[#0a1425] overflow-hidden mb-6">
+                <div className="p-5 sm:p-6 border-b border-white/10">
+                  <div className="flex items-start gap-4">
+                    <div className="h-12 w-12 rounded-xl border border-emerald-400/20 bg-emerald-400/10 flex items-center justify-center">
+                      <Upload size={22} className="text-emerald-300" />
+                    </div>
+
+                    <div>
+                      <h2 className="text-lg sm:text-xl font-semibold">
+                        Submit your completed work
+                      </h2>
+                      <p className="text-sm text-slate-400 mt-1">
+                        Attach your document or video so your tutor can review
+                        the actual file.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 sm:p-6">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={ACCEPTED_FILES}
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+
+                  {selectedFile ? (
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
+                        {isVideoFile(
+                          selectedFile.name,
+                          selectedFile.type
+                        ) ? (
+                          <Video
+                            size={26}
+                            className="text-emerald-300 shrink-0"
+                          />
+                        ) : (
+                          <FileText
+                            size={26}
+                            className="text-emerald-300 shrink-0"
+                          />
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">
+                            {selectedFile.name}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {formatSize(selectedFile.size)}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedFile(null);
+
+                            if (fileInputRef.current) {
+                              fileInputRef.current.value = "";
+                            }
+                          }}
+                          className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white"
+                        >
+                          <X size={16} />
+                          Remove
+                        </button>
+                      </div>
+
+                      <FilePreview
+                        localFile={selectedFile}
+                        name={selectedFile.name}
+                        type={selectedFile.type}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full rounded-2xl border border-dashed border-white/20 bg-white/[0.02] p-8 text-center hover:border-cyan-400/50 hover:bg-cyan-400/[0.03] transition"
+                    >
+                      <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-cyan-400/10 flex items-center justify-center">
+                        <Paperclip
+                          size={25}
+                          className="text-cyan-300"
                         />
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Send size={18} />
-                        Submit Assignment
-                      </>
-                    )}
-                  </button>
+                      </div>
+
+                      <p className="font-semibold">
+                        Choose your submission file
+                      </p>
+
+                      <p className="text-sm text-slate-400 mt-2">
+                        PDF, Word, PowerPoint, Excel, TXT, images, ZIP or
+                        videos · Maximum 250 MB
+                      </p>
+
+                      <span className="inline-flex items-center gap-2 mt-5 rounded-xl bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950">
+                        <Upload size={16} />
+                        Browse files
+                      </span>
+                    </button>
+                  )}
+
+                  {fileError && (
+                    <p className="flex items-center gap-2 text-sm text-red-300 mt-4">
+                      <AlertCircle size={16} />
+                      {fileError}
+                    </p>
+                  )}
                 </div>
+              </section>
+            )}
+
+            {submitError && (
+              <div className="mb-5 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 flex gap-3 text-sm text-red-200">
+                <AlertCircle size={18} className="shrink-0" />
+                {submitError}
               </div>
+            )}
 
-              <div className="mt-5 rounded-xl border border-white/5 bg-black/10 p-4">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <RefreshCw size={13} />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <p className="text-sm text-slate-400">
+                After submission, your tutor can review your work from Tutor
+                Assignment Submissions.
+              </p>
 
-                  <span>Enrollment:</span>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-6 py-3 font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Send size={18} />
+                )}
 
-                  <span className="font-mono text-slate-400">
-                    {studentIdentity.enrollmentId ||
-                      "not found"}
-                  </span>
-                </div>
-              </div>
-            </>
-          ) : !hasAssignmentDocument ? (
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle
-                  size={22}
-                  className="text-amber-400 mt-0.5"
-                />
-
-                <div>
-                  <h2 className="font-semibold text-amber-300">
-                    No Questions Available
-                  </h2>
-
-                  <p className="text-sm text-amber-200/70 mt-2">
-                    This assignment has been created, but no questions or document have been added yet.
-                  </p>
-                </div>
-              </div>
+                {submitting ? "Submitting..." : "Submit Assignment"}
+              </button>
             </div>
-          ) : null}
-        </div>
+          </>
+        )}
       </div>
-    );
-  };
-
-export default StudentAssignmentDetails;
+    </div>
+  );
+}

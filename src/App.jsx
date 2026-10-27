@@ -8,11 +8,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-
-import {
-  AnimatePresence,
-  motion,
-} from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 /* ============================================================
    GENERAL PAGES
@@ -80,10 +76,8 @@ import TutorAssignmentSubmissionGrade from "./pages/tutor/TutorAssignmentSubmiss
 import TutorAttendance from "./pages/tutor/TutorAttendance";
 import TutorLiveClasses from "./pages/tutor/TutorLiveClasses";
 import TutorLiveClassroom from "./pages/tutor/TutorLiveClassroom";
-
 import TutorCreateLesson from "./pages/tutor/TutorCreateLesson";
 import TutorLessonPlan from "./pages/tutor/TutorLessonPlan";
-
 import TutorClassDetails from "./pages/tutor/TutorClassDetails";
 import TutorDashboard from "./pages/tutor/TutorDashboard";
 import TutorClasses from "./pages/tutor/TutorClasses";
@@ -99,6 +93,8 @@ import TutorAnnouncements from "./pages/tutor/TutorAnnouncements";
 ============================================================ */
 
 import Teachers from "./pages/admin/users/Teachers";
+import AdminRoutes from "./admin/AdminRoutes";
+import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 
 /* ============================================================
    LANGUAGE
@@ -114,19 +110,10 @@ import LanguageDetails from "./pages/languages/LanguageDetails";
 
 import Polytechnics from "./pages/Polytechnics/Polytechnics";
 import PolytechnicDetails from "./pages/Polytechnics/PolytechnicDetails";
-
 import Colleges from "./pages/colleges/Colleges";
 import CollegeDetails from "./pages/colleges/CollegeDetails";
-
 import Universities from "./pages/universities/Universities";
 import UniversityDetails from "./pages/universities/UniversityDetails";
-
-/* ============================================================
-   ADMIN ROUTES
-============================================================ */
-
-import AdminRoutes from "./admin/AdminRoutes";
-import ProtectedAdminRoute from "./admin/ProtectedAdminRoute";
 
 /* ============================================================
    COMPONENTS
@@ -240,10 +227,6 @@ import DashboardLayout from "./layout/DashboardLayout";
 const ACADEMY_TOKEN_KEY = "scholiqen_academy_token";
 const ACADEMY_USER_KEY = "scholiqen_academy_user";
 
-/*
- * Academy login should use the canonical keys above. These fallbacks support
- * older tutor-login implementations while the login flow is being unified.
- */
 const getAcademyToken = () => {
   try {
     const tokenKeys = [
@@ -256,7 +239,10 @@ const getAcademyToken = () => {
 
     for (const key of tokenKeys) {
       const value = localStorage.getItem(key);
-      if (value && value.trim()) return value.trim();
+
+      if (value && value.trim()) {
+        return value.trim();
+      }
     }
   } catch (error) {
     console.error("Unable to read Academy token:", error);
@@ -267,6 +253,8 @@ const getAcademyToken = () => {
 
 /* ============================================================
    GET ACADEMY USER
+
+   Reads the canonical Academy user first, then legacy keys.
 ============================================================ */
 
 const getAcademyUser = () => {
@@ -280,16 +268,20 @@ const getAcademyUser = () => {
 
     for (const candidate of candidates) {
       const raw = localStorage.getItem(candidate.key);
+
       if (!raw) continue;
 
       let parsed;
+
       try {
         parsed = JSON.parse(raw);
       } catch {
         continue;
       }
 
-      if (!parsed || typeof parsed !== "object") continue;
+      if (!parsed || typeof parsed !== "object") {
+        continue;
+      }
 
       const user =
         parsed.user && typeof parsed.user === "object"
@@ -302,11 +294,15 @@ const getAcademyUser = () => {
           user.role ||
           user.accountType ||
           ""
-      ).trim().toLowerCase();
+      )
+        .trim()
+        .toLowerCase();
 
-      // Infer tutor type only when the legacy key explicitly names a tutor.
       if (!userType && candidate.tutorHint) {
-        return { ...user, userType: "tutor" };
+        return {
+          ...user,
+          userType: "tutor",
+        };
       }
 
       return user;
@@ -319,86 +315,95 @@ const getAcademyUser = () => {
 };
 
 /* ============================================================
+   GET VALID TUTOR REFERENCE
+
+   A valid tutor reference must start with SQA-.
+   Never use a UUID or tutor.id as the tutor reference.
+============================================================ */
+
+const getTutorReference = (user) => {
+  if (!user || typeof user !== "object") {
+    return "";
+  }
+
+  const candidates = [
+    user.reference,
+    user.tutorReference,
+    user.tutor_reference,
+    user.applicationReference,
+    user.application_reference,
+
+    user.tutor?.reference,
+    user.tutor?.tutorReference,
+    user.tutor?.tutor_reference,
+    user.tutor?.applicationReference,
+    user.tutor?.application_reference,
+
+    user.user?.reference,
+    user.user?.tutorReference,
+    user.user?.tutor_reference,
+    user.user?.applicationReference,
+    user.user?.application_reference,
+  ];
+
+  for (const candidate of candidates) {
+    const reference = String(candidate || "").trim();
+
+    if (/^SQA-/i.test(reference)) {
+      return reference;
+    }
+  }
+
+  return "";
+};
+
+/* ============================================================
    ACADEMY STUDENT PROTECTED ROUTE
 ============================================================ */
 
-const AcademyProtectedRoute = ({
-  children,
-}) => {
-  const [
-    checkingAuth,
-    setCheckingAuth,
-  ] = React.useState(true);
-
-  const [
-    authenticated,
-    setAuthenticated,
-  ] = React.useState(false);
+const AcademyProtectedRoute = ({ children }) => {
+  const [checkingAuth, setCheckingAuth] = React.useState(true);
+  const [authenticated, setAuthenticated] = React.useState(false);
 
   React.useEffect(() => {
     let mounted = true;
 
-    const checkAcademyAuthentication =
-      () => {
-        try {
-          const token = getAcademyToken();
+    const checkAcademyAuthentication = () => {
+      try {
+        const token = getAcademyToken();
+        const user = getAcademyUser();
 
-          const user =
-            getAcademyUser();
+        const userType = String(
+          user?.userType ||
+            user?.user_type ||
+            user?.role ||
+            user?.accountType ||
+            ""
+        )
+          .trim()
+          .toLowerCase();
 
-          if (!token || !user) {
-            if (mounted) {
-              setAuthenticated(false);
-              setCheckingAuth(false);
-            }
+        const valid =
+          Boolean(token) &&
+          Boolean(user) &&
+          userType === "student";
 
-            return;
-          }
-
-          const userType =
-            String(
-              user?.userType ||
-                user?.user_type ||
-                ""
-            )
-              .trim()
-              .toLowerCase();
-
-          if (
-            userType !== "student"
-          ) {
-            if (mounted) {
-              setAuthenticated(false);
-              setCheckingAuth(false);
-            }
-
-            return;
-          }
-
-          if (mounted) {
-            setAuthenticated(true);
-            setCheckingAuth(false);
-          }
-        } catch (error) {
-          console.error(
-            "Academy Student Authentication Error:",
-            error
-          );
-
-          localStorage.removeItem(
-            ACADEMY_TOKEN_KEY
-          );
-
-          localStorage.removeItem(
-            ACADEMY_USER_KEY
-          );
-
-          if (mounted) {
-            setAuthenticated(false);
-            setCheckingAuth(false);
-          }
+        if (mounted) {
+          setAuthenticated(valid);
+          setCheckingAuth(false);
         }
-      };
+      } catch (error) {
+        console.error(
+          "Academy Student Authentication Error:",
+          error
+        );
+
+        if (mounted) {
+          setAuthenticated(false);
+          setCheckingAuth(false);
+        }
+      }
+    };
 
     checkAcademyAuthentication();
 
@@ -437,122 +442,58 @@ const AcademyProtectedRoute = ({
    ACADEMY TUTOR PROTECTED ROUTE
 ============================================================ */
 
-const TutorProtectedRoute = ({
-  children,
-}) => {
-  const [
-    checkingAuth,
-    setCheckingAuth,
-  ] = React.useState(true);
-
-  const [
-    authenticated,
-    setAuthenticated,
-  ] = React.useState(false);
+const TutorProtectedRoute = ({ children }) => {
+  const [checkingAuth, setCheckingAuth] = React.useState(true);
+  const [authenticated, setAuthenticated] = React.useState(false);
 
   React.useEffect(() => {
     let mounted = true;
 
-    const checkTutorAuthentication =
-      () => {
-        try {
-          const token = getAcademyToken();
+    const checkTutorAuthentication = () => {
+      try {
+        const token = getAcademyToken();
+        const user = getAcademyUser();
 
-          const user =
-            getAcademyUser();
+        const userType = String(
+          user?.userType ||
+            user?.user_type ||
+            user?.role ||
+            user?.accountType ||
+            ""
+        )
+          .trim()
+          .toLowerCase();
 
-          if (!token || !user) {
-            console.warn(
-              "Tutor route: Academy session not found."
-            );
+        const tutorReference = getTutorReference(user);
 
-            if (mounted) {
-              setAuthenticated(false);
-              setCheckingAuth(false);
-            }
+        const valid =
+          Boolean(token) &&
+          Boolean(user) &&
+          userType === "tutor" &&
+          Boolean(tutorReference);
 
-            return;
-          }
-
-          const userType =
-            String(
-              user?.userType ||
-                user?.user_type ||
-                ""
-            )
-              .trim()
-              .toLowerCase();
-
-          if (
-            userType !== "tutor"
-          ) {
-            console.warn(
-              "Tutor route: Current Academy user is not a tutor.",
-              userType
-            );
-
-            if (mounted) {
-              setAuthenticated(false);
-              setCheckingAuth(false);
-            }
-
-            return;
-          }
-
-          const tutorReference =
-            user?.reference ||
-            user?.tutorReference ||
-            user?.tutor_reference ||
-            user?.applicationReference ||
-            user?.application_reference ||
-            user?.tutor?.reference ||
-            user?.tutor?.tutorReference ||
-            user?.tutor?.tutor_reference ||
-            user?.user?.reference ||
-            user?.id ||
-            "";
-
-          if (
-            !String(
-              tutorReference
-            ).trim()
-          ) {
-            console.warn(
-              "Tutor route: Tutor reference is missing."
-            );
-
-            if (mounted) {
-              setAuthenticated(false);
-              setCheckingAuth(false);
-            }
-
-            return;
-          }
-
-          if (mounted) {
-            setAuthenticated(true);
-            setCheckingAuth(false);
-          }
-        } catch (error) {
-          console.error(
-            "Tutor Authentication Error:",
-            error
-          );
-
-          localStorage.removeItem(
-            ACADEMY_TOKEN_KEY
-          );
-
-          localStorage.removeItem(
-            ACADEMY_USER_KEY
-          );
-
-          if (mounted) {
-            setAuthenticated(false);
-            setCheckingAuth(false);
-          }
+        if (!valid) {
+          console.warn("Tutor authentication check failed.", {
+            hasToken: Boolean(token),
+            hasUser: Boolean(user),
+            userType,
+            hasValidTutorReference: Boolean(tutorReference),
+          });
         }
-      };
+
+        if (mounted) {
+          setAuthenticated(valid);
+          setCheckingAuth(false);
+        }
+      } catch (error) {
+        console.error("Tutor Authentication Error:", error);
+
+        if (mounted) {
+          setAuthenticated(false);
+          setCheckingAuth(false);
+        }
+      }
+    };
 
     checkTutorAuthentication();
 
@@ -599,76 +540,67 @@ const TutorProtectedRoute = ({
    PAGE WRAPPER
 ============================================================ */
 
-const PageWrapper = ({
-  children,
-}) => {
-  return (
-    <motion.div
-      className="w-full"
-      initial={{
-        opacity: 0,
-        y: 10,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      exit={{
-        opacity: 0,
-      }}
-      transition={{
-        duration: 0.25,
-      }}
-    >
-      {children}
-    </motion.div>
-  );
-};
+const PageWrapper = ({ children }) => (
+  <motion.div
+    className="w-full"
+    initial={{
+      opacity: 0,
+      y: 10,
+    }}
+    animate={{
+      opacity: 1,
+      y: 0,
+    }}
+    exit={{
+      opacity: 0,
+    }}
+    transition={{
+      duration: 0.25,
+    }}
+  >
+    {children}
+  </motion.div>
+);
 
 /* ============================================================
    TUTOR ERROR FALLBACK
 ============================================================ */
 
-const TutorFallback = () => {
-  return (
-    <div className="min-h-screen bg-[#030712] px-6 py-20 text-white">
-      <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center shadow-2xl">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-2xl">
-          🎓
-        </div>
-
-        <h1 className="mt-6 text-2xl font-bold">
-          Tutor Workspace
-        </h1>
-
-        <p className="mt-3 text-sm leading-6 text-slate-400">
-          Your tutor account is authenticated,
-          but this tutor feature has not been
-          connected yet.
-        </p>
-
-        <button
-          type="button"
-          onClick={() => {
-            window.location.href =
-              "/academy/tutor";
-          }}
-          className="mt-6 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
-        >
-          Open Tutor Dashboard
-        </button>
+const TutorFallback = () => (
+  <div className="min-h-screen bg-[#030712] px-6 py-20 text-white">
+    <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center shadow-2xl">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-2xl">
+        🎓
       </div>
+
+      <h1 className="mt-6 text-2xl font-bold">
+        Tutor Workspace
+      </h1>
+
+      <p className="mt-3 text-sm leading-6 text-slate-400">
+        Your tutor account is authenticated, but this tutor feature
+        has not been connected yet.
+      </p>
+
+      <button
+        type="button"
+        onClick={() => {
+          window.location.href = "/academy/tutor";
+        }}
+        className="mt-6 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
+      >
+        Open Tutor Dashboard
+      </button>
     </div>
-  );
-};
+  </div>
+);
 
 /* ============================================================
    ANIMATED ROUTES
 ============================================================ */
 
 const AnimatedRoutes = () => {
-  const location =
-    useLocation();
+  const location = useLocation();
 
   return (
     <AnimatePresence mode="wait">
@@ -676,17 +608,13 @@ const AnimatedRoutes = () => {
         location={location}
         key={location.pathname}
       >
-
-        {/* =====================================================
-            HOME
-        ===================================================== */}
+        {/* HOME */}
 
         <Route
           path="/"
           element={
             <>
               <Navbar />
-
               <PageWrapper>
                 <Home />
               </PageWrapper>
@@ -694,18 +622,14 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            LOGIN
-        ===================================================== */}
+        {/* LOGIN */}
 
         <Route
           path="/login"
           element={<Login />}
         />
 
-        {/* =====================================================
-            PROFILE
-        ===================================================== */}
+        {/* PROFILE */}
 
         <Route
           path="/profile"
@@ -729,9 +653,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            GENERAL
-        ===================================================== */}
+        {/* GENERAL */}
 
         <Route
           path="/contact"
@@ -753,9 +675,7 @@ const AnimatedRoutes = () => {
 
         <Route
           path="/reset-password"
-          element={
-            <ResetPassword />
-          }
+          element={<ResetPassword />}
         />
 
         <Route
@@ -796,9 +716,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            SCHOLIQEN ACADEMY
-        ===================================================== */}
+        {/* SCHOLIQEN ACADEMY */}
 
         <Route
           path="/academy"
@@ -820,9 +738,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            STUDENT LOGIN
-        ===================================================== */}
+        {/* STUDENT LOGIN */}
 
         <Route
           path="/academy/student-enrollment-login"
@@ -833,9 +749,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            STUDENT ENROLLMENT
-        ===================================================== */}
+        {/* STUDENT ENROLLMENT */}
 
         <Route
           path="/academy/student-enrollment"
@@ -846,9 +760,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            STUDENT LEARNING PORTAL
-        ===================================================== */}
+        {/* STUDENT LEARNING PORTAL */}
 
         <Route
           path="/academy/student"
@@ -860,155 +772,73 @@ const AnimatedRoutes = () => {
             </AcademyProtectedRoute>
           }
         >
-
-          {/* ===================================================
-              STUDENT OVERVIEW
-          =================================================== */}
-
           <Route
             index
-            element={
-              <StudentOverview />
-            }
+            element={<StudentOverview />}
           />
-
-          {/* ===================================================
-              STUDENT SUBJECTS
-          =================================================== */}
 
           <Route
             path="subjects"
-            element={
-              <StudentSubjects />
-            }
+            element={<StudentSubjects />}
           />
-
-          {/* ===================================================
-              STUDENT LESSONS
-          =================================================== */}
 
           <Route
             path="lessons"
-            element={
-              <StudentLessons />
-            }
+            element={<StudentLessons />}
           />
-
-          {/* ===================================================
-              STUDENT TEXTBOOKS
-          =================================================== */}
 
           <Route
             path="textbooks"
-            element={
-              <StudentTextbooks />
-            }
+            element={<StudentTextbooks />}
           />
-
-          {/* ===================================================
-              STUDENT TASKS
-          =================================================== */}
 
           <Route
             path="tasks"
-            element={
-              <StudentTasks />
-            }
+            element={<StudentTasks />}
           />
-
-          {/* ===================================================
-              STUDENT ASSIGNMENTS
-          =================================================== */}
 
           <Route
             path="assignments"
-            element={
-              <StudentAssignments />
-            }
+            element={<StudentAssignments />}
           />
-
-          {/* ===================================================
-              STUDENT ASSIGNMENT DETAILS
-          =================================================== */}
 
           <Route
             path="assignments/:id"
-            element={
-              <StudentAssignmentDetails />
-            }
+            element={<StudentAssignmentDetails />}
           />
-
-          {/* ===================================================
-              STUDENT CBT
-          =================================================== */}
 
           <Route
             path="cbt"
-            element={
-              <StudentCBT />
-            }
+            element={<StudentCBT />}
           />
-
-          {/* ===================================================
-              STUDENT LIVE CLASSES
-          =================================================== */}
 
           <Route
             path="live"
-            element={
-              <StudentLiveClasses />
-            }
+            element={<StudentLiveClasses />}
           />
-
-          {/* ===================================================
-              STUDENT MESSAGES
-          =================================================== */}
 
           <Route
             path="messages"
-            element={
-              <StudentMessages />
-            }
+            element={<StudentMessages />}
           />
-
-          {/* ===================================================
-              STUDENT PROGRESS
-          =================================================== */}
 
           <Route
             path="progress"
-            element={
-              <StudentProgress />
-            }
+            element={<StudentProgress />}
           />
-
-          {/* ===================================================
-              STUDENT ACHIEVEMENTS
-          =================================================== */}
 
           <Route
             path="achievements"
-            element={
-              <StudentAchievements />
-            }
+            element={<StudentAchievements />}
           />
-
-          {/* ===================================================
-              STUDENT PROFILE
-          =================================================== */}
 
           <Route
             path="profile"
-            element={
-              <StudentProfile />
-            }
+            element={<StudentProfile />}
           />
-
         </Route>
 
-        {/* =====================================================
-            LEGACY STUDENT PORTAL URL
-        ===================================================== */}
+        {/* LEGACY STUDENT PORTAL URL */}
 
         <Route
           path="/academy/student-portal"
@@ -1020,9 +850,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            STUDENT TASK SUBMISSION
-        ===================================================== */}
+        {/* STUDENT TASK SUBMISSION */}
 
         <Route
           path="/academy/student/task/:taskId"
@@ -1033,9 +861,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR REGISTRATION
-        ===================================================== */}
+        {/* TUTOR REGISTRATION */}
 
         <Route
           path="/academy/tutor-register"
@@ -1046,9 +872,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR LOGIN
-        ===================================================== */}
+        {/* TUTOR LOGIN */}
 
         <Route
           path="/academy/login"
@@ -1059,9 +883,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            ACADEMICS
-        ===================================================== */}
+        {/* ACADEMICS */}
 
         <Route
           path="/academics"
@@ -1072,9 +894,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            COMMUNITY
-        ===================================================== */}
+        {/* COMMUNITY */}
 
         <Route
           path="/community"
@@ -1085,9 +905,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            RESOURCES
-        ===================================================== */}
+        {/* RESOURCES */}
 
         <Route
           path="/resources"
@@ -1098,9 +916,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            ABOUT
-        ===================================================== */}
+        {/* ABOUT */}
 
         <Route
           path="/about"
@@ -1111,9 +927,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR DASHBOARD
-        ===================================================== */}
+        {/* TUTOR DASHBOARD */}
 
         <Route
           path="/academy/tutor"
@@ -1126,9 +940,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR STUDENTS
-        ===================================================== */}
+        {/* TUTOR STUDENTS */}
 
         <Route
           path="/academy/tutor/students"
@@ -1141,9 +953,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR CALENDAR
-        ===================================================== */}
+        {/* TUTOR CALENDAR */}
 
         <Route
           path="/academy/tutor/calendar"
@@ -1156,9 +966,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR ATTENDANCE
-        ===================================================== */}
+        {/* TUTOR ATTENDANCE */}
 
         <Route
           path="/academy/tutor/attendance"
@@ -1171,9 +979,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR LIVE CLASSES
-        ===================================================== */}
+        {/* TUTOR LIVE CLASSES */}
 
         <Route
           path="/academy/tutor/live/start"
@@ -1186,9 +992,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR LIVE CLASSROOM
-        ===================================================== */}
+        {/* TUTOR LIVE CLASSROOM */}
 
         <Route
           path="/academy/tutor/live/:id"
@@ -1199,9 +1003,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR MATERIALS
-        ===================================================== */}
+        {/* TUTOR MATERIALS */}
 
         <Route
           path="/academy/tutor/materials"
@@ -1214,9 +1016,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR CLASSES
-        ===================================================== */}
+        {/* TUTOR CLASSES */}
 
         <Route
           path="/academy/tutor/classes"
@@ -1229,9 +1029,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR CLASS DETAILS
-        ===================================================== */}
+        {/* TUTOR CLASS DETAILS */}
 
         <Route
           path="/academy/tutor/classes/:grade"
@@ -1244,9 +1042,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            CREATE TASK
-        ===================================================== */}
+        {/* CREATE TASK */}
 
         <Route
           path="/academy/tutor/tasks/create"
@@ -1259,9 +1055,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            MY TASKS
-        ===================================================== */}
+        {/* MY TASKS */}
 
         <Route
           path="/academy/tutor/tasks"
@@ -1274,9 +1068,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TASK SUBMISSIONS
-        ===================================================== */}
+        {/* TASK SUBMISSIONS */}
 
         <Route
           path="/academy/tutor/tasks/submissions"
@@ -1289,9 +1081,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            CREATE ASSIGNMENT
-        ===================================================== */}
+        {/* CREATE ASSIGNMENT */}
 
         <Route
           path="/academy/tutor/assignments/create"
@@ -1305,23 +1095,38 @@ const AnimatedRoutes = () => {
         />
 
         {/* =====================================================
-            ASSIGNMENT GRADING OVERVIEW
+            ALL ASSIGNMENT SUBMISSIONS
+
+            This explicit route handles the sidebar link:
+            /academy/tutor/assignments/submissions
+
+            It must render the submissions landing page.
         ===================================================== */}
 
         <Route
-          path="/academy/tutor/assignments/grading"
+          path="/academy/tutor/assignments/submissions"
           element={
             <TutorProtectedRoute>
-              <TutorLayout title="Assignment Grading">
+              <TutorLayout title="Assignment Submissions">
                 <TutorAssignmentSubmissions />
               </TutorLayout>
             </TutorProtectedRoute>
           }
         />
 
-        {/* =====================================================
-            MY ASSIGNMENTS
-        ===================================================== */}
+        {/* LEGACY GRADING URL */}
+
+        <Route
+          path="/academy/tutor/assignments/grading"
+          element={
+            <Navigate
+              to="/academy/tutor/assignments/submissions"
+              replace
+            />
+          }
+        />
+
+        {/* MY ASSIGNMENTS */}
 
         <Route
           path="/academy/tutor/assignments"
@@ -1334,41 +1139,20 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            ASSIGNMENT DETAILS
-            OPEN ASSIGNMENT
-        ===================================================== */}
-
-        <Route
-          path="/academy/tutor/assignments/:id"
-          element={
-            <TutorProtectedRoute>
-              <TutorLayout title="Assignment">
-                <TutorAssignmentDetails />
-              </TutorLayout>
-            </TutorProtectedRoute>
-          }
-        />
-
-        {/* =====================================================
-            ASSIGNMENT SUBMISSIONS
-            GRADE SUBMISSIONS
-        ===================================================== */}
+        {/* SUBMISSIONS FOR ONE ASSIGNMENT */}
 
         <Route
           path="/academy/tutor/assignments/:id/submissions"
           element={
             <TutorProtectedRoute>
-              <TutorLayout title="Grade Submissions">
+              <TutorLayout title="Assignment Submissions">
                 <TutorAssignmentSubmissions />
               </TutorLayout>
             </TutorProtectedRoute>
           }
         />
 
-        {/* =====================================================
-            INDIVIDUAL SUBMISSION GRADING
-        ===================================================== */}
+        {/* GRADE ONE STUDENT SUBMISSION */}
 
         <Route
           path="/academy/tutor/assignments/:id/submissions/:submissionId"
@@ -1381,9 +1165,20 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            CREATE LESSON
-        ===================================================== */}
+        {/* ASSIGNMENT DETAILS / EDITOR */}
+
+        <Route
+          path="/academy/tutor/assignments/:id"
+          element={
+            <TutorProtectedRoute>
+              <TutorLayout title="Assignment">
+                <TutorAssignmentDetails />
+              </TutorLayout>
+            </TutorProtectedRoute>
+          }
+        />
+
+        {/* CREATE LESSON */}
 
         <Route
           path="/academy/tutor/lessons/create"
@@ -1396,9 +1191,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            LESSON PLAN
-        ===================================================== */}
+        {/* LESSON PLAN */}
 
         <Route
           path="/academy/tutor/lessons"
@@ -1411,9 +1204,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            STUDENT MESSAGES
-        ===================================================== */}
+        {/* STUDENT MESSAGES */}
 
         <Route
           path="/academy/tutor/messages/students"
@@ -1426,9 +1217,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR ANNOUNCEMENTS
-        ===================================================== */}
+        {/* TUTOR ANNOUNCEMENTS */}
 
         <Route
           path="/academy/tutor/announcements"
@@ -1441,9 +1230,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            LEGACY TASK SUBMISSIONS PATH
-        ===================================================== */}
+        {/* LEGACY TASK SUBMISSIONS PATH */}
 
         <Route
           path="/academy/tutor/task/submissions"
@@ -1455,9 +1242,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            TUTOR PROFILE
-        ===================================================== */}
+        {/* TUTOR PROFILE */}
 
         <Route
           path="/academy/tutor/profile"
@@ -1468,9 +1253,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            FUTURE TUTOR ROUTES / FALLBACK
-        ===================================================== */}
+        {/* TUTOR FALLBACK */}
 
         <Route
           path="/academy/tutor/*"
@@ -1483,9 +1266,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            ADMIN TEACHERS
-        ===================================================== */}
+        {/* ADMIN TEACHERS */}
 
         <Route
           path="/admin/users/teachers"
@@ -1496,15 +1277,11 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            LANGUAGE
-        ===================================================== */}
+        {/* LANGUAGE */}
 
         <Route
           path="/languages"
-          element={
-            <LanguagesHome />
-          }
+          element={<LanguagesHome />}
         />
 
         <Route
@@ -1527,34 +1304,24 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            SUPPORT
-        ===================================================== */}
+        {/* SUPPORT */}
 
         <Route
           path="/support"
-          element={
-            <SupportHome />
-          }
+          element={<SupportHome />}
         />
 
         <Route
           path="/support/chat"
-          element={
-            <ChatSupport />
-          }
+          element={<ChatSupport />}
         />
 
         <Route
           path="/support/faq"
-          element={
-            <FAQ />
-          }
+          element={<FAQ />}
         />
 
-        {/* =====================================================
-            AI TUTOR
-        ===================================================== */}
+        {/* AI TUTOR */}
 
         <Route
           path="/ai-tutor"
@@ -1574,9 +1341,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            NOVELS
-        ===================================================== */}
+        {/* NOVELS */}
 
         <Route
           path="/novels"
@@ -1614,31 +1379,21 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            INSTRUCTOR
-        ===================================================== */}
+        {/* INSTRUCTOR */}
 
         <Route
           path="/become-instructor"
-          element={
-            <BecomeInstructorForm />
-          }
+          element={<BecomeInstructorForm />}
         />
 
-        {/* =====================================================
-            CERTIFICATE
-        ===================================================== */}
+        {/* CERTIFICATE */}
 
         <Route
           path="/verify/:certificate_number"
-          element={
-            <VerifyCertificate />
-          }
+          element={<VerifyCertificate />}
         />
 
-        {/* =====================================================
-            CONTACT INBOX
-        ===================================================== */}
+        {/* CONTACT INBOX */}
 
         <Route
           path="/contact-inbox"
@@ -1651,9 +1406,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            ADMIN
-        ===================================================== */}
+        {/* ADMIN */}
 
         <Route
           path="/admin/*"
@@ -1664,9 +1417,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            DASHBOARD
-        ===================================================== */}
+        {/* DASHBOARD */}
 
         <Route
           element={
@@ -1711,9 +1462,7 @@ const AnimatedRoutes = () => {
           />
         </Route>
 
-        {/* =====================================================
-            VIRTUAL LAB
-        ===================================================== */}
+        {/* VIRTUAL LAB */}
 
         <Route
           path="/lab"
@@ -1803,9 +1552,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            PDF
-        ===================================================== */}
+        {/* PDF */}
 
         <Route
           path="/pdf/:id"
@@ -1818,9 +1565,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            VIDEO
-        ===================================================== */}
+        {/* VIDEO */}
 
         <Route
           path="/video/:id"
@@ -1833,9 +1578,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            CBT
-        ===================================================== */}
+        {/* CBT */}
 
         <Route
           path="/cbt"
@@ -1890,9 +1633,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            LMS
-        ===================================================== */}
+        {/* LMS */}
 
         <Route
           path="/lms"
@@ -1905,9 +1646,7 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            COURSES
-        ===================================================== */}
+        {/* COURSES */}
 
         <Route
           path="/courses"
@@ -2008,63 +1747,43 @@ const AnimatedRoutes = () => {
           }
         />
 
-        {/* =====================================================
-            UNIVERSITIES
-        ===================================================== */}
+        {/* UNIVERSITIES */}
 
         <Route
           path="/universities"
-          element={
-            <Universities />
-          }
+          element={<Universities />}
         />
 
         <Route
           path="/universities/:id"
-          element={
-            <UniversityDetails />
-          }
+          element={<UniversityDetails />}
         />
 
-        {/* =====================================================
-            COLLEGES
-        ===================================================== */}
+        {/* COLLEGES */}
 
         <Route
           path="/colleges"
-          element={
-            <Colleges />
-          }
+          element={<Colleges />}
         />
 
         <Route
           path="/colleges/:id"
-          element={
-            <CollegeDetails />
-          }
+          element={<CollegeDetails />}
         />
 
-        {/* =====================================================
-            POLYTECHNICS
-        ===================================================== */}
+        {/* POLYTECHNICS */}
 
         <Route
           path="/polytechnics"
-          element={
-            <Polytechnics />
-          }
+          element={<Polytechnics />}
         />
 
         <Route
           path="/polytechnics/:id"
-          element={
-            <PolytechnicDetails />
-          }
+          element={<PolytechnicDetails />}
         />
 
-        {/* =====================================================
-            404
-        ===================================================== */}
+        {/* 404 */}
 
         <Route
           path="*"
@@ -2075,7 +1794,6 @@ const AnimatedRoutes = () => {
             />
           }
         />
-
       </Routes>
     </AnimatePresence>
   );

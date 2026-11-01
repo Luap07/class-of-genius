@@ -1799,19 +1799,17 @@ router.post(
   "/tutor-login",
   async (req, res) => {
     try {
-      const name =
-        normalizeName(
-          req.body?.name ||
-            req.body?.fullName ||
-            req.body?.full_name
-        );
+      const name = normalizeName(
+        req.body?.name ||
+          req.body?.fullName ||
+          req.body?.full_name
+      );
 
-      const reference =
-        clean(
-          req.body?.reference ||
-            req.body?.tutorReference ||
-            req.body?.tutor_reference
-        );
+      const reference = clean(
+        req.body?.reference ||
+          req.body?.tutorReference ||
+          req.body?.tutor_reference
+      );
 
       if (!name || !reference) {
         return res.status(400).json({
@@ -1822,21 +1820,17 @@ router.post(
       }
 
       const tutor =
-        await findTutorByReference(
-          reference
-        );
+        await findTutorByReference(reference);
 
       if (!tutor) {
         return res.status(401).json({
           success: false,
-          message:
-            "Invalid tutor reference.",
+          message: "Invalid tutor reference.",
         });
       }
 
       if (
-        getTutorName(tutor)
-          .toLowerCase() !==
+        getTutorName(tutor).toLowerCase() !==
         name.toLowerCase()
       ) {
         return res.status(401).json({
@@ -1849,23 +1843,94 @@ router.post(
       if (!isTutorVerified(tutor)) {
         return res.status(403).json({
           success: false,
-          code:
-            "TUTOR_NOT_VERIFIED",
+          code: "TUTOR_NOT_VERIFIED",
           message:
             "Your tutor application has not been verified yet.",
           applicationStatus:
             tutor.application_status,
-          tutor:
-            serializeTutor(tutor),
+          tutor: serializeTutor(tutor),
         });
       }
 
-      res.json({
+      const secret = getJwtSecret();
+
+      if (!secret) {
+        console.error(
+          "TUTOR LOGIN ERROR: JWT secret is missing."
+        );
+
+        return res.status(500).json({
+          success: false,
+          code: "ACADEMY_JWT_SECRET_MISSING",
+          message:
+            "Academy authentication is not configured. Please set JWT_SECRET in the backend environment and restart the server.",
+        });
+      }
+
+      const tutorReference = clean(
+        tutor.reference
+      );
+
+      if (!tutorReference) {
+        return res.status(500).json({
+          success: false,
+          code: "TUTOR_REFERENCE_MISSING",
+          message:
+            "Tutor account is missing its application reference.",
+        });
+      }
+
+      const token = jwt.sign(
+        {
+          id: tutor.id,
+          userId: tutor.id,
+
+          userType: "tutor",
+          user_type: "tutor",
+          type: "tutor",
+          role: "tutor",
+
+          reference: tutorReference,
+          tutorReference,
+          tutor_reference: tutorReference,
+
+          email: normalizeEmail(tutor.email),
+        },
+        secret,
+        {
+          expiresIn: "7d",
+          issuer: "scholiqen-academy",
+          subject: tutorReference,
+        }
+      );
+
+      const serializedTutor =
+        serializeTutor(tutor);
+
+      console.log(
+        `TUTOR LOGIN SUCCESS: ${tutorReference}`
+      );
+
+      return res.status(200).json({
         success: true,
-        message:
-          "Tutor login successful.",
-        tutor:
-          serializeTutor(tutor),
+        message: "Tutor login successful.",
+
+        token,
+        accessToken: token,
+        access_token: token,
+        academyToken: token,
+        jwt: token,
+
+        userType: "tutor",
+        user_type: "tutor",
+
+        reference: tutorReference,
+        tutorReference,
+        tutor_reference: tutorReference,
+
+        tutor: serializedTutor,
+        user: serializedTutor,
+        data: serializedTutor,
       });
     } catch (error) {
       console.error(
@@ -1873,9 +1938,11 @@ router.post(
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
+        code: "TUTOR_LOGIN_FAILED",
         message:
+          error.message ||
           "Unable to login tutor.",
       });
     }

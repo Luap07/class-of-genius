@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useEffect,
@@ -6,7 +7,6 @@ import React, {
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft,
   Award,
   AlertCircle,
   BookOpen,
@@ -33,8 +33,9 @@ import {
    API
 ========================================================= */
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
+).replace(/\/+$/, "");
 
 const SUBMISSIONS_URL =
   `${API_BASE_URL}/api/academy/tutor/task-submissions`;
@@ -50,34 +51,96 @@ function clean(value) {
 }
 
 function getStoredTutor() {
+  const keys = [
+    "scholiqen_academy_user",
+    "academy_user",
+    "scholiqen_current_user",
+    "academyTutor",
+    "tutor",
+  ];
+
+  const storages = [];
+
   try {
-    const raw = localStorage.getItem(
-      "scholiqen_academy_user"
-    );
-
-    if (!raw) return null;
-
-    return JSON.parse(raw);
+    storages.push(window.localStorage);
   } catch {
-    return null;
+    // Storage may be unavailable.
   }
+
+  try {
+    storages.push(window.sessionStorage);
+  } catch {
+    // Storage may be unavailable.
+  }
+
+  for (const storage of storages) {
+    for (const key of keys) {
+      try {
+        const raw = storage.getItem(key);
+
+        if (!raw) continue;
+
+        const parsed = JSON.parse(raw);
+
+        if (parsed && typeof parsed === "object") {
+          return parsed;
+        }
+      } catch {
+        // Continue checking other keys.
+      }
+    }
+  }
+
+  return null;
 }
 
 function getTutorReference(tutor) {
-  return clean(
-    tutor?.reference ||
-      tutor?.tutor_reference ||
-      tutor?.tutorReference ||
-      tutor?.reference_id ||
-      tutor?.referenceId
-  );
+  if (!tutor || typeof tutor !== "object") {
+    return "";
+  }
+
+  const candidates = [
+    tutor.reference,
+    tutor.tutorReference,
+    tutor.tutor_reference,
+    tutor.applicationReference,
+    tutor.application_reference,
+    tutor.referenceId,
+    tutor.reference_id,
+
+    tutor.tutor?.reference,
+    tutor.tutor?.tutorReference,
+    tutor.tutor?.tutor_reference,
+    tutor.tutor?.applicationReference,
+    tutor.tutor?.application_reference,
+
+    tutor.application?.reference,
+    tutor.application?.applicationReference,
+    tutor.application?.application_reference,
+
+    tutor.user?.reference,
+    tutor.user?.tutorReference,
+    tutor.user?.tutor_reference,
+  ];
+
+  for (const candidate of candidates) {
+    const reference = clean(candidate);
+
+    if (reference) {
+      return reference;
+    }
+  }
+
+  return "";
 }
 
 function getTutorName(tutor) {
   const direct = clean(
     tutor?.name ||
       tutor?.full_name ||
-      tutor?.fullName
+      tutor?.fullName ||
+      tutor?.tutor?.name ||
+      tutor?.user?.name
   );
 
   if (direct) return direct;
@@ -92,10 +155,47 @@ function getTutorName(tutor) {
     .join(" ");
 }
 
-function getAuthHeaders() {
-  const token =
-    localStorage.getItem("scholiqen_academy_token") ||
-    localStorage.getItem("academy_token");
+function getAuthToken() {
+  const keys = [
+    "scholiqen_academy_token",
+    "academy_token",
+    "academy_access_token",
+    "scholiqen_token",
+    "access_token",
+    "token",
+  ];
+
+  const storages = [];
+
+  try {
+    storages.push(window.localStorage);
+  } catch {
+    // Storage may be unavailable.
+  }
+
+  try {
+    storages.push(window.sessionStorage);
+  } catch {
+    // Storage may be unavailable.
+  }
+
+  for (const storage of storages) {
+    for (const key of keys) {
+      try {
+        const token = clean(storage.getItem(key));
+
+        if (token) return token;
+      } catch {
+        // Continue checking.
+      }
+    }
+  }
+
+  return "";
+}
+
+function getAuthHeaders(tutorReference = "") {
+  const token = getAuthToken();
 
   const headers = {
     Accept: "application/json",
@@ -105,21 +205,62 @@ function getAuthHeaders() {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  const reference = clean(tutorReference);
+
+  if (reference) {
+    headers["x-tutor-reference"] = reference;
+    headers["x-tutor-ref"] = reference;
+    headers["x-academy-tutor-reference"] = reference;
+  }
+
   return headers;
+}
+
+function addTutorReferenceToUrl(url, tutorReference) {
+  const reference = clean(tutorReference);
+
+  if (!reference) return url;
+
+  url.searchParams.set("reference", reference);
+  url.searchParams.set("tutorReference", reference);
+  url.searchParams.set("tutor_reference", reference);
+
+  return url;
+}
+
+async function readApiResponse(response) {
+  const contentType =
+    response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const responseText = await response.text();
+
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    return {
+      message: responseText,
+    };
+  }
 }
 
 function getFileUrl(url) {
   if (!url) return "";
 
-  if (/^https?:\/\//i.test(url)) {
-    return url;
+  const value = clean(url);
+
+  if (/^https?:\/\//i.test(value)) {
+    return value;
   }
 
-  if (url.startsWith("/")) {
-    return `${API_BASE_URL}${url}`;
+  if (value.startsWith("/")) {
+    return `${API_BASE_URL}${value}`;
   }
 
-  return `${API_BASE_URL}/${url}`;
+  return `${API_BASE_URL}/${value}`;
 }
 
 function formatDate(value) {
@@ -144,7 +285,7 @@ function formatDateTime(value) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return "—";
   }
 
   return date.toLocaleString("en-NG", {
@@ -295,19 +436,22 @@ function getResponseText(submission) {
 }
 
 function getMaxScore(submission) {
-  return (
-    Number(
-      submission.max_score ??
-        submission.maxScore ??
-        submission.task_max_score ??
-        submission.taskMaxScore ??
-        submission.task?.max_score ??
-        submission.task?.maxScore ??
-        submission.assignment?.max_score ??
-        submission.assignment?.maxScore ??
-        100
-    ) || 100
-  );
+  const value =
+    submission.max_score ??
+    submission.maxScore ??
+    submission.task_max_score ??
+    submission.taskMaxScore ??
+    submission.task?.max_score ??
+    submission.task?.maxScore ??
+    submission.assignment?.max_score ??
+    submission.assignment?.maxScore ??
+    100;
+
+  const number = Number(value);
+
+  return Number.isFinite(number) && number > 0
+    ? number
+    : 100;
 }
 
 function getScore(submission) {
@@ -325,12 +469,14 @@ function getScore(submission) {
 }
 
 function getStatus(submission) {
-  return clean(
+  const status = clean(
     submission.status ||
       submission.submission_status ||
       submission.submissionStatus ||
       "submitted"
   ).toLowerCase();
+
+  return status;
 }
 
 function getSubmissionId(submission) {
@@ -346,14 +492,11 @@ function getSubmissionId(submission) {
 ========================================================= */
 
 function isGraded(submission) {
-  const status = getStatus(submission);
-  const score = getScore(submission);
+  return getStatus(submission) === "graded";
+}
 
-  return (
-    status === "reviewed" ||
-    status === "graded" ||
-    score !== null
-  );
+function isReturned(submission) {
+  return getStatus(submission) === "returned";
 }
 
 function isOverdue(submission) {
@@ -367,13 +510,6 @@ function isOverdue(submission) {
     return false;
   }
 
-  /*
-    A submitted task is not considered "overdue" merely because
-    the deadline has passed. It becomes "Late" instead.
-
-    "Overdue" here means the task deadline has passed and the
-    submission is still awaiting review.
-  */
   const submittedAt = getSubmittedAt(submission);
 
   if (submittedAt) {
@@ -413,6 +549,16 @@ function getSubmissionState(submission) {
     };
   }
 
+  if (isReturned(submission)) {
+    return {
+      key: "returned",
+      label: "Returned",
+      className:
+        "text-orange-300 bg-orange-400/10 border-orange-400/20",
+      icon: AlertCircle,
+    };
+  }
+
   if (isLateSubmission(submission)) {
     return {
       key: "late",
@@ -440,38 +586,6 @@ function getSubmissionState(submission) {
       "text-cyan-300 bg-cyan-400/10 border-cyan-400/20",
     icon: Clock3,
   };
-}
-
-function getStatusLabel(status) {
-  const value = clean(status).toLowerCase();
-
-  if (value === "reviewed" || value === "graded") {
-    return "Graded";
-  }
-
-  if (value === "returned") {
-    return "Returned";
-  }
-
-  if (value === "submitted") {
-    return "Submitted";
-  }
-
-  return status || "Submitted";
-}
-
-function getStatusClass(status) {
-  const value = clean(status).toLowerCase();
-
-  if (value === "reviewed" || value === "graded") {
-    return "text-emerald-300 bg-emerald-400/10 border-emerald-400/20";
-  }
-
-  if (value === "returned") {
-    return "text-amber-300 bg-amber-400/10 border-amber-400/20";
-  }
-
-  return "text-cyan-300 bg-cyan-400/10 border-cyan-400/20";
 }
 
 /* =========================================================
@@ -582,20 +696,17 @@ export default function TutorTaskSubmissions() {
 
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const [selectedSubmission, setSelectedSubmission] =
     useState(null);
 
   const [reviewScore, setReviewScore] = useState("");
-  const [reviewFeedback, setReviewFeedback] =
-    useState("");
+  const [reviewFeedback, setReviewFeedback] = useState("");
 
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState("");
-  const [reviewSuccess, setReviewSuccess] =
-    useState("");
+  const [reviewSuccess, setReviewSuccess] = useState("");
 
   /* =======================================================
      LOAD TUTOR
@@ -607,6 +718,9 @@ export default function TutorTaskSubmissions() {
     if (storedTutor) {
       setTutor(storedTutor);
     } else {
+      setError(
+        "Your Academy tutor session could not be found. Please sign out and sign in again."
+      );
       setLoading(false);
     }
   }, []);
@@ -626,60 +740,26 @@ export default function TutorTaskSubmissions() {
 
         setError("");
 
-        const tutorReference =
-          getTutorReference(tutor);
+        const tutorReference = getTutorReference(tutor);
 
-        const url = new URL(SUBMISSIONS_URL);
-
-        if (tutorReference) {
-          url.searchParams.set(
-            "tutorReference",
-            tutorReference
-          );
-
-          url.searchParams.set(
-            "tutor_reference",
-            tutorReference
-          );
-
-          url.searchParams.set(
-            "reference",
-            tutorReference
+        if (!tutorReference) {
+          throw new Error(
+            "Tutor reference is missing from your Academy login session. Please sign out and sign in again."
           );
         }
 
-        const response = await fetch(
-          url.toString(),
-          {
-            method: "GET",
-            headers: getAuthHeaders(),
-            credentials: "include",
-          }
+        const url = addTutorReferenceToUrl(
+          new URL(SUBMISSIONS_URL),
+          tutorReference
         );
 
-        const contentType =
-          response.headers.get("content-type") ||
-          "";
+        const response = await fetch(url.toString(), {
+          method: "GET",
+          headers: getAuthHeaders(tutorReference),
+          credentials: "include",
+        });
 
-        let data;
-
-        if (
-          contentType.includes(
-            "application/json"
-          )
-        ) {
-          data = await response.json();
-        } else {
-          const text = await response.text();
-
-          try {
-            data = JSON.parse(text);
-          } catch {
-            data = {
-              message: text,
-            };
-          }
-        }
+        const data = await readApiResponse(response);
 
         if (!response.ok) {
           throw new Error(
@@ -696,9 +776,7 @@ export default function TutorTaskSubmissions() {
             data?.rows ||
             [];
 
-        setSubmissions(
-          Array.isArray(rows) ? rows : []
-        );
+        setSubmissions(Array.isArray(rows) ? rows : []);
       } catch (err) {
         console.error(
           "Tutor task submissions error:",
@@ -733,8 +811,7 @@ export default function TutorTaskSubmissions() {
     const query = clean(search).toLowerCase();
 
     return submissions.filter((submission) => {
-      const state =
-        getSubmissionState(submission);
+      const state = getSubmissionState(submission);
 
       if (
         statusFilter !== "all" &&
@@ -743,9 +820,7 @@ export default function TutorTaskSubmissions() {
         return false;
       }
 
-      if (!query) {
-        return true;
-      }
+      if (!query) return true;
 
       const searchable = [
         getStudentName(submission),
@@ -763,11 +838,7 @@ export default function TutorTaskSubmissions() {
 
       return searchable.includes(query);
     });
-  }, [
-    submissions,
-    search,
-    statusFilter,
-  ]);
+  }, [submissions, search, statusFilter]);
 
   /* =======================================================
      COUNTS
@@ -778,13 +849,15 @@ export default function TutorTaskSubmissions() {
     let graded = 0;
     let overdue = 0;
     let late = 0;
+    let returned = 0;
 
     submissions.forEach((submission) => {
-      const state =
-        getSubmissionState(submission);
+      const state = getSubmissionState(submission);
 
       if (state.key === "graded") {
         graded++;
+      } else if (state.key === "returned") {
+        returned++;
       } else if (state.key === "overdue") {
         overdue++;
       } else if (state.key === "late") {
@@ -800,6 +873,7 @@ export default function TutorTaskSubmissions() {
       graded,
       overdue,
       late,
+      returned,
     };
   }, [submissions]);
 
@@ -840,6 +914,8 @@ export default function TutorTaskSubmissions() {
 
   /* =======================================================
      REVIEW SUBMISSION
+     DATABASE ALLOWED STATUSES:
+     submitted, graded, returned
   ======================================================= */
 
   const reviewSubmission = async () => {
@@ -860,19 +936,14 @@ export default function TutorTaskSubmissions() {
     const score = Number(rawScore);
 
     if (!Number.isFinite(score)) {
-      setReviewError(
-        "Score must be a valid number."
-      );
+      setReviewError("Score must be a valid number.");
       return;
     }
 
-    const maxScore =
-      getMaxScore(selectedSubmission);
+    const maxScore = getMaxScore(selectedSubmission);
 
     if (score < 0) {
-      setReviewError(
-        "Score cannot be below 0."
-      );
+      setReviewError("Score cannot be below 0.");
       return;
     }
 
@@ -886,10 +957,16 @@ export default function TutorTaskSubmissions() {
     try {
       setReviewing(true);
 
-      const submissionId =
-        getSubmissionId(
-          selectedSubmission
+      const tutorReference = getTutorReference(tutor);
+
+      if (!tutorReference) {
+        throw new Error(
+          "Tutor reference is missing from your Academy login session. Please sign out and sign in again."
         );
+      }
+
+      const submissionId =
+        getSubmissionId(selectedSubmission);
 
       if (!submissionId) {
         throw new Error(
@@ -897,128 +974,102 @@ export default function TutorTaskSubmissions() {
         );
       }
 
-      const response = await fetch(
-        `${SUBMISSIONS_URL}/${encodeURIComponent(
-          submissionId
-        )}/review`,
-        {
-          method: "PATCH",
-          headers: {
-            ...getAuthHeaders(),
-            "Content-Type":
-              "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            score,
-            feedback:
-              reviewFeedback.trim(),
-            status: "reviewed",
-          }),
-        }
+      const reviewUrl = addTutorReferenceToUrl(
+        new URL(
+          `${SUBMISSIONS_URL}/${encodeURIComponent(
+            submissionId
+          )}/review`
+        ),
+        tutorReference
       );
 
-      const contentType =
-        response.headers.get("content-type") ||
-        "";
+      const feedback = reviewFeedback.trim();
 
-      let data;
+      const response = await fetch(reviewUrl.toString(), {
+        method: "PATCH",
+        headers: {
+          ...getAuthHeaders(tutorReference),
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          score,
+          feedback,
+          status: "graded",
+          reference: tutorReference,
+          tutorReference,
+          tutor_reference: tutorReference,
+        }),
+      });
 
-      if (
-        contentType.includes(
-          "application/json"
-        )
-      ) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
+      const data = await readApiResponse(response);
 
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = {
-            message: text,
-          };
-        }
-      }
-
-      if (!response.ok) {
+      if (!response.ok || data?.success === false) {
         throw new Error(
           data?.message ||
             data?.error ||
-            `Unable to review submission (${response.status})`
+            `Unable to grade submission (${response.status})`
         );
       }
 
       const reviewedSubmission =
         data?.submission ||
+        data?.data?.submission ||
         data?.data ||
         data;
 
+      const updatedAt =
+        reviewedSubmission?.reviewed_at ||
+        reviewedSubmission?.reviewedAt ||
+        reviewedSubmission?.graded_at ||
+        reviewedSubmission?.gradedAt ||
+        new Date().toISOString();
+
+      const updatedFields = {
+        ...(reviewedSubmission &&
+        typeof reviewedSubmission === "object"
+          ? reviewedSubmission
+          : {}),
+        score,
+        feedback,
+        status: "graded",
+        reviewed_at: updatedAt,
+        graded_at: updatedAt,
+      };
+
       setSubmissions((current) =>
         current.map((item) => {
-          const itemId =
-            getSubmissionId(item);
+          const itemId = getSubmissionId(item);
 
-          if (
-            String(itemId) !==
-            String(submissionId)
-          ) {
+          if (String(itemId) !== String(submissionId)) {
             return item;
           }
 
           return {
             ...item,
-            ...(reviewedSubmission &&
-            typeof reviewedSubmission ===
-              "object"
-              ? reviewedSubmission
-              : {}),
-            score,
-            feedback:
-              reviewFeedback.trim(),
-            status: "reviewed",
-            reviewed_at:
-              reviewedSubmission?.reviewed_at ||
-              new Date().toISOString(),
+            ...updatedFields,
           };
         })
       );
 
-      setSelectedSubmission(
-        (current) => {
-          if (!current) return current;
+      setSelectedSubmission((current) => {
+        if (!current) return current;
 
-          return {
-            ...current,
-            ...(reviewedSubmission &&
-            typeof reviewedSubmission ===
-              "object"
-              ? reviewedSubmission
-              : {}),
-            score,
-            feedback:
-              reviewFeedback.trim(),
-            status: "reviewed",
-            reviewed_at:
-              reviewedSubmission?.reviewed_at ||
-              new Date().toISOString(),
-          };
-        }
-      );
+        return {
+          ...current,
+          ...updatedFields,
+        };
+      });
 
       setReviewSuccess(
         "Submission graded successfully."
       );
     } catch (err) {
-      console.error(
-        "Review submission error:",
-        err
-      );
+      console.error("Review submission error:", err);
 
       setReviewError(
         err?.message ||
-          "Unable to review this submission."
+          "Unable to grade this submission."
       );
     } finally {
       setReviewing(false);
@@ -1059,21 +1110,14 @@ export default function TutorTaskSubmissions() {
 
             <button
               type="button"
-              onClick={() =>
-                fetchSubmissions(false)
-              }
+              onClick={() => fetchSubmissions(false)}
               disabled={refreshing}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 text-sm font-semibold text-slate-200 transition hover:border-cyan-500/40 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw
                 size={17}
-                className={
-                  refreshing
-                    ? "animate-spin"
-                    : ""
-                }
+                className={refreshing ? "animate-spin" : ""}
               />
-
               Refresh
             </button>
           </div>
@@ -1090,23 +1134,18 @@ export default function TutorTaskSubmissions() {
 
               <div>
                 <p className="text-sm font-semibold text-white">
-                  {getTutorName(tutor) ||
-                    "Tutor"}
+                  {getTutorName(tutor) || "Tutor"}
                 </p>
 
                 <p className="text-xs text-slate-500">
-                  Reference:{" "}
-                  {getTutorReference(tutor) ||
-                    "—"}
+                  Reference: {getTutorReference(tutor) || "—"}
                 </p>
               </div>
             </div>
 
             <div className="text-xs text-slate-500">
               {counts.total}{" "}
-              {counts.total === 1
-                ? "submission"
-                : "submissions"}
+              {counts.total === 1 ? "submission" : "submissions"}
             </div>
           </div>
         )}
@@ -1132,9 +1171,7 @@ export default function TutorTaskSubmissions() {
 
             <button
               type="button"
-              onClick={() =>
-                fetchSubmissions(true)
-              }
+              onClick={() => fetchSubmissions(true)}
               className="rounded-lg border border-red-400/20 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-400/10"
             >
               Retry
@@ -1145,7 +1182,6 @@ export default function TutorTaskSubmissions() {
         {/* STATS */}
 
         <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-
           <StatCard
             icon={<ClipboardList size={19} />}
             label="Total"
@@ -1170,14 +1206,12 @@ export default function TutorTaskSubmissions() {
             value={counts.overdue}
             danger={counts.overdue > 0}
           />
-
         </div>
 
         {/* FILTERS */}
 
         <div className="mb-5 rounded-2xl border border-slate-800 bg-[#071426] p-4">
           <div className="flex flex-col gap-3">
-
             <div className="relative">
               <Search
                 size={17}
@@ -1188,9 +1222,7 @@ export default function TutorTaskSubmissions() {
                 type="text"
                 value={search}
                 onChange={(event) =>
-                  setSearch(
-                    event.target.value
-                  )
+                  setSearch(event.target.value)
                 }
                 placeholder="Search student, task, subject or class..."
                 className="h-11 w-full rounded-xl border border-slate-700 bg-[#020617] pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500/50"
@@ -1200,10 +1232,7 @@ export default function TutorTaskSubmissions() {
             <div className="flex gap-2 overflow-x-auto pb-1">
               {[
                 ["all", "All"],
-                [
-                  "submitted",
-                  "Awaiting review",
-                ],
+                ["submitted", "Awaiting review"],
                 ["graded", "Graded"],
                 ["overdue", "Overdue"],
                 ["late", "Late"],
@@ -1211,9 +1240,7 @@ export default function TutorTaskSubmissions() {
                 <button
                   key={value}
                   type="button"
-                  onClick={() =>
-                    setStatusFilter(value)
-                  }
+                  onClick={() => setStatusFilter(value)}
                   className={`whitespace-nowrap rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
                     statusFilter === value
                       ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
@@ -1224,7 +1251,6 @@ export default function TutorTaskSubmissions() {
                 </button>
               ))}
             </div>
-
           </div>
         </div>
 
@@ -1256,26 +1282,16 @@ export default function TutorTaskSubmissions() {
           />
         ) : (
           <div className="space-y-3">
-            {filteredSubmissions.map(
-              (submission, index) => (
-                <SubmissionCard
-                  key={
-                    getSubmissionId(
-                      submission
-                    ) ||
-                    `${getStudentName(
-                      submission
-                    )}-${index}`
-                  }
-                  submission={submission}
-                  onOpen={() =>
-                    openSubmission(
-                      submission
-                    )
-                  }
-                />
-              )
-            )}
+            {filteredSubmissions.map((submission, index) => (
+              <SubmissionCard
+                key={
+                  getSubmissionId(submission) ||
+                  `${getStudentName(submission)}-${index}`
+                }
+                submission={submission}
+                onOpen={() => openSubmission(submission)}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -1330,9 +1346,7 @@ function StatCard({
         {icon}
       </div>
 
-      <p className="text-sm text-slate-500">
-        {label}
-      </p>
+      <p className="text-sm text-slate-500">{label}</p>
 
       <p className="mt-1 text-2xl font-bold text-white">
         {value}
@@ -1349,67 +1363,34 @@ function SubmissionCard({
   submission,
   onOpen,
 }) {
-  const studentName =
-    getStudentName(submission);
-
-  const taskTitle =
-    getTaskTitle(submission);
-
-  const subject =
-    getSubject(submission);
-
-  const grade =
-    getGrade(submission);
-
-  const submittedAt =
-    getSubmittedAt(submission);
-
-  const dueAt =
-    getDueAt(submission);
-
-  const score =
-    getScore(submission);
-
-  const maxScore =
-    getMaxScore(submission);
-
-  const state =
-    getSubmissionState(submission);
-
-  const StateIcon =
-    state.icon;
+  const studentName = getStudentName(submission);
+  const taskTitle = getTaskTitle(submission);
+  const subject = getSubject(submission);
+  const grade = getGrade(submission);
+  const submittedAt = getSubmittedAt(submission);
+  const dueAt = getDueAt(submission);
+  const score = getScore(submission);
+  const maxScore = getMaxScore(submission);
+  const state = getSubmissionState(submission);
+  const StateIcon = state.icon;
 
   return (
     <motion.button
       type="button"
-      initial={{
-        opacity: 0,
-        y: 8,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      transition={{
-        duration: 0.2,
-      }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
       onClick={onOpen}
       className="group w-full rounded-2xl border border-slate-800 bg-[#071426] p-4 text-left transition hover:border-cyan-500/30 hover:bg-[#0a192d] sm:p-5"
     >
       <div className="flex flex-col gap-4">
-
-        {/* TOP */}
-
         <div className="flex items-start gap-3">
-
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-cyan-300">
             <User size={19} />
           </div>
 
           <div className="min-w-0 flex-1">
-
             <div className="flex flex-wrap items-center gap-2">
-
               <h3 className="text-sm font-semibold text-white">
                 {studentName}
               </h3>
@@ -1418,24 +1399,17 @@ function SubmissionCard({
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${state.className}`}
               >
                 <StateIcon size={11} />
-
                 {state.label}
               </span>
-
             </div>
 
-            {/* ACTUAL TASK */}
-
             <div className="mt-3 rounded-xl border border-slate-800 bg-[#020617] p-3">
-
               <div className="flex items-start gap-3">
-
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300">
                   <FileText size={17} />
                 </div>
 
                 <div className="min-w-0 flex-1">
-
                   <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cyan-400">
                     Task submitted
                   </p>
@@ -1444,24 +1418,16 @@ function SubmissionCard({
                     {taskTitle}
                   </p>
 
-                  {getTaskDescription(
-                    submission
-                  ) && (
+                  {getTaskDescription(submission) && (
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-                      {getTaskDescription(
-                        submission
-                      )}
+                      {getTaskDescription(submission)}
                     </p>
                   )}
-
                 </div>
               </div>
             </div>
 
-            {/* INFO */}
-
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-
               <span className="inline-flex items-center gap-1.5">
                 <BookOpen size={13} />
                 {subject}
@@ -1474,41 +1440,28 @@ function SubmissionCard({
 
               <span className="inline-flex items-center gap-1.5">
                 <CalendarDays size={13} />
-                Submitted{" "}
-                {formatDate(
-                  submittedAt
-                )}
+                Submitted {formatDate(submittedAt)}
               </span>
 
               {dueAt && (
                 <span
                   className={`inline-flex items-center gap-1.5 ${
-                    isLateSubmission(
-                      submission
-                    )
+                    isLateSubmission(submission)
                       ? "text-orange-400"
-                      : isOverdue(
-                          submission
-                        )
-                      ? "text-red-400"
-                      : ""
+                      : isOverdue(submission)
+                        ? "text-red-400"
+                        : ""
                   }`}
                 >
                   <Clock3 size={13} />
-                  Due{" "}
-                  {formatDate(dueAt)}
+                  Due {formatDate(dueAt)}
                 </span>
               )}
-
             </div>
-
           </div>
         </div>
 
-        {/* BOTTOM */}
-
         <div className="flex items-center justify-between gap-5 border-t border-slate-800 pt-4">
-
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
               Score
@@ -1525,9 +1478,7 @@ function SubmissionCard({
             <Eye size={16} />
             View submission
           </div>
-
         </div>
-
       </div>
     </motion.button>
   );
@@ -1543,7 +1494,6 @@ function EmptyState({
 }) {
   return (
     <div className="flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-[#071426] px-6 text-center">
-
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-slate-500">
         <ClipboardList size={25} />
       </div>
@@ -1589,79 +1539,37 @@ function ReviewModal({
   onReview,
   onClose,
 }) {
-  const studentName =
-    getStudentName(submission);
+  const studentName = getStudentName(submission);
+  const studentEmail = getStudentEmail(submission);
+  const taskId = getTaskId(submission);
+  const taskTitle = getTaskTitle(submission);
+  const taskDescription = getTaskDescription(submission);
+  const taskInstructions = getTaskInstructions(submission);
+  const subject = getSubject(submission);
+  const grade = getGrade(submission);
+  const dueAt = getDueAt(submission);
+  const submittedAt = getSubmittedAt(submission);
+  const responseText = getResponseText(submission);
+  const maxScore = getMaxScore(submission);
+  const currentScore = getScore(submission);
 
-  const studentEmail =
-    getStudentEmail(submission);
+  const attachments = parseAttachments(
+    submission.attachments ||
+      submission.submission_attachments ||
+      submission.submissionAttachments
+  );
 
-  const taskId =
-    getTaskId(submission);
-
-  const taskTitle =
-    getTaskTitle(submission);
-
-  const taskDescription =
-    getTaskDescription(
-      submission
-    );
-
-  const taskInstructions =
-    getTaskInstructions(
-      submission
-    );
-
-  const subject =
-    getSubject(submission);
-
-  const grade =
-    getGrade(submission);
-
-  const dueAt =
-    getDueAt(submission);
-
-  const submittedAt =
-    getSubmittedAt(submission);
-
-  const responseText =
-    getResponseText(submission);
-
-  const maxScore =
-    getMaxScore(submission);
-
-  const currentScore =
-    getScore(submission);
-
-  const attachments =
-    parseAttachments(
-      submission.attachments ||
-        submission.submission_attachments ||
-        submission.submissionAttachments
-    );
-
-  const state =
-    getSubmissionState(submission);
-
-  const StateIcon =
-    state.icon;
+  const state = getSubmissionState(submission);
+  const StateIcon = state.icon;
 
   return (
     <motion.div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm sm:p-5"
-      initial={{
-        opacity: 0,
-      }}
-      animate={{
-        opacity: 1,
-      }}
-      exit={{
-        opacity: 0,
-      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       onMouseDown={(event) => {
-        if (
-          event.target ===
-          event.currentTarget
-        ) {
+        if (event.target === event.currentTarget) {
           onClose();
         }
       }}
@@ -1682,20 +1590,14 @@ function ReviewModal({
           y: 20,
           scale: 0.98,
         }}
-        transition={{
-          duration: 0.2,
-        }}
+        transition={{ duration: 0.2 }}
         className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-[#071426] shadow-2xl"
       >
-
         {/* HEADER */}
 
         <div className="flex items-start justify-between gap-4 border-b border-slate-800 px-4 py-4 sm:px-6">
-
           <div className="min-w-0 flex-1">
-
             <div className="flex flex-wrap items-center gap-2">
-
               <span className="rounded-lg bg-cyan-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
                 Student task submission
               </span>
@@ -1706,7 +1608,6 @@ function ReviewModal({
                 <StateIcon size={11} />
                 {state.label}
               </span>
-
             </div>
 
             <h2 className="mt-2 text-lg font-bold text-white sm:text-xl">
@@ -1719,7 +1620,6 @@ function ReviewModal({
                 {studentName}
               </span>
             </p>
-
           </div>
 
           <button
@@ -1731,23 +1631,17 @@ function ReviewModal({
           >
             <X size={18} />
           </button>
-
         </div>
 
         {/* BODY */}
 
         <div className="flex-1 overflow-y-auto">
-
           <div className="grid lg:grid-cols-[1fr_350px]">
 
             {/* LEFT */}
 
             <div className="space-y-5 p-4 sm:p-6">
-
-              {/* ACTUAL TASK */}
-
               <section className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.04] p-5">
-
                 <div className="mb-4 flex items-center gap-2">
                   <FileText
                     size={18}
@@ -1770,60 +1664,34 @@ function ReviewModal({
                 )}
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-
                   <InfoBox
-                    icon={
-                      <BookOpen
-                        size={15}
-                      />
-                    }
+                    icon={<BookOpen size={15} />}
                     label="Subject"
                     value={subject}
                   />
 
                   <InfoBox
-                    icon={
-                      <GraduationCap
-                        size={15}
-                      />
-                    }
+                    icon={<GraduationCap size={15} />}
                     label="Class"
                     value={grade}
                   />
 
                   <InfoBox
-                    icon={
-                      <CalendarDays
-                        size={15}
-                      />
-                    }
+                    icon={<CalendarDays size={15} />}
                     label="Deadline"
-                    value={formatDateTime(
-                      dueAt
-                    )}
+                    value={formatDateTime(dueAt)}
                   />
 
                   <InfoBox
-                    icon={
-                      <Clock3
-                        size={15}
-                      />
-                    }
+                    icon={<Clock3 size={15} />}
                     label="Submitted"
-                    value={formatDateTime(
-                      submittedAt
-                    )}
+                    value={formatDateTime(submittedAt)}
                   />
-
                 </div>
-
               </section>
-
-              {/* TASK DESCRIPTION */}
 
               {taskDescription && (
                 <section>
-
                   <div className="mb-2 flex items-center gap-2">
                     <BookOpen
                       size={17}
@@ -1836,21 +1704,15 @@ function ReviewModal({
                   </div>
 
                   <div className="rounded-2xl border border-slate-800 bg-[#020617] p-4">
-
                     <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
                       {taskDescription}
                     </p>
-
                   </div>
-
                 </section>
               )}
 
-              {/* INSTRUCTIONS */}
-
               {taskInstructions && (
                 <section>
-
                   <div className="mb-2 flex items-center gap-2">
                     <ClipboardList
                       size={17}
@@ -1863,28 +1725,20 @@ function ReviewModal({
                   </div>
 
                   <div className="rounded-2xl border border-slate-800 bg-[#020617] p-4">
-
                     <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
                       {taskInstructions}
                     </p>
-
                   </div>
-
                 </section>
               )}
 
-              {/* STUDENT */}
-
               <section className="rounded-2xl border border-slate-800 bg-[#020617] p-4">
-
                 <div className="flex items-start gap-3">
-
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
                     <User size={19} />
                   </div>
 
                   <div className="min-w-0 flex-1">
-
                     <p className="text-sm font-semibold text-white">
                       {studentName}
                     </p>
@@ -1894,19 +1748,12 @@ function ReviewModal({
                         {studentEmail}
                       </p>
                     )}
-
                   </div>
-
                 </div>
-
               </section>
 
-              {/* RESPONSE */}
-
               <section>
-
                 <div className="mb-2 flex items-center gap-2">
-
                   <MessageSquare
                     size={17}
                     className="text-cyan-400"
@@ -1915,11 +1762,9 @@ function ReviewModal({
                   <h3 className="text-sm font-semibold text-white">
                     Student response
                   </h3>
-
                 </div>
 
                 <div className="min-h-[150px] rounded-2xl border border-slate-800 bg-[#020617] p-4">
-
                   {responseText ? (
                     <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
                       {responseText}
@@ -1931,19 +1776,14 @@ function ReviewModal({
                       </p>
                     </div>
                   )}
-
                 </div>
-
               </section>
 
               {/* ATTACHMENTS */}
 
               <section>
-
                 <div className="mb-3 flex items-center justify-between">
-
                   <div className="flex items-center gap-2">
-
                     <FileText
                       size={17}
                       className="text-cyan-400"
@@ -1952,21 +1792,15 @@ function ReviewModal({
                     <h3 className="text-sm font-semibold text-white">
                       Student submitted files
                     </h3>
-
                   </div>
 
                   <span className="text-xs text-slate-600">
                     {attachments.length}{" "}
-                    {attachments.length ===
-                    1
-                      ? "file"
-                      : "files"}
+                    {attachments.length === 1 ? "file" : "files"}
                   </span>
-
                 </div>
 
-                {attachments.length ===
-                0 ? (
+                {attachments.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-800 bg-[#020617] p-6 text-center">
                     <p className="text-sm text-slate-600">
                       No files were submitted.
@@ -1974,47 +1808,34 @@ function ReviewModal({
                   </div>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
-
-                    {attachments.map(
-                      (file, index) => (
-                        <AttachmentCard
-                          key={`${getAttachmentName(
-                            file,
-                            index
-                          )}-${index}`}
-                          file={file}
-                          index={index}
-                        />
-                      )
-                    )}
-
+                    {attachments.map((file, index) => (
+                      <AttachmentCard
+                        key={`${getAttachmentName(
+                          file,
+                          index
+                        )}-${index}`}
+                        file={file}
+                        index={index}
+                      />
+                    ))}
                   </div>
                 )}
-
               </section>
-
             </div>
 
             {/* RIGHT */}
 
             <aside className="border-t border-slate-800 bg-[#061121] p-4 sm:p-6 lg:border-l lg:border-t-0">
-
               <div className="lg:sticky lg:top-0">
-
-                {/* GRADE SUMMARY */}
-
                 <div className="mb-5 rounded-2xl border border-slate-800 bg-[#020617] p-4">
-
                   <div className="flex items-center justify-between">
-
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
                         Current grade
                       </p>
 
                       <p className="mt-1 text-2xl font-bold text-white">
-                        {currentScore ===
-                        null
+                        {currentScore === null
                           ? "—"
                           : `${currentScore}/${maxScore}`}
                       </p>
@@ -2023,17 +1844,11 @@ function ReviewModal({
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
                       <Award size={20} />
                     </div>
-
                   </div>
-
                 </div>
 
-                {/* REVIEW */}
-
                 <div className="mb-5">
-
                   <div className="mb-2 flex items-center gap-2">
-
                     <Award
                       size={18}
                       className="text-cyan-400"
@@ -2042,26 +1857,19 @@ function ReviewModal({
                     <h3 className="text-sm font-semibold text-white">
                       Grade submission
                     </h3>
-
                   </div>
 
                   <p className="text-xs leading-5 text-slate-500">
-                    Give the student a score and
-                    optional feedback.
+                    Give the student a score and optional feedback.
                   </p>
-
                 </div>
 
-                {/* SCORE */}
-
                 <label className="block">
-
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Score
                   </span>
 
                   <div className="flex items-center gap-2">
-
                     <input
                       type="number"
                       min="0"
@@ -2069,9 +1877,7 @@ function ReviewModal({
                       step="0.01"
                       value={score}
                       onChange={(event) =>
-                        setScore(
-                          event.target.value
-                        )
+                        setScore(event.target.value)
                       }
                       placeholder="0"
                       className="h-12 w-full rounded-xl border border-slate-700 bg-[#020617] px-4 text-base font-semibold text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-500/50"
@@ -2080,15 +1886,10 @@ function ReviewModal({
                     <span className="shrink-0 text-sm font-semibold text-slate-500">
                       / {maxScore}
                     </span>
-
                   </div>
-
                 </label>
 
-                {/* FEEDBACK */}
-
                 <label className="mt-5 block">
-
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Feedback
                   </span>
@@ -2096,24 +1897,17 @@ function ReviewModal({
                   <textarea
                     value={feedback}
                     onChange={(event) =>
-                      setFeedback(
-                        event.target.value
-                      )
+                      setFeedback(event.target.value)
                     }
                     rows={8}
                     placeholder="Write feedback for the student..."
                     className="w-full resize-none rounded-xl border border-slate-700 bg-[#020617] px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-500/50"
                   />
-
                 </label>
-
-                {/* MESSAGES */}
 
                 {error && (
                   <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3">
-
                     <div className="flex gap-2">
-
                       <AlertCircle
                         size={16}
                         className="mt-0.5 shrink-0 text-red-400"
@@ -2122,17 +1916,13 @@ function ReviewModal({
                       <p className="text-xs leading-5 text-red-300">
                         {error}
                       </p>
-
                     </div>
-
                   </div>
                 )}
 
                 {success && (
                   <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-
                     <div className="flex gap-2">
-
                       <CheckCircle2
                         size={16}
                         className="mt-0.5 shrink-0 text-emerald-400"
@@ -2141,13 +1931,9 @@ function ReviewModal({
                       <p className="text-xs leading-5 text-emerald-300">
                         {success}
                       </p>
-
                     </div>
-
                   </div>
                 )}
-
-                {/* SAVE */}
 
                 <button
                   type="button"
@@ -2161,13 +1947,11 @@ function ReviewModal({
                         size={17}
                         className="animate-spin"
                       />
-
                       Saving grade...
                     </>
                   ) : (
                     <>
                       <Send size={17} />
-
                       Save grade
                     </>
                   )}
@@ -2181,15 +1965,10 @@ function ReviewModal({
                 >
                   Close
                 </button>
-
               </div>
-
             </aside>
-
           </div>
-
         </div>
-
       </motion.div>
     </motion.div>
   );
@@ -2206,7 +1985,6 @@ function InfoBox({
 }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-[#020617] p-3">
-
       <div className="flex items-center gap-2 text-cyan-400">
         {icon}
 
@@ -2218,24 +1996,7 @@ function InfoBox({
       <p className="mt-2 text-xs font-semibold text-slate-300">
         {value || "—"}
       </p>
-
     </div>
-  );
-}
-
-/* =========================================================
-   INFO BADGE
-========================================================= */
-
-function InfoBadge({
-  icon,
-  text,
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium text-slate-400">
-      {icon}
-      {text}
-    </span>
   );
 }
 
@@ -2247,35 +2008,21 @@ function AttachmentCard({
   file,
   index,
 }) {
-  const name =
-    getAttachmentName(
-      file,
-      index
-    );
+  const name = getAttachmentName(file, index);
+  const url = getAttachmentUrl(file);
 
-  const url =
-    getAttachmentUrl(file);
-
-  const image =
-    isImage(file);
-
-  const video =
-    isVideo(file);
-
-  const pdf =
-    isPdf(file);
+  const image = isImage(file);
+  const video = isVideo(file);
+  const pdf = isPdf(file);
 
   const Icon = image
     ? ImageIcon
     : video
-    ? Video
-    : FileText;
+      ? Video
+      : FileText;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#020617]">
-
-      {/* IMAGE */}
-
       {image && url && (
         <a
           href={url}
@@ -2292,44 +2039,32 @@ function AttachmentCard({
         </a>
       )}
 
-      {/* VIDEO */}
-
       {video && url && (
         <div className="border-b border-slate-800 bg-black p-2">
-
           <video
             src={url}
             controls
             className="h-44 w-full rounded-xl object-contain"
           />
-
         </div>
       )}
 
-      {/* PDF */}
-
       {pdf && url && (
         <div className="border-b border-slate-800 bg-white">
-
           <iframe
             src={`${url}#page=1&toolbar=0&navpanes=0&scrollbar=0`}
             title={name}
             className="h-44 w-full"
           />
-
         </div>
       )}
 
-      {/* FILE INFO */}
-
       <div className="flex items-center gap-3 p-3">
-
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-cyan-300">
           <Icon size={18} />
         </div>
 
         <div className="min-w-0 flex-1">
-
           <p
             className="truncate text-xs font-semibold text-slate-200"
             title={name}
@@ -2341,12 +2076,11 @@ function AttachmentCard({
             {video
               ? "Video"
               : image
-              ? "Image"
-              : pdf
-              ? "PDF document"
-              : "Document"}
+                ? "Image"
+                : pdf
+                  ? "PDF document"
+                  : "Document"}
           </p>
-
         </div>
 
         {url && (
@@ -2355,18 +2089,14 @@ function AttachmentCard({
             target="_blank"
             rel="noreferrer"
             download
-            onClick={(event) =>
-              event.stopPropagation()
-            }
+            onClick={(event) => event.stopPropagation()}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-slate-400 transition hover:bg-slate-800 hover:text-cyan-300"
             title="Download file"
           >
             <Download size={16} />
           </a>
         )}
-
       </div>
-
     </div>
   );
 }

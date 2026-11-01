@@ -1,3 +1,4 @@
+
 import express from "express";
 import multer from "multer";
 import fs from "fs";
@@ -28,22 +29,9 @@ fs.mkdirSync(uploadDirectory, { recursive: true });
 const MAX_FILE_SIZE = 250 * 1024 * 1024;
 
 const allowedExtensions = new Set([
-  ".pdf",
-  ".doc",
-  ".docx",
-  ".ppt",
-  ".pptx",
-  ".xls",
-  ".xlsx",
-  ".txt",
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".webp",
-  ".zip",
-  ".mp4",
-  ".webm",
-  ".mov",
+  ".pdf", ".doc", ".docx", ".ppt", ".pptx",
+  ".xls", ".xlsx", ".txt", ".jpg", ".jpeg",
+  ".png", ".webp", ".zip", ".mp4", ".webm", ".mov",
 ]);
 
 /* ============================================================
@@ -65,9 +53,7 @@ const parseJsonValue = (value, fallback = null) => {
     return fallback;
   }
 
-  if (typeof value !== "string") {
-    return value;
-  }
+  if (typeof value !== "string") return value;
 
   try {
     return JSON.parse(value);
@@ -102,7 +88,7 @@ const safeNormalizeClass = (value) => {
         .replace(/[^a-z0-9]/g, "");
     }
   } catch {
-    // Fall through to basic normalization.
+    // Use basic normalization.
   }
 
   return text.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -130,8 +116,7 @@ const safeNormalizeSubject = (value) => {
 const subjectsMatch = (first, second) =>
   Boolean(
     safeNormalizeSubject(first) &&
-      safeNormalizeSubject(first) ===
-        safeNormalizeSubject(second)
+    safeNormalizeSubject(first) === safeNormalizeSubject(second)
   );
 
 const tableExists = async (tableName) => {
@@ -169,8 +154,8 @@ const safeFileExists = (filePath) => {
   try {
     return Boolean(
       filePath &&
-        fs.existsSync(filePath) &&
-        fs.statSync(filePath).isFile()
+      fs.existsSync(filePath) &&
+      fs.statSync(filePath).isFile()
     );
   } catch {
     return false;
@@ -182,10 +167,7 @@ const removeUploadedFile = (filePath) => {
     try {
       fs.unlinkSync(filePath);
     } catch (error) {
-      console.error(
-        "ASSIGNMENT FILE CLEANUP ERROR:",
-        error
-      );
+      console.error("ASSIGNMENT FILE CLEANUP ERROR:", error);
     }
   }
 };
@@ -218,9 +200,7 @@ const getTutorReference = (req) => {
   for (const candidate of candidates) {
     const value = clean(candidate);
 
-    if (/^SQA-/i.test(value)) {
-      return value;
-    }
+    if (/^SQA-/i.test(value)) return value;
   }
 
   return "";
@@ -319,37 +299,26 @@ const resolveAssignmentPhysicalFile = (assignment) => {
   }
 
   if (storedPath && !path.isAbsolute(originalPath)) {
-    candidates.push(
-      path.resolve(__dirname, "..", storedPath)
-    );
+    candidates.push(path.resolve(__dirname, "..", storedPath));
   }
 
   if (storedFilename) {
-    candidates.push(
-      path.join(uploadDirectory, storedFilename)
-    );
+    candidates.push(path.join(uploadDirectory, storedFilename));
   }
 
   if (databaseFilename) {
-    candidates.push(
-      path.join(uploadDirectory, databaseFilename)
-    );
+    candidates.push(path.join(uploadDirectory, databaseFilename));
   }
 
   const uniqueCandidates = [
-    ...new Set(
-      candidates.map((candidate) => path.resolve(candidate))
-    ),
+    ...new Set(candidates.map((candidate) => path.resolve(candidate))),
   ];
 
   const found = uniqueCandidates.find(safeFileExists);
 
   return {
     file,
-    filename:
-      databaseFilename ||
-      storedFilename ||
-      "assignment-file",
+    filename: databaseFilename || storedFilename || "assignment-file",
     candidates: uniqueCandidates,
     path: found || null,
   };
@@ -360,24 +329,13 @@ const getSubmissionFilePath = (storedValue) => {
 
   if (!value) return null;
 
-  /*
-   * attachment_url stores the generated filename.
-   * Never use a submitted URL as a filesystem path.
-   */
   const filename = path.basename(value);
 
-  if (!filename || filename !== value) {
-    return null;
-  }
+  if (!filename || filename !== value) return null;
 
-  const candidate = path.resolve(
-    uploadDirectory,
-    filename
-  );
+  const candidate = path.resolve(uploadDirectory, filename);
 
-  if (
-    !candidate.startsWith(`${uploadDirectory}${path.sep}`)
-  ) {
+  if (!candidate.startsWith(`${uploadDirectory}${path.sep}`)) {
     return null;
   }
 
@@ -392,14 +350,11 @@ const getMimeType = (filePath, fallback = "") => {
   const mimeTypes = {
     ".pdf": "application/pdf",
     ".doc": "application/msword",
-    ".docx":
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".ppt": "application/vnd.ms-powerpoint",
-    ".pptx":
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ".xls": "application/vnd.ms-excel",
-    ".xlsx":
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".txt": "text/plain",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -411,10 +366,7 @@ const getMimeType = (filePath, fallback = "") => {
     ".mov": "video/quicktime",
   };
 
-  return (
-    mimeTypes[extension] ||
-    "application/octet-stream"
-  );
+  return mimeTypes[extension] || "application/octet-stream";
 };
 
 /* ============================================================
@@ -422,9 +374,7 @@ const getMimeType = (filePath, fallback = "") => {
 ============================================================ */
 
 const getAssignmentClassColumns = async () => {
-  const columns = await getTableColumns(
-    "academy_assignments"
-  );
+  const columns = await getTableColumns("academy_assignments");
 
   return [
     "class_name",
@@ -449,9 +399,7 @@ const buildAssignmentClassWhere = (
   classColumns,
   parameterNumber = 1
 ) => {
-  if (!classColumns.length) {
-    return { sql: "FALSE" };
-  }
+  if (!classColumns.length) return { sql: "FALSE" };
 
   const expressions = classColumns.map(
     (column) => `
@@ -474,9 +422,7 @@ const buildAssignmentClassWhere = (
     `
   );
 
-  return {
-    sql: `(${expressions.join(" OR ")})`,
-  };
+  return { sql: `(${expressions.join(" OR ")})` };
 };
 
 /* ============================================================
@@ -516,9 +462,7 @@ const formatQuestion = (question) => ({
 });
 
 const getAssignmentQuestions = async (assignmentId) => {
-  if (
-    !(await tableExists("academy_assignment_questions"))
-  ) {
+  if (!(await tableExists("academy_assignment_questions"))) {
     return [];
   }
 
@@ -526,9 +470,7 @@ const getAssignmentQuestions = async (assignmentId) => {
     "academy_assignment_questions"
   );
 
-  if (!columns.includes("assignment_id")) {
-    return [];
-  }
+  if (!columns.includes("assignment_id")) return [];
 
   const orderColumn = columns.includes("question_number")
     ? "question_number"
@@ -563,8 +505,7 @@ const formatAssignment = (
   const subject = clean(assignment.subject);
 
   const calculatedMaxScore = questions.reduce(
-    (total, question) =>
-      total + toNumber(question.marks, 1),
+    (total, question) => total + toNumber(question.marks, 1),
     0
   );
 
@@ -578,10 +519,7 @@ const formatAssignment = (
     (
       score !== null && Number(maxScore) > 0
         ? Number(
-            (
-              (Number(score) / Number(maxScore)) *
-              100
-            ).toFixed(2)
+            ((Number(score) / Number(maxScore)) * 100).toFixed(2)
           )
         : null
     );
@@ -603,15 +541,8 @@ const formatAssignment = (
     subject,
     normalizedSubject: safeNormalizeSubject(subject),
 
-    dueDate:
-      assignment.due_date ||
-      assignment.due_at ||
-      null,
-
-    due_date:
-      assignment.due_date ||
-      assignment.due_at ||
-      null,
+    dueDate: assignment.due_date || assignment.due_at || null,
+    due_date: assignment.due_date || assignment.due_at || null,
 
     status: assignment.status || "published",
 
@@ -745,26 +676,24 @@ const authenticateStudent = async (req, res) => {
   }
 };
 
-const getAuthenticatedStudentReference = (
-  authenticated
-) => {
+const getAuthenticatedStudentReference = (authenticated) => {
   const student = authenticated?.student || {};
   const serialized = authenticated?.serialized || {};
   const decoded = authenticated?.decoded || {};
 
   return clean(
     student.enrollment_id ||
-      student.enrollmentId ||
-      student.enrollment_reference ||
-      student.enrollmentReference ||
-      serialized.enrollment_id ||
-      serialized.enrollmentId ||
-      serialized.enrollment_reference ||
-      serialized.enrollmentReference ||
-      decoded.enrollment_id ||
-      decoded.enrollmentId ||
-      decoded.enrollment_reference ||
-      decoded.enrollmentReference
+    student.enrollmentId ||
+    student.enrollment_reference ||
+    student.enrollmentReference ||
+    serialized.enrollment_id ||
+    serialized.enrollmentId ||
+    serialized.enrollment_reference ||
+    serialized.enrollmentReference ||
+    decoded.enrollment_id ||
+    decoded.enrollmentId ||
+    decoded.enrollment_reference ||
+    decoded.enrollmentReference
   );
 };
 
@@ -789,10 +718,10 @@ const getAuthenticatedStudentName = (authenticated) => {
   return (
     clean(
       student.full_name ||
-        student.fullName ||
-        serialized.full_name ||
-        serialized.fullName ||
-        `${firstName} ${lastName}`.trim()
+      student.fullName ||
+      serialized.full_name ||
+      serialized.fullName ||
+      `${firstName} ${lastName}`.trim()
     ) || "Student"
   );
 };
@@ -807,9 +736,7 @@ const getLatestStudentSubmission = async (
 ) => {
   if (!enrollmentId) return null;
 
-  if (
-    !(await tableExists("academy_assignment_submissions"))
-  ) {
+  if (!(await tableExists("academy_assignment_submissions"))) {
     return null;
   }
 
@@ -829,9 +756,7 @@ const getLatestStudentSubmission = async (
 };
 
 const getSubmissionAnswers = async (submissionId) => {
-  if (
-    !(await tableExists("academy_assignment_answers"))
-  ) {
+  if (!(await tableExists("academy_assignment_answers"))) {
     return [];
   }
 
@@ -914,6 +839,154 @@ const verifyTutorOwnsAssignment = async (
   return result.rows[0] || null;
 };
 
+/*
+ * Shared tutor submission lookup.
+ * The tutor can only access submissions belonging to their assignments.
+ */
+const getTutorSubmission = async (
+  submissionId,
+  tutorReference
+) => {
+  const assignmentColumns = await getTableColumns(
+    "academy_assignments"
+  );
+
+  const optionalAssignmentColumns = [
+    "subject",
+    "total_marks",
+    "max_score",
+    "class_name",
+    "class",
+    "grade",
+    "result_released",
+  ].filter((column) => assignmentColumns.includes(column));
+
+  const assignmentSelect = [
+    `a.id AS assignment_record_id`,
+    `a.title AS assignment_title`,
+    `a.tutor_reference AS assignment_tutor_reference`,
+    ...optionalAssignmentColumns.map(
+      (column) => `a."${column}" AS "assignment_${column}"`
+    ),
+  ].join(", ");
+
+  const result = await pool.query(
+    `
+      SELECT
+        s.*,
+        ${assignmentSelect}
+      FROM academy_assignment_submissions s
+      INNER JOIN academy_assignments a
+        ON a.id = s.assignment_id
+      WHERE s.id = $1
+        AND a.tutor_reference = $2
+      LIMIT 1
+    `,
+    [submissionId, tutorReference]
+  );
+
+  return result.rows[0] || null;
+};
+
+const formatTutorSubmission = (row, answers = []) => {
+  const hasDocument = Boolean(row.attachment_url);
+
+  const assignmentClass =
+    row.assignment_class_name ||
+    row.assignment_class ||
+    row.assignment_grade ||
+    "";
+
+  const maxScore =
+    row.max_score ??
+    row.assignment_total_marks ??
+    null;
+
+  const score =
+    row.score === null || row.score === undefined
+      ? null
+      : toNumber(row.score, 0);
+
+  const percentage =
+    row.percentage !== undefined &&
+    row.percentage !== null
+      ? toNumber(row.percentage, 0)
+      : score !== null && Number(maxScore) > 0
+        ? Number(
+            ((score / Number(maxScore)) * 100).toFixed(2)
+          )
+        : null;
+
+  const filename = hasDocument
+    ? path.basename(clean(row.attachment_url))
+    : null;
+
+  const fileUrl = hasDocument
+    ? `/api/academy/tutor/assignments/submissions/${encodeURIComponent(
+        row.id
+      )}/file`
+    : null;
+
+  return {
+    id: row.id,
+    submissionId: row.id,
+    submission_id: row.id,
+
+    assignmentId: row.assignment_id,
+    assignment_id: row.assignment_id,
+
+    assignmentTitle: row.assignment_title || "Assignment",
+    assignment_title: row.assignment_title || "Assignment",
+
+    assignmentSubject: row.assignment_subject || "",
+    subject: row.assignment_subject || "",
+
+    assignmentClass,
+    className: assignmentClass,
+    class: assignmentClass,
+
+    studentName: row.student_name || "Student",
+    student_name: row.student_name || "Student",
+
+    enrollmentId: row.enrollment_id || "",
+    enrollment_id: row.enrollment_id || "",
+
+    answer: parseJsonValue(row.answer, row.answer || null),
+
+    submissionType: hasDocument ? "document" : "questions",
+    submission_type: hasDocument ? "document" : "questions",
+
+    attachmentName: filename,
+    attachment_name: filename,
+    attachmentUrl: fileUrl,
+    attachment_url: fileUrl,
+    fileUrl,
+    file_url: fileUrl,
+    hasDocument,
+
+    submittedAt: row.submitted_at || null,
+    submitted_at: row.submitted_at || null,
+
+    status: row.status || "submitted",
+
+    score,
+    maxScore,
+    max_score: maxScore,
+    percentage,
+
+    grade:
+      row.grade ||
+      (percentage !== null ? getGrade(percentage) : null),
+
+    feedback: row.feedback || "",
+
+    answers,
+    answerRecords: answers,
+
+    resultReleased: Boolean(row.assignment_result_released),
+  };
+};
+
 /* ============================================================
    MULTER
 ============================================================ */
@@ -963,11 +1036,6 @@ const upload = multer({
   },
 });
 
-/*
- * Student submission files may use different field names in the
- * frontend. upload.any() prevents Multer's "Unexpected field"
- * error caused solely by a mismatched file field name.
- */
 const assignmentSubmissionUpload = upload.any();
 
 const getAssignmentSubmissionFile = (req) => {
@@ -1016,9 +1084,9 @@ router.post(
 
       const className = clean(
         req.body.class_name ||
-          req.body.className ||
-          req.body.class ||
-          req.body.grade
+        req.body.className ||
+        req.body.class ||
+        req.body.grade
       );
 
       const subject = clean(req.body.subject);
@@ -1030,8 +1098,8 @@ router.post(
       const dueDate =
         clean(
           req.body.due_date ||
-            req.body.dueDate ||
-            req.body.due_at
+          req.body.dueDate ||
+          req.body.due_at
         ) || null;
 
       if (title.length < 3) {
@@ -1039,8 +1107,7 @@ router.post(
 
         return res.status(400).json({
           success: false,
-          message:
-            "Assignment title must be at least 3 characters.",
+          message: "Assignment title must be at least 3 characters.",
         });
       }
 
@@ -1081,8 +1148,8 @@ router.post(
         .map((question) => ({
           question: clean(
             question.question ||
-              question.question_text ||
-              question.text
+            question.question_text ||
+            question.text
           ),
 
           optionA: clean(
@@ -1103,15 +1170,12 @@ router.post(
 
           correctAnswer: clean(
             question.correctAnswer ||
-              question.correct_answer
+            question.correct_answer
           ).toUpperCase(),
 
           reason: clean(question.reason),
 
-          marks: Math.max(
-            1,
-            toNumber(question.marks, 1)
-          ),
+          marks: Math.max(1, toNumber(question.marks, 1)),
         }))
         .filter(
           (question) =>
@@ -1136,10 +1200,7 @@ router.post(
       const fileUrl = createFileUrl(filename);
 
       const relativeFilePath = path
-        .relative(
-          path.join(__dirname, ".."),
-          req.file.path
-        )
+        .relative(path.join(__dirname, ".."), req.file.path)
         .replace(/\\/g, "/");
 
       const columns = [];
@@ -1291,8 +1352,7 @@ router.post(
 
       return res.status(500).json({
         success: false,
-        message:
-          error.message || "Unable to create assignment.",
+        message: error.message || "Unable to create assignment.",
       });
     }
   }
@@ -1356,6 +1416,578 @@ router.get("/tutor/assignments", async (req, res) => {
     });
   }
 });
+
+/* ============================================================
+   TUTOR SUBMISSIONS — LIST ALL STUDENT SUBMISSIONS
+
+   IMPORTANT:
+   This route must stay BEFORE /tutor/assignments/:id.
+============================================================ */
+
+router.get(
+  "/tutor/assignments/submissions",
+  async (req, res) => {
+    try {
+      const tutorReference = getTutorReference(req);
+
+      if (!isValidTutorReference(tutorReference)) {
+        return res.status(401).json({
+          success: false,
+          message: "A valid SQA tutor reference is required.",
+        });
+      }
+
+      if (
+        !(await tableExists("academy_assignment_submissions"))
+      ) {
+        return res.status(500).json({
+          success: false,
+          message: "Assignment submissions table was not found.",
+        });
+      }
+
+      const submissionColumns = await getTableColumns(
+        "academy_assignment_submissions"
+      );
+
+      if (
+        !submissionColumns.includes("assignment_id") ||
+        !submissionColumns.includes("id")
+      ) {
+        return res.status(500).json({
+          success: false,
+          message:
+            "The assignment submissions table is missing required columns.",
+        });
+      }
+
+      const assignmentColumns = await getTableColumns(
+        "academy_assignments"
+      );
+
+      const optionalAssignmentColumns = [
+        "subject",
+        "class_name",
+        "class",
+        "grade",
+        "total_marks",
+        "result_released",
+      ].filter((column) => assignmentColumns.includes(column));
+
+      const assignmentSelect = [
+        "a.title AS assignment_title",
+        ...optionalAssignmentColumns.map(
+          (column) => `a."${column}" AS "assignment_${column}"`
+        ),
+      ].join(", ");
+
+      const orderColumn = submissionColumns.includes("submitted_at")
+        ? "submitted_at"
+        : "id";
+
+      const result = await pool.query(
+        `
+          SELECT
+            s.*,
+            ${assignmentSelect}
+          FROM academy_assignment_submissions s
+          INNER JOIN academy_assignments a
+            ON a.id = s.assignment_id
+          WHERE a.tutor_reference = $1
+          ORDER BY s."${orderColumn}" DESC, s.id DESC
+        `,
+        [tutorReference]
+      );
+
+      const submissions = result.rows.map((row) => {
+        const hasDocument = Boolean(row.attachment_url);
+
+        const fileUrl = hasDocument
+          ? `/api/academy/tutor/assignments/submissions/${encodeURIComponent(
+              row.id
+            )}/file`
+          : null;
+
+        const assignmentClass =
+          row.assignment_class_name ||
+          row.assignment_class ||
+          row.assignment_grade ||
+          "";
+
+        return {
+          id: row.id,
+          submissionId: row.id,
+          submission_id: row.id,
+
+          assignmentId: row.assignment_id,
+          assignment_id: row.assignment_id,
+
+          assignmentTitle:
+            row.assignment_title || "Assignment",
+          assignment_title:
+            row.assignment_title || "Assignment",
+
+          assignmentSubject: row.assignment_subject || "",
+          subject: row.assignment_subject || "",
+
+          assignmentClass,
+          className: assignmentClass,
+          class: assignmentClass,
+
+          studentName: row.student_name || "Student",
+          student_name: row.student_name || "Student",
+
+          enrollmentId: row.enrollment_id || "",
+          enrollment_id: row.enrollment_id || "",
+
+          answer: parseJsonValue(row.answer, row.answer || null),
+
+          submissionType: hasDocument ? "document" : "questions",
+          submission_type: hasDocument ? "document" : "questions",
+
+          hasDocument,
+
+          attachmentName: hasDocument
+            ? path.basename(clean(row.attachment_url))
+            : null,
+
+          attachment_name: hasDocument
+            ? path.basename(clean(row.attachment_url))
+            : null,
+
+          attachmentUrl: fileUrl,
+          attachment_url: fileUrl,
+          fileUrl,
+          file_url: fileUrl,
+
+          submittedAt: row.submitted_at || null,
+          submitted_at: row.submitted_at || null,
+
+          status: row.status || "submitted",
+
+          score:
+            row.score === null || row.score === undefined
+              ? null
+              : toNumber(row.score, 0),
+
+          maxScore:
+            row.max_score ??
+            row.assignment_total_marks ??
+            null,
+
+          max_score:
+            row.max_score ??
+            row.assignment_total_marks ??
+            null,
+
+          percentage:
+            row.percentage === null ||
+            row.percentage === undefined
+              ? null
+              : toNumber(row.percentage, 0),
+
+          grade: row.grade || null,
+          feedback: row.feedback || "",
+
+          resultReleased: Boolean(
+            row.assignment_result_released
+          ),
+        };
+      });
+
+      return res.json({
+        success: true,
+        message: "Assignment submissions loaded successfully.",
+        submissions,
+        data: submissions,
+        results: submissions,
+        count: submissions.length,
+      });
+    } catch (error) {
+      console.error("TUTOR SUBMISSIONS LIST ERROR:", error);
+
+      return res.status(500).json({
+        success: false,
+        message:
+          error.message || "Unable to load assignment submissions.",
+      });
+    }
+  }
+);
+
+/* ============================================================
+   TUTOR SUBMISSION DETAIL — VIEW STUDENT ANSWERS
+============================================================ */
+
+router.get(
+  "/tutor/assignments/submissions/:submissionId",
+  async (req, res) => {
+    try {
+      const tutorReference = getTutorReference(req);
+
+      if (!isValidTutorReference(tutorReference)) {
+        return res.status(401).json({
+          success: false,
+          message: "A valid SQA tutor reference is required.",
+        });
+      }
+
+      if (!isValidId(req.params.submissionId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid submission ID.",
+        });
+      }
+
+      const submission = await getTutorSubmission(
+        req.params.submissionId,
+        tutorReference
+      );
+
+      if (!submission) {
+        return res.status(404).json({
+          success: false,
+          message: "Student submission not found.",
+        });
+      }
+
+      const answers = await getSubmissionAnswers(
+        submission.id
+      );
+
+      const formatted = formatTutorSubmission(
+        submission,
+        answers
+      );
+
+      const assignmentQuestions = await getAssignmentQuestions(
+        submission.assignment_id
+      );
+
+      return res.json({
+        success: true,
+        message: "Student submission loaded successfully.",
+
+        submission: formatted,
+        data: formatted,
+
+        answers,
+        answerRecords: answers,
+
+        assignment: {
+          id: submission.assignment_record_id,
+          title: submission.assignment_title,
+          subject: submission.assignment_subject || "",
+          class:
+            submission.assignment_class_name ||
+            submission.assignment_class ||
+            submission.assignment_grade ||
+            "",
+          totalMarks:
+            submission.assignment_total_marks ??
+            submission.assignment_max_score ??
+            null,
+          questions: assignmentQuestions,
+        },
+      });
+    } catch (error) {
+      console.error("TUTOR SUBMISSION DETAIL ERROR:", error);
+
+      return res.status(500).json({
+        success: false,
+        message:
+          error.message || "Unable to load student submission.",
+      });
+    }
+  }
+);
+
+/* ============================================================
+   TUTOR SUBMISSION FILE — OPEN STUDENT DOCUMENT
+============================================================ */
+
+router.get(
+  "/tutor/assignments/submissions/:submissionId/file",
+  async (req, res) => {
+    try {
+      const tutorReference = getTutorReference(req);
+
+      if (!isValidTutorReference(tutorReference)) {
+        return res.status(401).json({
+          success: false,
+          message: "A valid SQA tutor reference is required.",
+        });
+      }
+
+      if (!isValidId(req.params.submissionId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid submission ID.",
+        });
+      }
+
+      const submission = await getTutorSubmission(
+        req.params.submissionId,
+        tutorReference
+      );
+
+      if (!submission) {
+        return res.status(404).json({
+          success: false,
+          message: "Student submission not found.",
+        });
+      }
+
+      if (!submission.attachment_url) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "This student submitted answers instead of a document.",
+        });
+      }
+
+      const filePath = getSubmissionFilePath(
+        submission.attachment_url
+      );
+
+      if (!filePath) {
+        console.error("TUTOR SUBMISSION FILE NOT FOUND:", {
+          submissionId: submission.id,
+          storedFile: submission.attachment_url,
+          uploadDirectory,
+        });
+
+        return res.status(404).json({
+          success: false,
+          message: "The student's submitted document was not found.",
+        });
+      }
+
+      const extension = path.extname(filePath).toLowerCase();
+
+      res.type(getMimeType(filePath));
+
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="student-submission${extension}"`
+      );
+
+      res.setHeader(
+        "Cache-Control",
+        "private, no-store, max-age=0"
+      );
+
+      return res.sendFile(filePath);
+    } catch (error) {
+      console.error("TUTOR SUBMISSION FILE ERROR:", error);
+
+      return res.status(500).json({
+        success: false,
+        message:
+          error.message || "Unable to open student's submitted document.",
+      });
+    }
+  }
+);
+
+/* ============================================================
+   TUTOR GRADING — SAVE SCORE AND FEEDBACK
+============================================================ */
+
+router.patch(
+  "/tutor/assignments/submissions/:submissionId/grade",
+  async (req, res) => {
+    try {
+      const tutorReference = getTutorReference(req);
+
+      if (!isValidTutorReference(tutorReference)) {
+        return res.status(401).json({
+          success: false,
+          message: "A valid SQA tutor reference is required.",
+        });
+      }
+
+      if (!isValidId(req.params.submissionId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid submission ID.",
+        });
+      }
+
+      const submission = await getTutorSubmission(
+        req.params.submissionId,
+        tutorReference
+      );
+
+      if (!submission) {
+        return res.status(404).json({
+          success: false,
+          message: "Student submission not found.",
+        });
+      }
+
+      const rawScore =
+        req.body.score ??
+        req.body.marks ??
+        req.body.marksAwarded;
+
+      if (
+        rawScore === undefined ||
+        rawScore === null ||
+        clean(rawScore) === ""
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Please enter the student's score.",
+        });
+      }
+
+      const score = Number(rawScore);
+
+      const requestedMaxScore =
+        req.body.maxScore ??
+        req.body.max_score ??
+        req.body.totalMarks ??
+        req.body.total_marks;
+
+      const maxScore = Number(
+        requestedMaxScore ??
+        submission.assignment_total_marks ??
+        submission.assignment_max_score ??
+        submission.max_score ??
+        100
+      );
+
+      if (
+        !Number.isFinite(score) ||
+        !Number.isFinite(maxScore) ||
+        maxScore <= 0 ||
+        score < 0 ||
+        score > maxScore
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid score. The score must be between zero and the maximum score.",
+        });
+      }
+
+      const feedback = clean(
+        req.body.feedback ??
+        req.body.comment ??
+        req.body.teacherComment
+      );
+
+      const percentage = Number(
+        ((score / maxScore) * 100).toFixed(2)
+      );
+
+      const grade = getGrade(percentage);
+
+      const columns = await getTableColumns(
+        "academy_assignment_submissions"
+      );
+
+      const updates = [];
+      const values = [];
+
+      const addUpdate = (column, value) => {
+        if (!columns.includes(column)) return;
+
+        values.push(value);
+        updates.push(`"${column}" = $${values.length}`);
+      };
+
+      addUpdate("score", score);
+      addUpdate("max_score", maxScore);
+      addUpdate("percentage", percentage);
+      addUpdate("grade", grade);
+      addUpdate("feedback", feedback);
+      addUpdate("status", "graded");
+
+      if (columns.includes("graded_at")) {
+        addUpdate("graded_at", new Date());
+      }
+
+      if (columns.includes("updated_at")) {
+        addUpdate("updated_at", new Date());
+      }
+
+      if (!columns.includes("score")) {
+        return res.status(500).json({
+          success: false,
+          message:
+            "The submissions table does not have a score column.",
+        });
+      }
+
+      values.push(submission.id);
+
+      const updateResult = await pool.query(
+        `
+          UPDATE academy_assignment_submissions
+          SET ${updates.join(", ")}
+          WHERE id = $${values.length}
+          RETURNING *
+        `,
+        values
+      );
+
+      const updatedSubmission = updateResult.rows[0];
+
+      if (!updatedSubmission) {
+        return res.status(500).json({
+          success: false,
+          message: "The student's grade could not be saved.",
+        });
+      }
+
+      const answers = await getSubmissionAnswers(
+        updatedSubmission.id
+      );
+
+      const formatted = formatTutorSubmission(
+        {
+          ...updatedSubmission,
+          assignment_record_id: submission.assignment_record_id,
+          assignment_title: submission.assignment_title,
+          assignment_subject: submission.assignment_subject,
+          assignment_class_name: submission.assignment_class_name,
+          assignment_class: submission.assignment_class,
+          assignment_grade: submission.assignment_grade,
+          assignment_total_marks:
+            submission.assignment_total_marks,
+          assignment_max_score:
+            submission.assignment_max_score,
+        },
+        answers
+      );
+
+      return res.json({
+        success: true,
+        message: "Student assignment graded successfully.",
+        submission: formatted,
+        data: formatted,
+        result: {
+          score,
+          maxScore,
+          max_score: maxScore,
+          percentage,
+          grade,
+          feedback,
+        },
+      });
+    } catch (error) {
+      console.error("TUTOR GRADE SUBMISSION ERROR:", error);
+
+      return res.status(500).json({
+        success: false,
+        message:
+          error.message || "Unable to save the student's grade.",
+      });
+    }
+  }
+);
 
 /* ============================================================
    GET ONE TUTOR ASSIGNMENT
@@ -1472,10 +2104,7 @@ router.get("/student/assignments", async (req, res) => {
     );
 
     let assignmentRows = result.rows.filter((assignment) =>
-      classesMatch(
-        getAssignmentClass(assignment),
-        studentClass
-      )
+      classesMatch(getAssignmentClass(assignment), studentClass)
     );
 
     if (requestedSubject) {
@@ -1613,10 +2242,7 @@ router.get("/student/assignments/:id", async (req, res) => {
 
     if (
       !assignment ||
-      !classesMatch(
-        getAssignmentClass(assignment),
-        studentClass
-      )
+      !classesMatch(getAssignmentClass(assignment), studentClass)
     ) {
       return res.status(404).json({
         success: false,
@@ -1624,9 +2250,7 @@ router.get("/student/assignments/:id", async (req, res) => {
       });
     }
 
-    const questions = await getAssignmentQuestions(
-      assignment.id
-    );
+    const questions = await getAssignmentQuestions(assignment.id);
 
     const studentQuestions = questions.map((question) => ({
       id: question.id,
@@ -1689,7 +2313,7 @@ router.get("/student/assignments/:id", async (req, res) => {
 });
 
 /* ============================================================
-   PROTECTED TUTOR ASSIGNMENT FILE
+   PROTECTED STUDENT ASSIGNMENT FILE
 ============================================================ */
 
 router.get(
@@ -1722,10 +2346,7 @@ router.get(
 
       if (
         !assignment ||
-        !classesMatch(
-          getAssignmentClass(assignment),
-          studentClass
-        )
+        !classesMatch(getAssignmentClass(assignment), studentClass)
       ) {
         return res.status(404).json({
           success: false,
@@ -1742,20 +2363,16 @@ router.get(
         });
       }
 
-      const resolved =
-        resolveAssignmentPhysicalFile(assignment);
+      const resolved = resolveAssignmentPhysicalFile(assignment);
 
       if (!resolved.path) {
-        console.error(
-          "STUDENT ASSIGNMENT FILE NOT FOUND",
-          {
-            assignmentId: req.params.id,
-            databaseFileName: file.filename,
-            databaseFilePath: file.filePath,
-            uploadDirectory,
-            candidates: resolved.candidates,
-          }
-        );
+        console.error("STUDENT ASSIGNMENT FILE NOT FOUND", {
+          assignmentId: req.params.id,
+          databaseFileName: file.filename,
+          databaseFilePath: file.filePath,
+          uploadDirectory,
+          candidates: resolved.candidates,
+        });
 
         return res.status(404).json({
           success: false,
@@ -1764,19 +2381,14 @@ router.get(
       }
 
       const displayFilename = path.basename(
-        clean(file.filename) ||
-          path.basename(resolved.path)
+        clean(file.filename) || path.basename(resolved.path)
       );
 
-      res.type(
-        getMimeType(resolved.path, file.fileType)
-      );
+      res.type(getMimeType(resolved.path, file.fileType));
 
       res.setHeader(
         "Content-Disposition",
-        `inline; filename="${encodeURIComponent(
-          displayFilename
-        )}"`
+        `inline; filename="${encodeURIComponent(displayFilename)}"`
       );
 
       res.setHeader(
@@ -1799,12 +2411,6 @@ router.get(
 
 /* ============================================================
    SUBMIT STUDENT ASSIGNMENT — MCQ OR DOCUMENT
-
-   FIX:
-   - Accept any frontend file field name.
-   - Support document-only assignments.
-   - Keep student authentication and class restrictions.
-   - Keep duplicate-submission protection.
 ============================================================ */
 
 router.post(
@@ -1815,8 +2421,7 @@ router.post(
       ? req.files
       : [];
 
-    const submittedFile =
-      getAssignmentSubmissionFile(req);
+    const submittedFile = getAssignmentSubmissionFile(req);
 
     const client = await pool.connect();
 
@@ -1827,10 +2432,6 @@ router.post(
     let existingSubmission = null;
 
     try {
-      /*
-       * This endpoint accepts only one uploaded document.
-       * Remove all uploaded files if multiple were sent.
-       */
       if (submittedFiles.length > 1) {
         submittedFiles.forEach((file) =>
           removeUploadedFile(file.path)
@@ -1845,10 +2446,7 @@ router.post(
         });
       }
 
-      const authenticated = await authenticateStudent(
-        req,
-        res
-      );
+      const authenticated = await authenticateStudent(req, res);
 
       if (!authenticated) {
         removeUploadedFile(uploadedFilePath);
@@ -1882,8 +2480,7 @@ router.post(
         });
       }
 
-      const classColumns =
-        await getAssignmentClassColumns();
+      const classColumns = await getAssignmentClassColumns();
 
       const classWhere = buildAssignmentClassWhere(
         classColumns,
@@ -1905,10 +2502,7 @@ router.post(
 
       if (
         !assignment ||
-        !classesMatch(
-          getAssignmentClass(assignment),
-          studentClass
-        )
+        !classesMatch(getAssignmentClass(assignment), studentClass)
       ) {
         removeUploadedFile(uploadedFilePath);
         uploadedFilePath = null;
@@ -1919,18 +2513,11 @@ router.post(
         });
       }
 
-      const questions = await getAssignmentQuestions(
-        assignment.id
-      );
+      const questions = await getAssignmentQuestions(assignment.id);
 
-      const isDocumentSubmission = Boolean(
-        submittedFile
-      );
+      const isDocumentSubmission = Boolean(submittedFile);
 
-      if (
-        !questions.length &&
-        !isDocumentSubmission
-      ) {
+      if (!questions.length && !isDocumentSubmission) {
         return res.status(400).json({
           success: false,
           message:
@@ -1938,10 +2525,7 @@ router.post(
         });
       }
 
-      if (
-        questions.length &&
-        isDocumentSubmission
-      ) {
+      if (questions.length && isDocumentSubmission) {
         removeUploadedFile(uploadedFilePath);
         uploadedFilePath = null;
 
@@ -1952,18 +2536,13 @@ router.post(
         });
       }
 
-      if (
-        !(await tableExists(
-          "academy_assignment_submissions"
-        ))
-      ) {
+      if (!(await tableExists("academy_assignment_submissions"))) {
         removeUploadedFile(uploadedFilePath);
         uploadedFilePath = null;
 
         return res.status(500).json({
           success: false,
-          message:
-            "Assignment submissions table was not found.",
+          message: "Assignment submissions table was not found.",
         });
       }
 
@@ -1978,8 +2557,7 @@ router.post(
 
       const missingSubmissionColumns =
         requiredSubmissionColumns.filter(
-          (column) =>
-            !submissionColumns.includes(column)
+          (column) => !submissionColumns.includes(column)
         );
 
       if (missingSubmissionColumns.length) {
@@ -1994,9 +2572,6 @@ router.post(
         });
       }
 
-      /*
-       * Prevent duplicate submissions for the same assignment.
-       */
       await client.query("BEGIN");
       transactionStarted = true;
 
@@ -2015,11 +2590,6 @@ router.post(
 
       existingSubmission = existingResult.rows[0] || null;
 
-      /*
-       * MCQ/question assignments are final after submission.
-       * Document assignments may be resubmitted: update the existing row
-       * instead of creating a duplicate submission record.
-       */
       if (existingSubmission && !isDocumentSubmission) {
         await client.query("ROLLBACK");
         transactionStarted = false;
@@ -2029,8 +2599,7 @@ router.post(
 
         return res.status(409).json({
           success: false,
-          message:
-            "You have already submitted this assignment.",
+          message: "You have already submitted this assignment.",
           submission: existingSubmission,
         });
       }
@@ -2053,17 +2622,13 @@ router.post(
       let storedAttachmentValue = null;
 
       if (isDocumentSubmission) {
-        /*
-         * Store the generated filename, not a user-provided path.
-         */
         storedAttachmentValue = submittedFile.filename;
       } else {
         const rawAnswers = req.body?.answers;
 
         const answers = Array.isArray(rawAnswers)
           ? rawAnswers
-          : rawAnswers &&
-              typeof rawAnswers === "object"
+          : rawAnswers && typeof rawAnswers === "object"
             ? Object.entries(rawAnswers).map(
                 ([questionId, studentAnswer]) => ({
                   questionId,
@@ -2081,27 +2646,23 @@ router.post(
         for (const answer of answers) {
           const questionId = clean(
             answer.questionId ||
-              answer.question_id ||
-              answer.id
+            answer.question_id ||
+            answer.id
           );
 
           const studentAnswer = clean(
             answer.studentAnswer ??
-              answer.student_answer ??
-              answer.answer
+            answer.student_answer ??
+            answer.answer
           ).toUpperCase();
 
           if (questionId) {
-            answerMap.set(
-              String(questionId),
-              studentAnswer
-            );
+            answerMap.set(String(questionId), studentAnswer);
           }
         }
 
         const unanswered = questions.filter(
-          (question) =>
-            !answerMap.get(String(question.id))
+          (question) => !answerMap.get(String(question.id))
         );
 
         if (unanswered.length) {
@@ -2152,9 +2713,7 @@ router.post(
 
         percentage =
           maxScore > 0
-            ? Number(
-                ((score / maxScore) * 100).toFixed(2)
-              )
+            ? Number(((score / maxScore) * 100).toFixed(2))
             : 0;
 
         grade = getGrade(percentage);
@@ -2196,7 +2755,6 @@ router.post(
           `$${submissionInsertValues.length}`
         );
 
-        // Keep the identity of the existing submission stable on resubmission.
         if (
           existingSubmission &&
           column !== "assignment_id" &&
@@ -2243,20 +2801,24 @@ router.post(
 
         submissionUpdateValues.push(existingSubmission.id);
 
+        const idParameter = submissionUpdateValues.length;
+
+        submissionUpdateValues.push(assignment.id);
+        const assignmentParameter = submissionUpdateValues.length;
+
+        submissionUpdateValues.push(enrollmentId);
+        const enrollmentParameter = submissionUpdateValues.length;
+
         submissionResult = await client.query(
           `
             UPDATE academy_assignment_submissions
             SET ${submissionUpdateAssignments.join(", ")}
-            WHERE id = $${submissionUpdateValues.length}
-              AND assignment_id = $${submissionUpdateValues.length + 1}
-              AND enrollment_id = $${submissionUpdateValues.length + 2}
+            WHERE id = $${idParameter}
+              AND assignment_id = $${assignmentParameter}
+              AND enrollment_id = $${enrollmentParameter}
             RETURNING *
           `,
-          [
-            ...submissionUpdateValues,
-            assignment.id,
-            enrollmentId,
-          ]
+          submissionUpdateValues
         );
       } else {
         submissionResult = await client.query(
@@ -2280,14 +2842,8 @@ router.post(
       }
 
       if (!isDocumentSubmission) {
-        if (
-          !(await tableExists(
-            "academy_assignment_answers"
-          ))
-        ) {
-          throw new Error(
-            "Assignment answers table was not found."
-          );
+        if (!(await tableExists("academy_assignment_answers"))) {
+          throw new Error("Assignment answers table was not found.");
         }
 
         const answerColumns = await getTableColumns(
@@ -2311,9 +2867,20 @@ router.post(
         if (missingAnswerColumns.length) {
           throw new Error(
             "The answers table is missing required columns: " +
-              missingAnswerColumns.join(", ")
+            missingAnswerColumns.join(", ")
           );
         }
+
+        /*
+         * Remove old answer records when resubmitting/updating.
+         */
+        await client.query(
+          `
+            DELETE FROM academy_assignment_answers
+            WHERE submission_id = $1
+          `,
+          [submission.id]
+        );
 
         for (const answer of gradedAnswers) {
           await client.query(
@@ -2346,7 +2913,6 @@ router.post(
 
       keepUploadedFile = isDocumentSubmission;
 
-      // Only delete the previous document after the database update commits.
       if (
         previousAttachmentPath &&
         previousAttachmentPath !== uploadedFilePath
@@ -2354,12 +2920,11 @@ router.post(
         removeUploadedFile(previousAttachmentPath);
       }
 
-      const protectedAttachmentUrl =
-        isDocumentSubmission
-          ? `/api/academy/student/assignments/${encodeURIComponent(
-              assignment.id
-            )}/submission-file`
-          : null;
+      const protectedAttachmentUrl = isDocumentSubmission
+        ? `/api/academy/student/assignments/${encodeURIComponent(
+            assignment.id
+          )}/submission-file`
+        : null;
 
       return res.status(existingSubmission ? 200 : 201).json({
         success: true,
@@ -2413,8 +2978,7 @@ router.post(
 
       return res.status(error.status || 500).json({
         success: false,
-        message:
-          error.message || "Unable to submit assignment.",
+        message: error.message || "Unable to submit assignment.",
       });
     } finally {
       if (!keepUploadedFile && uploadedFilePath) {
@@ -2434,11 +2998,7 @@ router.get(
   "/student/assignments/:id/submission-file",
   async (req, res) => {
     try {
-      const authenticated = await authenticateStudent(
-        req,
-        res
-      );
-
+      const authenticated = await authenticateStudent(req, res);
       if (!authenticated) return;
 
       const enrollmentId =
@@ -2447,13 +3007,11 @@ router.get(
       if (!enrollmentId) {
         return res.status(400).json({
           success: false,
-          message:
-            "Your enrollment ID could not be determined.",
+          message: "Your enrollment ID could not be determined.",
         });
       }
 
-      const classColumns =
-        await getAssignmentClassColumns();
+      const classColumns = await getAssignmentClassColumns();
 
       const classWhere = buildAssignmentClassWhere(
         classColumns,
@@ -2505,8 +3063,7 @@ router.get(
       if (!filePath) {
         return res.status(404).json({
           success: false,
-          message:
-            "The submitted document file could not be found.",
+          message: "The submitted document file could not be found.",
         });
       }
 
@@ -2526,16 +3083,12 @@ router.get(
 
       return res.sendFile(filePath);
     } catch (error) {
-      console.error(
-        "STUDENT SUBMISSION FILE ERROR:",
-        error
-      );
+      console.error("STUDENT SUBMISSION FILE ERROR:", error);
 
       return res.status(error.status || 500).json({
         success: false,
         message:
-          error.message ||
-          "Unable to open submitted document.",
+          error.message || "Unable to open submitted document.",
       });
     }
   }
@@ -2549,11 +3102,7 @@ router.get(
   "/student/assignments/:id/result",
   async (req, res) => {
     try {
-      const authenticated = await authenticateStudent(
-        req,
-        res
-      );
-
+      const authenticated = await authenticateStudent(req, res);
       if (!authenticated) return;
 
       const studentClass = authenticated.studentClass;
@@ -2564,13 +3113,11 @@ router.get(
       if (!enrollmentId) {
         return res.status(400).json({
           success: false,
-          message:
-            "Your enrollment ID could not be determined.",
+          message: "Your enrollment ID could not be determined.",
         });
       }
 
-      const classColumns =
-        await getAssignmentClassColumns();
+      const classColumns = await getAssignmentClassColumns();
 
       const classWhere = buildAssignmentClassWhere(
         classColumns,
@@ -2592,10 +3139,7 @@ router.get(
 
       if (
         !assignment ||
-        !classesMatch(
-          getAssignmentClass(assignment),
-          studentClass
-        )
+        !classesMatch(getAssignmentClass(assignment), studentClass)
       ) {
         return res.status(404).json({
           success: false,
@@ -2616,17 +3160,14 @@ router.get(
         });
       }
 
-      const answers = await getSubmissionAnswers(
-        submission.id
-      );
+      const answers = await getSubmissionAnswers(submission.id);
 
       const questions = await getAssignmentQuestions(
         assignment.id
       );
 
       const calculatedMaxScore = questions.reduce(
-        (total, question) =>
-          total + toNumber(question.marks, 1),
+        (total, question) => total + toNumber(question.marks, 1),
         0
       );
 
@@ -2635,9 +3176,7 @@ router.get(
 
       const percentage =
         maxScore > 0
-          ? Number(
-              ((score / maxScore) * 100).toFixed(2)
-            )
+          ? Number(((score / maxScore) * 100).toFixed(2))
           : 0;
 
       const grade = getGrade(percentage);
@@ -2650,12 +3189,8 @@ router.get(
           title: assignment.title,
           subject: assignment.subject || "",
           class: getAssignmentClass(assignment),
-          resultReleased: Boolean(
-            assignment.result_released
-          ),
-          result_released: Boolean(
-            assignment.result_released
-          ),
+          resultReleased: Boolean(assignment.result_released),
+          result_released: Boolean(assignment.result_released),
         },
 
         submission,
@@ -2678,8 +3213,7 @@ router.get(
       return res.status(error.status || 500).json({
         success: false,
         message:
-          error.message ||
-          "Unable to load assignment result.",
+          error.message || "Unable to load assignment result.",
       });
     }
   }
@@ -2693,9 +3227,7 @@ router.get(
   "/assignment-files/:filename",
   async (req, res) => {
     try {
-      const filename = path.basename(
-        clean(req.params.filename)
-      );
+      const filename = path.basename(clean(req.params.filename));
 
       if (!filename) {
         return res.status(400).json({
@@ -2710,9 +3242,7 @@ router.get(
       );
 
       if (
-        !filePath.startsWith(
-          `${uploadDirectory}${path.sep}`
-        ) ||
+        !filePath.startsWith(`${uploadDirectory}${path.sep}`) ||
         !safeFileExists(filePath)
       ) {
         return res.status(404).json({
@@ -2752,8 +3282,7 @@ router.use((error, req, res, next) => {
     if (error.code === "LIMIT_FILE_COUNT") {
       return res.status(400).json({
         success: false,
-        message:
-          "Please upload only one file at a time.",
+        message: "Please upload only one file at a time.",
       });
     }
 
@@ -2764,10 +3293,7 @@ router.use((error, req, res, next) => {
   }
 
   if (error) {
-    console.error(
-      "ACADEMY ASSIGNMENTS ERROR:",
-      error
-    );
+    console.error("ACADEMY ASSIGNMENTS ERROR:", error);
 
     return res.status(400).json({
       success: false,

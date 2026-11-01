@@ -795,8 +795,7 @@ async function findTaskById(taskId) {
 
   if (!id) return null;
 
-  const columns = await getColumns("class_activities");
-
+const columns = await getColumns("academy_class_activities");
   if (!columns.length) return null;
 
   const available = columnSet(columns);
@@ -809,8 +808,7 @@ async function findTaskById(taskId) {
     `
       SELECT
         ${select}
-      FROM class_activities
-      WHERE id::text = $1
+FROM academy_class_activities      WHERE id::text = $1
       LIMIT 1
     `,
     [id]
@@ -911,8 +909,11 @@ function normalizeSubmission(row, task = null) {
 
   const statusNormalized = normalizeStatus(status);
 
-  const isReviewed =
-    statusNormalized === "reviewed" ||
+   const isReviewed =
+    statusNormalized === "graded" ||
+    statusNormalized === "returned";
+
+  const isGraded =
     statusNormalized === "graded";
 
   const overdue =
@@ -1063,10 +1064,7 @@ function normalizeSubmission(row, task = null) {
 
     isReviewed,
 
-    isGraded:
-      isReviewed ||
-      score !== null,
-
+        isGraded,
     overdue,
     isOverdue: overdue,
     isLate: overdue,
@@ -1422,8 +1420,7 @@ router.get(
           req.query?.task_id
       );
 
-      const columns = await getColumns("class_activities");
-
+const columns = await getColumns("academy_class_activities");
       if (!columns.length) {
         return res.json({
           success: true,
@@ -1465,49 +1462,32 @@ router.get(
        * exist in class_activities.
        */
 
-      let sql = `
-        SELECT
-          s.*,
-          a.title AS task_title,
-          a.description AS task_description,
+     let sql = `
+  SELECT
+    s.*,
+    a.title AS task_title,
+    a.description AS task_description,
+    a.instructions AS task_instructions,
+    a.activity_type AS task_activity_type,
+    a.grade AS task_grade,
+    a.subject AS task_subject,
+    a.tutor_reference AS task_tutor_reference,
+    a.metadata AS task_metadata,
+    a.due_date AS task_due_at,
+    a.max_score AS task_max_score,
+    a.created_at AS task_created_at
 
-          COALESCE(
-            NULLIF(a.instructions, ''),
-            a.metadata->>'instructions',
-            a.metadata->>'taskInstructions',
-            a.metadata->>'task_instructions',
-            ''
-          ) AS task_instructions,
+  FROM academy_task_submissions s
 
-          a.activity_type AS task_activity_type,
-          a.grade AS task_grade,
-          a.subject AS task_subject,
-          a.tutor_reference AS task_tutor_reference,
-          a.metadata AS task_metadata,
+  INNER JOIN (
+    SELECT
+      ${activitySelect}
+    FROM academy_class_activities
+  ) a
+    ON a.id::text = s.task_id::text
 
-          COALESCE(
-            a.due_date,
-            NULLIF(a.metadata->>'dueAt', '')::timestamptz,
-            NULLIF(a.metadata->>'due_at', '')::timestamptz,
-            NULLIF(a.metadata->>'deadline', '')::timestamptz,
-            NULLIF(a.metadata->>'dueDate', '')::timestamptz
-          ) AS task_due_at,
-
-          a.max_score AS task_max_score,
-          a.created_at AS task_created_at
-
-        FROM academy_task_submissions s
-
-        INNER JOIN (
-          SELECT
-            ${activitySelect}
-          FROM class_activities
-        ) a
-          ON a.id::text = s.task_id::text
-
-        WHERE 1 = 1
-      `;
-
+  WHERE 1 = 1
+`;
       const params = [];
       let index = 1;
 
@@ -1786,6 +1766,32 @@ router.patch(
         });
       }
 
+      /*
+       * DATABASE ALLOWED STATUSES:
+       * submitted
+       * graded
+       * returned
+       *
+       * Never save "reviewed".
+       */
+
+      let status = normalizeStatus(
+        req.body?.status || "graded"
+      );
+
+      if (status === "reviewed") {
+        status = "graded";
+      }
+
+      if (!["graded", "returned"].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          code: "INVALID_SUBMISSION_STATUS",
+          message:
+            "Review status must be graded or returned.",
+        });
+      }
+
       let score = req.body?.score;
 
       if (
@@ -1839,16 +1845,6 @@ router.patch(
           req.body?.comments
       );
 
-      let status = normalize(
-        req.body?.status || "reviewed"
-      );
-
-      if (
-        !["submitted", "reviewed", "returned"].includes(status)
-      ) {
-        status = "reviewed";
-      }
-
       const result = await pool.query(
         `
           SELECT *
@@ -1900,11 +1896,15 @@ router.patch(
         });
       }
 
+      /*
+       * Use the submission's saved maximum score first.
+       * If it is unavailable, use the task's maximum score.
+       */
+
       if (maxScore === null) {
         maxScore =
-          submission.max_score !== null
-            ? Number(submission.max_score)
-            : taskMaxScore(task);
+          toNumber(submission.max_score) ??
+          taskMaxScore(task);
       }
 
       if (
@@ -1919,6 +1919,11 @@ router.patch(
             "Score cannot be greater than the maximum score.",
         });
       }
+
+      /*
+       * A returned submission is not considered graded.
+       * A graded submission is considered reviewed.
+       */
 
       const updated = await pool.query(
         `
@@ -1944,20 +1949,34 @@ router.patch(
         ]
       );
 
+      const normalized = normalizeSubmission(
+        updated.rows[0],
+        task
+      );
+
       return res.json({
         success: true,
         message:
-          "Task submission reviewed successfully.",
-        submission: normalizeSubmission(
-          updated.rows[0],
-          task
-        ),
+          status === "returned"
+            ? "Task submission returned successfully."
+            : "Task submission graded successfully.",
+        submission: normalized,
+        data: normalized,
       });
     } catch (error) {
       console.error(
         "Review task submission error:",
         error
       );
+
+      console.error({
+        code: error?.code,
+        message: error?.message,
+        detail: error?.detail,
+        constraint: error?.constraint,
+        table: error?.table,
+        column: error?.column,
+      });
 
       return res.status(500).json({
         success: false,
@@ -1968,11 +1987,11 @@ router.patch(
           error?.message ||
           "Unable to review task submission.",
         detail: error?.detail || null,
+        constraint: error?.constraint || null,
       });
     }
   }
 );
-
 /* =========================================================
    TUTOR GET SUBMISSIONS FOR ONE TASK
 ========================================================= */

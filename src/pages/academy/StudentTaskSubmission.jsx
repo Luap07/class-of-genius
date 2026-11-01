@@ -2,46 +2,89 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { useParams } from "react-router-dom";
 
 import {
   AlertCircle,
-  Award,
+   Award,
+  ArrowLeft,
   BookOpen,
   CalendarDays,
   CheckCircle2,
-  ClipboardList,
   Clock3,
   Download,
-  Eye,
   FileText,
   GraduationCap,
-  Hash,
+  Image as ImageIcon,
   Loader2,
-  Mail,
   MessageSquare,
-  RefreshCw,
-  Search,
+  Paperclip,
   Send,
+  Upload,
   User,
   Video,
-  Image as ImageIcon,
   X,
 } from "lucide-react";
 
+import { motion } from "framer-motion";
+
 /* =========================================================
-   API
+   API CONFIGURATION
 ========================================================= */
 
-const API_BASE_URL =
+const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
-  "http://localhost:5000";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
+
+function getAcademyApiBase() {
+  if (/\/api\/academy$/i.test(API_BASE_URL)) {
+    return API_BASE_URL;
+  }
+
+  if (/\/api$/i.test(API_BASE_URL)) {
+    return `${API_BASE_URL}/academy`;
+  }
+
+  return `${API_BASE_URL}/api/academy`;
+}
+
+const ACADEMY_API = getAcademyApiBase();
+
+const TASK_URL = `${ACADEMY_API}/student/tasks`;
 
 const SUBMISSIONS_URL =
-  `${API_BASE_URL}/api/academy/tutor/task-submissions`;
+  `${ACADEMY_API}/student/task-submissions`;
+
+const MAX_FILES = 10;
+
+const MAX_FILE_SIZE =
+  250 * 1024 * 1024;
+
+const ACCEPTED_FILE_TYPES = [
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".ppt",
+  ".pptx",
+  ".xls",
+  ".xlsx",
+  ".txt",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".mp4",
+  ".webm",
+  ".mov",
+  ".zip",
+];
 
 /* =========================================================
    BASIC HELPERS
@@ -72,13 +115,15 @@ function firstValue(...values) {
   return "";
 }
 
-/* =========================================================
-   SAFE JSON
-========================================================= */
-
 function safeParse(value) {
   if (!value) {
     return null;
+  }
+
+  if (
+    typeof value === "object"
+  ) {
+    return value;
   }
 
   try {
@@ -88,25 +133,18 @@ function safeParse(value) {
   }
 }
 
+function getErrorMessage(error) {
+  return (
+    error?.message ||
+    "Something went wrong. Please try again."
+  );
+}
+
 /* =========================================================
-   ACADEMY AUTH
+   STUDENT SESSION
 ========================================================= */
 
-/*
-  IMPORTANT
-
-  The academy tutor login uses:
-
-    scholiqen_academy_token
-    scholiqen_academy_user
-
-  We use those as the PRIMARY authentication source.
-
-  Older tutorReference/tutor/academyTutor storage is only
-  used as a fallback.
-*/
-
-function getAcademyUser() {
+function getStoredStudent() {
   if (
     typeof window === "undefined"
   ) {
@@ -115,9 +153,11 @@ function getAcademyUser() {
 
   const keys = [
     "scholiqen_academy_user",
-    "academyTutor",
-    "tutor",
+    "scholiqen_current_user",
+    "academy_student",
+    "student",
     "scholiqen_user",
+    "current_user",
   ];
 
   for (const key of keys) {
@@ -144,211 +184,6 @@ function getAcademyUser() {
   }
 
   return null;
-}
-
-/*
-  Get every useful tutor identifier from the authenticated
-  tutor session.
-
-  We DO NOT assume that the identifier must begin with SQA-.
-
-  Your current academy authentication can contain a UUID
-  reference, while older tutor application records can use
-  an SQA reference.
-*/
-
-function getTutorIdentifiers(tutor) {
-  if (!tutor) {
-    return {
-      reference: "",
-      tutorReference: "",
-      tutorId: "",
-      applicationReference: "",
-      id: "",
-    };
-  }
-
-  const reference = clean(
-    firstValue(
-      tutor?.reference,
-      tutor?.tutorReference,
-      tutor?.tutor_reference,
-      tutor?.applicationReference,
-      tutor?.application_reference,
-      tutor?.referenceId,
-      tutor?.reference_id
-    )
-  );
-
-  const tutorReference = clean(
-    firstValue(
-      tutor?.tutorReference,
-      tutor?.tutor_reference,
-      tutor?.reference,
-      tutor?.applicationReference,
-      tutor?.application_reference
-    )
-  );
-
-  const applicationReference =
-    clean(
-      firstValue(
-        tutor?.applicationReference,
-        tutor?.application_reference,
-        tutor?.reference
-      )
-    );
-
-  const tutorId = clean(
-    firstValue(
-      tutor?.tutorId,
-      tutor?.tutor_id,
-      tutor?.id,
-      tutor?.userId,
-      tutor?.user_id
-    )
-  );
-
-  const id = clean(
-    firstValue(
-      tutor?.id,
-      tutor?.userId,
-      tutor?.user_id,
-      tutor?.tutorId,
-      tutor?.tutor_id
-    )
-  );
-
-  return {
-    reference,
-    tutorReference,
-    tutorId,
-    applicationReference,
-    id,
-  };
-}
-
-/*
-  Get the best available reference.
-
-  Priority is the actual `reference` stored in the academy
-  user object.
-
-  If it is absent, we fall back through the known fields.
-*/
-
-function getTutorReference(tutor) {
-  const identifiers =
-    getTutorIdentifiers(tutor);
-
-  return clean(
-    firstValue(
-      identifiers.reference,
-      identifiers.tutorReference,
-      identifiers.applicationReference,
-      identifiers.tutorId,
-      identifiers.id
-    )
-  );
-}
-
-/*
-  Older code may have stored a plain tutor reference instead
-  of an object.
-*/
-
-function getStoredTutor() {
-  if (
-    typeof window === "undefined"
-  ) {
-    return null;
-  }
-
-  /*
-    ALWAYS prefer the current academy user.
-  */
-  const academyUser =
-    getAcademyUser();
-
-  if (academyUser) {
-    return academyUser;
-  }
-
-  /*
-    Fallback for older sessions.
-  */
-  const fallbackKeys = [
-    "tutorReference",
-    "tutor_reference",
-  ];
-
-  for (const key of fallbackKeys) {
-    try {
-      const raw =
-        localStorage.getItem(key);
-
-      if (!raw) {
-        continue;
-      }
-
-      const parsed =
-        safeParse(raw);
-
-      if (
-        parsed &&
-        typeof parsed === "object"
-      ) {
-        return parsed;
-      }
-
-      const value =
-        clean(raw);
-
-      if (value) {
-        return {
-          reference: value,
-        };
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
-}
-
-function getTutorName(tutor) {
-  if (!tutor) {
-    return "";
-  }
-
-  const direct = clean(
-    firstValue(
-      tutor?.name,
-      tutor?.full_name,
-      tutor?.fullName,
-      tutor?.tutorName,
-      tutor?.tutor_name,
-      tutor?.displayName,
-      tutor?.display_name
-    )
-  );
-
-  if (direct) {
-    return direct;
-  }
-
-  return [
-    tutor?.first_name ||
-      tutor?.firstName,
-    tutor?.middle_name ||
-      tutor?.middleName,
-    tutor?.last_name ||
-      tutor?.lastName,
-  ]
-    .map(clean)
-    .filter(Boolean)
-    .join(" ");
 }
 
 function getAcademyToken() {
@@ -358,9 +193,6 @@ function getAcademyToken() {
     return "";
   }
 
-  /*
-    The first key is the real academy auth token.
-  */
   const keys = [
     "scholiqen_academy_token",
     "academy_token",
@@ -370,14 +202,18 @@ function getAcademyToken() {
   ];
 
   for (const key of keys) {
-    const value =
-      localStorage.getItem(key);
+    try {
+      const value =
+        localStorage.getItem(key);
 
-    if (
-      value &&
-      value.trim()
-    ) {
-      return value.trim();
+      if (
+        value &&
+        value.trim()
+      ) {
+        return value.trim();
+      }
+    } catch {
+      continue;
     }
   }
 
@@ -385,18 +221,115 @@ function getAcademyToken() {
 }
 
 /* =========================================================
+   STUDENT IDENTIFIERS
+========================================================= */
+
+function getStudentIdentity(student) {
+  if (!student) {
+    return {
+      studentId: "",
+      enrollmentId: "",
+      email: "",
+      name: "",
+      className: "",
+      reference: "",
+    };
+  }
+
+  const studentId = clean(
+    firstValue(
+      student.studentId,
+      student.student_id,
+      student.studentID,
+      student.studentIdNumber,
+      student.student_id_number,
+      student.userId,
+      student.user_id,
+      student.id
+    )
+  );
+
+  const enrollmentId = clean(
+    firstValue(
+      student.enrollmentId,
+      student.enrollment_id,
+      student.enrollmentID,
+      student.academyEnrollmentId,
+      student.academy_enrollment_id
+    )
+  );
+
+  const email = clean(
+    firstValue(
+      student.email,
+      student.studentEmail,
+      student.student_email,
+      student.emailAddress,
+      student.email_address
+    )
+  );
+
+  const name = clean(
+    firstValue(
+      student.fullName,
+      student.full_name,
+      student.studentName,
+      student.student_name,
+      student.name,
+      [
+        student.firstName ||
+          student.first_name,
+        student.middleName ||
+          student.middle_name,
+        student.lastName ||
+          student.last_name,
+      ]
+        .map(clean)
+        .filter(Boolean)
+        .join(" ")
+    )
+  );
+
+  const className = clean(
+    firstValue(
+      student.className,
+      student.class_name,
+      student.class,
+      student.grade,
+      student.gradeLevel,
+      student.grade_level,
+      student.studentClass,
+      student.student_class
+    )
+  );
+
+  const reference = clean(
+    firstValue(
+      student.studentReference,
+      student.student_reference,
+      student.reference,
+      student.enrollmentReference,
+      student.enrollment_reference
+    )
+  );
+
+  return {
+    studentId,
+    enrollmentId,
+    email,
+    name,
+    className,
+    reference,
+  };
+}
+
+/* =========================================================
    AUTH HEADERS
 ========================================================= */
 
-function getAuthHeaders(
-  tutorReference = "",
-  tutor = null
-) {
+function getStudentHeaders() {
   const token =
     getAcademyToken();
-
-  const identifiers =
-    getTutorIdentifiers(tutor);
 
   const headers = {
     Accept: "application/json",
@@ -407,54 +340,14 @@ function getAuthHeaders(
       `Bearer ${token}`;
   }
 
-  /*
-    Send all known identifiers.
-
-    This keeps the frontend compatible with the backend whether
-    it resolves the tutor using reference, tutorReference,
-    applicationReference, or tutorId.
-  */
-
-  const finalReference =
-    clean(
-      firstValue(
-        tutorReference,
-        identifiers.reference,
-        identifiers.tutorReference
-      )
-    );
-
-  if (finalReference) {
-    headers["x-tutor-reference"] =
-      finalReference;
-  }
-
-  if (
-    identifiers.tutorId
-  ) {
-    headers["x-tutor-id"] =
-      identifiers.tutorId;
-  }
-
-  if (
-    identifiers.applicationReference
-  ) {
-    headers[
-      "x-application-reference"
-    ] =
-      identifiers.applicationReference;
-  }
-
   return headers;
 }
 
 /* =========================================================
-   RESPONSE
+   RESPONSE HELPERS
 ========================================================= */
 
-async function readResponse(
-  response
-) {
+async function readResponse(response) {
   const contentType =
     response.headers.get(
       "content-type"
@@ -482,54 +375,89 @@ async function readResponse(
   }
 }
 
-/* =========================================================
-   URL / FILE HELPERS
-========================================================= */
-
-function getFileUrl(value) {
-  if (!value) {
-    return "";
+function extractRows(data) {
+  if (Array.isArray(data)) {
+    return data;
   }
 
-  const raw =
-    typeof value === "string"
-      ? value
-      : value?.url ||
-        value?.fileUrl ||
-        value?.file_url ||
-        value?.downloadUrl ||
-        value?.download_url ||
-        value?.path ||
-        value?.filePath ||
-        value?.file_path ||
-        "";
+  const possibleRows = [
+    data?.submissions,
+    data?.rows,
+    data?.results,
+    data?.data?.submissions,
+    data?.data?.rows,
+    data?.data,
+  ];
 
-  const url = clean(raw);
-
-  if (!url) {
-    return "";
+  for (const rows of possibleRows) {
+    if (Array.isArray(rows)) {
+      return rows;
+    }
   }
 
   if (
-    /^https?:\/\//i.test(url)
+    data?.submission &&
+    typeof data.submission === "object"
   ) {
-    return url;
+    return [data.submission];
   }
 
-  if (url.startsWith("/")) {
-    return `${API_BASE_URL}${url}`;
+  if (
+    data?.data?.submission &&
+    typeof data.data.submission === "object"
+  ) {
+    return [data.data.submission];
   }
 
-  return `${API_BASE_URL}/${url}`;
+  return [];
 }
 
-function getAttachmentName(
-  file,
-  index = 0
-) {
+/* =========================================================
+   FILE HELPERS
+========================================================= */
+
+function parseAttachments(value) {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+
   if (
-    typeof file === "string"
+    typeof value === "object"
   ) {
+    return Object.values(value);
+  }
+
+  if (
+    typeof value === "string"
+  ) {
+    try {
+      const parsed =
+        JSON.parse(value);
+
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+
+      if (
+        parsed &&
+        typeof parsed === "object"
+      ) {
+        return Object.values(parsed);
+      }
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function getFileName(file, index = 0) {
+  if (typeof file === "string") {
     return (
       file
         .split("/")
@@ -554,112 +482,103 @@ function getAttachmentName(
   );
 }
 
-function getAttachmentUrl(file) {
-  return getFileUrl(file);
-}
-
-function parseAttachments(value) {
-  if (!value) {
-    return [];
+function getFileUrl(file) {
+  if (!file) {
+    return "";
   }
 
-  if (Array.isArray(value)) {
-    return value.filter(Boolean);
-  }
-
-  if (
-    typeof value === "object"
-  ) {
-    return Object.values(value);
-  }
-
-  if (
-    typeof value === "string"
-  ) {
-    try {
-      const parsed =
-        JSON.parse(value);
-
-      if (
-        Array.isArray(parsed)
-      ) {
-        return parsed;
-      }
-
-      if (
-        parsed &&
-        typeof parsed ===
-          "object"
-      ) {
-        return Object.values(
-          parsed
+  const raw =
+    typeof file === "string"
+      ? file
+      : firstValue(
+          file?.url,
+          file?.fileUrl,
+          file?.file_url,
+          file?.downloadUrl,
+          file?.download_url,
+          file?.path,
+          file?.filePath,
+          file?.file_path
         );
-      }
-    } catch {
-      return [];
-    }
+
+  const url = clean(raw);
+
+  if (!url) {
+    return "";
   }
 
-  return [];
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  if (url.startsWith("/")) {
+    return `${API_BASE_URL}${url}`;
+  }
+
+  return `${API_BASE_URL}/${url}`;
 }
 
-function getAttachmentType(file) {
-  const type = clean(
+function getFileType(file) {
+  const name =
+    getFileName(file).toLowerCase();
+
+  const mimeType = clean(
     firstValue(
       file?.mimeType,
       file?.mime_type,
-      file?.fileType,
-      file?.file_type,
       file?.type
     )
   ).toLowerCase();
 
-  const name =
-    getAttachmentName(file)
-      .toLowerCase();
-
   if (
-    type.startsWith(
-      "image/"
-    ) ||
-    /\.(jpg|jpeg|png|webp|gif|svg|avif)$/i.test(
-      name
-    )
+    mimeType.startsWith("image/") ||
+    /\.(jpg|jpeg|png|webp|gif|svg|avif)$/i.test(name)
   ) {
     return "image";
   }
 
   if (
-    type.startsWith(
-      "video/"
-    ) ||
-    /\.(mp4|webm|mov)$/i.test(
-      name
-    )
+    mimeType.startsWith("video/") ||
+    /\.(mp4|webm|mov)$/i.test(name)
   ) {
     return "video";
   }
 
   if (
-    type.includes("pdf") ||
+    mimeType.includes("pdf") ||
     /\.pdf$/i.test(name)
   ) {
     return "pdf";
   }
 
   if (
-    type.includes("word") ||
-    type.includes(
-      "officedocument"
-    ) ||
-    /\.(doc|docx)$/i.test(
-      name
-    )
+    /\.(doc|docx|ppt|pptx|xls|xlsx|txt)$/i.test(name)
   ) {
     return "document";
   }
 
   return "file";
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes || 0);
+
+  if (!size) {
+    return "Unknown size";
+  }
+
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(
+    size /
+    (1024 * 1024)
+  ).toFixed(1)} MB`;
 }
 
 /* =========================================================
@@ -671,13 +590,10 @@ function parseDate(value) {
     return null;
   }
 
-  const date =
-    new Date(value);
+  const date = new Date(value);
 
   if (
-    Number.isNaN(
-      date.getTime()
-    )
+    Number.isNaN(date.getTime())
   ) {
     return null;
   }
@@ -686,11 +602,10 @@ function parseDate(value) {
 }
 
 function formatDate(value) {
-  const date =
-    parseDate(value);
+  const date = parseDate(value);
 
   if (!date) {
-    return "—";
+    return "Not specified";
   }
 
   return date.toLocaleDateString(
@@ -704,11 +619,10 @@ function formatDate(value) {
 }
 
 function formatDateTime(value) {
-  const date =
-    parseDate(value);
+  const date = parseDate(value);
 
   if (!date) {
-    return "—";
+    return "Not available";
   }
 
   return date.toLocaleString(
@@ -723,110 +637,14 @@ function formatDateTime(value) {
   );
 }
 
-function isLateSubmission(
-  submittedAt,
-  dueAt
-) {
-  const submitted =
-    parseDate(
-      submittedAt
-    );
+function isPastDue(value) {
+  const due = parseDate(value);
 
-  const due =
-    parseDate(dueAt);
-
-  if (
-    !submitted ||
-    !due
-  ) {
+  if (!due) {
     return false;
   }
 
-  return (
-    submitted.getTime() >
-    due.getTime()
-  );
-}
-
-/* =========================================================
-   STATUS
-========================================================= */
-
-function getRawStatus(
-  submission
-) {
-  return clean(
-    firstValue(
-      submission?.status,
-      submission?.submissionStatus,
-      submission?.submission_status
-    )
-  ).toLowerCase();
-}
-
-function isGraded(
-  submission
-) {
-  const status =
-    getRawStatus(
-      submission
-    );
-
-  return (
-    status === "reviewed" ||
-    status === "graded" ||
-    status === "completed"
-  );
-}
-
-function getStatusLabel(
-  submission
-) {
-  if (
-    isGraded(
-      submission
-    )
-  ) {
-    return "Graded";
-  }
-
-  const status =
-    getRawStatus(
-      submission
-    );
-
-  if (
-    status === "returned"
-  ) {
-    return "Returned";
-  }
-
-  return "Awaiting review";
-}
-
-function getStatusClass(
-  submission
-) {
-  if (
-    isGraded(
-      submission
-    )
-  ) {
-    return "border-emerald-400/20 bg-emerald-400/10 text-emerald-300";
-  }
-
-  const status =
-    getRawStatus(
-      submission
-    );
-
-  if (
-    status === "returned"
-  ) {
-    return "border-amber-400/20 bg-amber-400/10 text-amber-300";
-  }
-
-  return "border-cyan-400/20 bg-cyan-400/10 text-cyan-300";
+  return Date.now() > due.getTime();
 }
 
 /* =========================================================
@@ -836,108 +654,107 @@ function getStatusClass(
 function normalizeTask(task) {
   if (
     !task ||
-    typeof task !==
-      "object"
+    typeof task !== "object"
   ) {
     return null;
   }
 
+  const metadata =
+    safeParse(task.metadata) ||
+    task.metadata ||
+    {};
+
+  const attachments = parseAttachments(
+    firstValue(
+      task.attachments,
+      task.task_attachments,
+      task.taskAttachments,
+      task.files,
+      task.resources,
+      metadata?.attachments,
+      metadata?.files,
+      metadata?.resources
+    )
+  );
+
   return {
     ...task,
 
-    id: firstValue(
-      task?.id,
-      task?.task_id,
-      task?.taskId,
-      task?.reference,
-      task?.task_reference,
-      task?.taskReference,
-      task?.assignment_id,
-      task?.assignmentId
+    id: clean(
+      firstValue(
+        task.id,
+        task.taskId,
+        task.task_id,
+        task.activityId,
+        task.activity_id,
+        task.reference
+      )
     ),
 
     title:
       clean(
         firstValue(
-          task?.title,
-          task?.task_title,
-          task?.taskTitle,
-          task?.assignment_title,
-          task?.assignmentTitle,
-          task?.name
+          task.title,
+          task.task_title,
+          task.taskTitle,
+          task.name
         )
       ) || "Task",
 
     description: clean(
       firstValue(
-        task?.description,
-        task?.task_description,
-        task?.taskDescription
+        task.description,
+        task.task_description,
+        task.taskDescription
       )
     ),
 
     instructions: clean(
       firstValue(
-        task?.instructions,
-        task?.task_instructions,
-        task?.taskInstructions
+        task.instructions,
+        task.task_instructions,
+        task.taskInstructions,
+        metadata?.instructions
       )
     ),
 
     subject: clean(
       firstValue(
-        task?.subject,
-        task?.subject_name,
-        task?.subjectName,
-        task?.taskSubject,
-        task?.task_subject
+        task.subject,
+        task.subject_name,
+        task.subjectName
       )
     ),
 
     grade: clean(
       firstValue(
-        task?.grade,
-        task?.class,
-        task?.class_name,
-        task?.className,
-        task?.taskGrade,
-        task?.task_grade
+        task.grade,
+        task.class,
+        task.class_name,
+        task.className
       )
     ),
 
     dueAt: firstValue(
-      task?.dueAt,
-      task?.due_at,
-      task?.taskDueAt,
-      task?.task_due_at,
-      task?.deadline,
-      task?.dueDate,
-      task?.due_date,
-      task?.taskDeadline,
-      task?.task_deadline
+      task.dueAt,
+      task.due_at,
+      task.dueDate,
+      task.due_date,
+      task.deadline
     ),
 
     maxScore:
       Number(
         firstValue(
-          task?.maxScore,
-          task?.max_score,
-          task?.taskMaxScore,
-          task?.task_max_score,
+          task.maxScore,
+          task.max_score,
+          task.total_marks,
+          task.totalMarks,
           100
         )
       ) || 100,
 
-    attachments:
-      parseAttachments(
-        firstValue(
-          task?.attachments,
-          task?.task_attachments,
-          task?.taskAttachments,
-          task?.task_files,
-          task?.taskFiles
-        )
-      ),
+    attachments,
   };
 }
 
@@ -945,1150 +762,956 @@ function normalizeTask(task) {
    NORMALIZE SUBMISSION
 ========================================================= */
 
-function normalizeSubmission(
-  submission
-) {
+function normalizeSubmission(submission) {
   if (
     !submission ||
-    typeof submission !==
-      "object"
+    typeof submission !== "object"
   ) {
     return null;
   }
 
-  const nestedTask =
-    submission?.task ||
-    submission?.assignment ||
-    submission?.activity ||
-    null;
-
-  const task =
-    normalizeTask(
-      nestedTask
-    );
-
-  const normalized = {
+  return {
     ...submission,
 
-    id: firstValue(
-      submission?.id,
-      submission?.submission_id,
-      submission?.submissionId
-    ),
-
-    submissionId:
+    id: clean(
       firstValue(
-        submission?.submissionId,
-        submission?.submission_id,
-        submission?.id
-      ),
-
-    taskId: firstValue(
-      submission?.taskId,
-      submission?.task_id,
-      submission?.task_reference,
-      submission?.taskReference,
-      submission?.activityId,
-      submission?.activity_id,
-      submission?.assignmentId,
-      submission?.assignment_id,
-      task?.id
+        submission.id,
+        submission.submissionId,
+        submission.submission_id
+      )
     ),
 
-    studentId:
+    taskId: clean(
       firstValue(
-        submission?.studentId,
-        submission?.student_id
-      ),
-
-    studentName:
-      clean(
-        firstValue(
-          submission?.studentName,
-          submission?.student_name,
-          submission?.studentFullName,
-          submission?.student_full_name
-        )
-      ) || "Student",
-
-    studentEmail:
-      clean(
-        firstValue(
-          submission?.studentEmail,
-          submission?.student_email,
-          submission?.email
-        )
-      ),
-
-    taskTitle:
-      clean(
-        firstValue(
-          submission?.taskTitle,
-          submission?.task_title,
-          submission?.assignmentTitle,
-          submission?.assignment_title,
-          submission?.title,
-          task?.title
-        )
-      ) || "Task",
-
-    taskDescription:
-      clean(
-        firstValue(
-          submission?.taskDescription,
-          submission?.task_description,
-          submission?.description,
-          task?.description
-        )
-      ),
-
-    taskInstructions:
-      clean(
-        firstValue(
-          submission?.taskInstructions,
-          submission?.task_instructions,
-          submission?.instructions,
-          task?.instructions
-        )
-      ),
-
-    subject:
-      clean(
-        firstValue(
-          submission?.subject,
-          submission?.taskSubject,
-          submission?.task_subject,
-          submission?.subject_name,
-          submission?.subjectName,
-          task?.subject
-        )
-      ) || "Subject",
-
-    grade:
-      clean(
-        firstValue(
-          submission?.grade,
-          submission?.taskGrade,
-          submission?.task_grade,
-          submission?.class,
-          submission?.class_name,
-          submission?.className,
-          task?.grade
-        )
-      ) || "Class",
-
-    dueAt: firstValue(
-      submission?.dueAt,
-      submission?.due_at,
-      submission?.taskDueAt,
-      submission?.task_due_at,
-      submission?.deadline,
-      submission?.dueDate,
-      submission?.due_date,
-      submission?.taskDeadline,
-      submission?.task_deadline,
-      task?.dueAt
+        submission.taskId,
+        submission.task_id,
+        submission.activityId,
+        submission.activity_id
+      )
     ),
 
-    maxScore:
-      Number(
-        firstValue(
-          submission?.maxScore,
-          submission?.max_score,
-          submission?.taskMaxScore,
-          submission?.task_max_score,
-          task?.maxScore,
-          100
-        )
-      ) || 100,
-
-    responseText:
-      clean(
-        firstValue(
-          submission?.responseText,
-          submission?.response_text,
-          submission?.answer,
-          submission?.answer_text,
-          submission?.studentResponse,
-          submission?.student_response
-        )
-      ),
-
-    attachments:
-      parseAttachments(
-        firstValue(
-          submission?.attachments,
-          submission?.submissionAttachments,
-          submission?.submission_attachments,
-          submission?.studentAttachments,
-          submission?.student_attachments
-        )
-      ),
-
-    taskAttachments:
-      parseAttachments(
-        firstValue(
-          submission?.taskAttachments,
-          submission?.task_attachments,
-          submission?.taskFiles,
-          submission?.task_files,
-          task?.attachments
-        )
-      ),
+    responseText: clean(
+      firstValue(
+        submission.responseText,
+        submission.response_text,
+        submission.submissionText,
+        submission.submission_text,
+        submission.answer,
+        submission.answer_text
+      )
+    ),
 
     status:
       clean(
         firstValue(
-          submission?.status,
-          submission?.submissionStatus,
-          submission?.submission_status
+          submission.status,
+          submission.submissionStatus,
+          submission.submission_status
         )
       ) || "submitted",
 
+    submittedAt: firstValue(
+      submission.submittedAt,
+      submission.submitted_at,
+      submission.createdAt,
+      submission.created_at
+    ),
+
+    attachments: parseAttachments(
+      firstValue(
+        submission.attachments,
+        submission.files,
+        submission.submissionFiles,
+        submission.submission_files,
+        submission.studentAttachments,
+        submission.student_attachments
+      )
+    ),
+
     score:
-      submission?.score !==
-        null &&
-      submission?.score !==
-        undefined &&
-      submission?.score !==
-        ""
-        ? Number(
-            submission.score
-          )
+      submission.score !== undefined &&
+      submission.score !== null &&
+      submission.score !== ""
+        ? Number(submission.score)
         : null,
 
-    feedback:
-      clean(
-        firstValue(
-          submission?.feedback,
-          submission?.tutorFeedback,
-          submission?.tutor_feedback,
-          submission?.review_feedback
-        )
-      ),
-
-    submittedAt:
+    feedback: clean(
       firstValue(
-        submission?.submittedAt,
-        submission?.submitted_at,
-        submission?.submissionDate,
-        submission?.submission_date,
-        submission?.createdAt,
-        submission?.created_at
-      ),
-
-    reviewedAt:
-      firstValue(
-        submission?.reviewedAt,
-        submission?.reviewed_at
-      ),
-
-    reviewedBy:
-      clean(
-        firstValue(
-          submission?.reviewedBy,
-          submission?.reviewed_by
-        )
-      ),
-
-    explicitOverdue:
-      submission?.overdue ??
-      submission?.isOverdue ??
-      submission?.is_overdue ??
-      submission?.late ??
-      submission?.isLate ??
-      null,
-  };
-
-  return {
-    ...normalized,
-
-    isLate:
-      normalized.explicitOverdue !==
-      null
-        ? Boolean(
-            normalized.explicitOverdue
-          )
-        : isLateSubmission(
-            normalized.submittedAt,
-            normalized.dueAt
-          ),
+        submission.feedback,
+        submission.tutorFeedback,
+        submission.tutor_feedback
+      )
+    ),
   };
 }
 
 /* =========================================================
-   MAIN COMPONENT
+   TASK RESPONSE EXTRACTION
 ========================================================= */
 
-export default function TutorTaskSubmissions() {
-  const [tutor, setTutor] =
+function extractTask(data) {
+  if (!data) {
+    return null;
+  }
+
+  const possibleTasks = [
+    data.task,
+    data.activity,
+    data.data?.task,
+    data.data?.activity,
+    data.data,
+    data,
+  ];
+
+  for (const item of possibleTasks) {
+    if (
+      item &&
+      typeof item === "object" &&
+      !Array.isArray(item) &&
+      firstValue(
+        item.id,
+        item.taskId,
+        item.task_id,
+        item.title,
+        item.task_title
+      )
+    ) {
+      return normalizeTask(item);
+    }
+  }
+
+  return null;
+}
+
+/* =========================================================
+   COMPONENT
+========================================================= */
+
+export default function StudentTaskSubmission({
+  taskId: suppliedTaskId,
+}) {
+  const params = useParams();
+
+  const taskId = clean(
+    firstValue(
+      suppliedTaskId,
+      params?.taskId,
+      params?.id
+    )
+  );
+
+  const fileInputRef = useRef(null);
+
+  const [student, setStudent] =
     useState(null);
 
-  const [
-    submissions,
-    setSubmissions,
-  ] = useState([]);
+  const [task, setTask] =
+    useState(null);
+
+  const [submission, setSubmission] =
+    useState(null);
+
+  const [responseText, setResponseText] =
+    useState("");
+
+  const [selectedFiles, setSelectedFiles] =
+    useState([]);
 
   const [loading, setLoading] =
     useState(true);
 
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
+  const [submitting, setSubmitting] =
+    useState(false);
 
   const [error, setError] =
     useState("");
 
-  const [search, setSearch] =
+  const [success, setSuccess] =
     useState("");
 
-  const [
-    statusFilter,
-    setStatusFilter,
-  ] = useState("all");
-
-  const [
-    selectedSubmission,
-    setSelectedSubmission,
-  ] = useState(null);
-
-  const [reviewScore, setReviewScore] =
-    useState("");
-
-  const [
-    reviewFeedback,
-    setReviewFeedback,
-  ] = useState("");
-
-  const [reviewing, setReviewing] =
+  const [taskLoading, setTaskLoading] =
     useState(false);
 
-  const [
-    reviewError,
-    setReviewError,
-  ] = useState("");
-
-  const [
-    reviewSuccess,
-    setReviewSuccess,
-  ] = useState("");
+  const [submissionLoading, setSubmissionLoading] =
+    useState(false);
 
   /* =======================================================
-     LOAD TUTOR
+     STUDENT SESSION
   ======================================================= */
 
   useEffect(() => {
-    const storedTutor =
-      getStoredTutor();
+    const currentStudent =
+      getStoredStudent();
 
-    console.log(
-      "👨‍🏫 Academy tutor session:",
-      storedTutor
-    );
-
-    if (!storedTutor) {
+    if (!currentStudent) {
       setError(
-        "Tutor information was not found. Please log in again."
+        "Your student session could not be found. Please sign in again."
       );
 
       setLoading(false);
       return;
     }
 
-    const identifiers =
-      getTutorIdentifiers(
-        storedTutor
+    const identity =
+      getStudentIdentity(
+        currentStudent
       );
 
-    const reference =
-      getTutorReference(
-        storedTutor
-      );
-
-    console.log(
-      "👨‍🏫 Tutor identifiers:",
-      {
-        ...identifiers,
-        resolvedReference:
-          reference,
-      }
-    );
-
-    if (!reference) {
+    if (
+      !identity.studentId &&
+      !identity.email
+    ) {
       setError(
-        "Your tutor reference could not be found. Please log out and log in again."
+        "Your student ID or email address is missing from your Academy session. Please sign in again."
       );
 
       setLoading(false);
       return;
     }
 
-    /*
-      Normalize the tutor object but preserve every field
-      returned by the login system.
-    */
-    setTutor({
-      ...storedTutor,
-
-      reference,
-
-      tutorReference:
-        firstValue(
-          storedTutor?.tutorReference,
-          storedTutor?.tutor_reference,
-          reference
-        ),
-    });
+    setStudent(currentStudent);
   }, []);
 
   /* =======================================================
-     FETCH SUBMISSIONS
+     FETCH TASK
   ======================================================= */
 
-  const fetchSubmissions =
+  const fetchTask = useCallback(
+    async () => {
+      if (!taskId) {
+        throw new Error(
+          "Task ID is missing from the page URL."
+        );
+      }
+
+      setTaskLoading(true);
+
+      try {
+        const url =
+          `${TASK_URL}/${encodeURIComponent(taskId)}`;
+
+        console.log(
+          "Loading student task:",
+          url
+        );
+
+        const response =
+          await fetch(url, {
+            method: "GET",
+            headers: getStudentHeaders(),
+            credentials: "include",
+          });
+
+        const data =
+          await readResponse(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data?.message ||
+              data?.error ||
+              `Unable to load task (${response.status}).`
+          );
+        }
+
+        const normalizedTask =
+          extractTask(data);
+
+        if (!normalizedTask) {
+          throw new Error(
+            "The server returned the task response, but no task record was found."
+          );
+        }
+
+        setTask(normalizedTask);
+
+        return normalizedTask;
+      } finally {
+        setTaskLoading(false);
+      }
+    },
+    [taskId]
+  );
+
+  /* =======================================================
+     FETCH STUDENT SUBMISSION
+  ======================================================= */
+
+  const fetchSubmission =
     useCallback(
-      async (
-        showLoader = true
-      ) => {
+      async () => {
+        if (!student) {
+          return null;
+        }
+
+        const identity =
+          getStudentIdentity(student);
+
+        if (
+          !identity.studentId &&
+          !identity.email
+        ) {
+          throw new Error(
+            "Student ID or email is required to load your submission."
+          );
+        }
+
+        setSubmissionLoading(true);
+
         try {
-          if (showLoader) {
-            setLoading(true);
-          } else {
-            setRefreshing(true);
-          }
+          const url =
+            new URL(SUBMISSIONS_URL);
 
-          setError("");
-
-          /*
-            Re-read the current academy session each time.
-
-            This prevents stale React state from causing the
-            wrong tutor reference to be sent.
-          */
-          const currentTutor =
-            getStoredTutor() ||
-            tutor;
-
-          if (!currentTutor) {
-            throw new Error(
-              "Tutor information was not found. Please log in again."
+          if (identity.studentId) {
+            url.searchParams.set(
+              "studentId",
+              identity.studentId
             );
           }
 
-          const identifiers =
-            getTutorIdentifiers(
-              currentTutor
+          if (identity.email) {
+            url.searchParams.set(
+              "email",
+              identity.email
             );
+          }
 
-          const tutorReference =
-            getTutorReference(
-              currentTutor
+          if (identity.enrollmentId) {
+            url.searchParams.set(
+              "enrollmentId",
+              identity.enrollmentId
             );
+          }
 
-          if (!tutorReference) {
-            throw new Error(
-              "Tutor reference was not found. Please log in again."
+          if (taskId) {
+            url.searchParams.set(
+              "taskId",
+              taskId
             );
           }
 
           console.log(
-            "👨‍🏫 Loading submissions",
-            {
-              tutorReference,
-              tutorId:
-                identifiers.tutorId,
-              applicationReference:
-                identifiers.applicationReference,
-              reference:
-                identifiers.reference,
-            }
+            "Loading student submission:",
+            url.toString()
           );
-
-          const url =
-            new URL(
-              SUBMISSIONS_URL
-            );
-
-          /*
-            Send the resolved reference.
-          */
-          url.searchParams.set(
-            "tutorReference",
-            tutorReference
-          );
-
-          url.searchParams.set(
-            "tutor_reference",
-            tutorReference
-          );
-
-          url.searchParams.set(
-            "reference",
-            tutorReference
-          );
-
-          /*
-            If the authenticated tutor has a separate ID,
-            send that too.
-
-            This is important because the backend may identify
-            the tutor by database ID instead of application
-            reference.
-          */
-          if (
-            identifiers.tutorId
-          ) {
-            url.searchParams.set(
-              "tutorId",
-              identifiers.tutorId
-            );
-
-            url.searchParams.set(
-              "tutor_id",
-              identifiers.tutorId
-            );
-          }
-
-          if (
-            identifiers.applicationReference
-          ) {
-            url.searchParams.set(
-              "applicationReference",
-              identifiers.applicationReference
-            );
-
-            url.searchParams.set(
-              "application_reference",
-              identifiers.applicationReference
-            );
-          }
 
           const response =
             await fetch(
               url.toString(),
               {
                 method: "GET",
-
-                headers:
-                  getAuthHeaders(
-                    tutorReference,
-                    currentTutor
-                  ),
-
-                credentials:
-                  "include",
+                headers: getStudentHeaders(),
+                credentials: "include",
               }
             );
 
           const data =
-            await readResponse(
-              response
-            );
-
-          console.log(
-            "📥 Task submissions response:",
-            {
-              status:
-                response.status,
-              ok:
-                response.ok,
-              data,
-            }
-          );
+            await readResponse(response);
 
           if (!response.ok) {
             throw new Error(
               data?.message ||
                 data?.error ||
-                `Unable to load submissions (${response.status}).`
+                `Unable to load your submission (${response.status}).`
             );
           }
 
           const rows =
-            Array.isArray(data)
-              ? data
-              : data?.submissions ||
-                data?.rows ||
-                data?.data ||
-                data?.results ||
-                [];
+            extractRows(data);
 
           const normalizedRows =
             rows
-              .filter(
-                (item) =>
-                  item &&
-                  typeof item ===
-                    "object"
-              )
-              .map(
-                normalizeSubmission
-              )
+              .map(normalizeSubmission)
               .filter(Boolean);
 
-          setSubmissions(
-            normalizedRows
-          );
-        } catch (err) {
-          console.error(
-            "❌ Tutor task submissions error:",
-            err
+          const matchingSubmission =
+            normalizedRows.find(
+              (item) =>
+                String(item.taskId) ===
+                String(taskId)
+            ) ||
+            (
+              normalizedRows.length === 1
+                ? normalizedRows[0]
+                : null
+            );
+
+          setSubmission(
+            matchingSubmission
           );
 
-          setError(
-            err?.message ||
-              "Unable to load task submissions."
-          );
+          if (matchingSubmission) {
+            setResponseText(
+              matchingSubmission.responseText ||
+                ""
+            );
+          }
 
-          setSubmissions([]);
+          return matchingSubmission;
         } finally {
-          setLoading(false);
-          setRefreshing(false);
+          setSubmissionLoading(false);
         }
       },
-      [tutor]
+      [student, taskId]
     );
-
-  useEffect(() => {
-    if (tutor) {
-      fetchSubmissions(true);
-    }
-  }, [
-    tutor,
-    fetchSubmissions,
-  ]);
 
   /* =======================================================
-     COUNTS
+     INITIAL LOAD
   ======================================================= */
 
-  const counts = useMemo(() => {
-    const graded =
-      submissions.filter(
-        isGraded
-      ).length;
-
-    const awaiting =
-      submissions.filter(
-        (item) =>
-          !isGraded(item)
-      ).length;
-
-    const overdue =
-      submissions.filter(
-        (item) =>
-          item.isLate
-      ).length;
-
-    return {
-      total:
-        submissions.length,
-      awaiting,
-      graded,
-      overdue,
-    };
-  }, [submissions]);
-
-  /* =======================================================
-     FILTER
-  ======================================================= */
-
-  const filteredSubmissions =
-    useMemo(() => {
-      const query =
-        clean(search)
-          .toLowerCase();
-
-      return submissions.filter(
-        (submission) => {
-          if (
-            statusFilter ===
-              "awaiting" &&
-            isGraded(
-              submission
-            )
-          ) {
-            return false;
-          }
-
-          if (
-            statusFilter ===
-              "graded" &&
-            !isGraded(
-              submission
-            )
-          ) {
-            return false;
-          }
-
-          if (
-            statusFilter ===
-              "overdue" &&
-            !submission.isLate
-          ) {
-            return false;
-          }
-
-          if (!query) {
-            return true;
-          }
-
-          const searchable = [
-            submission.studentName,
-            submission.studentEmail,
-            submission.taskTitle,
-            submission.subject,
-            submission.grade,
-            submission.responseText,
-            submission.taskDescription,
-            submission.taskInstructions,
-          ]
-            .map(clean)
-            .join(" ")
-            .toLowerCase();
-
-          return searchable.includes(
-            query
-          );
-        }
-      );
-    }, [
-      submissions,
-      search,
-      statusFilter,
-    ]);
-
-  /* =======================================================
-     OPEN SUBMISSION
-  ======================================================= */
-
-  const openSubmission = (
-    submission
-  ) => {
-    const normalized =
-      normalizeSubmission(
-        submission
-      );
-
-    setSelectedSubmission(
-      normalized
-    );
-
-    setReviewScore(
-      normalized?.score ===
-        null ||
-      normalized?.score ===
-        undefined
-        ? ""
-        : String(
-            normalized.score
-          )
-    );
-
-    setReviewFeedback(
-      normalized?.feedback ||
-        ""
-    );
-
-    setReviewError("");
-    setReviewSuccess("");
-  };
-
-  const closeSubmission = () => {
-    if (reviewing) {
-      return;
-    }
-
-    setSelectedSubmission(
-      null
-    );
-
-    setReviewScore("");
-    setReviewFeedback("");
-    setReviewError("");
-    setReviewSuccess("");
-  };
-
-  /* =======================================================
-     REVIEW / GRADE
-  ======================================================= */
-
-  const reviewSubmission =
+  const loadPage = useCallback(
     async () => {
-      if (
-        !selectedSubmission
-      ) {
+      if (!student) {
         return;
       }
 
-      setReviewError("");
-      setReviewSuccess("");
-
-      const currentTutor =
-        getStoredTutor() ||
-        tutor;
-
-      const identifiers =
-        getTutorIdentifiers(
-          currentTutor
-        );
-
-      const tutorReference =
-        getTutorReference(
-          currentTutor
-        );
-
-      if (!tutorReference) {
-        setReviewError(
-          "Tutor reference was not found. Please log in again."
-        );
-
-        return;
-      }
-
-      const rawScore =
-        clean(reviewScore);
-
-      if (!rawScore) {
-        setReviewError(
-          "Enter a score before saving the review."
-        );
-
-        return;
-      }
-
-      const score =
-        Number(rawScore);
-
-      if (
-        !Number.isFinite(score)
-      ) {
-        setReviewError(
-          "Score must be a valid number."
-        );
-
-        return;
-      }
-
-      const maxScore =
-        Number(
-          selectedSubmission.maxScore ||
-            100
-        ) || 100;
-
-      if (score < 0) {
-        setReviewError(
-          "Score cannot be below 0."
-        );
-
-        return;
-      }
-
-      if (
-        score > maxScore
-      ) {
-        setReviewError(
-          `Score cannot be greater than ${maxScore}.`
-        );
-
-        return;
-      }
-
-      const submissionId =
-        selectedSubmission.id ||
-        selectedSubmission.submissionId;
-
-      if (!submissionId) {
-        setReviewError(
-          "This submission does not have a valid submission ID."
-        );
-
-        return;
-      }
+      setLoading(true);
+      setError("");
+      setSuccess("");
 
       try {
-        setReviewing(true);
-
-        const response =
-          await fetch(
-            `${SUBMISSIONS_URL}/${encodeURIComponent(
-              submissionId
-            )}/review`,
-            {
-              method: "PATCH",
-
-              headers: {
-                ...getAuthHeaders(
-                  tutorReference,
-                  currentTutor
-                ),
-
-                "Content-Type":
-                  "application/json",
-              },
-
-              credentials:
-                "include",
-
-              body: JSON.stringify({
-                score,
-                maxScore,
-
-                feedback:
-                  reviewFeedback.trim(),
-
-                status:
-                  "reviewed",
-
-                tutorReference,
-
-                tutor_reference:
-                  tutorReference,
-
-                reference:
-                  tutorReference,
-
-                tutorId:
-                  identifiers.tutorId ||
-                  undefined,
-
-                tutor_id:
-                  identifiers.tutorId ||
-                  undefined,
-
-                applicationReference:
-                  identifiers.applicationReference ||
-                  undefined,
-
-                application_reference:
-                  identifiers.applicationReference ||
-                  undefined,
-              }),
-            }
-          );
-
-        const data =
-          await readResponse(
-            response
-          );
-
-        if (!response.ok) {
-          throw new Error(
-            data?.message ||
-              data?.error ||
-              `Unable to review submission (${response.status}).`
-          );
-        }
-
-        const returned =
-          data?.submission ||
-          data?.data?.submission ||
-          data?.data ||
-          data;
-
-        const reviewed =
-          returned &&
-          typeof returned ===
-            "object"
-            ? normalizeSubmission(
-                returned
-              )
-            : null;
-
-        const reviewedAt =
-          reviewed?.reviewedAt ||
-          new Date().toISOString();
-
-        setSubmissions(
-          (current) =>
-            current.map(
-              (item) => {
-                const itemId =
-                  item.id ||
-                  item.submissionId;
-
-                if (
-                  String(
-                    itemId
-                  ) !==
-                  String(
-                    submissionId
-                  )
-                ) {
-                  return item;
-                }
-
-                return {
-                  ...item,
-                  ...(reviewed ||
-                    {}),
-
-                  id:
-                    item.id ||
-                    reviewed?.id ||
-                    submissionId,
-
-                  submissionId:
-                    item.submissionId ||
-                    reviewed?.submissionId ||
-                    submissionId,
-
-                  score,
-                  maxScore,
-
-                  feedback:
-                    reviewFeedback.trim(),
-
-                  status:
-                    "reviewed",
-
-                  reviewedAt,
-
-                  reviewed_at:
-                    reviewedAt,
-                };
-              }
-            )
-        );
-
-        setSelectedSubmission(
-          (current) => {
-            if (!current) {
-              return current;
-            }
-
-            return {
-              ...current,
-              ...(reviewed ||
-                {}),
-
-              id:
-                current.id ||
-                reviewed?.id ||
-                submissionId,
-
-              submissionId:
-                current.submissionId ||
-                reviewed?.submissionId ||
-                submissionId,
-
-              score,
-              maxScore,
-
-              feedback:
-                reviewFeedback.trim(),
-
-              status:
-                "reviewed",
-
-              reviewedAt,
-
-              reviewed_at:
-                reviewedAt,
-            };
-          }
-        );
-
-        setReviewSuccess(
-          "Submission graded successfully."
-        );
+        await Promise.all([
+          fetchTask(),
+          fetchSubmission(),
+        ]);
       } catch (err) {
         console.error(
-          "Review submission error:",
+          "Student task submission load error:",
           err
         );
 
-        setReviewError(
-          err?.message ||
-            "Unable to grade this submission."
+        setError(
+          getErrorMessage(err)
         );
       } finally {
-        setReviewing(false);
+        setLoading(false);
       }
-    };
+    },
+    [
+      student,
+      fetchTask,
+      fetchSubmission,
+    ]
+  );
+
+  useEffect(() => {
+    if (student) {
+      loadPage();
+    }
+  }, [student, loadPage]);
+
+  /* =======================================================
+     FILE VALIDATION
+  ======================================================= */
+
+  const handleFiles = useCallback(
+    (event) => {
+      const incoming = Array.from(
+        event.target.files || []
+      );
+
+      if (!incoming.length) {
+        return;
+      }
+
+      setError("");
+      setSuccess("");
+
+      const validFiles = [];
+
+      for (const file of incoming) {
+        if (
+          file.size > MAX_FILE_SIZE
+        ) {
+          setError(
+            `${file.name} is larger than the 250 MB upload limit.`
+          );
+
+          continue;
+        }
+
+        validFiles.push(file);
+      }
+
+      setSelectedFiles((current) => {
+        const combined = [
+          ...current,
+          ...validFiles,
+        ];
+
+        const unique = [];
+
+        const seen = new Set();
+
+        for (const file of combined) {
+          const key = [
+            file.name,
+            file.size,
+            file.lastModified,
+          ].join("-");
+
+          if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(file);
+          }
+        }
+
+        if (unique.length > MAX_FILES) {
+          setError(
+            `You can upload a maximum of ${MAX_FILES} files.`
+          );
+
+          return unique.slice(0, MAX_FILES);
+        }
+
+        return unique;
+      });
+
+      event.target.value = "";
+    },
+    []
+  );
+
+  const removeFile = (index) => {
+    setSelectedFiles((current) =>
+      current.filter(
+        (_, fileIndex) =>
+          fileIndex !== index
+      )
+    );
+  };
+
+  /* =======================================================
+     SUBMIT TASK
+  ======================================================= */
+
+  const submitTask = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!student) {
+      setError(
+        "Your student session has expired. Please sign in again."
+      );
+
+      return;
+    }
+
+    if (!taskId) {
+      setError(
+        "Task ID is missing."
+      );
+
+      return;
+    }
+
+    const identity =
+      getStudentIdentity(student);
+
+    if (
+      !identity.studentId &&
+      !identity.email
+    ) {
+      setError(
+        "Your student ID or email address could not be found."
+      );
+
+      return;
+    }
+
+    if (
+      !responseText.trim() &&
+      selectedFiles.length === 0
+    ) {
+      setError(
+        "Write your answer or attach at least one file before submitting."
+      );
+
+      return;
+    }
+
+    if (
+      selectedFiles.length > MAX_FILES
+    ) {
+      setError(
+        `You can upload a maximum of ${MAX_FILES} files.`
+      );
+
+      return;
+    }
+
+    const totalSize =
+      selectedFiles.reduce(
+        (total, file) =>
+          total + file.size,
+        0
+      );
+
+    if (
+      selectedFiles.some(
+        (file) =>
+          file.size > MAX_FILE_SIZE
+      )
+    ) {
+      setError(
+        "One or more files exceed the 250 MB upload limit."
+      );
+
+      return;
+    }
+
+    if (
+      totalSize >
+      MAX_FILES * MAX_FILE_SIZE
+    ) {
+      setError(
+        "The selected files exceed the allowed upload size."
+      );
+
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const formData =
+        new FormData();
+
+      formData.append(
+        "taskId",
+        taskId
+      );
+
+      formData.append(
+        "responseText",
+        responseText.trim()
+      );
+
+      if (identity.studentId) {
+        formData.append(
+          "studentId",
+          identity.studentId
+        );
+      }
+
+      if (identity.email) {
+        formData.append(
+          "email",
+          identity.email
+        );
+      }
+
+      if (identity.enrollmentId) {
+        formData.append(
+          "enrollmentId",
+          identity.enrollmentId
+        );
+      }
+
+      if (identity.reference) {
+        formData.append(
+          "studentReference",
+          identity.reference
+        );
+      }
+
+      if (identity.name) {
+        formData.append(
+          "studentName",
+          identity.name
+        );
+      }
+
+      /*
+        IMPORTANT:
+        The backend expects each uploaded file under
+        the multipart field name "files".
+      */
+
+      selectedFiles.forEach((file) => {
+        formData.append(
+          "files",
+          file
+        );
+      });
+
+      console.log(
+        "Submitting student task:",
+        {
+          url: SUBMISSIONS_URL,
+          taskId,
+          studentId: identity.studentId,
+          email: identity.email,
+          fileCount: selectedFiles.length,
+        }
+      );
+
+      const response =
+        await fetch(
+          SUBMISSIONS_URL,
+          {
+            method: "POST",
+
+            headers:
+              getStudentHeaders(),
+
+            credentials: "include",
+
+            /*
+              Do not manually set Content-Type.
+              The browser must generate the multipart
+              boundary for FormData.
+            */
+
+            body: formData,
+          }
+        );
+
+      const data =
+        await readResponse(response);
+
+      console.log(
+        "Student submission response:",
+        {
+          status: response.status,
+          ok: response.ok,
+          data,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            `Submission failed (${response.status}).`
+        );
+      }
+
+      const returned =
+        data?.submission ||
+        data?.data?.submission ||
+        data?.data ||
+        data;
+
+      const normalized =
+        normalizeSubmission(
+          returned
+        );
+
+      if (normalized) {
+        setSubmission({
+          ...normalized,
+
+          taskId:
+            normalized.taskId ||
+            taskId,
+
+          responseText:
+            normalized.responseText ||
+            responseText.trim(),
+
+          status:
+            normalized.status ||
+            "submitted",
+
+          attachments:
+            normalized.attachments ||
+            [],
+        });
+      } else {
+        setSubmission({
+          id:
+            data?.submissionId ||
+            data?.submission_id ||
+            `submission-${Date.now()}`,
+
+          taskId,
+
+          responseText:
+            responseText.trim(),
+
+          status: "submitted",
+
+          submittedAt:
+            new Date().toISOString(),
+
+          attachments: [],
+        });
+      }
+
+      setSelectedFiles([]);
+
+      setSuccess(
+        data?.message ||
+          "Your task has been submitted successfully."
+      );
+
+      /*
+        Refresh the submission from the database.
+      */
+
+      try {
+        await fetchSubmission();
+      } catch (refreshError) {
+        console.warn(
+          "Submission saved, but refreshing its details failed:",
+          refreshError
+        );
+      }
+    } catch (err) {
+      console.error(
+        "Student task submission error:",
+        err
+      );
+
+      const message =
+        getErrorMessage(err);
+
+      if (
+        message === "Failed to fetch"
+      ) {
+        setError(
+          `Unable to connect to the Academy server at ${SUBMISSIONS_URL}. Check that your backend is running, that VITE_API_URL is correct, and that the backend allows requests from your frontend through CORS.`
+        );
+      } else {
+        setError(message);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /* =======================================================
+     STATUS
+  ======================================================= */
+
+  const status = clean(
+    submission?.status
+  ).toLowerCase();
+
+  const isGraded = [
+    "graded",
+    "reviewed",
+    "completed",
+  ].includes(status);
+
+  const isReturned =
+    status === "returned";
+
+  const isSubmitted =
+    Boolean(submission);
+
+  const dueDate =
+    task?.dueAt;
+
+  const overdue =
+    dueDate &&
+    isPastDue(dueDate) &&
+    !isSubmitted;
+
+  const taskAttachments =
+    task?.attachments || [];
+
+  const submittedAttachments =
+    submission?.attachments || [];
+
+  const studentIdentity =
+    useMemo(
+      () =>
+        getStudentIdentity(student),
+      [student]
+    );
 
   /* =======================================================
      RENDER
   ======================================================= */
 
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#020617] text-slate-100">
+        <div className="text-center">
+          <Loader2
+            size={34}
+            className="mx-auto animate-spin text-cyan-400"
+          />
+
+          <p className="mt-4 text-sm text-slate-400">
+            Loading your task...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100">
-      <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
 
-        <div className="mb-7 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-cyan-400">
-              <ClipboardList size={19} />
+        {/* HEADER */}
 
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]">
-                Academy
-              </span>
-            </div>
-
-            <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Task Submissions
-            </h1>
-
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              Receive the task together with
-              the student's actual submission,
-              then grade it and send feedback.
-            </p>
-          </div>
-
+        <div className="mb-7">
           <button
             type="button"
-            onClick={() =>
-              fetchSubmissions(false)
-            }
-            disabled={refreshing}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 text-sm font-semibold text-slate-200 transition hover:border-cyan-500/40 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw
-              size={17}
-              className={
-                refreshing
-                  ? "animate-spin"
-                  : ""
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                window.location.href =
+                  "/academy/student/tasks";
               }
-            />
-
-            Refresh
+            }}
+            className="mb-6 inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-cyan-500/30 hover:text-white"
+          >
+            <ArrowLeft size={16} />
+            Back to tasks
           </button>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-cyan-400">
+                <BookOpen size={18} />
+
+                <span className="text-xs font-bold uppercase tracking-[0.2em]">
+                  Student Academy
+                </span>
+              </div>
+
+              <h1 className="text-2xl font-bold text-white sm:text-3xl">
+                {task?.title || "Task Submission"}
+              </h1>
+
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Read the task instructions, prepare your answer,
+                and submit your work to your tutor.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={loadPage}
+              disabled={
+                taskLoading ||
+                submissionLoading
+              }
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 text-sm font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+            >
+              <Loader2
+                size={15}
+                className={
+                  taskLoading ||
+                  submissionLoading
+                    ? "animate-spin"
+                    : "hidden"
+                }
+              />
+
+              <span>
+                Refresh
+              </span>
+            </button>
+          </div>
         </div>
 
-        {tutor && (
-          <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#071426] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
-                <GraduationCap size={21} />
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold text-white">
-                  {getTutorName(
-                    tutor
-                  ) || "Tutor"}
-                </p>
-
-                <p className="text-xs text-slate-500">
-                  Reference:{" "}
-                  {getTutorReference(
-                    tutor
-                  ) || "—"}
-                </p>
-              </div>
-            </div>
-
-            <div className="text-xs text-slate-500">
-              {counts.total}{" "}
-              {counts.total === 1
-                ? "submission"
-                : "submissions"}
-            </div>
-          </div>
-        )}
+        {/* ERROR */}
 
         {error && (
           <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
@@ -2097,1103 +1720,482 @@ export default function TutorTaskSubmissions() {
               className="mt-0.5 shrink-0 text-red-400"
             />
 
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-red-300">
-                Unable to load submissions
+                Something went wrong
               </p>
 
-              <p className="mt-1 text-sm text-red-200/70">
+              <p className="mt-1 break-words text-sm leading-6 text-red-200/70">
                 {error}
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() =>
-                fetchSubmissions(true)
-              }
-              className="rounded-lg border border-red-400/20 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-400/10"
+              onClick={() => setError("")}
+              className="text-red-300 hover:text-white"
             >
-              Retry
+              <X size={17} />
             </button>
           </div>
         )}
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            icon={
-              <ClipboardList size={19} />
-            }
-            label="Total submissions"
-            value={counts.total}
-          />
+        {/* SUCCESS */}
 
-          <StatCard
-            icon={
-              <Clock3 size={19} />
-            }
-            label="Awaiting review"
-            value={counts.awaiting}
-          />
+        {success && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+            <CheckCircle2
+              size={19}
+              className="mt-0.5 shrink-0 text-emerald-400"
+            />
 
-          <StatCard
-            icon={
-              <CheckCircle2 size={19} />
-            }
-            label="Graded"
-            value={counts.graded}
-          />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-emerald-300">
+                Success
+              </p>
 
-          <StatCard
-            icon={
-              <AlertCircle size={19} />
-            }
-            label="Overdue / Late"
-            value={counts.overdue}
-          />
-        </div>
+              <p className="mt-1 text-sm text-emerald-200/70">
+                {success}
+              </p>
+            </div>
+          </div>
+        )}
 
-        <div className="mb-5 rounded-2xl border border-slate-800 bg-[#071426] p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="relative flex-1">
-              <Search
-                size={17}
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
-              />
+        {/* STUDENT DETAILS */}
 
-              <input
-                type="text"
-                value={search}
-                onChange={(event) =>
-                  setSearch(
-                    event.target.value
-                  )
-                }
-                placeholder="Search student, task, subject or class..."
-                className="h-11 w-full rounded-xl border border-slate-700 bg-[#020617] pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-500/50"
+        {student && (
+          <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#071426] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+                <User size={20} />
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  {studentIdentity.name || "Student"}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  {studentIdentity.email || "Student account"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {studentIdentity.className && (
+                <span className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-400">
+                  {studentIdentity.className}
+                </span>
+              )}
+
+              {studentIdentity.reference && (
+                <span className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-400">
+                  {studentIdentity.reference}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TASK DETAILS */}
+
+        {task && (
+          <div className="mb-6 rounded-2xl border border-slate-800 bg-[#071426] p-5 sm:p-6">
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              {task.subject && (
+                <InfoBadge
+                  icon={<BookOpen size={13} />}
+                  text={task.subject}
+                />
+              )}
+
+              {task.grade && (
+                <InfoBadge
+                  icon={<GraduationCap size={13} />}
+                  text={task.grade}
+                />
+              )}
+
+              <InfoBadge
+                icon={<Award size={13} />}
+                text={`Maximum score: ${task.maxScore}`}
               />
             </div>
 
-            <div className="flex gap-2 overflow-x-auto">
-              {[
-                ["all", "All"],
-                [
-                  "awaiting",
-                  "Awaiting review",
-                ],
-                ["graded", "Graded"],
-                ["overdue", "Overdue"],
-              ].map(
-                ([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() =>
-                      setStatusFilter(
-                        value
-                      )
-                    }
-                    className={`whitespace-nowrap rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                      statusFilter ===
-                      value
-                        ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-300"
-                        : "border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                    }`}
-                  >
-                    {label}
-                  </button>
+            <h2 className="text-xl font-bold text-white">
+              {task.title}
+            </h2>
+
+            {task.description && (
+              <div className="mt-4">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-cyan-400">
+                  Description
+                </p>
+
+                <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                  {task.description}
+                </p>
+              </div>
+            )}
+
+            {task.instructions && (
+              <div className="mt-5 rounded-xl border border-cyan-500/10 bg-[#020617] p-4">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-cyan-400">
+                  Instructions
+                </p>
+
+                <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                  {task.instructions}
+                </p>
+              </div>
+            )}
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <TaskMeta
+                icon={<CalendarDays size={15} />}
+                label="Due date"
+                value={formatDateTime(task.dueAt)}
+              />
+
+              <TaskMeta
+                icon={<Clock3 size={15} />}
+                label="Maximum score"
+                value={`${task.maxScore} marks`}
+              />
+            </div>
+
+            {overdue && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-300">
+                <AlertCircle size={16} />
+                This task is past its due date.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TASK ATTACHMENTS */}
+
+        {taskAttachments.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-slate-800 bg-[#071426] p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Paperclip
+                size={18}
+                className="text-cyan-400"
+              />
+
+              <h2 className="text-sm font-semibold text-white">
+                Materials provided by your tutor
+              </h2>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {taskAttachments.map(
+                (file, index) => (
+                  <AttachmentCard
+                    key={`task-${index}`}
+                    file={file}
+                    index={index}
+                  />
                 )
               )}
             </div>
           </div>
-        </div>
+        )}
 
-        {loading ? (
-          <div className="flex min-h-[400px] items-center justify-center rounded-2xl border border-slate-800 bg-[#071426]">
-            <div className="text-center">
-              <Loader2
-                size={30}
-                className="mx-auto animate-spin text-cyan-400"
-              />
+        {/* EXISTING SUBMISSION STATUS */}
 
-              <p className="mt-3 text-sm text-slate-400">
-                Loading task submissions...
-              </p>
+        {submission && (
+          <div className="mb-6 rounded-2xl border border-slate-800 bg-[#071426] p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Your submission status
+                </p>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+                      isGraded
+                        ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                        : isReturned
+                        ? "border-amber-400/20 bg-amber-400/10 text-amber-300"
+                        : "border-cyan-400/20 bg-cyan-400/10 text-cyan-300"
+                    }`}
+                  >
+                    {isGraded
+                      ? "Graded"
+                      : isReturned
+                      ? "Returned"
+                      : "Submitted"}
+                  </span>
+
+                  <span className="text-xs text-slate-500">
+                    {formatDateTime(
+                      submission.submittedAt
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {submission.score !== null &&
+                submission.score !== undefined && (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                    <p className="text-[10px] font-bold uppercase text-slate-500">
+                      Your score
+                    </p>
+
+                    <p className="mt-1 text-xl font-bold text-emerald-300">
+                      {submission.score}/{task?.maxScore || 100}
+                    </p>
+                  </div>
+                )}
             </div>
-          </div>
-        ) : filteredSubmissions.length ===
-          0 ? (
-          <EmptyState
-            hasFilters={
-              Boolean(
-                search.trim()
-              ) ||
-              statusFilter !==
-                "all"
-            }
-            onClear={() => {
-              setSearch("");
-              setStatusFilter(
-                "all"
-              );
-            }}
-          />
-        ) : (
-          <div className="space-y-3">
-            {filteredSubmissions.map(
-              (
-                submission,
-                index
-              ) => (
-                <SubmissionCard
-                  key={
-                    submission.id ||
-                    submission.submissionId ||
-                    `${submission.studentId || "student"}-${index}`
-                  }
-                  submission={
-                    submission
-                  }
-                  onOpen={() =>
-                    openSubmission(
-                      submission
+
+            {submission.feedback && (
+              <div className="mt-4 rounded-xl border border-slate-800 bg-[#020617] p-4">
+                <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-400">
+                  <MessageSquare size={14} />
+                  Tutor feedback
+                </p>
+
+                <p className="whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                  {submission.feedback}
+                </p>
+              </div>
+            )}
+
+            {submittedAttachments.length > 0 && (
+              <div className="mt-5">
+                <p className="mb-3 text-xs font-semibold text-slate-400">
+                  Previously submitted files
+                </p>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {submittedAttachments.map(
+                    (file, index) => (
+                      <AttachmentCard
+                        key={`submitted-${index}`}
+                        file={file}
+                        index={index}
+                      />
                     )
-                  }
-                />
-              )
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
-      </div>
 
-      <AnimatePresence>
-        {selectedSubmission && (
-          <ReviewModal
-            submission={
-              selectedSubmission
-            }
-            score={reviewScore}
-            feedback={
-              reviewFeedback
-            }
-            setScore={
-              setReviewScore
-            }
-            setFeedback={
-              setReviewFeedback
-            }
-            reviewing={
-              reviewing
-            }
-            error={
-              reviewError
-            }
-            success={
-              reviewSuccess
-            }
-            onReview={
-              reviewSubmission
-            }
-            onClose={
-              closeSubmission
-            }
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/* =========================================================
-   STAT CARD
-========================================================= */
-
-function StatCard({
-  icon,
-  label,
-  value,
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-800 bg-[#071426] p-5">
-      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
-        {icon}
-      </div>
-
-      <p className="text-sm text-slate-500">
-        {label}
-      </p>
-
-      <p className="mt-1 text-2xl font-bold text-white">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-/* =========================================================
-   SUBMISSION CARD
-========================================================= */
-
-function SubmissionCard({
-  submission,
-  onOpen,
-}) {
-  const studentName =
-    submission.studentName ||
-    "Student";
-
-  const taskTitle =
-    submission.taskTitle ||
-    "Task";
-
-  const subject =
-    submission.subject ||
-    "Subject";
-
-  const grade =
-    submission.grade ||
-    "Class";
-
-  const score =
-    submission.score !==
-      null &&
-    submission.score !==
-      undefined
-      ? submission.score
-      : null;
-
-  const maxScore =
-    submission.maxScore ||
-    100;
-
-  return (
-    <motion.button
-      type="button"
-      initial={{
-        opacity: 0,
-        y: 8,
-      }}
-      animate={{
-        opacity: 1,
-        y: 0,
-      }}
-      transition={{
-        duration: 0.2,
-      }}
-      onClick={onOpen}
-      className="group w-full rounded-2xl border border-slate-800 bg-[#071426] p-4 text-left transition hover:border-cyan-500/30 hover:bg-[#0a192d] sm:p-5"
-    >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-cyan-300">
-            <User size={19} />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate text-sm font-semibold text-white">
-                {studentName}
-              </h3>
-
-              <span
-                className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${getStatusClass(
-                  submission
-                )}`}
-              >
-                {getStatusLabel(
-                  submission
-                )}
-              </span>
-
-              {submission.isLate && (
-                <span className="rounded-full border border-red-400/20 bg-red-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-red-300">
-                  Late
-                </span>
-              )}
-            </div>
-
-            <p className="mt-1 truncate text-sm font-medium text-slate-300">
-              {taskTitle}
-            </p>
-
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-              <span className="inline-flex items-center gap-1.5">
-                <BookOpen size={13} />
-                {subject}
-              </span>
-
-              <span className="inline-flex items-center gap-1.5">
-                <GraduationCap size={13} />
-                {grade}
-              </span>
-
-              <span className="inline-flex items-center gap-1.5">
-                <CalendarDays size={13} />
-                Submitted{" "}
-                {formatDate(
-                  submission.submittedAt
-                )}
-              </span>
-
-              {submission.dueAt && (
-                <span className="inline-flex items-center gap-1.5">
-                  <Clock3 size={13} />
-                  Due{" "}
-                  {formatDate(
-                    submission.dueAt
-                  )}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-5 border-t border-slate-800 pt-4 xl:min-w-[230px] xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-              Score
-            </p>
-
-            <p className="mt-1 text-lg font-bold text-white">
-              {score === null
-                ? "Not graded"
-                : `${score}/${maxScore}`}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs font-semibold text-cyan-300">
-            <Eye size={16} />
-            Open
-          </div>
-        </div>
-      </div>
-    </motion.button>
-  );
-}
-
-/* =========================================================
-   EMPTY
-========================================================= */
-
-function EmptyState({
-  hasFilters,
-  onClear,
-}) {
-  return (
-    <div className="flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-[#071426] px-6 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-slate-500">
-        <ClipboardList size={25} />
-      </div>
-
-      <h3 className="mt-4 text-base font-semibold text-white">
-        {hasFilters
-          ? "No matching submissions"
-          : "No task submissions yet"}
-      </h3>
-
-      <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-        {hasFilters
-          ? "Try changing the search or status filter."
-          : "Student submissions will appear here when students submit their tasks."}
-      </p>
-
-      {hasFilters && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="mt-5 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
-        >
-          Clear filters
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* =========================================================
-   REVIEW MODAL
-========================================================= */
-
-function ReviewModal({
-  submission,
-  score,
-  feedback,
-  setScore,
-  setFeedback,
-  reviewing,
-  error,
-  success,
-  onReview,
-  onClose,
-}) {
-  const taskAttachments =
-    submission.taskAttachments ||
-    [];
-
-  const submittedAttachments =
-    submission.attachments ||
-    [];
-
-  const maxScore =
-    Number(
-      submission.maxScore ||
-        100
-    ) || 100;
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm sm:p-5"
-      initial={{
-        opacity: 0,
-      }}
-      animate={{
-        opacity: 1,
-      }}
-      exit={{
-        opacity: 0,
-      }}
-      onMouseDown={(event) => {
-        if (
-          event.target ===
-          event.currentTarget
-        ) {
-          onClose();
-        }
-      }}
-    >
-      <motion.div
-        initial={{
-          opacity: 0,
-          y: 20,
-          scale: 0.98,
-        }}
-        animate={{
-          opacity: 1,
-          y: 0,
-          scale: 1,
-        }}
-        exit={{
-          opacity: 0,
-          y: 20,
-          scale: 0.98,
-        }}
-        className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-[#071426] shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-800 px-4 py-4 sm:px-6">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-lg bg-cyan-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
-                Task submission
-              </span>
-
-              <span
-                className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${getStatusClass(
-                  submission
-                )}`}
-              >
-                {getStatusLabel(
-                  submission
-                )}
-              </span>
-
-              {submission.isLate && (
-                <span className="rounded-full border border-red-400/20 bg-red-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-red-300">
-                  Late submission
-                </span>
-              )}
-            </div>
-
-            <h2 className="mt-2 truncate text-lg font-bold text-white sm:text-xl">
-              {
-                submission.taskTitle
-              }
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Submitted by{" "}
-              <span className="text-slate-300">
-                {
-                  submission.studentName
-                }
-              </span>
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={
-              reviewing
-            }
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-50"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="grid xl:grid-cols-[1fr_390px]">
-
-            <div className="space-y-6 p-4 sm:p-6">
-
-              <section>
-                <div className="mb-3 flex items-center gap-2">
-                  <ClipboardList
-                    size={18}
-                    className="text-cyan-400"
-                  />
-
-                  <h3 className="text-sm font-semibold text-white">
-                    Task received
-                  </h3>
-                </div>
-
-                <div className="rounded-2xl border border-cyan-500/10 bg-[#020617] p-5">
-                  <div className="flex flex-wrap gap-2">
-                    <InfoBadge
-                      icon={
-                        <BookOpen size={13} />
-                      }
-                      text={
-                        submission.subject ||
-                        "Subject"
-                      }
-                    />
-
-                    <InfoBadge
-                      icon={
-                        <GraduationCap size={13} />
-                      }
-                      text={
-                        submission.grade ||
-                        "Class"
-                      }
-                    />
-
-                    <InfoBadge
-                      icon={
-                        <Award size={13} />
-                      }
-                      text={`Max score: ${maxScore}`}
-                    />
-
-                    {submission.taskId && (
-                      <InfoBadge
-                        icon={
-                          <Hash size={13} />
-                        }
-                        text={`Task ${submission.taskId}`}
-                      />
-                    )}
-                  </div>
-
-                  <div className="mt-5">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-400/70">
-                      Task title
-                    </p>
-
-                    <h4 className="mt-1 text-xl font-bold text-white">
-                      {
-                        submission.taskTitle
-                      }
-                    </h4>
-                  </div>
-
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    <TaskMeta
-                      icon={
-                        <CalendarDays size={15} />
-                      }
-                      label="Due date"
-                      value={
-                        submission.dueAt
-                          ? formatDateTime(
-                              submission.dueAt
-                            )
-                          : "Not specified"
-                      }
-                    />
-
-                    <TaskMeta
-                      icon={
-                        <Clock3 size={15} />
-                      }
-                      label="Submitted"
-                      value={
-                        submission.submittedAt
-                          ? formatDateTime(
-                              submission.submittedAt
-                            )
-                          : "Not available"
-                      }
-                    />
-                  </div>
-
-                  {submission.isLate && (
-                    <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3">
-                      <AlertCircle
-                        size={17}
-                        className="mt-0.5 shrink-0 text-red-400"
-                      />
-
-                      <div>
-                        <p className="text-xs font-semibold text-red-300">
-                          This submission was late
-                        </p>
-
-                        <p className="mt-1 text-xs leading-5 text-red-200/60">
-                          The student's submission time
-                          was after the task due date.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {submission.taskDescription && (
-                    <div className="mt-5">
-                      <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                        Description
-                      </p>
-
-                      <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                        {
-                          submission.taskDescription
-                        }
-                      </p>
-                    </div>
-                  )}
-
-                  {submission.taskInstructions && (
-                    <div className="mt-5 border-t border-slate-800 pt-5">
-                      <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                        Instructions
-                      </p>
-
-                      <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                        {
-                          submission.taskInstructions
-                        }
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section>
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText
-                      size={18}
-                      className="text-violet-400"
-                    />
-
-                    <h3 className="text-sm font-semibold text-white">
-                      Task materials
-                    </h3>
-                  </div>
-
-                  <span className="text-xs text-slate-600">
-                    {
-                      taskAttachments.length
-                    }{" "}
-                    {taskAttachments.length ===
-                    1
-                      ? "file"
-                      : "files"}
-                  </span>
-                </div>
-
-                {taskAttachments.length ===
-                0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-800 bg-[#020617] p-5 text-center">
-                    <FileText
-                      size={25}
-                      className="mx-auto text-slate-700"
-                    />
-
-                    <p className="mt-2 text-xs text-slate-600">
-                      No task attachment was provided.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {taskAttachments.map(
-                      (
-                        file,
-                        index
-                      ) => (
-                        <AttachmentCard
-                          key={`task-${index}-${getAttachmentName(
-                            file,
-                            index
-                          )}`}
-                          file={file}
-                          index={index}
-                        />
-                      )
-                    )}
-                  </div>
-                )}
-              </section>
-
-              <section>
-                <div className="mb-3 flex items-center gap-2">
-                  <User
-                    size={18}
-                    className="text-cyan-400"
-                  />
-
-                  <h3 className="text-sm font-semibold text-white">
-                    Student
-                  </h3>
-                </div>
-
-                <div className="rounded-2xl border border-slate-800 bg-[#020617] p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
-                      <User size={19} />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-white">
-                        {
-                          submission.studentName
-                        }
-                      </p>
-
-                      {submission.studentEmail && (
-                        <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                          <Mail size={12} />
-
-                          {
-                            submission.studentEmail
-                          }
-                        </p>
-                      )}
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <InfoBadge
-                          icon={
-                            <BookOpen size={13} />
-                          }
-                          text={
-                            submission.subject
-                          }
-                        />
-
-                        <InfoBadge
-                          icon={
-                            <GraduationCap size={13} />
-                          }
-                          text={
-                            submission.grade
-                          }
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <div className="mb-3 flex items-center gap-2">
-                  <MessageSquare
-                    size={18}
-                    className="text-cyan-400"
-                  />
-
-                  <h3 className="text-sm font-semibold text-white">
-                    Student submission
-                  </h3>
-                </div>
-
-                <div className="rounded-2xl border border-slate-800 bg-[#020617] p-5">
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                    Written response
-                  </p>
-
-                  {submission.responseText ? (
-                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                      {
-                        submission.responseText
-                      }
-                    </p>
-                  ) : (
-                    <div className="flex min-h-[120px] items-center justify-center rounded-xl border border-dashed border-slate-800 text-center">
-                      <div>
-                        <MessageSquare
-                          size={27}
-                          className="mx-auto text-slate-700"
-                        />
-
-                        <p className="mt-2 text-sm text-slate-600">
-                          No written response was submitted.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section>
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText
-                      size={18}
-                      className="text-cyan-400"
-                    />
-
-                    <h3 className="text-sm font-semibold text-white">
-                      Student submitted files
-                    </h3>
-                  </div>
-
-                  <span className="text-xs text-slate-600">
-                    {
-                      submittedAttachments.length
-                    }{" "}
-                    {submittedAttachments.length ===
-                    1
-                      ? "file"
-                      : "files"}
-                  </span>
-                </div>
-
-                {submittedAttachments.length ===
-                0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-800 bg-[#020617] p-6 text-center">
-                    <FileText
-                      size={28}
-                      className="mx-auto text-slate-700"
-                    />
-
-                    <p className="mt-3 text-sm text-slate-600">
-                      The student did not submit any files.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {submittedAttachments.map(
-                      (
-                        file,
-                        index
-                      ) => (
-                        <AttachmentCard
-                          key={`student-${index}-${getAttachmentName(
-                            file,
-                            index
-                          )}`}
-                          file={file}
-                          index={index}
-                        />
-                      )
-                    )}
-                  </div>
-                )}
-              </section>
-            </div>
-
-            <aside className="border-t border-slate-800 bg-[#061121] p-4 sm:p-6 xl:border-l xl:border-t-0">
-              <div className="xl:sticky xl:top-0">
-                <div className="mb-5">
-                  <div className="mb-2 flex items-center gap-2">
-                    <Award
-                      size={18}
-                      className="text-cyan-400"
-                    />
-
-                    <h3 className="text-sm font-semibold text-white">
-                      Grade submission
-                    </h3>
-                  </div>
-
-                  <p className="text-xs leading-5 text-slate-500">
-                    Enter the student's score
-                    and optional feedback.
-                  </p>
-                </div>
-
-                <div className="mb-5 rounded-2xl border border-slate-800 bg-[#020617] p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                    Current status
-                  </p>
-
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <span
-                      className={`rounded-full border px-3 py-1.5 text-xs font-bold ${getStatusClass(
-                        submission
-                      )}`}
-                    >
-                      {getStatusLabel(
-                        submission
-                      )}
-                    </span>
-
-                    {submission.isLate && (
-                      <span className="rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-xs font-bold text-red-300">
-                        Late
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <label className="block">
-                  <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Score
-                  </span>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      max={maxScore}
-                      step="0.01"
-                      value={score}
-                      onChange={(
-                        event
-                      ) =>
-                        setScore(
-                          event.target
-                            .value
-                        )
-                      }
-                      placeholder="0"
-                      className="h-12 w-full rounded-xl border border-slate-700 bg-[#020617] px-4 text-base font-semibold text-white outline-none placeholder:text-slate-700 focus:border-cyan-500/50"
-                    />
-
-                    <span className="shrink-0 text-sm font-semibold text-slate-500">
-                      / {maxScore}
-                    </span>
-                  </div>
-                </label>
-
-                <label className="mt-5 block">
-                  <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Feedback
-                  </span>
-
-                  <textarea
-                    value={feedback}
-                    onChange={(
-                      event
-                    ) =>
-                      setFeedback(
-                        event.target
-                          .value
-                      )
-                    }
-                    rows={8}
-                    placeholder="Write feedback for the student..."
-                    className="w-full resize-none rounded-xl border border-slate-700 bg-[#020617] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-700 focus:border-cyan-500/50"
-                  />
-                </label>
-
-                {submission.score !==
-                  null &&
-                  submission.score !==
-                    undefined && (
-                    <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                        Existing grade
-                      </p>
-
-                      <p className="mt-1 text-lg font-bold text-emerald-300">
-                        {
-                          submission.score
-                        }
-                        /
-                        {
-                          maxScore
-                        }
-                      </p>
-
-                      {submission.reviewedAt && (
-                        <p className="mt-1 text-[11px] text-slate-600">
-                          Graded{" "}
-                          {formatDateTime(
-                            submission.reviewedAt
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                {error && (
-                  <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3">
-                    <div className="flex gap-2">
-                      <AlertCircle
-                        size={16}
-                        className="mt-0.5 shrink-0 text-red-400"
-                      />
-
-                      <p className="text-xs leading-5 text-red-300">
-                        {error}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {success && (
-                  <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-                    <div className="flex gap-2">
-                      <CheckCircle2
-                        size={16}
-                        className="mt-0.5 shrink-0 text-emerald-400"
-                      />
-
-                      <p className="text-xs leading-5 text-emerald-300">
-                        {success}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={
-                    onReview
-                  }
-                  disabled={
-                    reviewing
-                  }
-                  className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 text-sm font-bold text-[#020617] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {reviewing ? (
-                    <>
-                      <Loader2
-                        size={17}
-                        className="animate-spin"
-                      />
-
-                      Saving grade...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={17} />
-
-                      Save grade
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={
-                    onClose
-                  }
-                  disabled={
-                    reviewing
-                  }
-                  className="mt-2 h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 text-sm font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-                >
-                  Close
-                </button>
+        {/* SUBMISSION FORM */}
+
+        {!isGraded && (
+          <div className="rounded-2xl border border-slate-800 bg-[#071426] p-5 sm:p-6">
+            <div className="mb-5">
+              <div className="mb-2 flex items-center gap-2">
+                <Send
+                  size={18}
+                  className="text-cyan-400"
+                />
+
+                <h2 className="text-base font-bold text-white">
+                  {submission
+                    ? "Update your submission"
+                    : "Submit your task"}
+                </h2>
               </div>
-            </aside>
+
+              <p className="text-sm leading-6 text-slate-500">
+                Write your answer below or attach your completed work.
+              </p>
+            </div>
+
+            <label className="mb-5 block">
+              <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Your answer
+              </span>
+
+              <textarea
+                value={responseText}
+                onChange={(event) =>
+                  setResponseText(
+                    event.target.value
+                  )
+                }
+                rows={9}
+                disabled={submitting}
+                placeholder="Type your answer or explain the work you have completed..."
+                className="w-full resize-y rounded-xl border border-slate-700 bg-[#020617] px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-500/50 disabled:opacity-60"
+              />
+            </label>
+
+            {/* FILE UPLOAD */}
+
+            <div className="mb-5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Attach your work
+                </span>
+
+                <span className="text-[11px] text-slate-600">
+                  Maximum {MAX_FILES} files · 250 MB per file
+                </span>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ACCEPTED_FILE_TYPES.join(",")}
+                onChange={handleFiles}
+                disabled={
+                  submitting ||
+                  selectedFiles.length >= MAX_FILES
+                }
+                className="hidden"
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
+                disabled={
+                  submitting ||
+                  selectedFiles.length >= MAX_FILES
+                }
+                className="flex min-h-[130px] w-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-[#020617] px-5 py-6 text-center transition hover:border-cyan-500/40 hover:bg-cyan-500/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+                  <Upload size={21} />
+                </div>
+
+                <p className="mt-3 text-sm font-semibold text-slate-200">
+                  Click to select files
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  PDF, Word, PowerPoint, Excel, images, videos and ZIP
+                </p>
+              </button>
+
+              {selectedFiles.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {selectedFiles.map(
+                    (file, index) => (
+                      <div
+                        key={`${file.name}-${file.lastModified}-${index}`}
+                        className="flex items-center gap-3 rounded-xl border border-slate-800 bg-[#020617] p-3"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-cyan-300">
+                          <FileText size={17} />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold text-slate-200">
+                            {file.name}
+                          </p>
+
+                          <p className="mt-1 text-[10px] text-slate-500">
+                            {formatFileSize(file.size)}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeFile(index)
+                          }
+                          disabled={submitting}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                          title="Remove file"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* SUBMIT BUTTON */}
+
+            <button
+              type="button"
+              onClick={submitTask}
+              disabled={submitting}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 text-sm font-bold text-[#020617] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[220px]"
+            >
+              {submitting ? (
+                <>
+                  <Loader2
+                    size={17}
+                    className="animate-spin"
+                  />
+
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send size={17} />
+
+                  {submission
+                    ? "Update submission"
+                    : "Submit task"}
+                </>
+              )}
+            </button>
+
+            <p className="mt-3 text-[11px] leading-5 text-slate-600">
+              Ensure your answer and attachments are correct before submitting.
+            </p>
           </div>
-        </div>
-      </motion.div>
-    </motion.div>
+        )}
+
+        {/* GRADED NOTICE */}
+
+        {isGraded && (
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+            <div className="flex items-start gap-3">
+              <CheckCircle2
+                size={22}
+                className="mt-0.5 shrink-0 text-emerald-400"
+              />
+
+              <div>
+                <h3 className="font-semibold text-emerald-300">
+                  Your task has been graded
+                </h3>
+
+                <p className="mt-1 text-sm leading-6 text-slate-400">
+                  Your tutor has reviewed this submission. Check the feedback above.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   INFO BADGE
+========================================================= */
+
+function InfoBadge({
+  icon,
+  text,
+}) {
+  if (!text) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium text-slate-400">
+      {icon}
+      {text}
+    </span>
   );
 }
 
@@ -3207,7 +2209,7 @@ function TaskMeta({
   value,
 }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+    <div className="rounded-xl border border-slate-800 bg-[#020617] p-3">
       <div className="flex items-center gap-2 text-slate-500">
         {icon}
 
@@ -3224,22 +2226,6 @@ function TaskMeta({
 }
 
 /* =========================================================
-   INFO BADGE
-========================================================= */
-
-function InfoBadge({
-  icon,
-  text,
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium text-slate-400">
-      {icon}
-      {text}
-    </span>
-  );
-}
-
-/* =========================================================
    ATTACHMENT CARD
 ========================================================= */
 
@@ -3248,32 +2234,24 @@ function AttachmentCard({
   index,
 }) {
   const name =
-    getAttachmentName(
-      file,
-      index
-    );
+    getFileName(file, index);
 
   const url =
-    getAttachmentUrl(file);
+    getFileUrl(file);
 
   const type =
-    getAttachmentType(file);
+    getFileType(file);
 
-  const image =
-    type === "image";
-
-  const video =
-    type === "video";
-
-  const Icon = image
-    ? ImageIcon
-    : video
-    ? Video
-    : FileText;
+  const Icon =
+    type === "image"
+      ? ImageIcon
+      : type === "video"
+      ? Video
+      : FileText;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#020617]">
-      {image && url ? (
+    <div className="overflow-hidden rounded-xl border border-slate-800 bg-[#020617]">
+      {type === "image" && url ? (
         <a
           href={url}
           target="_blank"
@@ -3283,35 +2261,35 @@ function AttachmentCard({
           <img
             src={url}
             alt={name}
-            className="h-48 w-full object-cover hover:opacity-80"
             loading="lazy"
+            className="h-40 w-full object-contain"
           />
         </a>
-      ) : video && url ? (
+      ) : type === "video" && url ? (
         <div className="border-b border-slate-800 bg-black p-2">
           <video
             src={url}
             controls
             preload="metadata"
-            className="h-48 w-full rounded-xl object-contain"
+            className="h-40 w-full rounded-lg object-contain"
           />
         </div>
       ) : (
-        <div className="flex h-32 items-center justify-center border-b border-slate-800 bg-[#061121]">
+        <div className="flex h-28 items-center justify-center border-b border-slate-800 bg-[#061121]">
           <Icon
-            size={38}
+            size={35}
             className={
               type === "pdf"
                 ? "text-red-400"
-                : "text-slate-700"
+                : "text-slate-600"
             }
           />
         </div>
       )}
 
       <div className="flex items-center gap-3 p-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-cyan-300">
-          <Icon size={18} />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-cyan-300">
+          <Icon size={17} />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -3322,16 +2300,8 @@ function AttachmentCard({
             {name}
           </p>
 
-          <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-600">
-            {type === "video"
-              ? "Video"
-              : type === "image"
-              ? "Image"
-              : type === "pdf"
-              ? "PDF"
-              : type === "document"
-              ? "Document"
-              : "File"}
+          <p className="mt-1 text-[10px] uppercase text-slate-600">
+            {type}
           </p>
         </div>
 
@@ -3341,13 +2311,10 @@ function AttachmentCard({
             target="_blank"
             rel="noreferrer"
             download
-            onClick={(event) =>
-              event.stopPropagation()
-            }
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-cyan-300"
-            title="Open / download file"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-cyan-300"
+            title="Download attachment"
           >
-            <Download size={16} />
+            <Download size={15} />
           </a>
         )}
       </div>

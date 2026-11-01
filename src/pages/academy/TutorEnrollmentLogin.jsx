@@ -27,7 +27,6 @@ const API_URL = (
 ).replace(/\/+$/, "");
 
 const TUTOR_LOGIN_URL = `${API_URL}/api/academy/tutor-login`;
-
 const REQUEST_TIMEOUT = 15000;
 
 /* =========================================================
@@ -51,53 +50,32 @@ const TUTOR_STORAGE_KEYS = [
 ========================================================= */
 
 const clean = (value) => {
-  if (value === null || value === undefined) {
-    return "";
-  }
-
+  if (value === null || value === undefined) return "";
   return String(value).trim();
 };
 
 const firstValue = (...values) => {
   for (const value of values) {
-    const cleaned = clean(value);
-
-    if (cleaned) {
-      return cleaned;
-    }
+    const result = clean(value);
+    if (result) return result;
   }
-
   return "";
 };
 
-/* =========================================================
-   ARRAY HELPER
-========================================================= */
-
 const arrayFromValue = (value) => {
-  if (Array.isArray(value)) {
-    return value;
-  }
+  if (Array.isArray(value)) return value;
 
-  if (value === null || value === undefined) {
-    return [];
-  }
+  if (value === null || value === undefined) return [];
 
   if (typeof value === "string") {
     const trimmed = value.trim();
-
-    if (!trimmed) {
-      return [];
-    }
+    if (!trimmed) return [];
 
     try {
       const parsed = JSON.parse(trimmed);
-
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
+      if (Array.isArray(parsed)) return parsed;
     } catch {
-      // Continue with comma-separated fallback.
+      // Use comma-separated fallback.
     }
 
     return trimmed
@@ -110,42 +88,23 @@ const arrayFromValue = (value) => {
 };
 
 /* =========================================================
-   NORMALIZE ASSIGNMENT CLASS
-========================================================= */
-
-const normalizeAssignmentClass = (value) => {
-  return clean(value)
-    .replace(/\s+/g, " ")
-    .trim();
-};
-
-/* =========================================================
-   NORMALIZE ASSIGNMENT SUBJECT
-========================================================= */
-
-const normalizeAssignmentSubject = (value) => {
-  return clean(value)
-    .replace(/\s+/g, " ")
-    .trim();
-};
-
-/* =========================================================
    NORMALIZE ASSIGNMENTS
 ========================================================= */
+
+const normalizeAssignmentClass = (value) =>
+  clean(value).replace(/\s+/g, " ").trim();
+
+const normalizeAssignmentSubject = (value) =>
+  clean(value).replace(/\s+/g, " ").trim();
 
 const normalizeAssignments = (value) => {
   const source = arrayFromValue(value);
   const output = [];
 
   source.forEach((item) => {
-    if (!item) {
-      return;
-    }
+    if (!item) return;
 
-    if (
-      typeof item === "object" &&
-      !Array.isArray(item)
-    ) {
+    if (typeof item === "object" && !Array.isArray(item)) {
       const className = normalizeAssignmentClass(
         item.class ??
           item.grade ??
@@ -193,44 +152,36 @@ const normalizeAssignments = (value) => {
 
     if (typeof item === "string") {
       const valueText = item.trim();
+      if (!valueText) return;
 
-      if (!valueText) {
-        return;
-      }
-
-      const separators = [
-        " - ",
-        ":",
-        "|",
-        "/",
-      ];
+      const separators = [" - ", ":", "|", "/"];
 
       for (const separator of separators) {
-        if (valueText.includes(separator)) {
-          const parts = valueText
-            .split(separator)
-            .map((part) => part.trim())
-            .filter(Boolean);
+        if (!valueText.includes(separator)) continue;
 
-          if (parts.length >= 2) {
-            const className =
-              normalizeAssignmentClass(parts[0]);
+        const parts = valueText
+          .split(separator)
+          .map((part) => part.trim())
+          .filter(Boolean);
 
-            const subjectName =
-              normalizeAssignmentSubject(
-                parts.slice(1).join(" ")
-              );
+        if (parts.length >= 2) {
+          const className =
+            normalizeAssignmentClass(parts[0]);
 
-            if (className && subjectName) {
-              output.push({
-                class: className,
-                subject: subjectName,
-              });
-            }
+          const subjectName =
+            normalizeAssignmentSubject(
+              parts.slice(1).join(" ")
+            );
+
+          if (className && subjectName) {
+            output.push({
+              class: className,
+              subject: subjectName,
+            });
           }
-
-          break;
         }
+
+        break;
       }
     }
   });
@@ -241,36 +192,22 @@ const normalizeAssignments = (value) => {
     const key =
       `${item.class}::${item.subject}`.toLowerCase();
 
-    if (seen.has(key)) {
-      return false;
-    }
+    if (seen.has(key)) return false;
 
     seen.add(key);
-
     return true;
   });
 };
 
 /* =========================================================
-   GET REAL TUTOR REFERENCE
-=========================================================
+   REAL TUTOR REFERENCE
 
-   IMPORTANT:
-
-   academy_tutor_applications has:
-
-      id         = BIGINT
-      reference  = SQA-677281-6D34
-
-   The BIGINT id must NEVER be used as the
-   tutor reference.
-
+   Never use tutor.id as the tutor reference.
+   The database reference must be SQA-...
 ========================================================= */
 
 const getTutorReference = (tutor) => {
-  if (!tutor || typeof tutor !== "object") {
-    return "";
-  }
+  if (!tutor || typeof tutor !== "object") return "";
 
   return firstValue(
     tutor.reference,
@@ -282,13 +219,10 @@ const getTutorReference = (tutor) => {
 };
 
 /* =========================================================
-   GET ASSIGNMENTS FROM RESPONSE
+   ASSIGNMENTS FROM RESPONSE
 ========================================================= */
 
-const getAssignmentsFromResponse = (
-  data,
-  tutorData
-) => {
+const getAssignmentsFromResponse = (data, tutorData) => {
   const possibleSources = [
     tutorData?.assignments,
     tutorData?.teaching_assignments,
@@ -310,12 +244,8 @@ const getAssignmentsFromResponse = (
   ];
 
   for (const source of possibleSources) {
-    const normalized =
-      normalizeAssignments(source);
-
-    if (normalized.length > 0) {
-      return normalized;
-    }
+    const normalized = normalizeAssignments(source);
+    if (normalized.length > 0) return normalized;
   }
 
   return [];
@@ -331,22 +261,53 @@ const uniqueArray = (values) => {
 
   arrayFromValue(values).forEach((value) => {
     const cleaned = clean(value);
-
-    if (!cleaned) {
-      return;
-    }
+    if (!cleaned) return;
 
     const key = cleaned.toLowerCase();
-
-    if (seen.has(key)) {
-      return;
-    }
+    if (seen.has(key)) return;
 
     seen.add(key);
     output.push(cleaned);
   });
 
   return output;
+};
+
+/* =========================================================
+   EXTRACT AUTHENTICATION TOKEN
+
+   Supports all token names returned by the backend.
+========================================================= */
+
+const getAuthenticationToken = (data) => {
+  return firstValue(
+    data?.token,
+    data?.accessToken,
+    data?.access_token,
+    data?.academyToken,
+    data?.academy_token,
+    data?.jwt,
+
+    data?.data?.token,
+    data?.data?.accessToken,
+    data?.data?.access_token,
+    data?.data?.academyToken,
+    data?.data?.academy_token,
+    data?.data?.jwt,
+
+    data?.user?.token,
+    data?.user?.accessToken,
+    data?.user?.access_token,
+    data?.user?.academyToken,
+
+    data?.tutor?.token,
+    data?.tutor?.accessToken,
+    data?.tutor?.access_token,
+    data?.tutor?.academyToken,
+
+    data?.data?.user?.token,
+    data?.data?.tutor?.token
+  );
 };
 
 /* =========================================================
@@ -364,15 +325,12 @@ function InputField({
   disabled = false,
   autoComplete,
 }) {
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const isPassword = type === "password";
 
   const inputType =
-    isPassword && showPassword
-      ? "text"
-      : type;
+    isPassword && showPassword ? "text" : type;
 
   return (
     <div className="space-y-2">
@@ -383,12 +341,8 @@ function InputField({
       <div className="relative">
         <div
           className="
-            pointer-events-none
-            absolute
-            left-4
-            top-1/2
-            -translate-y-1/2
-            text-slate-500
+            pointer-events-none absolute left-4 top-1/2
+            -translate-y-1/2 text-slate-500
           "
         >
           <Icon size={19} />
@@ -402,25 +356,17 @@ function InputField({
           disabled={disabled}
           autoComplete={autoComplete}
           className={`
-            w-full
-            rounded-2xl
-            border
-            bg-slate-950/70
-            py-4
-            pl-12
-            ${isPassword ? "pr-12" : "pr-4"}
-            text-white
-            placeholder:text-slate-600
-            outline-none
-            transition-all
+            w-full rounded-2xl border bg-slate-950/70
+            py-4 pl-12 ${isPassword ? "pr-12" : "pr-4"}
+            text-white placeholder:text-slate-600
+            outline-none transition-all
             ${
               error
                 ? "border-red-500/60 focus:border-red-400"
                 : "border-white/10 focus:border-cyan-400/50"
             }
             focus:bg-slate-950
-            disabled:cursor-not-allowed
-            disabled:opacity-60
+            disabled:cursor-not-allowed disabled:opacity-60
           `}
         />
 
@@ -428,19 +374,12 @@ function InputField({
           <button
             type="button"
             onClick={() =>
-              setShowPassword(
-                (current) => !current
-              )
+              setShowPassword((current) => !current)
             }
             disabled={disabled}
             className="
-              absolute
-              right-4
-              top-1/2
-              -translate-y-1/2
-              text-slate-500
-              transition
-              hover:text-cyan-400
+              absolute right-4 top-1/2 -translate-y-1/2
+              text-slate-500 transition hover:text-cyan-400
               disabled:opacity-40
             "
             aria-label={
@@ -511,15 +450,12 @@ export default function TutorEnrollmentLogin() {
   const validate = () => {
     const nextErrors = {};
 
-    const name = clean(form.name);
-    const referenceId = clean(form.referenceId);
-
-    if (!name) {
+    if (!clean(form.name)) {
       nextErrors.name =
         "Please enter your registered full name.";
     }
 
-    if (!referenceId) {
+    if (!clean(form.referenceId)) {
       nextErrors.referenceId =
         "Please enter your reference ID.";
     }
@@ -534,8 +470,7 @@ export default function TutorEnrollmentLogin() {
   ======================================================= */
 
   const saveTutorSession = (session) => {
-    const tutorReference =
-      getTutorReference(session);
+    const tutorReference = getTutorReference(session);
 
     if (!tutorReference) {
       throw new Error(
@@ -545,24 +480,14 @@ export default function TutorEnrollmentLogin() {
 
     const normalizedSession = {
       ...session,
-
-      /*
-        ALWAYS store the actual tutor reference.
-
-        Example:
-
-        SQA-677281-6D34
-      */
       reference: tutorReference,
-      tutorReference: tutorReference,
+      tutorReference,
       tutor_reference: tutorReference,
-
       userType: "tutor",
       user_type: "tutor",
     };
 
-    const serialized =
-      JSON.stringify(normalizedSession);
+    const serialized = JSON.stringify(normalizedSession);
 
     localStorage.setItem(
       ACADEMY_USER_KEY,
@@ -570,10 +495,7 @@ export default function TutorEnrollmentLogin() {
     );
 
     TUTOR_STORAGE_KEYS.forEach((key) => {
-      localStorage.setItem(
-        key,
-        serialized
-      );
+      localStorage.setItem(key, serialized);
     });
 
     localStorage.setItem(
@@ -586,21 +508,6 @@ export default function TutorEnrollmentLogin() {
       tutorReference
     );
 
-    localStorage.setItem(
-      "academyTutor",
-      serialized
-    );
-
-    localStorage.setItem(
-      "scholiqenTutor",
-      serialized
-    );
-
-    localStorage.setItem(
-      "tutorUser",
-      serialized
-    );
-
     return normalizedSession;
   };
 
@@ -611,84 +518,47 @@ export default function TutorEnrollmentLogin() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (submitting) {
-      return;
-    }
-
-    if (!validate()) {
-      return;
-    }
+    if (submitting || !validate()) return;
 
     setSubmitting(true);
     setSubmitError("");
 
-    const controller =
-      new AbortController();
+    const controller = new AbortController();
 
-    const timeoutId =
-      window.setTimeout(() => {
-        controller.abort();
-      }, REQUEST_TIMEOUT);
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, REQUEST_TIMEOUT);
 
     const fullName = clean(form.name);
-
-    /*
-      THIS IS THE REAL TUTOR REFERENCE.
-
-      Example:
-
-      SQA-677281-6D34
-    */
-    const tutorReference =
-      clean(form.referenceId);
+    const tutorReference = clean(form.referenceId);
 
     try {
-      const response = await fetch(
-        TUTOR_LOGIN_URL,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-            Accept: "application/json",
-          },
-
-          body: JSON.stringify({
-            name: fullName,
-
-            /*
-              Backend expects `reference`.
-            */
-            reference: tutorReference,
-          }),
-
-          signal: controller.signal,
-
-          credentials: "same-origin",
-        }
-      );
+      const response = await fetch(TUTOR_LOGIN_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          name: fullName,
+          reference: tutorReference,
+        }),
+        signal: controller.signal,
+        credentials: "include",
+      });
 
       let data = {};
-
       const contentType =
-        response.headers.get(
-          "content-type"
-        ) || "";
+        response.headers.get("content-type") || "";
 
-      if (
-        contentType.includes(
-          "application/json"
-        )
-      ) {
+      if (contentType.includes("application/json")) {
         try {
           data = await response.json();
         } catch {
           data = {};
         }
       } else {
-        const responseText =
-          await response.text();
+        const responseText = await response.text();
 
         data = {
           message:
@@ -701,14 +571,13 @@ export default function TutorEnrollmentLogin() {
          LOGIN FAILED
       =================================================== */
 
-      if (
-        !response.ok ||
-        !data.success
-      ) {
+      if (!response.ok || !data.success) {
         setSubmitError(
-          clean(data.message) ||
-            clean(data.error) ||
+          firstValue(
+            data.message,
+            data.error,
             `Unable to sign in. Server returned HTTP ${response.status}.`
+          )
         );
 
         return;
@@ -729,51 +598,33 @@ export default function TutorEnrollmentLogin() {
         typeof data.data === "object" &&
         !Array.isArray(data.data)
       ) {
-        Object.assign(
-          tutorData,
-          data.data
-        );
+        Object.assign(tutorData, data.data);
       }
 
       /* ===================================================
-         GET REAL REFERENCE
+         GET REAL TUTOR REFERENCE
       =================================================== */
 
-      /*
-        IMPORTANT:
+      const returnedTutorReference = firstValue(
+        tutorData?.reference,
+        tutorData?.tutorReference,
+        tutorData?.tutor_reference,
 
-        The backend/database reference has priority.
+        data?.reference,
+        data?.tutorReference,
+        data?.tutor_reference,
 
-        We NEVER use tutorData.id here.
+        data?.data?.reference,
+        data?.data?.tutorReference,
+        data?.data?.tutor_reference,
 
-        academy_tutor_applications.id is BIGINT.
-
-        academy_tutor_applications.reference is:
-
-        SQA-677281-6D34
-      */
-
-      const returnedTutorReference =
-        firstValue(
-          tutorData?.reference,
-          tutorData?.tutorReference,
-          tutorData?.tutor_reference,
-          data?.reference,
-          data?.tutorReference,
-          data?.tutor_reference,
-          data?.data?.reference,
-          data?.data?.tutorReference,
-          data?.data?.tutor_reference,
-          tutorReference
-        );
+        tutorReference
+      );
 
       if (!returnedTutorReference) {
         console.error(
-          "❌ Tutor login succeeded but no tutor reference was returned.",
-          {
-            response: data,
-            tutor: tutorData,
-          }
+          "Tutor login succeeded but no tutor reference was returned.",
+          data
         );
 
         setSubmitError(
@@ -784,73 +635,89 @@ export default function TutorEnrollmentLogin() {
       }
 
       /* ===================================================
+         VALIDATE REFERENCE FORMAT
+      =================================================== */
+
+      if (!/^SQA-/i.test(returnedTutorReference)) {
+        console.error(
+          "Invalid tutor reference returned by server:",
+          returnedTutorReference
+        );
+
+        setSubmitError(
+          "The server returned an invalid tutor reference. Your Academy administrator needs to verify your tutor account reference."
+        );
+
+        return;
+      }
+
+      /* ===================================================
+         GET AUTHENTICATION TOKEN
+      =================================================== */
+
+      const returnedToken = getAuthenticationToken(data);
+
+      if (!returnedToken) {
+        console.error(
+          "Tutor login response did not contain an authentication token.",
+          {
+            response: data,
+            success: data?.success,
+            hasTutor: Boolean(
+              data?.tutor || data?.user
+            ),
+            tokenFields: {
+              token: Boolean(data?.token),
+              accessToken: Boolean(data?.accessToken),
+              access_token: Boolean(data?.access_token),
+              academyToken: Boolean(data?.academyToken),
+              jwt: Boolean(data?.jwt),
+            },
+          }
+        );
+
+        setSubmitError(
+          "The server confirmed your login but did not return an authentication token. Please ensure the updated academyRoutes.js is running."
+        );
+
+        return;
+      }
+
+      /* ===================================================
          GET ASSIGNMENTS
       =================================================== */
 
-      const assignments =
-        getAssignmentsFromResponse(
-          data,
-          tutorData
-        );
+      const assignments = getAssignmentsFromResponse(
+        data,
+        tutorData
+      );
 
-      /* ===================================================
-         BUILD CLASS ARRAY
-      =================================================== */
+      const assignmentClasses = uniqueArray(
+        assignments.map((item) => item.class)
+      );
 
-      const assignmentClasses =
-        uniqueArray(
-          assignments.map(
-            (item) => item.class
-          )
-        );
+      const assignmentSubjects = uniqueArray(
+        assignments.map((item) => item.subject)
+      );
 
-      /* ===================================================
-         BUILD SUBJECT ARRAY
-      =================================================== */
+      const backendClasses = uniqueArray(
+        tutorData?.classes ??
+          data?.classes ??
+          data?.data?.classes ??
+          []
+      );
 
-      const assignmentSubjects =
-        uniqueArray(
-          assignments.map(
-            (item) => item.subject
-          )
-        );
-
-      /* ===================================================
-         BACKEND CLASSES
-      =================================================== */
-
-      const backendClasses =
-        uniqueArray(
-          tutorData?.classes ??
-            data?.classes ??
-            data?.data?.classes ??
-            []
-        );
-
-      /* ===================================================
-         BACKEND SUBJECTS
-      =================================================== */
-
-      const backendSubjects =
-        uniqueArray(
-          tutorData?.subjects ??
-            data?.subjects ??
-            data?.data?.subjects ??
-            []
-        );
-
-      /* ===================================================
-         FINAL CLASSES
-      =================================================== */
+      const backendSubjects = uniqueArray(
+        tutorData?.subjects ??
+          data?.subjects ??
+          data?.data?.subjects ??
+          []
+      );
 
       const classes = uniqueArray([
         ...assignmentClasses,
         ...backendClasses,
       ]);
-
-      /* ===================================================
-         FINAL SUBJECTS
-      =================================================== */
 
       const subjects = uniqueArray([
         ...assignmentSubjects,
@@ -864,135 +731,85 @@ export default function TutorEnrollmentLogin() {
       const tutorSession = {
         ...tutorData,
 
-        /*
-          IMPORTANT:
+        reference: returnedTutorReference,
+        tutorReference: returnedTutorReference,
+        tutor_reference: returnedTutorReference,
 
-          Force the correct database reference.
-
-          NEVER overwrite this with `id`.
-        */
-        reference:
-          returnedTutorReference,
-
-        tutorReference:
-          returnedTutorReference,
-
-        tutor_reference:
-          returnedTutorReference,
-
-        /*
-          Make it explicitly a tutor session.
-        */
         userType: "tutor",
         user_type: "tutor",
 
         classes,
         subjects,
-
         assignments,
 
-        teaching_assignments:
-          assignments,
+        teaching_assignments: assignments,
+        teachingAssignments: assignments,
+        class_subject_assignments: assignments,
+        classSubjectAssignments: assignments,
 
-        teachingAssignments:
-          assignments,
-
-        class_subject_assignments:
-          assignments,
-
-        classSubjectAssignments:
-          assignments,
-
-        loggedInAt:
-          new Date().toISOString(),
+        loggedInAt: new Date().toISOString(),
       };
 
       /* ===================================================
          DEBUG
       =================================================== */
 
-      console.log(
-        "================================================="
-      );
-
-      console.log(
-        "✅ TUTOR LOGIN SUCCESS"
-      );
-
-      console.log(
-        "Tutor database ID:",
-        tutorData?.id
-      );
-
-      console.log(
-        "Tutor reference:",
-        returnedTutorReference
-      );
-
-      console.log(
-        "Tutor name:",
-        `${tutorData?.first_name || ""} ${
-          tutorData?.last_name || ""
-        }`.trim()
-      );
-
-      console.log(
-        "Tutor status:",
-        tutorData?.application_status
-      );
-
-      console.log(
-        "Tutor classes:",
-        classes
-      );
-
-      console.log(
-        "Tutor subjects:",
-        subjects
-      );
-
-      console.log(
-        "Tutor assignments:",
-        assignments
-      );
-
-      console.log(
-        "Final tutor session:",
-        tutorSession
-      );
-
-      console.log(
-        "================================================="
-      );
+      console.log("========================================");
+      console.log("TUTOR LOGIN SUCCESS");
+      console.log("Tutor database ID:", tutorData?.id);
+      console.log("Tutor reference:", returnedTutorReference);
+      console.log("Tutor name:", tutorData?.full_name || tutorData?.name);
+      console.log("Tutor status:", tutorData?.application_status);
+      console.log("Tutor classes:", classes);
+      console.log("Tutor subjects:", subjects);
+      console.log("Tutor assignments:", assignments);
+      console.log("Authentication token received:", Boolean(returnedToken));
+      console.log("========================================");
 
       /* ===================================================
-         SAVE TOKEN
+         SAVE AUTHENTICATION TOKEN
+
+         This is the primary token key used by the
+         Academy protected routes.
       =================================================== */
 
-      if (data?.token) {
-        localStorage.setItem(
-          ACADEMY_TOKEN_KEY,
-          String(data.token)
-        );
-      }
+      localStorage.setItem(
+        ACADEMY_TOKEN_KEY,
+        returnedToken
+      );
+
+      // Keep compatible token aliases for existing Academy code.
+      localStorage.setItem("academy_token", returnedToken);
+      localStorage.setItem("scholiqen_token", returnedToken);
+      localStorage.setItem("access_token", returnedToken);
+      localStorage.setItem("token", returnedToken);
 
       /* ===================================================
-         SAVE COMPLETE SESSION
+         SAVE COMPLETE TUTOR SESSION
       =================================================== */
 
       const savedTutorSession =
-        saveTutorSession(
-          tutorSession
-        );
+        saveTutorSession(tutorSession);
 
       /* ===================================================
          VERIFY STORAGE
       =================================================== */
 
-      const savedSession =
-        localStorage.getItem(
-          ACADEMY_USER_KEY
+      const savedToken = localStorage.getItem(
+        ACADEMY_TOKEN_KEY
+      );
+
+      const savedSession = localStorage.getItem(
+        ACADEMY_USER_KEY
+      );
+
+      if (!savedToken) {
+        setSubmitError(
+          "Login succeeded, but the authentication token could not be saved in your browser."
         );
+
+        return;
+      }
 
       if (!savedSession) {
         setSubmitError(
@@ -1003,94 +820,50 @@ export default function TutorEnrollmentLogin() {
       }
 
       try {
-        const parsedSession =
-          JSON.parse(
-            savedSession
-          );
-
-        console.log(
-          "================================================="
-        );
-
-        console.log(
-          "✅ SAVED TUTOR SESSION"
-        );
-
-        console.log(
-          "Database ID:",
-          parsedSession?.id
-        );
-
-        console.log(
-          "Tutor reference:",
-          parsedSession?.reference
-        );
-
-        console.log(
-          "Tutor reference alias:",
-          parsedSession?.tutorReference
-        );
-
-        console.log(
-          "Tutor type:",
-          parsedSession?.userType
-        );
-
-        console.log(
-          "Assignments:",
-          parsedSession?.assignments || []
-        );
-
-        console.log(
-          "================================================="
-        );
-
-        /*
-          Safety check.
-
-          If somehow the stored reference is not
-          the actual reference, stop here.
-        */
+        const parsedSession = JSON.parse(savedSession);
 
         if (
-          clean(
-            parsedSession?.reference
-          ) !==
+          clean(parsedSession?.reference) !==
           returnedTutorReference
         ) {
           console.error(
-            "❌ STORED TUTOR REFERENCE MISMATCH",
+            "Stored tutor reference mismatch.",
             {
-              expected:
-                returnedTutorReference,
-              stored:
-                parsedSession?.reference,
+              expected: returnedTutorReference,
+              stored: parsedSession?.reference,
             }
           );
 
           setSubmitError(
-            "Tutor login completed, but the tutor session reference was stored incorrectly. Please log in again."
+            "Tutor login completed, but the tutor reference was stored incorrectly. Please log in again."
           );
 
           return;
         }
-      } catch (
-        storageError
-      ) {
+
+        console.log("TUTOR SESSION SAVED");
+        console.log("Database ID:", parsedSession?.id);
+        console.log("Tutor reference:", parsedSession?.reference);
+        console.log("Tutor type:", parsedSession?.userType);
+        console.log("Token saved:", Boolean(savedToken));
+      } catch (storageError) {
         console.error(
           "Could not verify saved tutor session:",
           storageError
         );
+
+        setSubmitError(
+          "Your tutor session could not be verified after saving. Please try again."
+        );
+
+        return;
       }
 
       /* ===================================================
          SUCCESS
       =================================================== */
 
-      setTutor(
-        savedTutorSession
-      );
-
+      setTutor(savedTutorSession);
       setSuccess(true);
 
       /* ===================================================
@@ -1098,33 +871,19 @@ export default function TutorEnrollmentLogin() {
       =================================================== */
 
       window.setTimeout(() => {
-        navigate(
-          "/academy/tutor",
-          {
-            replace: true,
-
-            state: {
-              tutor:
-                savedTutorSession,
-
-              reference:
-                returnedTutorReference,
-
-              assignments,
-            },
-          }
-        );
+        navigate("/academy/tutor", {
+          replace: true,
+          state: {
+            tutor: savedTutorSession,
+            reference: returnedTutorReference,
+            assignments,
+          },
+        });
       }, 1200);
     } catch (error) {
-      console.error(
-        "❌ TUTOR LOGIN ERROR:",
-        error
-      );
+      console.error("TUTOR LOGIN ERROR:", error);
 
-      if (
-        error?.name ===
-        "AbortError"
-      ) {
+      if (error?.name === "AbortError") {
         setSubmitError(
           "The Academy server took too long to respond. Please make sure the backend server is running and try again."
         );
@@ -1132,25 +891,13 @@ export default function TutorEnrollmentLogin() {
         return;
       }
 
-      const errorMessage =
-        clean(error?.message);
+      const errorMessage = clean(error?.message);
+      const lowerMessage = errorMessage.toLowerCase();
 
       if (
-        errorMessage
-          .toLowerCase()
-          .includes(
-            "failed to fetch"
-          ) ||
-        errorMessage
-          .toLowerCase()
-          .includes(
-            "networkerror"
-          ) ||
-        errorMessage
-          .toLowerCase()
-          .includes(
-            "network error"
-          )
+        lowerMessage.includes("failed to fetch") ||
+        lowerMessage.includes("networkerror") ||
+        lowerMessage.includes("network error")
       ) {
         setSubmitError(
           `Cannot connect to the Academy server at ${API_URL}. Make sure your backend is running and that VITE_API_URL points to the correct server.`
@@ -1164,10 +911,7 @@ export default function TutorEnrollmentLogin() {
           "Unable to connect to the Academy server. Please try again."
       );
     } finally {
-      window.clearTimeout(
-        timeoutId
-      );
-
+      window.clearTimeout(timeoutId);
       setSubmitting(false);
     }
   };
@@ -1180,121 +924,65 @@ export default function TutorEnrollmentLogin() {
     const firstName =
       tutor?.first_name ||
       tutor?.firstName ||
+      clean(tutor?.full_name).split(" ")[0] ||
       "";
 
-    const assignmentCount =
-      Array.isArray(
-        tutor?.assignments
-      )
-        ? tutor.assignments.length
-        : 0;
+    const assignmentCount = Array.isArray(tutor?.assignments)
+      ? tutor.assignments.length
+      : 0;
 
     return (
       <div
         className="
-          relative
-          flex
-          min-h-screen
-          items-center
-          justify-center
-          overflow-hidden
-          bg-[#020617]
-          px-6
-          text-white
+          relative flex min-h-screen items-center justify-center
+          overflow-hidden bg-[#020617] px-6 text-white
         "
       >
         <div
           className="
-            absolute
-            -left-40
-            -top-40
-            h-96
-            w-96
-            rounded-full
-            bg-cyan-500/10
-            blur-3xl
+            absolute -left-40 -top-40 h-96 w-96
+            rounded-full bg-cyan-500/10 blur-3xl
           "
         />
 
         <div
           className="
-            absolute
-            -bottom-40
-            -right-40
-            h-96
-            w-96
-            rounded-full
-            bg-violet-500/10
-            blur-3xl
+            absolute -bottom-40 -right-40 h-96 w-96
+            rounded-full bg-violet-500/10 blur-3xl
           "
         />
 
         <div
-          className="
-            pointer-events-none
-            absolute
-            inset-0
-            opacity-[0.08]
-          "
+          className="pointer-events-none absolute inset-0 opacity-[0.08]"
           style={{
             backgroundImage:
               "radial-gradient(circle, #38bdf8 1px, transparent 1px)",
-            backgroundSize:
-              "24px 24px",
+            backgroundSize: "24px 24px",
           }}
         />
 
         <motion.div
-          initial={{
-            opacity: 0,
-            scale: 0.9,
-            y: 30,
-          }}
-          animate={{
-            opacity: 1,
-            scale: 1,
-            y: 0,
-          }}
+          initial={{ opacity: 0, scale: 0.9, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
           className="
-            relative
-            z-10
-            w-full
-            max-w-md
-            rounded-3xl
-            border
-            border-white/10
-            bg-slate-900/80
-            p-8
-            text-center
-            shadow-2xl
-            shadow-cyan-950/30
+            relative z-10 w-full max-w-md rounded-3xl
+            border border-white/10 bg-slate-900/80 p-8
+            text-center shadow-2xl shadow-cyan-950/30
             backdrop-blur-xl
           "
         >
           <motion.div
-            initial={{
-              scale: 0,
-            }}
-            animate={{
-              scale: 1,
-            }}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
             transition={{
               delay: 0.15,
               type: "spring",
               stiffness: 180,
             }}
             className="
-              mx-auto
-              mb-6
-              flex
-              h-20
-              w-20
-              items-center
-              justify-center
-              rounded-full
-              border
-              border-emerald-400/30
-              bg-emerald-400/10
+              mx-auto mb-6 flex h-20 w-20 items-center
+              justify-center rounded-full border
+              border-emerald-400/30 bg-emerald-400/10
             "
           >
             <CheckCircle2
@@ -1316,29 +1004,18 @@ export default function TutorEnrollmentLogin() {
           <div className="mt-4 text-xs text-slate-500">
             {assignmentCount > 0
               ? `${assignmentCount} teaching assignment${
-                  assignmentCount === 1
-                    ? ""
-                    : "s"
+                  assignmentCount === 1 ? "" : "s"
                 } loaded`
               : "Loading your teaching assignments..."}
           </div>
 
           <div
             className="
-              mt-6
-              flex
-              items-center
-              justify-center
-              gap-2
-              text-sm
-              text-cyan-400
+              mt-6 flex items-center justify-center
+              gap-2 text-sm text-cyan-400
             "
           >
-            <Loader2
-              size={16}
-              className="animate-spin"
-            />
-
+            <Loader2 size={16} className="animate-spin" />
             Opening your tutor dashboard...
           </div>
         </motion.div>
@@ -1351,74 +1028,37 @@ export default function TutorEnrollmentLogin() {
   ======================================================= */
 
   return (
-    <div
-      className="
-        relative
-        min-h-screen
-        overflow-hidden
-        bg-[#020617]
-        text-white
-      "
-    >
+    <div className="relative min-h-screen overflow-hidden bg-[#020617] text-white">
       {/* BACKGROUND */}
 
-      <div
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-        "
-      >
+      <div className="pointer-events-none absolute inset-0">
         <div
           className="
-            absolute
-            -left-40
-            -top-52
-            h-[500px]
-            w-[500px]
-            rounded-full
-            bg-cyan-500/10
-            blur-[120px]
+            absolute -left-40 -top-52 h-[500px] w-[500px]
+            rounded-full bg-cyan-500/10 blur-[120px]
           "
         />
 
         <div
           className="
-            absolute
-            -right-52
-            top-1/3
-            h-[550px]
-            w-[550px]
-            rounded-full
-            bg-violet-500/10
-            blur-[130px]
+            absolute -right-52 top-1/3 h-[550px] w-[550px]
+            rounded-full bg-violet-500/10 blur-[130px]
           "
         />
 
         <div
           className="
-            absolute
-            bottom-[-250px]
-            left-1/3
-            h-[450px]
-            w-[450px]
-            rounded-full
-            bg-blue-500/10
-            blur-[120px]
+            absolute bottom-[-250px] left-1/3 h-[450px] w-[450px]
+            rounded-full bg-blue-500/10 blur-[120px]
           "
         />
 
         <div
-          className="
-            absolute
-            inset-0
-            opacity-[0.07]
-          "
+          className="absolute inset-0 opacity-[0.07]"
           style={{
             backgroundImage:
               "radial-gradient(circle, #38bdf8 1px, transparent 1px)",
-            backgroundSize:
-              "26px 26px",
+            backgroundSize: "26px 26px",
           }}
         />
       </div>
@@ -1427,63 +1067,36 @@ export default function TutorEnrollmentLogin() {
 
       <div
         className="
-          relative
-          z-20
-          mx-auto
-          flex
-          max-w-7xl
-          items-center
-          justify-between
-          px-6
-          py-5
-          lg:px-10
+          relative z-20 mx-auto flex max-w-7xl
+          items-center justify-between px-6 py-5 lg:px-10
         "
       >
         <button
           type="button"
-          onClick={() =>
-            navigate("/academy")
-          }
+          onClick={() => navigate("/academy")}
           className="
-            group
-            flex
-            items-center
-            gap-2
-            text-sm
-            text-slate-400
-            transition
-            hover:text-white
+            group flex items-center gap-2 text-sm
+            text-slate-400 transition hover:text-white
           "
         >
           <ArrowLeft
             size={17}
-            className="
-              transition-transform
-              group-hover:-translate-x-1
-            "
+            className="transition-transform group-hover:-translate-x-1"
           />
-
           Back to Academy
         </button>
 
         <Link
           to="/"
           className="
-            flex
-            items-center
-            gap-2
-            text-sm
-            font-semibold
-            text-slate-300
-            transition
-            hover:text-cyan-400
+            flex items-center gap-2 text-sm font-semibold
+            text-slate-300 transition hover:text-cyan-400
           "
         >
           <GraduationCap
             size={20}
             className="text-cyan-400"
           />
-
           Scholiqen
         </Link>
       </div>
@@ -1492,86 +1105,49 @@ export default function TutorEnrollmentLogin() {
 
       <main
         className="
-          relative
-          z-10
-          flex
-          min-h-[calc(100vh-80px)]
-          items-center
-          justify-center
-          px-5
-          pb-12
+          relative z-10 flex min-h-[calc(100vh-80px)]
+          items-center justify-center px-5 pb-12
         "
       >
         <div
           className="
-            grid
-            w-full
-            max-w-6xl
-            items-center
-            gap-10
-            lg:grid-cols-2
-            lg:gap-20
+            grid w-full max-w-6xl items-center gap-10
+            lg:grid-cols-2 lg:gap-20
           "
         >
           {/* LEFT */}
 
           <motion.div
-            initial={{
-              opacity: 0,
-              x: -35,
-            }}
-            animate={{
-              opacity: 1,
-              x: 0,
-            }}
-            transition={{
-              duration: 0.6,
-            }}
+            initial={{ opacity: 0, x: -35 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6 }}
             className="hidden lg:block"
           >
             <div
               className="
-                mb-6
-                inline-flex
-                items-center
-                gap-2
-                rounded-full
-                border
-                border-cyan-400/20
-                bg-cyan-400/5
-                px-4
-                py-2
-                text-xs
-                font-medium
-                text-cyan-300
+                mb-6 inline-flex items-center gap-2
+                rounded-full border border-cyan-400/20
+                bg-cyan-400/5 px-4 py-2 text-xs
+                font-medium text-cyan-300
               "
             >
               <Sparkles size={14} />
-
               SCHOLIQEN ACADEMY
             </div>
 
             <h1
               className="
-                max-w-xl
-                text-5xl
-                font-black
-                leading-[1.05]
-                tracking-tight
-                xl:text-6xl
+                max-w-xl text-5xl font-black leading-[1.05]
+                tracking-tight xl:text-6xl
               "
             >
               Welcome back,
 
               <span
                 className="
-                  block
-                  bg-gradient-to-r
-                  from-cyan-400
-                  via-blue-400
-                  to-violet-400
-                  bg-clip-text
-                  text-transparent
+                  block bg-gradient-to-r from-cyan-400
+                  via-blue-400 to-violet-400
+                  bg-clip-text text-transparent
                 "
               >
                 Tutor.
@@ -1580,32 +1156,20 @@ export default function TutorEnrollmentLogin() {
 
             <p
               className="
-                mt-6
-                max-w-lg
-                text-lg
-                leading-8
-                text-slate-400
+                mt-6 max-w-lg text-lg leading-8 text-slate-400
               "
             >
-              Sign in to your Scholiqen Academy
-              tutor account and continue managing
-              your teaching activities.
+              Sign in to your Scholiqen Academy tutor account
+              and continue managing your teaching activities.
             </p>
 
             <div className="mt-9 space-y-4">
               <div className="flex items-center gap-4">
                 <div
                   className="
-                    flex
-                    h-11
-                    w-11
-                    shrink-0
-                    items-center
-                    justify-center
-                    rounded-xl
-                    border
-                    border-cyan-400/20
-                    bg-cyan-400/10
+                    flex h-11 w-11 shrink-0 items-center
+                    justify-center rounded-xl border
+                    border-cyan-400/20 bg-cyan-400/10
                   "
                 >
                   <ShieldCheck
@@ -1618,7 +1182,6 @@ export default function TutorEnrollmentLogin() {
                   <p className="font-semibold text-white">
                     Verified Tutor Access
                   </p>
-
                   <p className="text-sm text-slate-500">
                     Access your approved tutor account.
                   </p>
@@ -1628,16 +1191,9 @@ export default function TutorEnrollmentLogin() {
               <div className="flex items-center gap-4">
                 <div
                   className="
-                    flex
-                    h-11
-                    w-11
-                    shrink-0
-                    items-center
-                    justify-center
-                    rounded-xl
-                    border
-                    border-violet-400/20
-                    bg-violet-400/10
+                    flex h-11 w-11 shrink-0 items-center
+                    justify-center rounded-xl border
+                    border-violet-400/20 bg-violet-400/10
                   "
                 >
                   <BookOpen
@@ -1650,7 +1206,6 @@ export default function TutorEnrollmentLogin() {
                   <p className="font-semibold text-white">
                     Teaching Dashboard
                   </p>
-
                   <p className="text-sm text-slate-500">
                     Manage your Academy activities.
                   </p>
@@ -1662,34 +1217,17 @@ export default function TutorEnrollmentLogin() {
           {/* LOGIN CARD */}
 
           <motion.div
-            initial={{
-              opacity: 0,
-              y: 35,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            transition={{
-              duration: 0.6,
-              delay: 0.1,
-            }}
+            initial={{ opacity: 0, y: 35 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
             className="w-full"
           >
             <div
               className="
-                mx-auto
-                w-full
-                max-w-md
-                rounded-[28px]
-                border
-                border-white/10
-                bg-slate-900/75
-                p-6
-                shadow-2xl
-                shadow-cyan-950/20
-                backdrop-blur-2xl
-                sm:p-8
+                mx-auto w-full max-w-md rounded-[28px]
+                border border-white/10 bg-slate-900/75
+                p-6 shadow-2xl shadow-cyan-950/20
+                backdrop-blur-2xl sm:p-8
               "
             >
               {/* CARD HEADER */}
@@ -1697,16 +1235,9 @@ export default function TutorEnrollmentLogin() {
               <div className="mb-8">
                 <div
                   className="
-                    mb-5
-                    flex
-                    h-14
-                    w-14
-                    items-center
-                    justify-center
-                    rounded-2xl
-                    border
-                    border-cyan-400/20
-                    bg-cyan-400/10
+                    mb-5 flex h-14 w-14 items-center
+                    justify-center rounded-2xl border
+                    border-cyan-400/20 bg-cyan-400/10
                   "
                 >
                   <LogIn
@@ -1715,27 +1246,13 @@ export default function TutorEnrollmentLogin() {
                   />
                 </div>
 
-                <h2
-                  className="
-                    text-2xl
-                    font-bold
-                    tracking-tight
-                  "
-                >
+                <h2 className="text-2xl font-bold tracking-tight">
                   Tutor Account Login
                 </h2>
 
-                <p
-                  className="
-                    mt-2
-                    text-sm
-                    leading-6
-                    text-slate-500
-                  "
-                >
-                  Use the same name you registered with
-                  and your reference ID to access your
-                  tutor account.
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Use the same name you registered with and
+                  your reference ID to access your tutor account.
                 </p>
               </div>
 
@@ -1763,23 +1280,15 @@ export default function TutorEnrollmentLogin() {
                   >
                     <div
                       className="
-                        flex
-                        gap-3
-                        rounded-2xl
-                        border
-                        border-red-500/20
-                        bg-red-500/5
-                        p-4
-                        text-sm
+                        flex gap-3 rounded-2xl
+                        border border-red-500/20
+                        bg-red-500/5 p-4 text-sm
                         text-red-300
                       "
                     >
                       <AlertCircle
                         size={18}
-                        className="
-                          mt-0.5
-                          shrink-0
-                        "
+                        className="mt-0.5 shrink-0"
                       />
 
                       <span className="leading-6">
@@ -1801,10 +1310,7 @@ export default function TutorEnrollmentLogin() {
                   icon={User}
                   value={form.name}
                   onChange={(event) =>
-                    handleChange(
-                      "name",
-                      event.target.value
-                    )
+                    handleChange("name", event.target.value)
                   }
                   placeholder="Enter your registered name"
                   error={errors.name}
@@ -1833,38 +1339,22 @@ export default function TutorEnrollmentLogin() {
 
                 <div
                   className="
-                    flex
-                    gap-3
-                    rounded-2xl
-                    border
-                    border-cyan-400/10
-                    bg-cyan-400/5
-                    p-4
+                    flex gap-3 rounded-2xl border
+                    border-cyan-400/10 bg-cyan-400/5 p-4
                   "
                 >
                   <LockKeyhole
                     size={17}
-                    className="
-                      mt-0.5
-                      shrink-0
-                      text-cyan-400
-                    "
+                    className="mt-0.5 shrink-0 text-cyan-400"
                   />
 
-                  <p
-                    className="
-                      text-xs
-                      leading-5
-                      text-slate-400
-                    "
-                  >
+                  <p className="text-xs leading-5 text-slate-400">
                     Your{" "}
                     <span className="font-semibold text-cyan-300">
                       reference ID
                     </span>{" "}
-                    is your login password. Use the
-                    reference ID given to you after
-                    your tutor application.
+                    is your login password. Use the reference
+                    ID given to you after your tutor application.
                   </p>
                 </div>
 
@@ -1874,41 +1364,20 @@ export default function TutorEnrollmentLogin() {
                   type="submit"
                   disabled={submitting}
                   whileHover={
-                    !submitting
-                      ? {
-                          scale: 1.01,
-                        }
-                      : {}
+                    !submitting ? { scale: 1.01 } : {}
                   }
                   whileTap={
-                    !submitting
-                      ? {
-                          scale: 0.98,
-                        }
-                      : {}
+                    !submitting ? { scale: 0.98 } : {}
                   }
                   className="
-                    group
-                    flex
-                    w-full
-                    items-center
-                    justify-center
-                    gap-3
-                    rounded-2xl
-                    bg-gradient-to-r
-                    from-cyan-500
-                    to-blue-600
-                    px-5
-                    py-4
-                    font-bold
-                    text-white
-                    shadow-lg
-                    shadow-cyan-950/30
-                    transition-all
-                    hover:from-cyan-400
+                    group flex w-full items-center
+                    justify-center gap-3 rounded-2xl
+                    bg-gradient-to-r from-cyan-500 to-blue-600
+                    px-5 py-4 font-bold text-white
+                    shadow-lg shadow-cyan-950/30
+                    transition-all hover:from-cyan-400
                     hover:to-blue-500
-                    disabled:cursor-not-allowed
-                    disabled:opacity-60
+                    disabled:cursor-not-allowed disabled:opacity-60
                   "
                 >
                   {submitting ? (
@@ -1917,13 +1386,11 @@ export default function TutorEnrollmentLogin() {
                         size={19}
                         className="animate-spin"
                       />
-
                       Signing in...
                     </>
                   ) : (
                     <>
                       Sign In
-
                       <ArrowRight
                         size={19}
                         className="
@@ -1940,11 +1407,9 @@ export default function TutorEnrollmentLogin() {
 
               <div className="my-7 flex items-center gap-4">
                 <div className="h-px flex-1 bg-white/5" />
-
                 <span className="text-xs text-slate-600">
                   OR
                 </span>
-
                 <div className="h-px flex-1 bg-white/5" />
               </div>
 
@@ -1958,24 +1423,15 @@ export default function TutorEnrollmentLogin() {
                 <button
                   type="button"
                   onClick={() =>
-                    navigate(
-                      "/academy/tutor-enrollment"
-                    )
+                    navigate("/academy/tutor-enrollment")
                   }
                   className="
-                    mt-2
-                    inline-flex
-                    items-center
-                    gap-2
-                    text-sm
-                    font-semibold
-                    text-cyan-400
-                    transition
-                    hover:text-cyan-300
+                    mt-2 inline-flex items-center gap-2
+                    text-sm font-semibold text-cyan-400
+                    transition hover:text-cyan-300
                   "
                 >
                   Register as a Tutor
-
                   <ArrowRight size={15} />
                 </button>
               </div>
@@ -1984,17 +1440,11 @@ export default function TutorEnrollmentLogin() {
 
               <div
                 className="
-                  mt-7
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                  text-[11px]
-                  text-slate-600
+                  mt-7 flex items-center justify-center
+                  gap-2 text-[11px] text-slate-600
                 "
               >
                 <ShieldCheck size={13} />
-
                 Scholiqen Academy secure tutor access
               </div>
             </div>

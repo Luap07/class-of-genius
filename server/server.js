@@ -1,5 +1,3 @@
-// server/server.js
-
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -43,6 +41,9 @@ import academyTutorAnnouncements from "./routes/academyTutorAnnouncements.js";
 import academyEnrollmentRoutes from "./routes/academyEnrollmentRoutes.js";
 import academyStudentMaterialsRoutes from "./routes/academyStudentMaterials.js";
 
+// NEW: VERIFIED TUTOR MATERIALS ROUTE
+import academyTutorMaterialsRoutes from "./routes/academyTutorMaterials.js";
+
 // ============================================================
 // PATH CONFIGURATION
 // ============================================================
@@ -51,7 +52,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.resolve(__dirname, "..");
-
 const ENV_PATH = path.join(ROOT_DIR, ".env");
 
 // ============================================================
@@ -79,6 +79,8 @@ if (envResult.error) {
 
 const app = express();
 
+app.disable("x-powered-by");
+
 // ============================================================
 // UPLOAD DIRECTORIES
 // ============================================================
@@ -95,6 +97,11 @@ const DOCUMENTS_DIR = path.join(UPLOADS_DIR, "documents");
 const THUMBNAILS_DIR = path.join(UPLOADS_DIR, "thumbnails");
 const VIDEOS_DIR = path.join(UPLOADS_DIR, "videos");
 
+const TASK_SUBMISSIONS_DIR = path.join(
+  UPLOADS_DIR,
+  "task-submissions"
+);
+
 // ============================================================
 // CREATE UPLOAD DIRECTORIES
 // ============================================================
@@ -106,13 +113,12 @@ for (const directory of [
   DOCUMENTS_DIR,
   THUMBNAILS_DIR,
   VIDEOS_DIR,
+  TASK_SUBMISSIONS_DIR,
 ]) {
   try {
-    if (!fs.existsSync(directory)) {
-      fs.mkdirSync(directory, {
-        recursive: true,
-      });
-    }
+    fs.mkdirSync(directory, {
+      recursive: true,
+    });
   } catch (error) {
     console.error(
       `❌ Unable to prepare upload directory: ${directory}`,
@@ -176,25 +182,21 @@ const PREMIUM_PRODUCTS = {
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
-
   novel: {
     name: "Premium Novels",
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
-
   multilingual: {
     name: "Multilingual Access",
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
-
   lms: {
     name: "LMS Premium Access",
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
-
   virtual_lab: {
     name: "Virtual Laboratory",
     priceNaira: PREMIUM_PRICE_NAIRA,
@@ -210,6 +212,7 @@ console.log("");
 console.log("==================================================");
 console.log("🔧 SCHOLIQEN ENVIRONMENT CHECK");
 console.log("==================================================");
+
 console.log(`📁 Root .env:       ${ENV_PATH}`);
 
 console.log(
@@ -232,11 +235,12 @@ console.log(`💰 Test Price:      ₦${PREMIUM_PRICE_NAIRA}`);
 console.log(`🪙 Paystack Amount: ${PREMIUM_PRICE_KOBO} kobo`);
 console.log(`📦 Products:        ${Object.keys(PREMIUM_PRODUCTS).length}`);
 console.log(`🔐 Paystack Mode:   ${paystackMode}`);
+
 console.log("==================================================");
 console.log("");
 
 // ============================================================
-// CORS
+// CORS CONFIGURATION
 // ============================================================
 
 const allowedOrigins = [
@@ -245,48 +249,46 @@ const allowedOrigins = [
   "http://127.0.0.1:5173",
 ];
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // Preserve existing permissive behavior.
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
-    },
+    }
 
-    credentials: true,
+    return callback(null, true);
+  },
 
-    methods: [
-      "GET",
-      "POST",
-      "PUT",
-      "PATCH",
-      "DELETE",
-      "OPTIONS",
-    ],
+  credentials: true,
 
-    allowedHeaders: [
-      "Origin",
-      "Content-Type",
-      "Authorization",
-      "Accept",
-      "X-Requested-With",
-      "x-paystack-signature",
-      "x-tutor-reference",
-      "x-academy-token",
-      "x-student-token",
-      "x-material-access-token",
-    ],
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
 
-    optionsSuccessStatus: 204,
-  })
-);
+  allowedHeaders: [
+    "Origin",
+    "Content-Type",
+    "Authorization",
+    "Accept",
+    "X-Requested-With",
+    "x-paystack-signature",
+    "x-tutor-reference",
+    "x-tutor-ref",
+    "x-academy-tutor-reference",
+    "x-academy-token",
+    "x-student-token",
+    "x-material-access-token",
+  ],
+
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 // ============================================================
 // PAYSTACK WEBHOOK RAW BODY
@@ -327,11 +329,6 @@ app.use(
 
 app.use((req, res, next) => {
   console.log(`➡️ ${req.method} ${req.originalUrl}`);
-
-  if (["POST", "PUT", "PATCH"].includes(req.method)) {
-    console.log("📦 Request body:", req.body);
-  }
-
   next();
 });
 
@@ -361,6 +358,7 @@ app.use(
           "x-student-token",
           "x-material-access-token",
           "x-tutor-reference",
+          "x-tutor-ref",
         ].join(", ")
       );
 
@@ -437,6 +435,15 @@ app.use(
 );
 
 // ============================================================
+// VERIFIED TUTOR MATERIAL ROUTES
+// ============================================================
+
+app.use(
+  "/api/academy/tutor/materials",
+  academyTutorMaterialsRoutes
+);
+
+// ============================================================
 // ACADEMY ENROLLMENT ROUTES
 // ============================================================
 
@@ -461,16 +468,22 @@ app.get("/", (req, res) => {
       signup: "POST /api/auth/signup",
       login: "POST /api/auth/login",
       currentUser: "GET /api/auth/me",
+
       admin: "/api/admin",
       adminDashboard: "GET /api/admin/dashboard",
+
       adminMaterials: "/api/admin/lms/materials",
       studentMaterials: "/api/academy/student/materials",
+      tutorMaterials: "/api/academy/tutor/materials",
+
       studentAssignments: "GET /api/academy/student/assignments",
       studentAssignment: "GET /api/academy/student/assignments/:id",
       studentAssignmentFile: "GET /api/academy/student/assignments/:id/file",
       submitStudentAssignment: "POST /api/academy/student/assignments/:id/submit",
       studentAssignmentResult: "GET /api/academy/student/assignments/:id/result",
+
       tutorAssignments: "/api/academy/tutor/assignments",
+
       courses: "/api/courses",
       courseStats: "GET /api/courses/stats",
       courseCategories: "/api/course-categories",
@@ -521,6 +534,7 @@ app.get("/", (req, res) => {
       academyTutorMessages: databaseConfigured,
       academyTutorAnnouncements: databaseConfigured,
       studentMaterials: databaseConfigured,
+      tutorMaterials: databaseConfigured && jwtConfigured,
       studentAssignments: databaseConfigured,
       adminMaterials: databaseConfigured && jwtConfigured,
     },
@@ -541,7 +555,6 @@ app.get("/api/health", async (req, res) => {
   if (databaseConfigured) {
     try {
       await pool.query("SELECT 1");
-
       databaseStatus = true;
       databaseMessage = "connected";
     } catch (error) {
@@ -673,9 +686,7 @@ app.get("/api/cbt/questions", async (req, res) => {
 
     result.rows.forEach((row) => {
       const subject = row.subject || "Unknown";
-
-      subjectCounts[subject] =
-        (subjectCounts[subject] || 0) + 1;
+      subjectCounts[subject] = (subjectCounts[subject] || 0) + 1;
     });
 
     return res.status(200).json({
@@ -800,16 +811,16 @@ app.use("/api/tutor", tutorRoutes);
 app.use("/api/payments", paymentRoutes);
 
 // ============================================================
-// ACADEMY TASK MANAGEMENT
-// ============================================================
-
-app.use("/api/academy", academyTaskManagementRoutes);
-
-// ============================================================
 // ACADEMY TASK SUBMISSIONS
 // ============================================================
 
 app.use("/api/academy", academyTaskSubmissionRoutes);
+
+// ============================================================
+// ACADEMY TASK MANAGEMENT
+// ============================================================
+
+app.use("/api/academy", academyTaskManagementRoutes);
 
 // ============================================================
 // ACADEMY MAIN ROUTES
@@ -819,15 +830,6 @@ app.use("/api/academy", academyRoutes);
 
 // ============================================================
 // ACADEMY ASSIGNMENTS
-// ============================================================
-//
-// Exposes:
-// GET  /api/academy/student/assignments
-// GET  /api/academy/student/assignments/:id
-// GET  /api/academy/student/assignments/:id/file
-// POST /api/academy/student/assignments/:id/submit
-// GET  /api/academy/student/assignments/:id/result
-//
 // ============================================================
 
 app.use("/api/academy", academyAssignmentRoutes);
@@ -871,25 +873,11 @@ app.use("/api/academy/tutor", academyTutorAnnouncements);
 // ============================================================
 // LEGACY ASSIGNMENT FILE URL COMPATIBILITY
 // ============================================================
-//
-// Supports old links like:
-// /1791635732689-1c70c2007e34cba77b33.pdf
-//
-// Expected physical file location:
-// server/uploads/academy-assignments/<filename>
-//
-// Preferred new URL:
-// /uploads/academy-assignments/<filename>
-//
-// This route must remain BEFORE the 404 handler.
-//
-// ============================================================
 
 app.get("/:filename", (req, res, next) => {
   try {
     const filename = String(req.params.filename || "");
 
-    // Only allow a single plain filename.
     if (
       !filename ||
       filename !== path.basename(filename) ||
@@ -933,12 +921,10 @@ app.get("/:filename", (req, res, next) => {
     const assignmentRoot = path.resolve(ACADEMY_ASSIGNMENTS_DIR);
     const filePath = path.resolve(assignmentRoot, filename);
 
-    // Ensure the file stays inside the assignment upload directory.
     if (!filePath.startsWith(`${assignmentRoot}${path.sep}`)) {
       return next();
     }
 
-    // A missing file should fall through to the normal 404 handler.
     if (!fs.existsSync(filePath)) {
       return next();
     }
@@ -1064,6 +1050,7 @@ const server = app.listen(PORT, () => {
   console.log(`🌐 Frontend: ${FRONTEND_URL}`);
   console.log(`📂 Uploads: ${UPLOADS_DIR}`);
   console.log(`📄 Assignment uploads: ${ACADEMY_ASSIGNMENTS_DIR}`);
+  console.log(`📥 Task submission uploads: ${TASK_SUBMISSIONS_DIR}`);
 
   console.log(
     `🗄️ Database: ${
@@ -1106,13 +1093,16 @@ const server = app.listen(PORT, () => {
   console.log("   PATCH  /api/academy/tutor/tasks/:taskId");
   console.log("   DELETE /api/academy/tutor/tasks/:taskId");
   console.log("   POST   /api/academy/tutor/tasks");
-  console.log("   GET    /api/academy/tutor/tasks/submissions");
+  console.log("   GET    /api/academy/tutor/task-submissions");
+  console.log("   GET    /api/academy/tutor/task-submissions/:submissionId");
+  console.log("   PATCH  /api/academy/tutor/task-submissions/:submissionId/review");
   console.log("   POST   /api/academy/student/tasks/:taskId/submission");
 
   console.log("");
   console.log("📚 MATERIAL ROUTES:");
   console.log("   GET    /api/admin/lms/materials");
   console.log("   GET    /api/academy/student/materials");
+  console.log("   GET    /api/academy/tutor/materials");
 
   console.log("");
   console.log("❤️ HEALTH:");

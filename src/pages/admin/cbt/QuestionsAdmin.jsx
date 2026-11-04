@@ -9,8 +9,6 @@ import React, {
 import katex from "katex";
 import "katex/dist/katex.min.css";
 
-import { supabase } from "../../../lib/supabaseClient";
-
 import {
   Trash2,
   Search,
@@ -25,7 +23,7 @@ import {
   Subscript,
   Sigma,
   Plus,
-  Image as ImageIcon,
+  ImageIcon,
   Eye,
   EyeOff,
   Loader2,
@@ -38,2115 +36,1041 @@ import {
   Copy,
 } from "lucide-react";
 
-/* ============================================================
-   CONFIG
-============================================================ */
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
+).replace(/\/+$/, "");
 
+const QUESTIONS_API = `${API_BASE_URL}/api/admin/cbt/questions`;
+
+// This only controls the number displayed on each UI page.
+// It does NOT limit how many questions are fetched.
 const QUESTIONS_PER_PAGE = 40;
 
-/* ============================================================
-   HTML DECODE
-============================================================ */
+// ============================================================
+// AUTHENTICATION
+// ============================================================
 
-const decodeHtml = (value = "") => {
-  if (value === null || value === undefined) {
-    return "";
-  }
+const getAdminToken = () => {
+  const keys = [
+    "scholiqen_auth_token",
+    "admin_token",
+    "auth_token",
+    "access_token",
+    "token",
+  ];
 
-  let result = String(value);
+  for (const key of keys) {
+    const value = localStorage.getItem(key);
 
-  if (typeof document === "undefined") {
-    return result;
-  }
+    if (value) {
+      try {
+        const parsed = JSON.parse(value);
 
-  for (let i = 0; i < 3; i += 1) {
-    const textarea = document.createElement("textarea");
+        if (typeof parsed === "string") return parsed;
 
-    textarea.innerHTML = result;
-
-    const decoded = textarea.value;
-
-    if (decoded === result) {
-      break;
+        if (parsed?.token) return parsed.token;
+        if (parsed?.access_token) return parsed.access_token;
+      } catch {
+        return value;
+      }
     }
-
-    result = decoded;
   }
 
-  return result;
+  return "";
 };
 
-/* ============================================================
-   ESCAPE HTML
-============================================================ */
+const apiRequest = async (url, options = {}) => {
+  const token = getAdminToken();
 
-const escapeHtml = (value = "") => {
-  return String(value)
+  if (!token) {
+    throw new Error(
+      "Administrator session not found. Please log in again."
+    );
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+
+  let data = {};
+
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  if (!response.ok || data.success === false) {
+    if (response.status === 401) {
+      throw new Error(
+        data.error ||
+          "Your session has expired. Please log in again."
+      );
+    }
+
+    if (response.status === 403) {
+      throw new Error(
+        data.error ||
+          "Administrator access is required."
+      );
+    }
+
+    throw new Error(
+      data.error ||
+        data.message ||
+        `Request failed with status ${response.status}.`
+    );
+  }
+
+  return data;
+};
+
+// ============================================================
+// CONTENT HELPERS
+// ============================================================
+
+const decodeHtml = (value = "") => {
+  if (typeof document === "undefined") {
+    return String(value);
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = String(value);
+
+  return textarea.value;
+};
+
+const escapeHtml = (value = "") =>
+  String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
-};
 
-/* ============================================================
-   NORMALIZE OPTIONS
-============================================================ */
+const normalizeOptions = (options, question = {}) => {
+  let normalized = [];
 
-const normalizeOptions = (itemOrOptions) => {
-  if (
-    itemOrOptions === null ||
-    itemOrOptions === undefined
-  ) {
-    return [];
-  }
-
-  if (
-    typeof itemOrOptions === "object" &&
-    !Array.isArray(itemOrOptions)
-  ) {
-    const item = itemOrOptions;
-
-    if (
-      item.options !== null &&
-      item.options !== undefined
-    ) {
-      const normalized = normalizeOptions(
-        item.options
-      );
-
-      if (normalized.length > 0) {
-        return normalized;
+  if (Array.isArray(options)) {
+    normalized = options.map((item, index) => {
+      if (typeof item === "string") {
+        return {
+          label: String.fromCharCode(65 + index),
+          text: item,
+        };
       }
-    }
 
-    const separateOptions = [
-      item.optionA,
-      item.optionB,
-      item.optionC,
-      item.optionD,
-    ];
-
-    const hasSeparateOptions =
-      separateOptions.some(
-        (option) =>
-          option !== null &&
-          option !== undefined &&
-          String(option).trim() !== ""
-      );
-
-    if (hasSeparateOptions) {
-      return separateOptions.map(
-        (option) =>
-          option === null ||
-          option === undefined
-            ? ""
-            : String(option)
-      );
-    }
-
-    const objectKeys = [
-      "A",
-      "B",
-      "C",
-      "D",
-      "E",
-      "F",
-      "G",
-      "H",
-    ];
-
-    const objectOptions =
-      objectKeys
-        .filter((key) =>
-          Object.prototype.hasOwnProperty.call(
-            item,
-            key
-          )
-        )
-        .map((key) => item[key]);
-
-    if (objectOptions.length > 0) {
-      return objectOptions.map(
-        (option) =>
-          option === null ||
-          option === undefined
-            ? ""
-            : String(option)
-      );
-    }
-
-    return [];
-  }
-
-  if (Array.isArray(itemOrOptions)) {
-    return itemOrOptions.map(
-      (option) => {
-        if (
-          option === null ||
-          option === undefined
-        ) {
-          return "";
-        }
-
-        if (
-          typeof option === "object"
-        ) {
-          if (
-            option.text !== undefined
-          ) {
-            return String(
-              option.text
-            );
-          }
-
-          if (
-            option.value !== undefined
-          ) {
-            return String(
-              option.value
-            );
-          }
-
-          return JSON.stringify(
-            option
-          );
-        }
-
-        return String(option);
-      }
+      return {
+        label:
+          item?.label ||
+          String.fromCharCode(65 + index),
+        text:
+          item?.text ??
+          item?.value ??
+          item?.content ??
+          "",
+      };
+    });
+  } else if (
+    options &&
+    typeof options === "object"
+  ) {
+    normalized = Object.entries(options).map(
+      ([key, value], index) => ({
+        label:
+          /^[a-d]$/i.test(key)
+            ? key.toUpperCase()
+            : String.fromCharCode(65 + index),
+        text:
+          typeof value === "string"
+            ? value
+            : value?.text || value?.value || "",
+      })
     );
   }
 
-  if (
-    typeof itemOrOptions === "string"
-  ) {
-    const value =
-      itemOrOptions.trim();
-
-    if (!value) {
-      return [];
-    }
-
-    if (
-      value.startsWith("[") ||
-      value.startsWith("{")
-    ) {
-      try {
-        const parsed =
-          JSON.parse(value);
-
-        return normalizeOptions(
-          parsed
-        );
-      } catch {
-        // Continue.
-      }
-    }
-
-    if (
-      value.includes("\n")
-    ) {
-      return value
-        .split("\n")
-        .map((option) =>
-          option.trim()
-        )
-        .filter(Boolean);
-    }
-
-    return [value];
+  if (!normalized.length) {
+    normalized = ["A", "B", "C", "D"].map(
+      (label) => ({
+        label,
+        text:
+          question[`option${label}`] || "",
+      })
+    );
   }
 
-  return [];
+  return normalized.filter(
+    (option) =>
+      option.label || option.text
+  );
 };
 
-/* ============================================================
-   NORMALIZE QUESTION
-============================================================ */
-
-const normalizeQuestionRecord = (
-  item
-) => {
-  if (!item) {
-    return item;
-  }
-
-  return {
+const normalizeQuestionRecord = (item) => {
+  const question = {
     ...item,
-    options:
-      normalizeOptions(item),
-
+    id: item.id,
+    exam: item.exam || "",
+    subject: item.subject || "",
+    question: item.question || "",
+    options: normalizeOptions(
+      item.options,
+      item
+    ),
+    answer: item.answer || "",
+    image: item.image || "",
+    reason: item.reason || "",
     question_type:
-      item.question_type ||
-      "objective",
-
-    passage_id:
-      item.passage_id ||
-      null,
-
-    passage_title:
-      item.passage_title ||
-      "",
-
-    passage:
-      item.passage ||
-      "",
-
+      String(item.question_type || "").toLowerCase() ||
+      (item.passage_id
+        ? "comprehension"
+        : "objective"),
+    passage_id: item.passage_id || null,
+    passage_title: item.passage_title || "",
+    passage: item.passage || "",
     passage_order:
-      Number(
-        item.passage_order || 0
-      ),
+      item.passage_order ?? 0,
+    active:
+      item.active === undefined ||
+      item.active === null
+        ? true
+        : item.active === true ||
+          item.active === 1 ||
+          item.active === "true",
   };
+
+  return question;
 };
 
-/* ============================================================
-   QUESTION TYPE
-============================================================ */
+const isComprehensionQuestion = (item) =>
+  String(item?.question_type || "").toLowerCase() ===
+    "comprehension" ||
+  Boolean(item?.passage_id);
 
-const isComprehensionQuestion = (
-  question
-) => {
-  return (
-    String(
-      question?.question_type ||
-        ""
-    ).toLowerCase() ===
-      "comprehension" ||
-    Boolean(question?.passage_id)
-  );
-};
+const cleanLatexMarkdown = (value = "") =>
+  String(value)
+    .replace(/\\\[/g, "$$")
+    .replace(/\\\]/g, "$$")
+    .replace(/\\\(/g, "$")
+    .replace(/\\\)/g, "$");
 
-/* ============================================================
-   CLEAN MARKDOWN / LATEX
-============================================================ */
+const hasHtml = (value = "") =>
+  /<\/?[a-z][\s\S]*>/i.test(String(value));
 
-const cleanLatexMarkdown = (
-  value = ""
-) => {
-  if (!value) {
-    return "";
-  }
-
-  let content =
-    decodeHtml(value);
-
-  content = content.replace(
-    /\*\*/g,
-    ""
+const convertCaretPowers = (value = "") =>
+  String(value).replace(
+    /([a-zA-Z0-9)])\^([a-zA-Z0-9]+)/g,
+    "$1^{$2}"
   );
 
-  content = content.replace(
-    /__/g,
-    ""
+const containsLatex = (value = "") =>
+  /\\\(|\\\[|\$\$|\$[^$]+\$|\\frac|\\sqrt|\\sum|\\int/.test(
+    String(value)
   );
 
-  const dollarCount =
-    (content.match(/\$/g) || [])
-      .length;
-
-  if (dollarCount === 1) {
-    content =
-      content.replace(
-        /^\$/,
-        ""
-      );
-
-    content =
-      content.replace(
-        /\$$/,
-        ""
-      );
-  }
-
-  return content;
-};
-
-/* ============================================================
-   HTML DETECTION
-============================================================ */
-
-const hasHtml = (
-  value = ""
-) => {
-  return /<\/?[a-z][\s\S]*>/i.test(
-    value
-  );
-};
-
-/* ============================================================
-   CARET POWER CONVERSION
-============================================================ */
-
-const convertCaretPowers = (
-  value = ""
-) => {
-  if (!value) {
-    return "";
-  }
-
-  let content =
-    String(value);
-
-  const protectedTags = [];
-
-  content =
-    content.replace(
-      /<(sup|sub)\b[^>]*>[\s\S]*?<\/\1>/gi,
-      (match) => {
-        const token =
-          `___MATH_TAG_${protectedTags.length}___`;
-
-        protectedTags.push(
-          match
-        );
-
-        return token;
-      }
-    );
-
-  content =
-    content.replace(
-      /([A-Za-z0-9)\]])\^(\d+|[A-Za-z]+|\([^)]*\))/g,
-      (_, base, exponent) => {
-        let cleanExponent =
-          exponent;
-
-        if (
-          cleanExponent.startsWith(
-            "("
-          ) &&
-          cleanExponent.endsWith(
-            ")"
-          )
-        ) {
-          cleanExponent =
-            cleanExponent.slice(
-              1,
-              -1
-            );
-        }
-
-        return `${base}<sup>${cleanExponent}</sup>`;
-      }
-    );
-
-  protectedTags.forEach(
-    (tag, index) => {
-      content =
-        content.replace(
-          `___MATH_TAG_${index}___`,
-          tag
-        );
-    }
+const normalizeLatexSource = (value = "") =>
+  convertCaretPowers(
+    cleanLatexMarkdown(value)
   );
 
-  return content;
-};
-
-/* ============================================================
-   LATEX DETECTION
-============================================================ */
-
-const containsLatex = (
-  value = ""
-) => {
-  if (!value) {
-    return false;
-  }
-
-  return (
-    /\$[^$]+\$/.test(value) ||
-    /\\frac\s*\{/.test(value) ||
-    /\\text\s*\{/.test(value) ||
-    /\\sqrt\s*\{/.test(value) ||
-    /\\(?:circ|degree)\b/.test(value) ||
-    /\\(?:times|div|cdot|pm|mp)\b/.test(
-      value
-    ) ||
-    /\\(?:pi|theta|alpha|beta|gamma|delta|lambda|sigma|omega)\b/.test(
-      value
-    ) ||
-    /\\(?:leq|geq|neq|approx)\b/.test(
-      value
-    ) ||
-    /\^[A-Za-z0-9{(]/.test(
-      value
-    ) ||
-    /_[A-Za-z0-9{(]/.test(
-      value
-    )
-  );
-};
-
-/* ============================================================
-   NORMALIZE LATEX
-============================================================ */
-
-const normalizeLatexSource = (
-  value = ""
-) => {
-  let content =
-    cleanLatexMarkdown(
-      value
-    );
-
-  content =
-    content.replace(
-      /\$\s*([^$]+)\s*$/g,
-      "$1"
-    );
-
-  if (
-    content.endsWith("$") &&
-    !content
-      .slice(0, -1)
-      .includes("$")
-  ) {
-    content =
-      content.slice(
-        0,
-        -1
-      );
-  }
-
-  return content;
-};
-
-/* ============================================================
-   KATEX
-============================================================ */
-
-const renderKatex = (
-  expression,
-  displayMode = false
-) => {
-  if (!expression) {
-    return "";
-  }
-
-  let source =
-    String(expression).trim();
-
-  source =
-    normalizeLatexSource(
-      source
-    );
-
-  if (
-    source.startsWith("$") &&
-    source.endsWith("$")
-  ) {
-    source =
-      source.slice(
-        1,
-        -1
-      );
-  }
-
-  source =
-    source.trim();
-
-  if (!source) {
-    return "";
-  }
-
+const renderKatex = (value = "") => {
   try {
     return katex.renderToString(
-      source,
+      normalizeLatexSource(value),
       {
         throwOnError: false,
-        displayMode,
-        strict: false,
+        strict: "ignore",
+        displayMode: false,
         trust: false,
       }
     );
-  } catch (error) {
-    console.warn(
-      "KaTeX error:",
-      error
-    );
-
-    return escapeHtml(
-      source
-    );
+  } catch {
+    return escapeHtml(value);
   }
 };
 
-/* ============================================================
-   RICH CONTENT
-============================================================ */
+const renderRichContentHtml = (value = "") => {
+  if (!value) return "";
 
-const renderRichContentHtml = (
-  value = ""
-) => {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return "";
+  const source = String(value);
+
+  if (hasHtml(source)) {
+    return source;
   }
 
-  let content =
-    decodeHtml(
-      String(value)
-    );
+  const escaped = escapeHtml(source);
 
-  content =
-    cleanLatexMarkdown(
-      content
-    );
-
-  content =
-    content
-      .replace(
-        /&nbsp;/gi,
-        " "
-      )
-      .replace(
-        /\u00a0/g,
-        " "
-      );
-
-  if (hasHtml(content)) {
-    return convertCaretPowers(
-      content
-    );
-  }
-
-  const parts = [];
-
-  const regex =
-    /\$([^$]+)\$/g;
-
-  let lastIndex = 0;
-
-  let match;
-
-  while (
-    (match =
-      regex.exec(content)) !==
-    null
-  ) {
-    const before =
-      content.slice(
-        lastIndex,
-        match.index
-      );
-
-    if (before) {
-      parts.push(
-        escapeHtml(
-          before
-        )
-      );
-    }
-
-    parts.push(
-      renderKatex(
-        match[1],
-        false
-      )
-    );
-
-    lastIndex =
-      regex.lastIndex;
-  }
-
-  const remaining =
-    content.slice(
-      lastIndex
-    );
-
-  if (remaining) {
-    if (
-      containsLatex(
-        remaining
-      )
-    ) {
-      parts.push(
-        renderKatex(
-          remaining,
-          false
-        )
-      );
-    } else {
-      parts.push(
-        escapeHtml(
-          remaining
-        )
-      );
-    }
-  }
-
-  if (
-    parts.length === 0 &&
-    containsLatex(content)
-  ) {
-    return renderKatex(
-      content
-    );
-  }
-
-  return parts.join("");
-};
-
-/* ============================================================
-   RICH CONTENT COMPONENT
-============================================================ */
-
-const RichContent = memo(
-  ({ content }) => {
-    if (
-      content === null ||
-      content === undefined ||
-      content === ""
-    ) {
-      return (
-        <span className="text-slate-600">
-          —
-        </span>
-      );
-    }
-
-    const html =
-      renderRichContentHtml(
-        content
-      );
-
-    return (
-      <span
-        className="
-          rich-content
-          [&_.katex]:align-middle
-          [&_.katex-display]:my-2
-          [&_sup]:align-super
-          [&_sup]:text-[0.7em]
-          [&_sub]:align-sub
-          [&_sub]:text-[0.7em]
-          [&_br]:leading-none
-        "
-        dangerouslySetInnerHTML={{
-          __html: html,
-        }}
-      />
-    );
-  }
-);
-
-/* ============================================================
-   CLEAN CONTENT
-============================================================ */
-
-const cleanRichContent = (
-  value = ""
-) => {
-  if (!value) {
-    return "";
-  }
-
-  let content =
-    decodeHtml(
-      String(value)
-    );
-
-  content =
-    content
-      .replace(
-        /&nbsp;/gi,
-        " "
-      )
-      .replace(
-        /\u00a0/g,
-        " "
-      );
-
-  content =
-    content.replace(
-      /<span[^>]*class=["'][^"']*math-fraction[^"']*["'][^>]*>\s*<span[^>]*>(.*?)<\/span>\s*<span[^>]*>(.*?)<\/span>\s*<\/span>/gis,
-      "$1/$2"
-    );
-
-  content =
-    content.replace(
-      /<span[^>]*style=["'][^"']*flex-direction\s*:\s*column[^"']*["'][^>]*>\s*<span[^>]*>(.*?)<\/span>\s*<span[^>]*>.*?<\/span>\s*<\/span>/gis,
-      "$1"
-    );
-
-  return content.trim();
-};
-
-/* ============================================================
-   TEXT EXTRACTION
-============================================================ */
-
-const getTextFromContent = (
-  value = ""
-) => {
-  if (!value) {
-    return "";
-  }
-
-  let text =
-    decodeHtml(
-      String(value)
-    );
-
-  if (
-    hasHtml(text) &&
-    typeof document !==
-      "undefined"
-  ) {
-    const div =
-      document.createElement(
-        "div"
-      );
-
-    div.innerHTML =
-      text;
-
-    text =
-      div.textContent ||
-      div.innerText ||
-      "";
-  }
-
-  text =
-    text.replace(
-      /\\text\s*\{\s*([^{}]*)\s*\}/gi,
-      "$1"
-    );
-
-  text =
-    text.replace(
-      /\\frac\s*\{\s*([^{}]*)\s*\}\s*\{\s*([^{}]*)\s*\}/gi,
-      "$1/$2"
-    );
-
-  text =
-    text.replace(
-      /\\sqrt\s*\{\s*([^{}]*)\s*\}/gi,
-      "$1"
-    );
-
-  text =
-    text.replace(
-      /\\[A-Za-z]+/g,
-      " "
-    );
-
-  text =
-    text.replace(
-      /[${}]/g,
-      " "
-    );
-
-  return text
+  return escaped
     .replace(
-      /\s+/g,
-      " "
+      /\$\$([\s\S]+?)\$\$/g,
+      (_, latex) =>
+        katex.renderToString(
+          normalizeLatexSource(latex),
+          {
+            displayMode: true,
+            throwOnError: false,
+            strict: "ignore",
+          }
+        )
     )
+    .replace(
+      /\$([^$\n]+)\$/g,
+      (_, latex) =>
+        renderKatex(latex)
+    )
+    .replace(/\n/g, "<br />");
+};
+
+const RichContent = memo(({ content }) => (
+  <div
+    className="rich-content break-words"
+    dangerouslySetInnerHTML={{
+      __html: renderRichContentHtml(content),
+    }}
+  />
+));
+
+const cleanRichContent = (value = "") =>
+  String(value).trim();
+
+const getTextFromContent = (value = "") => {
+  if (typeof document === "undefined") {
+    return String(value)
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  const element = document.createElement("div");
+  element.innerHTML = String(value);
+
+  return (
+    element.textContent ||
+    element.innerText ||
+    ""
+  )
+    .replace(/\s+/g, " ")
     .trim();
 };
 
-const getEditorValue = (
-  value = ""
-) => {
-  if (!value) {
-    return "";
-  }
+const getEditorValue = (value = "") =>
+  value === null || value === undefined
+    ? ""
+    : String(value);
 
-  return cleanRichContent(
-    value
-  );
-};
-
-/* ============================================================
-   CREATE PASSAGE ID
-============================================================ */
-
-const createPassageId = () => {
-  if (
-    typeof crypto !==
-      "undefined" &&
-    crypto.randomUUID
-  ) {
-    return `COMP-${crypto
-      .randomUUID()
-      .replace(/-/g, "")
-      .slice(0, 12)
-      .toUpperCase()}`;
-  }
-
-  return `COMP-${Date.now()}-${Math.random()
+const createPassageId = () =>
+  `passage-${Date.now()}-${Math.random()
     .toString(36)
-    .slice(2, 8)
-    .toUpperCase()}`;
-};
+    .slice(2, 9)}`;
 
-/* ============================================================
-   MAIN COMPONENT
-============================================================ */
+const createEmptyQuestion = (type = "objective") => ({
+  exam: "",
+  subject: "",
+  question: "",
+  options: [
+    { label: "A", text: "" },
+    { label: "B", text: "" },
+    { label: "C", text: "" },
+    { label: "D", text: "" },
+  ],
+  answer: "A",
+  image: "",
+  reason: "",
+  question_type: type,
+  passage_id:
+    type === "comprehension"
+      ? createPassageId()
+      : null,
+  passage_title: "",
+  passage: "",
+  passage_order: 0,
+  active: true,
+});
 
-const QuestionsAdmin = () => {
-  const [
-    questions,
-    setQuestions,
-  ] = useState([]);
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+function QuestionsAdmin() {
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [activeView, setActiveView] = useState("all");
 
-  const [
-    search,
-    setSearch,
-  ] = useState("");
+  const [editingQuestion, setEditingQuestion] =
+    useState(null);
 
-  const [
-    page,
-    setPage,
-  ] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [activating, setActivating] = useState(null);
 
-  const [
-    activeView,
-    setActiveView,
-  ] = useState("all");
+  // ==========================================================
+  // FETCH ALL QUESTIONS FROM NEON
+  // NO PAGE LIMIT
+  // NO DATABASE QUESTION LIMIT
+  // ==========================================================
 
-  const [
-    editingQuestion,
-    setEditingQuestion,
-  ] = useState(null);
+  const fetchQuestions = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) {
+        setLoading(true);
+      }
 
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
+      setLoadError("");
 
-  const [
-    deleting,
-    setDeleting,
-  ] = useState(null);
+      try {
+        // IMPORTANT:
+        // Do not send page or limit.
+        // The backend returns every matching question.
 
-  const [
-    activating,
-    setActivating,
-  ] = useState(null);
+        const data = await apiRequest(
+          QUESTIONS_API
+        );
 
-  /* ==========================================================
-     FETCH
-  ========================================================== */
+        const records = Array.isArray(data.questions)
+          ? data.questions
+          : [];
 
-  const fetchQuestions =
-    useCallback(
-      async () => {
-        try {
-          setLoading(true);
+        setQuestions(
+          records.map(normalizeQuestionRecord)
+        );
 
-          const batchSize =
-            1000;
+        setPage(1);
+      } catch (error) {
+        console.error(
+          "Fetch CBT Questions Error:",
+          error
+        );
 
-          let allQuestions =
-            [];
+        setLoadError(
+          error.message ||
+            "Unable to load questions."
+        );
 
-          let from = 0;
-
-          while (true) {
-            const {
-              data,
-              error,
-            } =
-              await supabase
-                .from(
-                  "cbt_questions"
-                )
-                .select("*")
-                .order(
-                  "created_at",
-                  {
-                    ascending:
-                      false,
-                  }
-                )
-                .range(
-                  from,
-                  from +
-                    batchSize -
-                    1
-                );
-
-            if (error) {
-              throw error;
-            }
-
-            const batch =
-              data || [];
-
-            allQuestions.push(
-              ...batch.map(
-                normalizeQuestionRecord
-              )
-            );
-
-            if (
-              batch.length <
-              batchSize
-            ) {
-              break;
-            }
-
-            from +=
-              batchSize;
-          }
-
-          setQuestions(
-            allQuestions
-          );
-        } catch (error) {
-          console.error(
-            "Fetch Questions Error:",
-            error
-          );
-
-          alert(
-            error?.message ||
-              "Failed to load questions."
-          );
-        } finally {
+        if (!silent) {
+          setQuestions([]);
+        }
+      } finally {
+        if (!silent) {
           setLoading(false);
         }
-      },
-      []
-    );
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     fetchQuestions();
+  }, [fetchQuestions]);
+
+  // ==========================================================
+  // UPDATE LOCAL QUESTION
+  // ==========================================================
+
+  const updateLocalQuestion = useCallback(
+    (updatedQuestion) => {
+      const normalized =
+        normalizeQuestionRecord(updatedQuestion);
+
+      setQuestions((current) =>
+        current.map((item) =>
+          String(item.id) ===
+          String(normalized.id)
+            ? normalized
+            : item
+        )
+      );
+    },
+    []
+  );
+
+  // ==========================================================
+  // EDITOR CONTROLS
+  // ==========================================================
+
+  const openCreateObjective = () => {
+    setEditingQuestion({
+      ...createEmptyQuestion("objective"),
+      isNew: true,
+    });
+  };
+
+  const openCreateComprehension = () => {
+    setEditingQuestion({
+      ...createEmptyQuestion("comprehension"),
+      isNew: true,
+    });
+  };
+
+  const openEditQuestion = (question) => {
+    setEditingQuestion({
+      ...normalizeQuestionRecord(question),
+      isNew: false,
+    });
+  };
+
+  const closeEditor = () => {
+    if (!saving) {
+      setEditingQuestion(null);
+    }
+  };
+
+  const handleEditorFieldChange = (
+    field,
+    value
+  ) => {
+    setEditingQuestion((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleOptionChange = (
+    index,
+    value
+  ) => {
+    setEditingQuestion((current) => {
+      const options = [...(current.options || [])];
+
+      options[index] = {
+        ...options[index],
+        text: value,
+      };
+
+      return {
+        ...current,
+        options,
+      };
+    });
+  };
+
+  const addOption = () => {
+    setEditingQuestion((current) => {
+      const options = [...(current.options || [])];
+
+      if (options.length >= 6) return current;
+
+      options.push({
+        label: String.fromCharCode(
+          65 + options.length
+        ),
+        text: "",
+      });
+
+      return {
+        ...current,
+        options,
+      };
+    });
+  };
+
+  const removeOption = (index) => {
+    setEditingQuestion((current) => {
+      const options = current.options.filter(
+        (_, optionIndex) =>
+          optionIndex !== index
+      );
+
+      const answerStillExists = options.some(
+        (option) =>
+          option.label === current.answer
+      );
+
+      return {
+        ...current,
+        options,
+        answer: answerStillExists
+          ? current.answer
+          : options[0]?.label || "A",
+      };
+    });
+  };
+
+  // ==========================================================
+  // COUNTS
+  // ==========================================================
+
+  const comprehensionQuestions = useMemo(
+    () =>
+      questions.filter(
+        isComprehensionQuestion
+      ),
+    [questions]
+  );
+
+  const objectiveQuestions = useMemo(
+    () =>
+      questions.filter(
+        (item) =>
+          !isComprehensionQuestion(item)
+      ),
+    [questions]
+  );
+
+  const passageGroups = useMemo(() => {
+    const map = new Map();
+
+    comprehensionQuestions.forEach((item) => {
+      const key =
+        item.passage_id ||
+        item.passage_title ||
+        item.id;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          title:
+            item.passage_title ||
+            "Untitled Passage",
+          passage: item.passage || "",
+          questions: [],
+        });
+      }
+
+      map.get(key).questions.push(item);
+    });
+
+    return Array.from(map.values());
+  }, [comprehensionQuestions]);
+
+  // ==========================================================
+  // FILTER
+  // ==========================================================
+
+  const filteredQuestions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    let source = questions;
+
+    if (activeView === "objective") {
+      source = objectiveQuestions;
+    }
+
+    if (activeView === "comprehension") {
+      source = comprehensionQuestions;
+    }
+
+    if (!query) return source;
+
+    return source.filter((item) => {
+      const searchable = [
+        item.exam,
+        item.subject,
+        item.question,
+        item.passage_title,
+        item.passage,
+        item.answer,
+        item.reason,
+        item.image,
+        ...(item.options || []).map(
+          (option) => option.text
+        ),
+      ]
+        .map((value) =>
+          getTextFromContent(value || "")
+        )
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(query);
+    });
   }, [
-    fetchQuestions,
+    questions,
+    objectiveQuestions,
+    comprehensionQuestions,
+    activeView,
+    search,
   ]);
 
-  /* ==========================================================
-     COUNTS
-  ========================================================== */
+  // ==========================================================
+  // DISPLAY PAGINATION
+  // This does not limit database fetching.
+  // ==========================================================
 
-  const comprehensionQuestions =
-    useMemo(
-      () =>
-        questions.filter(
-          isComprehensionQuestion
-        ),
-      [questions]
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      filteredQuestions.length /
+        QUESTIONS_PER_PAGE
+    )
+  );
+
+  const currentPage = Math.min(page, totalPages);
+
+  const paginatedQuestions = useMemo(() => {
+    const start =
+      (currentPage - 1) *
+      QUESTIONS_PER_PAGE;
+
+    return filteredQuestions.slice(
+      start,
+      start + QUESTIONS_PER_PAGE
     );
-
-  const objectiveQuestions =
-    useMemo(
-      () =>
-        questions.filter(
-          (item) =>
-            !isComprehensionQuestion(
-              item
-            )
-        ),
-      [questions]
-    );
-
-  const passageGroups =
-    useMemo(() => {
-      const map =
-        new Map();
-
-      comprehensionQuestions.forEach(
-        (item) => {
-          const key =
-            item.passage_id ||
-            `legacy-${item.id}`;
-
-          if (!map.has(key)) {
-            map.set(key, {
-              passage_id:
-                key,
-              passage_title:
-                item.passage_title ||
-                "Untitled Passage",
-              passage:
-                item.passage ||
-                "",
-              exam:
-                item.exam ||
-                "",
-              subject:
-                item.subject ||
-                "",
-              questions: [],
-            });
-          }
-
-          map
-            .get(key)
-            .questions.push(
-              item
-            );
-        }
-      );
-
-      return Array.from(
-        map.values()
-      ).map((group) => ({
-        ...group,
-        questions:
-          group.questions.sort(
-            (a, b) =>
-              Number(
-                a.passage_order ||
-                  0
-              ) -
-              Number(
-                b.passage_order ||
-                  0
-              )
-          ),
-      }));
-    }, [
-      comprehensionQuestions,
-    ]);
-
-  /* ==========================================================
-     FILTER
-  ========================================================== */
-
-  const filteredQuestions =
-    useMemo(() => {
-      const query =
-        search
-          .trim()
-          .toLowerCase();
-
-      let source =
-        questions;
-
-      if (
-        activeView ===
-        "objective"
-      ) {
-        source =
-          objectiveQuestions;
-      }
-
-      if (
-        activeView ===
-        "comprehension"
-      ) {
-        source =
-          comprehensionQuestions;
-      }
-
-      if (!query) {
-        return source;
-      }
-
-      return source.filter(
-        (item) => {
-          const options =
-            normalizeOptions(
-              item
-            ).join(" ");
-
-          const searchable = [
-            item.exam || "",
-            item.subject || "",
-            item.question || "",
-            item.passage_title ||
-              "",
-            item.passage || "",
-            options,
-            item.answer || "",
-            item.reason || "",
-          ]
-            .map(
-              getTextFromContent
-            )
-            .join(" ")
-            .toLowerCase();
-
-          return searchable.includes(
-            query
-          );
-        }
-      );
-    }, [
-      questions,
-      objectiveQuestions,
-      comprehensionQuestions,
-      search,
-      activeView,
-    ]);
+  }, [filteredQuestions, currentPage]);
 
   useEffect(() => {
     setPage(1);
-  }, [
-    search,
-    activeView,
-  ]);
+  }, [search, activeView]);
 
-  const totalPages =
-    Math.max(
-      1,
-      Math.ceil(
-        filteredQuestions.length /
-          QUESTIONS_PER_PAGE
-      )
+  // ==========================================================
+  // DELETE QUESTION
+  // DELETE /api/admin/cbt/questions/:id
+  // ==========================================================
+
+  const deleteQuestion = async (question) => {
+    if (!question?.id) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to permanently delete this question?"
     );
 
-  useEffect(() => {
-    if (
-      page >
-      totalPages
-    ) {
-      setPage(
-        totalPages
+    if (!confirmed) return;
+
+    setDeleting(question.id);
+
+    try {
+      await apiRequest(
+        `${QUESTIONS_API}/${encodeURIComponent(
+          question.id
+        )}`,
+        {
+          method: "DELETE",
+        }
       );
+
+      setQuestions((current) =>
+        current.filter(
+          (item) =>
+            String(item.id) !==
+            String(question.id)
+        )
+      );
+
+      setEditingQuestion((current) =>
+        current &&
+        String(current.id) ===
+          String(question.id)
+          ? null
+          : current
+      );
+    } catch (error) {
+      console.error(
+        "Delete Question Error:",
+        error
+      );
+
+      window.alert(
+        error.message ||
+          "Unable to delete question."
+      );
+    } finally {
+      setDeleting(null);
     }
-  }, [
-    page,
-    totalPages,
-  ]);
+  };
 
-  const paginatedQuestions =
-    useMemo(() => {
-      const start =
-        (page - 1) *
-        QUESTIONS_PER_PAGE;
+  // ==========================================================
+  // TOGGLE QUESTION STATUS
+  // PATCH /api/admin/cbt/questions/:id/status
+  // ==========================================================
 
-      return filteredQuestions.slice(
-        start,
-        start +
-          QUESTIONS_PER_PAGE
+  const toggleActive = async (question) => {
+    if (!question?.id) return;
+
+    const nextActive = !question.active;
+
+    setActivating(question.id);
+
+    try {
+      const data = await apiRequest(
+        `${QUESTIONS_API}/${encodeURIComponent(
+          question.id
+        )}/status`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            active: nextActive,
+          }),
+        }
       );
-    }, [
-      filteredQuestions,
-      page,
-    ]);
 
-  /* ==========================================================
-     OPEN EDITOR
-  ========================================================== */
-
-  const openEditor =
-    useCallback(
-      (question) => {
-        const options =
-          normalizeOptions(
-            question
-          );
-
-        setEditingQuestion({
+      const updated =
+        data.question || {
           ...question,
+          active: nextActive,
+        };
 
-          question:
-            getEditorValue(
-              question.question ||
-                ""
-            ),
+      updateLocalQuestion(updated);
+    } catch (error) {
+      console.error(
+        "Toggle Question Status Error:",
+        error
+      );
 
-          options:
-            options.map(
-              (option) =>
-                getEditorValue(
-                  option
-                )
-            ),
+      window.alert(
+        error.message ||
+          "Unable to update question status."
+      );
+    } finally {
+      setActivating(null);
+    }
+  };
 
-          reason:
-            getEditorValue(
-              question.reason ||
-                ""
-            ),
+  // ==========================================================
+  // SAVE QUESTION
+  // POST /api/admin/cbt/questions
+  // PATCH /api/admin/cbt/questions/:id
+  // ==========================================================
 
-          passage_title:
-            getEditorValue(
-              question.passage_title ||
-                ""
-            ),
+  const saveQuestion = async () => {
+    if (!editingQuestion || saving) return;
 
-          passage:
-            getEditorValue(
-              question.passage ||
-                ""
-            ),
+    const current = editingQuestion;
 
-          answer:
-            String(
-              question.answer ||
-                ""
-            )
-              .trim()
-              .toUpperCase(),
+    const exam = String(
+      current.exam || ""
+    ).trim();
 
-          question_type:
-            isComprehensionQuestion(
-              question
-            )
-              ? "comprehension"
-              : "objective",
+    const subject = String(
+      current.subject || ""
+    ).trim();
 
-          passage_id:
-            question.passage_id ||
-            null,
-
-          passage_order:
-            Number(
-              question.passage_order ||
-                1
-            ),
-        });
-      },
-      []
+    const questionText = cleanRichContent(
+      current.question || ""
     );
 
-  /* ==========================================================
-     NEW COMPREHENSION QUESTION
-  ========================================================== */
+    const answer = String(
+      current.answer || ""
+    ).trim();
 
-  const createComprehensionQuestion =
-    useCallback(() => {
-      const passageId =
-        createPassageId();
+    const questionType =
+      String(
+        current.question_type || "objective"
+      ).toLowerCase() === "comprehension"
+        ? "comprehension"
+        : "objective";
 
-      setEditingQuestion({
-        id: null,
+    const options = (
+      current.options || []
+    )
+      .map((option, index) => ({
+        label:
+          option.label ||
+          String.fromCharCode(65 + index),
+        text: String(
+          option.text || ""
+        ).trim(),
+      }))
+      .filter((option) => option.text);
 
-        exam: "WAEC",
+    if (!exam) {
+      window.alert("Please select an exam.");
+      return;
+    }
 
-        subject:
-          "English Language",
+    if (!subject) {
+      window.alert("Please enter a subject.");
+      return;
+    }
 
-        question_type:
-          "comprehension",
+    if (!questionText) {
+      window.alert("Please enter the question.");
+      return;
+    }
 
-        passage_id:
-          passageId,
+    if (!answer) {
+      window.alert(
+        "Please select the correct answer."
+      );
+      return;
+    }
 
-        passage_title:
-          "",
+    if (options.length < 2) {
+      window.alert(
+        "Please provide at least two answer options."
+      );
+      return;
+    }
 
-        passage:
-          "",
+    if (
+      !options.some(
+        (option) => option.label === answer
+      )
+    ) {
+      window.alert(
+        "The selected correct answer does not match an available option."
+      );
+      return;
+    }
 
-        passage_order:
-          1,
+    if (
+      questionType === "comprehension" &&
+      !String(current.passage || "").trim()
+    ) {
+      window.alert(
+        "Please enter the comprehension passage."
+      );
+      return;
+    }
 
-        question:
-          "",
+    if (
+      questionType === "comprehension" &&
+      !String(
+        current.passage_title || ""
+      ).trim()
+    ) {
+      window.alert(
+        "Please enter the passage title."
+      );
+      return;
+    }
 
-        options: [
-          "",
-          "",
-          "",
-        ],
+    const optionMap = {};
 
-        answer:
-          "",
+    options.forEach((option) => {
+      optionMap[option.label] = option.text;
+    });
 
-        reason:
-          "",
+    const payload = {
+      exam,
+      subject,
+      question: questionText,
+      options,
+      answer,
+      image: String(current.image || "").trim(),
+      reason: String(current.reason || "").trim(),
 
-        image:
-          null,
+      question_type: questionType,
 
-        active:
-          true,
+      passage_id:
+        questionType === "comprehension"
+          ? current.passage_id ||
+            createPassageId()
+          : null,
+
+      passage_title:
+        questionType === "comprehension"
+          ? String(
+              current.passage_title || ""
+            ).trim()
+          : null,
+
+      passage:
+        questionType === "comprehension"
+          ? String(current.passage || "").trim()
+          : null,
+
+      passage_order:
+        questionType === "comprehension"
+          ? Number(current.passage_order) || 0
+          : null,
+
+      optionA: optionMap.A || "",
+      optionB: optionMap.B || "",
+      optionC: optionMap.C || "",
+      optionD: optionMap.D || "",
+
+      active:
+        current.active !== false,
+    };
+
+    setSaving(true);
+
+    try {
+      const isNew =
+        current.isNew ||
+        !current.id;
+
+      const url = isNew
+        ? QUESTIONS_API
+        : `${QUESTIONS_API}/${encodeURIComponent(
+            current.id
+          )}`;
+
+      const data = await apiRequest(url, {
+        method: isNew ? "POST" : "PATCH",
+        body: JSON.stringify(payload),
       });
-    }, []);
 
-  /* ==========================================================
-     NEW OBJECTIVE QUESTION
-  ========================================================== */
+      const savedQuestion =
+        data.question;
 
-  const createObjectiveQuestion =
-    useCallback(() => {
-      setEditingQuestion({
-        id: null,
-
-        exam: "WAEC",
-
-        subject:
-          "",
-
-        question_type:
-          "objective",
-
-        question:
-          "",
-
-        options: [
-          "",
-          "",
-          "",
-        ],
-
-        answer:
-          "",
-
-        reason:
-          "",
-
-        image:
-          null,
-
-        active:
-          true,
-      });
-    }, []);
-
-  /* ==========================================================
-     CLOSE
-  ========================================================== */
-
-  const closeEditor =
-    useCallback(() => {
-      if (saving) {
-        return;
+      if (!savedQuestion) {
+        throw new Error(
+          "The server did not return the saved question."
+        );
       }
 
-      setEditingQuestion(
-        null
+      const normalized =
+        normalizeQuestionRecord(savedQuestion);
+
+      if (isNew) {
+        setQuestions((existing) => [
+          normalized,
+          ...existing,
+        ]);
+
+        setPage(1);
+      } else {
+        setQuestions((existing) =>
+          existing.map((item) =>
+            String(item.id) ===
+            String(normalized.id)
+              ? normalized
+              : item
+          )
+        );
+      }
+
+      setEditingQuestion(null);
+    } catch (error) {
+      console.error(
+        "Save Question Error:",
+        error
       );
-    }, [saving]);
 
-  /* ==========================================================
-     FIELD
-  ========================================================== */
-
-  const updateField =
-    useCallback(
-      (
-        field,
-        value
-      ) => {
-        setEditingQuestion(
-          (previous) => {
-            if (!previous) {
-              return previous;
-            }
-
-            return {
-              ...previous,
-              [field]:
-                value,
-            };
-          }
-        );
-      },
-      []
-    );
-
-  /* ==========================================================
-     OPTION
-  ========================================================== */
-
-  const updateOption =
-    useCallback(
-      (
-        index,
-        value
-      ) => {
-        setEditingQuestion(
-          (previous) => {
-            if (!previous) {
-              return previous;
-            }
-
-            const options =
-              normalizeOptions(
-                previous
-              );
-
-            options[index] =
-              value;
-
-            return {
-              ...previous,
-              options,
-            };
-          }
-        );
-      },
-      []
-    );
-
-  /* ==========================================================
-     ADD OPTION
-  ========================================================== */
-
-  const addOption =
-    useCallback(() => {
-      setEditingQuestion(
-        (previous) => {
-          if (!previous) {
-            return previous;
-          }
-
-          return {
-            ...previous,
-
-            options: [
-              ...normalizeOptions(
-                previous
-              ),
-              "",
-            ],
-          };
-        }
+      window.alert(
+        error.message ||
+          "Unable to save question."
       );
-    }, []);
-
-  /* ==========================================================
-     REMOVE OPTION
-  ========================================================== */
-
-  const removeOption =
-    useCallback(
-      (index) => {
-        setEditingQuestion(
-          (previous) => {
-            if (!previous) {
-              return previous;
-            }
-
-            const options =
-              normalizeOptions(
-                previous
-              );
-
-            options.splice(
-              index,
-              1
-            );
-
-            let answer =
-              previous.answer ||
-              "";
-
-            const removedLetter =
-              String.fromCharCode(
-                65 + index
-              );
-
-            if (
-              answer ===
-              removedLetter
-            ) {
-              answer = "";
-            }
-
-            const answerIndex =
-              answer
-                ? answer.charCodeAt(
-                    0
-                  ) - 65
-                : -1;
-
-            if (
-              answerIndex >
-              index
-            ) {
-              answer =
-                String.fromCharCode(
-                  answer.charCodeAt(
-                    0
-                  ) - 1
-                );
-            }
-
-            return {
-              ...previous,
-              options,
-              answer,
-            };
-          }
-        );
-      },
-      []
-    );
-
-  /* ==========================================================
-     DELETE
-  ========================================================== */
-
-  const deleteQuestion =
-    useCallback(
-      async (id) => {
-        if (!id) {
-          return;
-        }
-
-        const confirmed =
-          window.confirm(
-            "Delete this question permanently?"
-          );
-
-        if (!confirmed) {
-          return;
-        }
-
-        try {
-          setDeleting(id);
-
-          const {
-            error,
-          } =
-            await supabase
-              .from(
-                "cbt_questions"
-              )
-              .delete()
-              .eq(
-                "id",
-                id
-              );
-
-          if (error) {
-            throw error;
-          }
-
-          setQuestions(
-            (previous) =>
-              previous.filter(
-                (question) =>
-                  question.id !==
-                  id
-              )
-          );
-
-          if (
-            editingQuestion?.id ===
-            id
-          ) {
-            setEditingQuestion(
-              null
-            );
-          }
-        } catch (error) {
-          console.error(
-            "Delete Question Error:",
-            error
-          );
-
-          alert(
-            error?.message ||
-              "Failed to delete question."
-          );
-        } finally {
-          setDeleting(
-            null
-          );
-        }
-      },
-      [
-        editingQuestion,
-      ]
-    );
-
-  /* ==========================================================
-     TOGGLE ACTIVE
-  ========================================================== */
-
-  const toggleActive =
-    useCallback(
-      async (question) => {
-        if (!question?.id) {
-          return;
-        }
-
-        try {
-          setActivating(
-            question.id
-          );
-
-          const newStatus =
-            question.active ===
-            false;
-
-          const {
-            data,
-            error,
-          } =
-            await supabase
-              .from(
-                "cbt_questions"
-              )
-              .update({
-                active:
-                  newStatus,
-              })
-              .eq(
-                "id",
-                question.id
-              )
-              .select()
-              .single();
-
-          if (error) {
-            throw error;
-          }
-
-          const normalizedData =
-            normalizeQuestionRecord(
-              data
-            );
-
-          setQuestions(
-            (previous) =>
-              previous.map(
-                (item) =>
-                  item.id ===
-                  question.id
-                    ? normalizedData
-                    : item
-              )
-          );
-
-          setEditingQuestion(
-            (previous) =>
-              previous?.id ===
-              question.id
-                ? {
-                    ...previous,
-                    ...normalizedData,
-                  }
-                : previous
-          );
-        } catch (error) {
-          console.error(
-            "Toggle Active Error:",
-            error
-          );
-
-          alert(
-            error?.message ||
-              "Unable to change question status."
-          );
-        } finally {
-          setActivating(
-            null
-          );
-        }
-      },
-      []
-    );
-
-  /* ==========================================================
-     SAVE
-  ========================================================== */
-
-  const saveQuestion =
-    useCallback(
-      async () => {
-        if (!editingQuestion) {
-          return;
-        }
-
-        try {
-          setSaving(true);
-
-          const isComp =
-            editingQuestion.question_type ===
-              "comprehension" ||
-            Boolean(
-              editingQuestion.passage_id
-            );
-
-          const cleanedQuestion =
-            cleanRichContent(
-              editingQuestion.question ||
-                ""
-            );
-
-          const currentOptions =
-            normalizeOptions(
-              editingQuestion
-            );
-
-          const cleanedOptions =
-            currentOptions.map(
-              (option) =>
-                cleanRichContent(
-                  option || ""
-                )
-            );
-
-          const cleanedReason =
-            cleanRichContent(
-              editingQuestion.reason ||
-                ""
-            );
-
-          const questionText =
-            getTextFromContent(
-              cleanedQuestion
-            ).trim();
-
-          if (!questionText) {
-            alert(
-              "Please enter the question."
-            );
-
-            return;
-          }
-
-          if (
-            cleanedOptions.length <
-            2
-          ) {
-            alert(
-              "Please provide at least two answer options."
-            );
-
-            return;
-          }
-
-          const hasEmptyOption =
-            cleanedOptions.some(
-              (option) =>
-                !getTextFromContent(
-                  option
-                ).trim()
-            );
-
-          if (
-            hasEmptyOption
-          ) {
-            alert(
-              "Please fill all answer options."
-            );
-
-            return;
-          }
-
-          const answer =
-            String(
-              editingQuestion.answer ||
-                ""
-            )
-              .trim()
-              .toUpperCase();
-
-          if (
-            !/^[A-Z]$/.test(
-              answer
-            )
-          ) {
-            alert(
-              "Please select a valid correct answer."
-            );
-
-            return;
-          }
-
-          const answerIndex =
-            answer.charCodeAt(
-              0
-            ) - 65;
-
-          if (
-            answerIndex < 0 ||
-            answerIndex >=
-              cleanedOptions.length
-          ) {
-            alert(
-              "The correct answer does not match an available option."
-            );
-
-            return;
-          }
-
-          let passageId =
-            editingQuestion.passage_id ||
-            null;
-
-          if (isComp && !passageId) {
-            passageId =
-              createPassageId();
-          }
-
-          if (isComp) {
-            const passageText =
-              getTextFromContent(
-                editingQuestion.passage ||
-                  ""
-              ).trim();
-
-            if (!passageText) {
-              alert(
-                "Please enter the comprehension passage."
-              );
-
-              return;
-            }
-          }
-
-          const payload = {
-            exam: String(
-              editingQuestion.exam ||
-                ""
-            ).trim(),
-
-            subject: String(
-              editingQuestion.subject ||
-                ""
-            ).trim(),
-
-            question:
-              cleanedQuestion,
-
-            options:
-              cleanedOptions,
-
-            answer,
-
-            reason:
-              cleanedReason,
-
-            image:
-              editingQuestion.image ||
-              null,
-
-            question_type:
-              isComp
-                ? "comprehension"
-                : "objective",
-
-            active:
-              editingQuestion.active !==
-              false,
-          };
-
-          if (isComp) {
-            payload.passage_id =
-              passageId;
-
-            payload.passage_title =
-              cleanRichContent(
-                editingQuestion.passage_title ||
-                  ""
-              );
-
-            payload.passage =
-              cleanRichContent(
-                editingQuestion.passage ||
-                  ""
-              );
-
-            payload.passage_order =
-              Number(
-                editingQuestion.passage_order ||
-                  1
-              );
-          } else {
-            payload.passage_id =
-              null;
-
-            payload.passage_title =
-              null;
-
-            payload.passage =
-              null;
-
-            payload.passage_order =
-              0;
-          }
-
-          /*
-           * Keep optionA-D synchronized
-           * when those columns exist.
-           */
-
-          if (
-            Object.prototype.hasOwnProperty.call(
-              editingQuestion,
-              "optionA"
-            ) ||
-            Object.prototype.hasOwnProperty.call(
-              editingQuestion,
-              "optionB"
-            ) ||
-            Object.prototype.hasOwnProperty.call(
-              editingQuestion,
-              "optionC"
-            ) ||
-            Object.prototype.hasOwnProperty.call(
-              editingQuestion,
-              "optionD"
-            )
-          ) {
-            payload.optionA =
-              cleanedOptions[0] ||
-              "";
-
-            payload.optionB =
-              cleanedOptions[1] ||
-              "";
-
-            payload.optionC =
-              cleanedOptions[2] ||
-              "";
-
-            payload.optionD =
-              cleanedOptions[3] ||
-              "";
-          }
-
-          let response;
-
-          if (editingQuestion.id) {
-            response =
-              await supabase
-                .from(
-                  "cbt_questions"
-                )
-                .update(
-                  payload
-                )
-                .eq(
-                  "id",
-                  editingQuestion.id
-                )
-                .select()
-                .single();
-          } else {
-            response =
-              await supabase
-                .from(
-                  "cbt_questions"
-                )
-                .insert(
-                  payload
-                )
-                .select()
-                .single();
-          }
-
-          if (response.error) {
-            throw response.error;
-          }
-
-          const normalizedData =
-            normalizeQuestionRecord(
-              response.data
-            );
-
-          if (editingQuestion.id) {
-            setQuestions(
-              (previous) =>
-                previous.map(
-                  (item) =>
-                    item.id ===
-                    editingQuestion.id
-                      ? normalizedData
-                      : item
-                )
-            );
-          } else {
-            setQuestions(
-              (previous) => [
-                normalizedData,
-                ...previous,
-              ]
-            );
-          }
-
-          setEditingQuestion(
-            null
-          );
-        } catch (error) {
-          console.error(
-            "Save Question Error:",
-            error
-          );
-
-          alert(
-            error?.message ||
-              "Failed to save question."
-          );
-        } finally {
-          setSaving(false);
-        }
-      },
-      [editingQuestion]
-    );
-
-  /* ==========================================================
-     DUPLICATE COMPREHENSION QUESTION
-  ========================================================== */
-
-  const duplicateQuestion =
-    useCallback(
-      (question) => {
-        const options =
-          normalizeOptions(
-            question
-          );
-
-        setEditingQuestion({
-          ...question,
-
-          id: null,
-
-          question:
-            getEditorValue(
-              question.question ||
-                ""
-            ),
-
-          options:
-            options.map(
-              (option) =>
-                getEditorValue(
-                  option
-                )
-            ),
-
-          reason:
-            getEditorValue(
-              question.reason ||
-                ""
-            ),
-
-          passage_title:
-            getEditorValue(
-              question.passage_title ||
-                ""
-            ),
-
-          passage:
-            getEditorValue(
-              question.passage ||
-                ""
-            ),
-
-          answer:
-            String(
-              question.answer ||
-                ""
-            )
-              .trim()
-              .toUpperCase(),
-
-          passage_id:
-            isComprehensionQuestion(
-              question
-            )
-              ? question.passage_id
-              : null,
-        });
-      },
-      []
-    );
-
-  /* ==========================================================
-     RENDER
-  ========================================================== */
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ==========================================================
+  // DUPLICATE QUESTION
+  // ==========================================================
+
+  const duplicateQuestion = (question) => {
+    const duplicate = {
+      ...normalizeQuestionRecord(question),
+      id: undefined,
+      isNew: true,
+      question: `${question.question || ""}`,
+      passage_id: isComprehensionQuestion(question)
+        ? createPassageId()
+        : null,
+      active: true,
+      options: (
+        question.options || []
+      ).map((option) => ({
+        ...option,
+      })),
+    };
+
+    setEditingQuestion(duplicate);
+  };
+
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
     <div className="min-h-screen bg-slate-950 p-5 text-white sm:p-8">
@@ -2155,690 +1079,549 @@ const QuestionsAdmin = () => {
         {/* HEADER */}
 
         <div className="mb-8 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-
           <div>
-            <div className="mb-2 flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10">
-                <Sigma
-                  size={18}
-                  className="text-blue-400"
-                />
-              </div>
-
-              <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-400">
-                CBT Question Bank
-              </span>
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
+              <Layers3 size={16} />
+              General CBT Management
             </div>
 
-            <h1 className="text-3xl font-black tracking-tight">
-              Manage Questions
+            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+              Question Bank
             </h1>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Manage objective questions
-              and comprehension sets from
-              one question bank.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+              Manage objective questions, comprehension passages,
+              answers and explanations for your examinations.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={
-                createObjectiveQuestion
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-black text-slate-300 hover:bg-white/[0.07]"
+              onClick={openCreateObjective}
+              className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-300 transition hover:bg-cyan-500/20"
             >
-              <Plus
-                size={16}
-              />
+              <Plus size={17} />
               Objective Question
             </button>
 
             <button
               type="button"
-              onClick={
-                createComprehensionQuestion
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-xs font-black text-white hover:bg-blue-400"
+              onClick={openCreateComprehension}
+              className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
             >
-              <BookOpen
-                size={16}
-              />
+              <BookOpen size={17} />
               Comprehension
             </button>
-
           </div>
-
         </div>
 
-        {/* SEARCH */}
+        {/* ERROR */}
 
-        <div className="mb-5 flex flex-col gap-3 lg:flex-row">
+        {loadError && (
+          <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-red-300">
+                Unable to load questions
+              </p>
 
-          <div className="relative flex-1">
+              <p className="mt-1 text-sm text-red-200/80">
+                {loadError}
+              </p>
+            </div>
 
-            <Search
-              size={18}
-              className="absolute left-4 top-3.5 text-slate-500"
-            />
-
-            <input
-              type="text"
-              placeholder="Search questions, passages, subjects..."
-              value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
-              }
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.03] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-400/30"
-            />
-
+            <button
+              type="button"
+              onClick={() => fetchQuestions()}
+              className="rounded-xl border border-red-400/30 px-4 py-2 text-sm font-bold text-red-200 hover:bg-red-500/10"
+            >
+              Try again
+            </button>
           </div>
+        )}
 
-          <div className="flex rounded-2xl border border-white/10 bg-white/[0.025] p-1">
+        {/* STATISTICS */}
 
-            {[
-              [
-                "all",
-                "All",
-              ],
-              [
-                "objective",
-                "Objective",
-              ],
-              [
-                "comprehension",
-                "Comprehension",
-              ],
-            ].map(
-              ([value, label]) => (
+        <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            icon={<Layers3 size={20} />}
+            label="Total Questions"
+            value={questions.length}
+            description="Questions in your bank"
+          />
+
+          <StatCard
+            icon={<FileText size={20} />}
+            label="Objective"
+            value={objectiveQuestions.length}
+            description="Multiple-choice questions"
+          />
+
+          <StatCard
+            icon={<BookOpen size={20} />}
+            label="Comprehension"
+            value={comprehensionQuestions.length}
+            description={`${passageGroups.length} passage groups`}
+          />
+
+          <StatCard
+            icon={<CheckCircle2 size={20} />}
+            label="Active Questions"
+            value={
+              questions.filter(
+                (item) => item.active
+              ).length
+            }
+            description="Available questions"
+          />
+        </div>
+
+        {/* SEARCH AND FILTERS */}
+
+        <div className="mb-6 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
+            <div className="relative w-full lg:max-w-md">
+              <Search
+                size={18}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+              />
+
+              <input
+                type="text"
+                value={search}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
+                placeholder="Search questions, subjects, passages..."
+                className="w-full rounded-xl border border-white/10 bg-slate-950 py-3 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/50"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {[
+                ["all", "All", questions.length],
+                [
+                  "objective",
+                  "Objective",
+                  objectiveQuestions.length,
+                ],
+                [
+                  "comprehension",
+                  "Comprehension",
+                  comprehensionQuestions.length,
+                ],
+              ].map(([value, label, count]) => (
                 <button
                   key={value}
                   type="button"
                   onClick={() =>
-                    setActiveView(
-                      value
-                    )
+                    setActiveView(value)
                   }
-                  className={`rounded-xl px-4 py-2 text-xs font-black ${
-                    activeView ===
-                    value
-                      ? "bg-blue-500 text-white"
-                      : "text-slate-500 hover:text-white"
+                  className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                    activeView === value
+                      ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-300"
+                      : "border-white/10 bg-white/[0.025] text-slate-400 hover:bg-white/[0.06] hover:text-white"
                   }`}
                 >
                   {label}
+
+                  <span className="rounded-md bg-black/20 px-2 py-0.5 text-xs">
+                    {count}
+                  </span>
                 </button>
-              )
-            )}
-
-          </div>
-
-        </div>
-
-        {/* STATS */}
-
-        <div className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-          <StatCard
-            label="Total Questions"
-            value={
-              questions.length
-            }
-            icon={Sigma}
-          />
-
-          <StatCard
-            label="Objective"
-            value={
-              objectiveQuestions.length
-            }
-            icon={FileText}
-          />
-
-          <StatCard
-            label="Comprehension"
-            value={
-              comprehensionQuestions.length
-            }
-            icon={BookOpen}
-          />
-
-          <StatCard
-            label="Passage Sets"
-            value={
-              passageGroups.length
-            }
-            icon={Layers3}
-          />
-
-        </div>
-
-        {/* CONTENT */}
-
-        {loading ? (
-          <div className="flex min-h-[300px] items-center justify-center">
-            <div className="flex items-center gap-3 text-sm text-slate-500">
-              <Loader2
-                size={18}
-                className="animate-spin"
-              />
-              Loading questions...
+              ))}
             </div>
           </div>
-        ) : filteredQuestions.length ===
-          0 ? (
-          <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/[0.02] p-14 text-center">
-            <Sigma
-              size={35}
-              className="mx-auto text-slate-700"
+        </div>
+
+        {/* QUESTION LIST */}
+
+        {loading ? (
+          <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-white/10 bg-slate-900/50">
+            <Loader2
+              size={34}
+              className="animate-spin text-cyan-400"
             />
 
-            <h3 className="mt-4 font-black">
-              No Questions Found
-            </h3>
+            <p className="mt-4 text-sm font-semibold text-slate-300">
+              Loading questions...
+            </p>
 
-            <p className="mt-2 text-sm text-slate-600">
-              No questions match your
-              current search or filter.
+            <p className="mt-1 text-xs text-slate-500">
+              Connecting to the question database
             </p>
           </div>
+        ) : filteredQuestions.length === 0 ? (
+          <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-slate-900/40 px-5 text-center">
+            <div className="mb-4 rounded-2xl bg-white/[0.04] p-4 text-slate-500">
+              <BookOpen size={30} />
+            </div>
+
+            <h3 className="text-lg font-bold text-white">
+              No questions found
+            </h3>
+
+            <p className="mt-2 max-w-md text-sm text-slate-500">
+              {search
+                ? "Try another search term or change your filters."
+                : "Your question bank is empty. Create your first question to get started."}
+            </p>
+
+            {!search && (
+              <button
+                type="button"
+                onClick={openCreateObjective}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-400"
+              >
+                <Plus size={17} />
+                Add Question
+              </button>
+            )}
+          </div>
         ) : (
-          <>
-            <div className="mb-4 flex items-center justify-between">
+          <div className="space-y-4">
+            {paginatedQuestions.map((question) => (
+              <QuestionCard
+                key={question.id}
+                question={question}
+                onEdit={openEditQuestion}
+                onDelete={deleteQuestion}
+                onToggle={toggleActive}
+                onDuplicate={duplicateQuestion}
+                deleting={deleting}
+                activating={activating}
+              />
+            ))}
+          </div>
+        )}
 
-              <p className="text-xs font-bold text-slate-500">
+        {/* PAGINATION */}
+
+        {!loading &&
+          filteredQuestions.length > 0 && (
+            <div className="mt-7 flex flex-col gap-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-400">
                 Showing{" "}
-                <span className="text-white">
+                <span className="font-bold text-white">
+                  {(currentPage - 1) *
+                    QUESTIONS_PER_PAGE +
+                    1}
+                </span>{" "}
+                to{" "}
+                <span className="font-bold text-white">
                   {Math.min(
-                    (page - 1) *
-                      QUESTIONS_PER_PAGE +
-                      1,
-                    filteredQuestions.length
-                  )}
-                </span>
-
-                {" – "}
-
-                <span className="text-white">
-                  {Math.min(
-                    page *
+                    currentPage *
                       QUESTIONS_PER_PAGE,
                     filteredQuestions.length
                   )}
-                </span>
-
-                {" of "}
-
-                <span className="text-white">
-                  {
-                    filteredQuestions.length
-                  }
-                </span>
+                </span>{" "}
+                of{" "}
+                <span className="font-bold text-white">
+                  {filteredQuestions.length}
+                </span>{" "}
+                questions
               </p>
 
-              <p className="text-xs font-bold text-slate-600">
-                Page {page} /{" "}
-                {totalPages}
-              </p>
-
-            </div>
-
-            <div className="space-y-5">
-
-              {paginatedQuestions.map(
-                (
-                  item,
-                  index
-                ) => (
-                  <QuestionCard
-                    key={
-                      item.id
-                    }
-                    item={
-                      item
-                    }
-                    index={
-                      (page - 1) *
-                        QUESTIONS_PER_PAGE +
-                      index
-                    }
-                    onEdit={() =>
-                      openEditor(
-                        item
-                      )
-                    }
-                    onDelete={() =>
-                      deleteQuestion(
-                        item.id
-                      )
-                    }
-                    onToggleActive={() =>
-                      toggleActive(
-                        item
-                      )
-                    }
-                    onDuplicate={() =>
-                      duplicateQuestion(
-                        item
-                      )
-                    }
-                    deleting={
-                      deleting ===
-                      item.id
-                    }
-                    activating={
-                      activating ===
-                      item.id
-                    }
-                  />
-                )
-              )}
-
-            </div>
-
-            {totalPages >
-              1 && (
               <Pagination
-                page={page}
-                totalPages={
-                  totalPages
-                }
-                setPage={
-                  setPage
-                }
+                page={currentPage}
+                totalPages={totalPages}
+                onChange={setPage}
               />
-            )}
-          </>
-        )}
-
+            </div>
+          )}
       </div>
+
+      {/* EDITOR MODAL */}
 
       {editingQuestion && (
         <EditQuestionModal
-          question={
-            editingQuestion
-          }
-          saving={
-            saving
-          }
-          onClose={
-            closeEditor
-          }
-          onSave={
-            saveQuestion
-          }
-          onFieldChange={
-            updateField
-          }
-          onOptionChange={
-            updateOption
-          }
-          onAddOption={
-            addOption
-          }
-          onRemoveOption={
-            removeOption
-          }
-          onToggleActive={() =>
-            editingQuestion.id &&
-            toggleActive(
-              editingQuestion
-            )
-          }
-          activating={
-            activating ===
-            editingQuestion.id
-          }
+          question={editingQuestion}
+          saving={saving}
+          onClose={closeEditor}
+          onSave={saveQuestion}
+          onFieldChange={handleEditorFieldChange}
+          onOptionChange={handleOptionChange}
+          onAddOption={addOption}
+          onRemoveOption={removeOption}
         />
       )}
     </div>
   );
-};
+}
 
-/* ============================================================
-   QUESTION CARD
-============================================================ */
+// ============================================================
+// QUESTION CARD
+// ============================================================
 
 const QuestionCard = memo(
   ({
-    item,
-    index,
+    question,
     onEdit,
     onDelete,
-    onToggleActive,
+    onToggle,
     onDuplicate,
     deleting,
     activating,
   }) => {
-    const isActive =
-      item.active !== false;
-
-    const options =
-      normalizeOptions(
-        item
-      );
-
     const isComp =
-      isComprehensionQuestion(
-        item
-      );
+      isComprehensionQuestion(question);
 
     return (
-      <div
-        className={`rounded-[1.75rem] border p-6 ${
-          isActive
-            ? "border-white/10 bg-white/[0.025]"
-            : "border-red-500/10 bg-red-500/[0.015] opacity-75"
-        }`}
-      >
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/70 transition hover:border-cyan-400/20">
 
-        {/* HEADER */}
+        {/* CARD HEADER */}
 
-        <div className="flex flex-col gap-5 lg:flex-row lg:justify-between">
-
+        <div className="flex flex-col gap-4 border-b border-white/[0.06] p-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
-
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-
-              <span className="rounded-full bg-blue-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-blue-400">
-                {item.exam ||
-                  "Exam"}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-xs font-bold text-cyan-300">
+                {question.exam || "General"}
               </span>
 
-              <span className="rounded-full bg-purple-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-purple-400">
-                {item.subject ||
-                  "Subject"}
+              <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-slate-300">
+                {question.subject || "No subject"}
               </span>
-
-              {isComp && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-amber-400">
-                  <BookOpen
-                    size={11}
-                  />
-                  Comprehension
-                </span>
-              )}
 
               <span
-                className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase ${
-                  isActive
-                    ? "bg-emerald-500/10 text-emerald-400"
-                    : "bg-red-500/10 text-red-400"
+                className={`rounded-lg px-2.5 py-1 text-xs font-bold ${
+                  isComp
+                    ? "border border-purple-400/20 bg-purple-500/10 text-purple-300"
+                    : "border border-blue-400/20 bg-blue-500/10 text-blue-300"
                 }`}
               >
-                {isActive
+                {isComp
+                  ? "Comprehension"
+                  : "Objective"}
+              </span>
+
+              <span
+                className={`rounded-lg px-2.5 py-1 text-xs font-bold ${
+                  question.active
+                    ? "border border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
+                    : "border border-red-400/20 bg-red-500/10 text-red-300"
+                }`}
+              >
+                {question.active
                   ? "Active"
                   : "Inactive"}
               </span>
-
             </div>
 
-            {/* PASSAGE */}
-
-            {isComp && (
-              <div className="mb-6 rounded-2xl border border-amber-400/10 bg-amber-400/[0.025] p-5">
-
-                <div className="mb-3 flex items-center gap-2">
-
-                  <BookOpen
-                    size={16}
-                    className="text-amber-400"
-                  />
-
-                  <span className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-400">
-                    Comprehension Passage
-                  </span>
-
-                </div>
-
-                <h3 className="mb-3 text-lg font-black text-white">
-                  {item.passage_title ||
-                    "Untitled Passage"}
-                </h3>
-
-                <div className="max-h-56 overflow-y-auto text-sm leading-7 text-slate-400">
-                  <RichContent
-                    content={
-                      item.passage
-                    }
-                  />
-                </div>
-
-              </div>
-            )}
-
-            {/* QUESTION */}
-
-            <div className="text-lg font-bold leading-8 text-white">
-
-              <span className="mr-2 text-blue-400">
-                {isComp
-                  ? `Q${
-                      item.passage_order ||
-                      index + 1
-                    }.`
-                  : `${index + 1}.`}
-              </span>
-
+            <div className="text-sm font-semibold leading-7 text-white">
               <RichContent
-                content={
-                  item.question
-                }
+                content={question.question}
               />
-
             </div>
-
           </div>
 
           {/* ACTIONS */}
 
-          <div className="flex shrink-0 items-start gap-2">
-
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={
-                onDuplicate
+              title="Duplicate question"
+              onClick={() =>
+                onDuplicate(question)
               }
-              title="Duplicate"
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-500 hover:text-white"
+              className="rounded-xl border border-white/10 bg-white/[0.035] p-2.5 text-slate-400 transition hover:border-cyan-400/30 hover:text-cyan-300"
             >
-              <Copy
-                size={15}
-              />
+              <Copy size={16} />
             </button>
 
             <button
               type="button"
-              onClick={
-                onEdit
+              title="Edit question"
+              onClick={() =>
+                onEdit(question)
               }
-              className="flex items-center gap-2 rounded-xl border border-blue-400/15 bg-blue-400/10 px-4 py-2.5 text-xs font-black text-blue-400"
+              className="rounded-xl border border-white/10 bg-white/[0.035] p-2.5 text-slate-400 transition hover:border-cyan-400/30 hover:text-cyan-300"
             >
-              <Edit3
-                size={16}
-              />
-              Edit
+              <Edit3 size={16} />
             </button>
 
             <button
               type="button"
-              onClick={
-                onToggleActive
+              title={
+                question.active
+                  ? "Deactivate question"
+                  : "Activate question"
               }
               disabled={
-                activating
+                String(activating) ===
+                String(question.id)
               }
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-400"
+              onClick={() =>
+                onToggle(question)
+              }
+              className="rounded-xl border border-white/10 bg-white/[0.035] p-2.5 text-slate-400 transition hover:border-amber-400/30 hover:text-amber-300 disabled:opacity-40"
             >
-              {activating ? (
-                <Loader2
-                  size={16}
-                  className="animate-spin"
-                />
-              ) : isActive ? (
-                <EyeOff
-                  size={16}
-                />
-              ) : (
-                <Power
-                  size={16}
-                />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={
-                onDelete
-              }
-              disabled={
-                deleting
-              }
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-400/10 bg-red-400/[0.05] text-red-400"
-            >
-              {deleting ? (
+              {String(activating) ===
+              String(question.id) ? (
                 <Loader2
                   size={16}
                   className="animate-spin"
                 />
               ) : (
-                <Trash2
-                  size={17}
-                />
+                <Power size={16} />
               )}
             </button>
 
+            <button
+              type="button"
+              title="Delete question"
+              disabled={
+                String(deleting) ===
+                String(question.id)
+              }
+              onClick={() =>
+                onDelete(question)
+              }
+              className="rounded-xl border border-white/10 bg-white/[0.035] p-2.5 text-slate-400 transition hover:border-red-400/30 hover:text-red-300 disabled:opacity-40"
+            >
+              {String(deleting) ===
+              String(question.id) ? (
+                <Loader2
+                  size={16}
+                  className="animate-spin"
+                />
+              ) : (
+                <Trash2 size={16} />
+              )}
+            </button>
           </div>
-
         </div>
 
-        {/* OPTIONS */}
+        {/* COMPREHENSION PASSAGE */}
 
-        <div className="mt-6 grid gap-3 md:grid-cols-2">
+        {isComp && question.passage && (
+          <div className="border-b border-purple-400/10 bg-purple-500/[0.035] p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <BookOpen
+                size={16}
+                className="text-purple-300"
+              />
 
-          {options.map(
-            (
-              option,
-              optionIndex
-            ) => {
-              const letter =
-                String.fromCharCode(
-                  65 +
-                    optionIndex
-                );
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-300">
+                {question.passage_title ||
+                  "Comprehension Passage"}
+              </span>
+            </div>
 
-              const isCorrect =
-                String(
-                  item.answer ||
-                    ""
-                )
-                  .trim()
-                  .toUpperCase() ===
-                letter;
+            <div className="rounded-xl border border-purple-400/10 bg-slate-950/50 p-4 text-sm leading-7 text-slate-300">
+              <RichContent
+                content={question.passage}
+              />
+            </div>
+          </div>
+        )}
 
-              return (
-                <div
-                  key={
-                    optionIndex
-                  }
-                  className={`rounded-xl border p-4 text-sm ${
-                    isCorrect
-                      ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300"
-                      : "border-white/5 bg-white/[0.025] text-slate-400"
-                  }`}
-                >
+        {/* QUESTION CONTENT */}
 
-                  <div className="flex gap-3">
+        <div className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Answer Options
+            </span>
+          </div>
 
-                    <span className="font-black text-slate-500">
-                      {letter}.
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(question.options || []).map(
+              (option, index) => {
+                const isCorrect =
+                  String(question.answer).toUpperCase() ===
+                  String(option.label).toUpperCase();
+
+                return (
+                  <div
+                    key={`${option.label}-${index}`}
+                    className={`flex items-start gap-3 rounded-xl border p-3 ${
+                      isCorrect
+                        ? "border-emerald-400/25 bg-emerald-500/[0.07]"
+                        : "border-white/[0.07] bg-white/[0.02]"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-black ${
+                        isCorrect
+                          ? "bg-emerald-500 text-slate-950"
+                          : "bg-white/[0.07] text-slate-400"
+                      }`}
+                    >
+                      {option.label}
                     </span>
 
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 pt-1 text-sm leading-6 text-slate-300">
                       <RichContent
-                        content={
-                          option
-                        }
+                        content={option.text}
                       />
                     </div>
 
                     {isCorrect && (
                       <CheckCircle2
-                        size={16}
-                        className="shrink-0 text-emerald-400"
+                        size={17}
+                        className="mt-1 shrink-0 text-emerald-400"
                       />
                     )}
-
                   </div>
+                );
+              }
+            )}
+          </div>
 
-                </div>
-              );
-            }
+          {/* ANSWER */}
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Correct answer:
+            </span>
+
+            <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-sm font-black text-emerald-300">
+              {question.answer}
+            </span>
+          </div>
+
+          {/* EXPLANATION */}
+
+          {question.reason && (
+            <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                Explanation
+              </p>
+
+              <div className="text-sm leading-7 text-slate-300">
+                <RichContent
+                  content={question.reason}
+                />
+              </div>
+            </div>
           )}
 
-        </div>
+          {/* IMAGE */}
 
-        {/* ANSWER */}
-
-        <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
-
-          <span className="font-black text-slate-600">
-            Correct Answer:
-          </span>
-
-          <span className="rounded-lg bg-emerald-400/10 px-3 py-1.5 font-black text-emerald-400">
-            {item.answer ||
-              "Not set"}
-          </span>
-
-        </div>
-
-        {/* REASON */}
-
-        {item.reason && (
-          <div className="mt-5 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-
-            <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-600">
-              Explanation
-            </p>
-
-            <div className="text-sm leading-7 text-slate-400">
-              <RichContent
-                content={
-                  item.reason
-                }
+          {question.image && (
+            <div className="mt-4">
+              <img
+                src={question.image}
+                alt="Question illustration"
+                loading="lazy"
+                className="max-h-64 max-w-full rounded-xl border border-white/10 object-contain"
+                onError={(event) => {
+                  event.currentTarget.style.display =
+                    "none";
+                }}
               />
             </div>
-
-          </div>
-        )}
-
-        {/* IMAGE */}
-
-        {item.image && (
-          <div className="mt-5">
-            <img
-              src={
-                item.image
-              }
-              alt="Question"
-              className="max-h-64 max-w-full rounded-2xl border border-white/10 object-contain"
-            />
-          </div>
-        )}
-
+          )}
+        </div>
       </div>
     );
   }
 );
 
-/* ============================================================
-   EDIT MODAL
-============================================================ */
+// ============================================================
+// EDIT QUESTION MODAL
+// ============================================================
 
 const EditQuestionModal = ({
   question,
@@ -2849,916 +1632,711 @@ const EditQuestionModal = ({
   onOptionChange,
   onAddOption,
   onRemoveOption,
-  onToggleActive,
-  activating,
 }) => {
-  const [
-    questionText,
-    setQuestionText,
-  ] = useState(
-    question.question ||
-      ""
-  );
-
-  const [
-    reasonText,
-    setReasonText,
-  ] = useState(
-    question.reason ||
-      ""
-  );
-
-  const [
-    passageText,
-    setPassageText,
-  ] = useState(
-    question.passage ||
-      ""
-  );
-
-  const [
-    passageTitle,
-    setPassageTitle,
-  ] = useState(
-    question.passage_title ||
-      ""
-  );
-
-  const options =
-    normalizeOptions(
-      question
-    );
-
   const isComp =
-    question.question_type ===
+    String(question.question_type || "").toLowerCase() ===
       "comprehension" ||
-    Boolean(
-      question.passage_id
+    Boolean(question.passage_id);
+
+  const [showQuestionPreview, setShowQuestionPreview] =
+    useState(false);
+
+  const [showPassagePreview, setShowPassagePreview] =
+    useState(false);
+
+  const [showReasonPreview, setShowReasonPreview] =
+    useState(false);
+
+  const [showMathTools, setShowMathTools] =
+    useState(false);
+
+  const updateQuestion = (value) =>
+    onFieldChange("question", value);
+
+  const updatePassage = (value) =>
+    onFieldChange("passage", value);
+
+  const updateReason = (value) =>
+    onFieldChange("reason", value);
+
+  const insertIntoField = (
+    field,
+    text
+  ) => {
+    const currentValue =
+      question[field] || "";
+
+    onFieldChange(
+      field,
+      `${currentValue}${currentValue ? " " : ""}${text}`
+    );
+  };
+
+  const switchQuestionType = (type) => {
+    if (type === "objective") {
+      onFieldChange("question_type", "objective");
+      onFieldChange("passage_id", null);
+      onFieldChange("passage_title", "");
+      onFieldChange("passage", "");
+      onFieldChange("passage_order", null);
+      return;
+    }
+
+    onFieldChange(
+      "question_type",
+      "comprehension"
     );
 
-  useEffect(() => {
-    setQuestionText(
-      question.question ||
-        ""
+    onFieldChange(
+      "passage_id",
+      question.passage_id ||
+        createPassageId()
     );
-
-    setReasonText(
-      question.reason ||
-        ""
-    );
-
-    setPassageText(
-      question.passage ||
-        ""
-    );
-
-    setPassageTitle(
-      question.passage_title ||
-        ""
-    );
-  }, [
-    question.id,
-    question.question,
-    question.reason,
-    question.passage,
-    question.passage_title,
-  ]);
-
-  const updateQuestion =
-    (value) => {
-      setQuestionText(
-        value
-      );
-
-      onFieldChange(
-        "question",
-        value
-      );
-    };
-
-  const updateReason =
-    (value) => {
-      setReasonText(
-        value
-      );
-
-      onFieldChange(
-        "reason",
-        value
-      );
-    };
-
-  const updatePassage =
-    (value) => {
-      setPassageText(
-        value
-      );
-
-      onFieldChange(
-        "passage",
-        value
-      );
-    };
-
-  const updatePassageTitle =
-    (value) => {
-      setPassageTitle(
-        value
-      );
-
-      onFieldChange(
-        "passage_title",
-        value
-      );
-    };
-
-  const insertLatex =
-    (value) => {
-      updateQuestion(
-        `${questionText}${value}`
-      );
-    };
+  };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md sm:p-8">
+    <div
+      className="fixed inset-0 z-[100] overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:p-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="mx-auto my-4 max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl shadow-black/50 sm:my-8">
 
-      <div className="my-4 w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-2xl">
+        {/* MODAL HEADER */}
 
-        {/* HEADER */}
-
-        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur-xl sm:px-7">
-
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-white/10 bg-slate-950/95 px-5 py-5 backdrop-blur sm:px-7">
           <div>
-
-            <div className="flex items-center gap-2">
-
-              {isComp ? (
-                <BookOpen
-                  size={16}
-                  className="text-amber-400"
-                />
-              ) : (
-                <Sigma
-                  size={16}
-                  className="text-blue-400"
-                />
-              )}
-
-              <p
-                className={`text-[10px] font-black uppercase tracking-[0.2em] ${
-                  isComp
-                    ? "text-amber-400"
-                    : "text-blue-400"
-                }`}
-              >
-                {isComp
-                  ? "Comprehension Editor"
-                  : "Question Editor"}
-              </p>
-
+            <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-400">
+              <FileText size={15} />
+              General CBT Question Bank
             </div>
 
-            <h2 className="mt-1 text-xl font-black">
-              {question.id
-                ? "Edit CBT Question"
-                : "Create CBT Question"}
+            <h2 className="text-xl font-black text-white sm:text-2xl">
+              {question.isNew
+                ? "Create Question"
+                : "Edit Question"}
             </h2>
-
           </div>
 
           <button
             type="button"
-            onClick={
-              onClose
-            }
-            disabled={
-              saving
-            }
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-400"
+            disabled={saving}
+            onClick={onClose}
+            className="rounded-xl border border-white/10 bg-white/[0.04] p-2.5 text-slate-400 transition hover:bg-white/10 hover:text-white disabled:opacity-40"
           >
-            <X
-              size={19}
-            />
+            <X size={19} />
           </button>
-
         </div>
 
-        <div className="max-h-[calc(100vh-150px)] overflow-y-auto p-5 sm:p-7">
+        {/* MODAL BODY */}
 
-          {/* TYPE */}
+        <div className="space-y-7 p-5 sm:p-7">
 
-          <div className="mb-7 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+          {/* QUESTION TYPE */}
 
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-
-              <div>
-
-                <p className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-                  Question Type
-                </p>
-
-                <p className="mt-1 text-xs text-slate-600">
-                  Choose whether this is a
-                  normal CBT question or part
-                  of a comprehension passage.
-                </p>
-
-              </div>
-
-              <div className="flex rounded-xl border border-white/10 bg-black/20 p-1">
-
+          <section>
+            <Field label="Question Type">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() =>
-                    onFieldChange(
-                      "question_type",
-                      "objective"
-                    )
+                    switchQuestionType("objective")
                   }
-                  className={`rounded-lg px-4 py-2 text-xs font-black ${
+                  className={`flex items-center justify-center gap-2 rounded-xl border p-4 text-sm font-bold transition ${
                     !isComp
-                      ? "bg-blue-500 text-white"
-                      : "text-slate-500"
+                      ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-300"
+                      : "border-white/10 bg-white/[0.025] text-slate-400 hover:bg-white/[0.05]"
                   }`}
                 >
+                  <Layers3 size={17} />
                   Objective
                 </button>
 
                 <button
                   type="button"
                   onClick={() =>
-                    onFieldChange(
-                      "question_type",
-                      "comprehension"
-                    )
+                    switchQuestionType("comprehension")
                   }
-                  className={`rounded-lg px-4 py-2 text-xs font-black ${
+                  className={`flex items-center justify-center gap-2 rounded-xl border p-4 text-sm font-bold transition ${
                     isComp
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-500"
+                      ? "border-purple-400/40 bg-purple-500/10 text-purple-300"
+                      : "border-white/10 bg-white/[0.025] text-slate-400 hover:bg-white/[0.05]"
                   }`}
                 >
+                  <BookOpen size={17} />
                   Comprehension
                 </button>
-
               </div>
+            </Field>
+          </section>
 
-            </div>
+          {/* EXAM AND SUBJECT */}
 
-          </div>
+          <section className="grid gap-5 sm:grid-cols-2">
+            <Field label="Examination">
+              <select
+                value={question.exam || ""}
+                onChange={(event) =>
+                  onFieldChange(
+                    "exam",
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none focus:border-cyan-400/50"
+              >
+                <option value="">
+                  Select examination
+                </option>
+                <option value="JAMB">JAMB</option>
+                <option value="WAEC">WAEC</option>
+                <option value="NECO">NECO</option>
+                <option value="GCE">GCE</option>
+                <option value="JUPEB">JUPEB</option>
+                <option value="POST-UTME">
+                  POST-UTME
+                </option>
+              </select>
+            </Field>
 
-          {/* EXAM / SUBJECT */}
+            <Field label="Subject">
+              <input
+                type="text"
+                value={question.subject || ""}
+                onChange={(event) =>
+                  onFieldChange(
+                    "subject",
+                    event.target.value
+                  )
+                }
+                placeholder="e.g. Mathematics"
+                className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
+              />
+            </Field>
+          </section>
 
-          <div className="grid gap-4 md:grid-cols-2">
-
-            <Field
-              label="Exam"
-              value={
-                question.exam ||
-                ""
-              }
-              onChange={(
-                value
-              ) =>
-                onFieldChange(
-                  "exam",
-                  value
-                )
-              }
-              placeholder="e.g. WAEC"
-            />
-
-            <Field
-              label="Subject"
-              value={
-                question.subject ||
-                ""
-              }
-              onChange={(
-                value
-              ) =>
-                onFieldChange(
-                  "subject",
-                  value
-                )
-              }
-              placeholder="e.g. English Language"
-            />
-
-          </div>
-
-          {/* ==================================================
-              COMPREHENSION PASSAGE
-          ================================================== */}
+          {/* COMPREHENSION PASSAGE */}
 
           {isComp && (
-            <div className="mt-7 rounded-[1.75rem] border border-amber-400/10 bg-amber-400/[0.025] p-5 sm:p-6">
-
-              <div className="mb-5 flex items-start gap-3">
-
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/10">
-                  <BookOpen
-                    size={18}
-                    className="text-amber-400"
-                  />
+            <section className="space-y-5 rounded-2xl border border-purple-400/20 bg-purple-500/[0.035] p-4 sm:p-5">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-purple-500/10 p-2.5 text-purple-300">
+                  <BookOpen size={20} />
                 </div>
 
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.15em] text-amber-400">
+                  <h3 className="font-bold text-white">
                     Comprehension Passage
-                  </p>
+                  </h3>
 
-                  <p className="mt-1 text-xs leading-5 text-slate-600">
-                    This passage is shared by
-                    every question using the
-                    same Passage ID.
+                  <p className="mt-1 text-xs text-slate-500">
+                    Questions with the same passage can share this passage ID.
                   </p>
                 </div>
-
               </div>
 
-              <Field
-                label="Passage Title"
-                value={
-                  passageTitle
-                }
-                onChange={
-                  updatePassageTitle
-                }
-                placeholder="e.g. The Value of Education"
-              />
-
-              <div className="mt-5">
-
-                <label className="mb-2 block text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-                  Passage
-                </label>
-
-                <textarea
+              <Field label="Passage Title">
+                <input
+                  type="text"
                   value={
-                    passageText
+                    question.passage_title || ""
                   }
-                  onChange={(
-                    event
-                  ) =>
-                    updatePassage(
-                      event.target
-                        .value
+                  onChange={(event) =>
+                    onFieldChange(
+                      "passage_title",
+                      event.target.value
                     )
                   }
-                  rows={12}
-                  spellCheck={false}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-[15px] leading-8 text-white outline-none focus:border-amber-400/30"
-                  placeholder="Paste or type the complete comprehension passage here..."
+                  placeholder="Enter passage title"
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-purple-400/50"
                 />
+              </Field>
 
-                <div className="mt-4 rounded-2xl border border-white/5 bg-black/10 p-5">
+              <Field label="Passage Content">
+                <textarea
+                  rows={9}
+                  value={question.passage || ""}
+                  onChange={(event) =>
+                    updatePassage(event.target.value)
+                  }
+                  placeholder="Enter the full comprehension passage..."
+                  className="w-full resize-y rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-slate-600 focus:border-purple-400/50"
+                />
+              </Field>
 
-                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.15em] text-amber-400">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowPassagePreview(
+                      !showPassagePreview
+                    )
+                  }
+                  className="inline-flex items-center gap-2 rounded-lg border border-purple-400/20 px-3 py-2 text-xs font-bold text-purple-300 hover:bg-purple-500/10"
+                >
+                  {showPassagePreview ? (
+                    <EyeOff size={14} />
+                  ) : (
+                    <Eye size={14} />
+                  )}
+
+                  {showPassagePreview
+                    ? "Hide Preview"
+                    : "Preview Passage"}
+                </button>
+
+                <span className="text-xs text-slate-500">
+                  {(
+                    question.passage || ""
+                  ).length} characters
+                </span>
+              </div>
+
+              {showPassagePreview && (
+                <div className="rounded-xl border border-purple-400/15 bg-slate-950 p-4">
+                  <div className="mb-3 text-xs font-bold uppercase tracking-wider text-purple-300">
                     Passage Preview
-                  </p>
-
-                  <div className="max-h-80 overflow-y-auto text-sm leading-8 text-slate-300">
-                    <RichContent
-                      content={
-                        passageText
-                      }
-                    />
                   </div>
 
+                  <div className="text-sm leading-7 text-slate-300">
+                    <RichContent
+                      content={question.passage}
+                    />
+                  </div>
                 </div>
-
-              </div>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-
-                <Field
-                  label="Passage ID"
-                  value={
-                    question.passage_id ||
-                    ""
-                  }
-                  onChange={
-                    (value) =>
-                      onFieldChange(
-                        "passage_id",
-                        value
-                      )
-                  }
-                  placeholder="Automatically generated"
-                />
-
-                <Field
-                  label="Question Number"
-                  value={
-                    question.passage_order ||
-                    1
-                  }
-                  onChange={(
-                    value
-                  ) =>
-                    onFieldChange(
-                      "passage_order",
-                      Number(
-                        value
-                      ) || 1
-                    )
-                  }
-                  placeholder="1"
-                />
-
-              </div>
-
-            </div>
+              )}
+            </section>
           )}
 
-          {/* QUESTION */}
+          {/* QUESTION TEXT */}
 
-          <div className="mt-7">
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-white">
+                Question Content
+              </h3>
 
-            <div className="mb-2 flex items-center justify-between">
-
-              <label className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-                Question
-              </label>
-
-              <span className="text-[10px] font-bold text-blue-400">
-                LaTeX enabled
-              </span>
-
+              <button
+                type="button"
+                onClick={() =>
+                  setShowMathTools(!showMathTools)
+                }
+                className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/20 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-500/10"
+              >
+                <Sigma size={15} />
+                Math Tools
+                {showMathTools ? (
+                  <ChevronUp size={14} />
+                ) : (
+                  <ChevronDown size={14} />
+                )}
+              </button>
             </div>
 
-            {/* TOOLBAR */}
-
-            <div className="flex flex-wrap gap-1 rounded-t-2xl border border-white/10 bg-white/[0.03] p-2">
-
-              <ToolbarButton
-                icon={Bold}
-                title="Bold"
-                onClick={() =>
-                  insertLatex(
-                    "**text**"
-                  )
-                }
-              />
-
-              <ToolbarButton
-                icon={Italic}
-                title="Italic"
-                onClick={() =>
-                  insertLatex(
-                    "*text*"
-                  )
-                }
-              />
-
-              <ToolbarButton
-                icon={
-                  Superscript
-                }
-                title="Power"
-                onClick={() =>
-                  insertLatex(
-                    "$x^2$"
-                  )
-                }
-              />
-
-              <ToolbarButton
-                icon={
-                  Subscript
-                }
-                title="Subscript"
-                onClick={() =>
-                  insertLatex(
-                    "$x_2$"
-                  )
-                }
-              />
-
-              <ToolbarDivider />
-
-              <MathButton
-                title="Fraction"
-                value="$\\frac{5}{2}$"
-                display="½"
-                onClick={
-                  insertLatex
-                }
-              />
-
-              <MathButton
-                title="Square root"
-                value="$\\sqrt{x}$"
-                display="√"
-                onClick={
-                  insertLatex
-                }
-              />
-
-              <MathButton
-                title="Degree"
-                value="$40^\\circ$"
-                display="°"
-                onClick={
-                  insertLatex
-                }
-              />
-
-              <MathButton
-                title="Pi"
-                value="$\\pi$"
-                display="π"
-                onClick={
-                  insertLatex
-                }
-              />
-
-              <MathButton
-                title="Plus or minus"
-                value="$\\pm$"
-                display="±"
-                onClick={
-                  insertLatex
-                }
-              />
-
-              <MathButton
-                title="Times"
-                value="$\\times$"
-                display="×"
-                onClick={
-                  insertLatex
-                }
-              />
-
-              <MathButton
-                title="Division"
-                value="$\\div$"
-                display="÷"
-                onClick={
-                  insertLatex
-                }
-              />
-
-            </div>
-
-            <textarea
-              value={
-                questionText
-              }
-              onChange={(
-                event
-              ) =>
-                updateQuestion(
-                  event.target
-                    .value
-                )
-              }
-              rows={7}
-              spellCheck={false}
-              className="w-full rounded-b-2xl border-x border-b border-white/10 bg-white/[0.025] p-5 text-[15px] leading-8 text-white outline-none focus:border-blue-400/30"
-              placeholder="Enter the question here..."
-            />
-
-            {/* PREVIEW */}
-
-            <div className="mt-4 rounded-2xl border border-blue-400/10 bg-blue-400/[0.03] p-5">
-
-              <div className="mb-3 flex items-center justify-between">
-
-                <span className="text-[10px] font-black uppercase tracking-[0.15em] text-blue-400">
-                  Live Preview
-                </span>
-
-              </div>
-
-              <div className="text-[15px] leading-8 text-slate-200">
-
-                <RichContent
-                  content={
-                    questionText
+            {showMathTools && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-slate-900 p-3">
+                <ToolbarButton
+                  icon={<Bold size={15} />}
+                  title="Bold"
+                  onClick={() =>
+                    insertIntoField(
+                      "question",
+                      "**bold text**"
+                    )
                   }
                 />
 
+                <ToolbarButton
+                  icon={<Italic size={15} />}
+                  title="Italic"
+                  onClick={() =>
+                    insertIntoField(
+                      "question",
+                      "*italic text*"
+                    )
+                  }
+                />
+
+                <ToolbarButton
+                  icon={<Superscript size={15} />}
+                  title="Superscript"
+                  onClick={() =>
+                    insertIntoField(
+                      "question",
+                      "$x^{2}$"
+                    )
+                  }
+                />
+
+                <ToolbarButton
+                  icon={<Subscript size={15} />}
+                  title="Subscript"
+                  onClick={() =>
+                    insertIntoField(
+                      "question",
+                      "$x_{2}$"
+                    )
+                  }
+                />
+
+                <ToolbarDivider />
+
+                <ToolbarButton
+                  icon={<Sigma size={15} />}
+                  title="Fraction"
+                  onClick={() =>
+                    insertIntoField(
+                      "question",
+                      "$\\frac{a}{b}$"
+                    )
+                  }
+                />
+
+                <ToolbarButton
+                  icon={<span className="text-sm">√</span>}
+                  title="Square root"
+                  onClick={() =>
+                    insertIntoField(
+                      "question",
+                      "$\\sqrt{x}$"
+                    )
+                  }
+                />
+
+                <ToolbarButton
+                  icon={<span className="text-sm">∑</span>}
+                  title="Summation"
+                  onClick={() =>
+                    insertIntoField(
+                      "question",
+                      "$\\sum_{i=1}^{n}x_i$"
+                    )
+                  }
+                />
+
+                <ToolbarButton
+                  icon={<span className="text-sm">∫</span>}
+                  title="Integral"
+                  onClick={() =>
+                    insertIntoField(
+                      "question",
+                      "$\\int_a^b f(x)\\,dx$"
+                    )
+                  }
+                />
               </div>
+            )}
 
-            </div>
+            <Field label="Question">
+              <textarea
+                rows={5}
+                value={question.question || ""}
+                onChange={(event) =>
+                  updateQuestion(event.target.value)
+                }
+                placeholder="Enter the question. You can use $...$ for inline mathematics and $$...$$ for displayed mathematics."
+                className="w-full resize-y rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
+              />
+            </Field>
 
-          </div>
+            <button
+              type="button"
+              onClick={() =>
+                setShowQuestionPreview(
+                  !showQuestionPreview
+                )
+              }
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-slate-400 hover:bg-white/[0.04] hover:text-white"
+            >
+              {showQuestionPreview ? (
+                <EyeOff size={14} />
+              ) : (
+                <Eye size={14} />
+              )}
 
-          {/* OPTIONS */}
+              {showQuestionPreview
+                ? "Hide Preview"
+                : "Preview Question"}
+            </button>
 
-          <div className="mt-7">
-
-            <div className="mb-4 flex items-center justify-between">
-
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-                  Answer Options
+            {showQuestionPreview && (
+              <div className="rounded-xl border border-cyan-400/15 bg-slate-900/80 p-4">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-cyan-300">
+                  Question Preview
                 </p>
 
-                <p className="mt-1 text-xs text-slate-600">
-                  Click a letter to set the
-                  correct answer.
+                <div className="text-sm leading-7 text-slate-200">
+                  <RichContent
+                    content={question.question}
+                  />
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* ANSWER OPTIONS */}
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  Answer Options
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Select the correct answer.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={
-                  onAddOption
+                onClick={onAddOption}
+                disabled={
+                  (question.options || []).length >= 6
                 }
-                className="inline-flex items-center gap-2 rounded-xl border border-blue-400/15 bg-blue-400/10 px-3.5 py-2 text-xs font-black text-blue-400"
+                className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-xs font-bold text-cyan-300 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Plus
-                  size={15}
-                />
+                <Plus size={15} />
                 Add Option
               </button>
-
             </div>
 
             <div className="space-y-3">
-
-              {options.map(
-                (
-                  option,
-                  index
-                ) => {
-                  const letter =
-                    String.fromCharCode(
-                      65 +
-                        index
-                    );
-
-                  const isCorrect =
-                    String(
-                      question.answer ||
-                        ""
-                    )
-                      .trim()
-                      .toUpperCase() ===
-                    letter;
-
-                  return (
-                    <OptionEditor
-                      key={`${question.id || "new"}-${index}`}
-                      index={
-                        index
-                      }
-                      letter={
-                        letter
-                      }
-                      value={
-                        option
-                      }
-                      isCorrect={
-                        isCorrect
-                      }
-                      onChange={(
-                        value
-                      ) =>
-                        onOptionChange(
-                          index,
-                          value
-                        )
-                      }
-                      onRemove={() =>
-                        onRemoveOption(
-                          index
-                        )
-                      }
-                      onSetCorrect={() =>
-                        onFieldChange(
-                          "answer",
-                          letter
-                        )
-                      }
-                    />
-                  );
-                }
+              {(question.options || []).map(
+                (option, index) => (
+                  <OptionEditor
+                    key={`${option.label}-${index}`}
+                    option={option}
+                    index={index}
+                    answer={question.answer}
+                    onChange={onOptionChange}
+                    onRemove={onRemoveOption}
+                    canRemove={
+                      question.options.length > 2
+                    }
+                    onSelectAnswer={(label) =>
+                      onFieldChange(
+                        "answer",
+                        label
+                      )
+                    }
+                  />
+                )
               )}
+            </div>
+          </section>
 
+          {/* EXPLANATION */}
+
+          <section className="space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                Answer Explanation
+              </h3>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Explain why the selected answer is correct.
+              </p>
             </div>
 
-          </div>
+            <Field label="Reason / Explanation">
+              <textarea
+                rows={5}
+                value={question.reason || ""}
+                onChange={(event) =>
+                  updateReason(event.target.value)
+                }
+                placeholder="Enter the explanation or solution..."
+                className="w-full resize-y rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
+              />
+            </Field>
 
-          {/* REASON */}
-
-          <div className="mt-7">
-
-            <label className="mb-2 block text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-              Reason / Explanation
-            </label>
-
-            <textarea
-              value={
-                reasonText
-              }
-              onChange={(
-                event
-              ) =>
-                updateReason(
-                  event.target
-                    .value
+            <button
+              type="button"
+              onClick={() =>
+                setShowReasonPreview(
+                  !showReasonPreview
                 )
               }
-              rows={6}
-              spellCheck={false}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.025] p-5 text-sm leading-7 text-white outline-none focus:border-blue-400/30"
-              placeholder="Explain why the selected answer is correct..."
-            />
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-slate-400 hover:bg-white/[0.04] hover:text-white"
+            >
+              {showReasonPreview ? (
+                <EyeOff size={14} />
+              ) : (
+                <Eye size={14} />
+              )}
 
-            <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.02] p-4">
+              {showReasonPreview
+                ? "Hide Explanation Preview"
+                : "Preview Explanation"}
+            </button>
 
-              <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-600">
-                Explanation Preview
-              </p>
+            {showReasonPreview && (
+              <div className="rounded-xl border border-white/10 bg-slate-900/80 p-4">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Explanation Preview
+                </p>
 
-              <div className="text-sm leading-7 text-slate-400">
-
-                <RichContent
-                  content={
-                    reasonText
-                  }
-                />
-
+                <div className="text-sm leading-7 text-slate-300">
+                  <RichContent
+                    content={question.reason}
+                  />
+                </div>
               </div>
-
-            </div>
-
-          </div>
+            )}
+          </section>
 
           {/* IMAGE */}
 
-          <div className="mt-7">
+          <section className="space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                Question Image
+              </h3>
 
-            <label className="mb-2 block text-xs font-black uppercase tracking-[0.15em] text-slate-500">
-              Question Image
-            </label>
-
-            <div className="relative">
-
-              <ImageIcon
-                size={17}
-                className="absolute left-4 top-3.5 text-slate-600"
-              />
-
-              <input
-                type="text"
-                value={
-                  question.image ||
-                  ""
-                }
-                onChange={(
-                  event
-                ) =>
-                  onFieldChange(
-                    "image",
-                    event.target
-                      .value
-                  )
-                }
-                placeholder="Image URL (optional)"
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.025] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-700 focus:border-blue-400/30"
-              />
-
+              <p className="mt-1 text-xs text-slate-500">
+                Add an image URL if the question requires a diagram or illustration.
+              </p>
             </div>
 
-            {question.image && (
-              <img
-                src={
-                  question.image
-                }
-                alt="Question preview"
-                className="mt-4 max-h-64 rounded-2xl border border-white/10 object-contain"
-              />
-            )}
+            <Field label="Image URL">
+              <div className="relative">
+                <ImageIcon
+                  size={17}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                />
 
-          </div>
+                <input
+                  type="url"
+                  value={question.image || ""}
+                  onChange={(event) =>
+                    onFieldChange(
+                      "image",
+                      event.target.value
+                    )
+                  }
+                  placeholder="https://example.com/question-image.png"
+                  className="w-full rounded-xl border border-white/10 bg-slate-900 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
+                />
+              </div>
+            </Field>
+
+            {question.image && (
+              <div className="rounded-xl border border-white/10 bg-slate-900 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Image Preview
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onFieldChange("image", "")
+                    }
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-red-400 hover:text-red-300"
+                  >
+                    <Trash2 size={13} />
+                    Remove
+                  </button>
+                </div>
+
+                <img
+                  src={question.image}
+                  alt="Question preview"
+                  className="max-h-72 max-w-full rounded-lg object-contain"
+                  onError={(event) => {
+                    event.currentTarget.style.display =
+                      "none";
+                  }}
+                />
+              </div>
+            )}
+          </section>
 
           {/* STATUS */}
 
-          <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+          <section className="rounded-xl border border-white/10 bg-slate-900/70 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  Question Availability
+                </h3>
 
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-              <div className="flex items-center gap-3">
-
-                <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${
-                    question.active !==
-                    false
-                      ? "bg-emerald-400/10"
-                      : "bg-red-400/10"
-                  }`}
-                >
-                  {question.active !==
-                  false ? (
-                    <Eye
-                      size={19}
-                      className="text-emerald-400"
-                    />
-                  ) : (
-                    <EyeOff
-                      size={19}
-                      className="text-red-400"
-                    />
-                  )}
-                </div>
-
-                <div>
-
-                  <p className="font-black">
-                    Question Status
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-600">
-                    {question.active !==
-                    false
-                      ? "Available to students."
-                      : "Hidden from students."}
-                  </p>
-
-                </div>
-
+                <p className="mt-1 text-xs text-slate-500">
+                  Control whether this question is active.
+                </p>
               </div>
 
-              {question.id && (
-                <button
-                  type="button"
-                  onClick={
-                    onToggleActive
-                  }
-                  disabled={
-                    activating
-                  }
-                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${
-                    question.active !==
-                    false
-                      ? "bg-red-400/10 text-red-400"
-                      : "bg-emerald-400/10 text-emerald-400"
+              <button
+                type="button"
+                role="switch"
+                aria-checked={question.active !== false}
+                onClick={() =>
+                  onFieldChange(
+                    "active",
+                    question.active === false
+                  )
+                }
+                className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+                  question.active !== false
+                    ? "bg-emerald-500"
+                    : "bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                    question.active !== false
+                      ? "left-6"
+                      : "left-1"
                   }`}
-                >
-                  {activating ? (
-                    <Loader2
-                      size={15}
-                      className="animate-spin"
-                    />
-                  ) : question.active !==
-                    false ? (
-                    <>
-                      <EyeOff
-                        size={15}
-                      />
-                      Deactivate
-                    </>
-                  ) : (
-                    <>
-                      <Power
-                        size={15}
-                      />
-                      Activate
-                    </>
-                  )}
-                </button>
-              )}
-
+                />
+              </button>
             </div>
 
-          </div>
+            <div className="mt-3">
+              <span
+                className={`inline-flex items-center gap-2 text-xs font-bold ${
+                  question.active !== false
+                    ? "text-emerald-400"
+                    : "text-slate-500"
+                }`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    question.active !== false
+                      ? "bg-emerald-400"
+                      : "bg-slate-600"
+                  }`}
+                />
 
+                {question.active !== false
+                  ? "This question is active"
+                  : "This question is inactive"}
+              </span>
+            </div>
+          </section>
         </div>
 
-        {/* FOOTER */}
+        {/* MODAL FOOTER */}
 
-        <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t border-white/10 bg-slate-950/95 p-5 backdrop-blur-xl sm:flex-row sm:justify-end sm:px-7">
-
+        <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-slate-950/95 px-5 py-5 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-7">
           <button
             type="button"
-            onClick={
-              onClose
-            }
-            disabled={
-              saving
-            }
-            className="rounded-xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-black text-slate-400"
+            disabled={saving}
+            onClick={onClose}
+            className="rounded-xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/[0.08] disabled:opacity-40"
           >
             Cancel
           </button>
 
           <button
             type="button"
-            onClick={
-              onSave
-            }
-            disabled={
-              saving
-            }
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-6 py-3 text-sm font-black text-white disabled:opacity-60"
+            disabled={saving}
+            onClick={onSave}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-7 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-
             {saving ? (
               <>
                 <Loader2
@@ -3769,351 +2347,272 @@ const EditQuestionModal = ({
               </>
             ) : (
               <>
-                <Save
-                  size={17}
-                />
-                {question.id
-                  ? "Save Changes"
-                  : "Create Question"}
+                <Save size={17} />
+                {question.isNew
+                  ? "Create Question"
+                  : "Save Changes"}
               </>
             )}
-
           </button>
-
         </div>
-
       </div>
-
     </div>
   );
 };
 
-/* ============================================================
-   OPTION EDITOR
-============================================================ */
+// ============================================================
+// OPTION EDITOR
+// ============================================================
 
 const OptionEditor = ({
+  option,
   index,
-  letter,
-  value,
-  isCorrect,
+  answer,
   onChange,
   onRemove,
-  onSetCorrect,
+  canRemove,
+  onSelectAnswer,
 }) => {
+  const selected =
+    String(answer).toUpperCase() ===
+    String(option.label).toUpperCase();
+
   return (
     <div
-      className={`rounded-2xl border p-3 ${
-        isCorrect
-          ? "border-emerald-400/20 bg-emerald-400/[0.04]"
-          : "border-white/10 bg-white/[0.02]"
+      className={`flex items-start gap-3 rounded-xl border p-3 transition ${
+        selected
+          ? "border-emerald-400/30 bg-emerald-500/[0.055]"
+          : "border-white/10 bg-slate-900/70"
       }`}
     >
+      <button
+        type="button"
+        title="Set as correct answer"
+        onClick={() =>
+          onSelectAnswer(option.label)
+        }
+        className={`mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black transition ${
+          selected
+            ? "bg-emerald-500 text-slate-950"
+            : "bg-white/[0.06] text-slate-400 hover:bg-white/10 hover:text-white"
+        }`}
+      >
+        {selected ? (
+          <Check size={16} />
+        ) : (
+          option.label
+        )}
+      </button>
 
-      <div className="flex items-start gap-3">
-
-        <button
-          type="button"
-          onClick={
-            onSetCorrect
+      <div className="min-w-0 flex-1">
+        <textarea
+          rows={2}
+          value={option.text || ""}
+          onChange={(event) =>
+            onChange(index, event.target.value)
           }
-          title="Set as correct answer"
-          className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black ${
-            isCorrect
-              ? "bg-emerald-400 text-slate-950"
-              : "bg-white/[0.05] text-slate-500"
-          }`}
-        >
-          {isCorrect ? (
-            <Check
-              size={16}
-            />
-          ) : (
-            letter
-          )}
-        </button>
+          placeholder={`Enter option ${option.label}...`}
+          className="w-full resize-y rounded-lg border border-white/[0.07] bg-slate-950 px-3 py-2.5 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40"
+        />
 
-        <div className="min-w-0 flex-1">
-
-          <textarea
-            value={
-              value || ""
-            }
-            onChange={(
-              event
-            ) =>
-              onChange(
-                event.target
-                  .value
-              )
-            }
-            rows={3}
-            spellCheck={false}
-            className="w-full rounded-xl border border-white/5 bg-black/10 p-3 text-sm leading-6 text-white outline-none focus:border-blue-400/20"
-            placeholder={`Option ${letter}`}
-          />
-
-          <div className="mt-3 rounded-xl border border-white/5 bg-white/[0.02] p-3">
-
-            <p className="mb-2 text-[9px] font-black uppercase tracking-wider text-slate-700">
-              Preview
-            </p>
-
-            <div className="text-sm text-slate-400">
-
-              <RichContent
-                content={
-                  value
-                }
-              />
-
-            </div>
-
-          </div>
-
-        </div>
-
-        <button
-          type="button"
-          onClick={
-            onRemove
-          }
-          className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-600 hover:bg-red-400/10 hover:text-red-400"
-        >
-          <X
-            size={16}
-          />
-        </button>
-
+        {selected && (
+          <span className="mt-2 inline-block text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+            Correct answer
+          </span>
+        )}
       </div>
 
+      {canRemove && (
+        <button
+          type="button"
+          title="Remove option"
+          onClick={() => onRemove(index)}
+          className="mt-1 rounded-lg p-2 text-slate-500 transition hover:bg-red-500/10 hover:text-red-400"
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
     </div>
   );
 };
 
-/* ============================================================
-   MATH BUTTON
-============================================================ */
+// ============================================================
+// MATH BUTTON
+// ============================================================
 
 const MathButton = ({
-  title,
-  value,
-  display,
+  children,
   onClick,
-}) => (
-  <button
-    type="button"
-    title={title}
-    onClick={() =>
-      onClick(value)
-    }
-    className="flex h-8 items-center justify-center rounded-lg px-3 text-sm font-black text-slate-400 hover:bg-white/10 hover:text-white"
-  >
-    {display}
-  </button>
-);
-
-/* ============================================================
-   TOOLBAR BUTTON
-============================================================ */
-
-const ToolbarButton = ({
-  icon: Icon,
   title,
-  onClick,
 }) => (
   <button
     type="button"
     title={title}
     onClick={onClick}
-    className="flex h-8 items-center justify-center rounded-lg px-2.5 text-slate-400 hover:bg-white/10 hover:text-white"
+    className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] px-2 text-sm font-semibold text-slate-300 transition hover:border-cyan-400/30 hover:bg-cyan-500/10 hover:text-cyan-300"
   >
-    <Icon
-      size={15}
-    />
+    {children}
   </button>
 );
 
-/* ============================================================
-   TOOLBAR DIVIDER
-============================================================ */
+// ============================================================
+// TOOLBAR BUTTON
+// ============================================================
 
-const ToolbarDivider =
-  () => (
-    <div className="mx-1 h-8 w-px bg-white/10" />
-  );
+const ToolbarButton = ({
+  icon,
+  onClick,
+  title,
+}) => (
+  <button
+    type="button"
+    title={title}
+    onClick={onClick}
+    className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] px-2 text-slate-300 transition hover:border-cyan-400/30 hover:bg-cyan-500/10 hover:text-cyan-300"
+  >
+    {icon}
+  </button>
+);
 
-/* ============================================================
-   FIELD
-============================================================ */
+// ============================================================
+// TOOLBAR DIVIDER
+// ============================================================
+
+const ToolbarDivider = () => (
+  <div className="mx-1 h-6 w-px bg-white/10" />
+);
+
+// ============================================================
+// FIELD
+// ============================================================
 
 const Field = ({
   label,
-  value,
-  onChange,
-  placeholder,
+  children,
 }) => (
-  <div>
-
-    <label className="mb-2 block text-xs font-black uppercase tracking-[0.15em] text-slate-500">
+  <div className="min-w-0 space-y-2">
+    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
       {label}
     </label>
 
-    <input
-      type="text"
-      value={
-        value ?? ""
-      }
-      onChange={(
-        event
-      ) =>
-        onChange(
-          event.target
-            .value
-        )
-      }
-      placeholder={
-        placeholder
-      }
-      className="w-full rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-700 focus:border-blue-400/30"
-    />
-
+    {children}
   </div>
 );
 
-/* ============================================================
-   STAT CARD
-============================================================ */
+// ============================================================
+// STAT CARD
+// ============================================================
 
 const StatCard = ({
+  icon,
   label,
   value,
-  icon: Icon,
+  description,
 }) => (
-  <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+  <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 transition hover:border-cyan-400/20">
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+        {label}
+      </span>
 
-    <div className="flex items-center gap-4">
-
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-400/10">
-
-        <Icon
-          size={19}
-          className="text-blue-400"
-        />
-
+      <div className="rounded-xl border border-cyan-400/10 bg-cyan-500/[0.07] p-2.5 text-cyan-300">
+        {icon}
       </div>
-
-      <div>
-
-        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
-          {label}
-        </p>
-
-        <p className="mt-1 text-2xl font-black">
-          {value}
-        </p>
-
-      </div>
-
     </div>
 
+    <div className="mt-4 text-3xl font-black tracking-tight text-white">
+      {Number(value || 0).toLocaleString()}
+    </div>
+
+    <p className="mt-1 text-xs text-slate-500">
+      {description}
+    </p>
   </div>
 );
 
-/* ============================================================
-   PAGINATION
-============================================================ */
+// ============================================================
+// PAGINATION
+// ============================================================
 
 const Pagination = ({
   page,
   totalPages,
-  setPage,
-}) => (
-  <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+  onChange,
+}) => {
+  if (totalPages <= 1) return null;
 
-    <button
-      type="button"
-      disabled={
-        page === 1
-      }
-      onClick={() =>
-        setPage(
-          (current) =>
-            Math.max(
-              1,
-              current - 1
-            )
-        )
-      }
-      className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-black text-slate-400 disabled:opacity-30"
-    >
-      Previous
-    </button>
+  const getPages = () => {
+    const pages = new Set([
+      1,
+      totalPages,
+      page,
+      page - 1,
+      page + 1,
+    ]);
 
-    {Array.from(
-      {
-        length:
-          totalPages,
-      },
-      (_, index) =>
-        index + 1
-    )
+    return Array.from(pages)
       .filter(
         (number) =>
-          number === 1 ||
-          number ===
-            totalPages ||
-          Math.abs(
-            number - page
-          ) <= 2
+          number >= 1 &&
+          number <= totalPages
       )
-      .map(
-        (number) => (
+      .sort((a, b) => a - b);
+  };
+
+  const pages = getPages();
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        disabled={page <= 1}
+        onClick={() =>
+          onChange(page - 1)
+        }
+        className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-xs font-bold text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        Previous
+      </button>
+
+      {pages.map((number, index) => (
+        <React.Fragment key={number}>
+          {index > 0 &&
+            number - pages[index - 1] > 1 && (
+              <span className="px-1 text-slate-600">
+                ...
+              </span>
+            )}
+
           <button
-            key={
-              number
-            }
             type="button"
-            onClick={() =>
-              setPage(
-                number
-              )
-            }
-            className={`h-10 min-w-10 rounded-xl px-3 text-xs font-black ${
-              page ===
-              number
-                ? "bg-blue-500 text-white"
-                : "border border-white/10 bg-white/[0.03] text-slate-500"
+            onClick={() => onChange(number)}
+            className={`h-9 min-w-9 rounded-lg px-3 text-xs font-bold transition ${
+              page === number
+                ? "bg-cyan-500 text-slate-950"
+                : "border border-white/10 bg-white/[0.035] text-slate-400 hover:bg-white/[0.08] hover:text-white"
             }`}
           >
-            {
-              number
-            }
+            {number}
           </button>
-        )
-      )}
+        </React.Fragment>
+      ))}
 
-    <button
-      type="button"
-      disabled={
-        page ===
-        totalPages
-      }
-      onClick={() =>
-        setPage(
-          (current) =>
-            Math.min(
-              totalPages,
-              current + 1
-            )
-        )
-      }
-      className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-black text-slate-400 disabled:opacity-30"
-    >
-      Next
-    </button>
+      <button
+        type="button"
+        disabled={page >= totalPages}
+        onClick={() =>
+          onChange(page + 1)
+        }
+        className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-xs font-bold text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        Next
+      </button>
+    </div>
+  );
+};
 
-  </div>
-);
+// ============================================================
+// EXPORT
+// ============================================================
 
 export default QuestionsAdmin;

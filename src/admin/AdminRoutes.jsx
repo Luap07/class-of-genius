@@ -98,7 +98,7 @@ import EditExperiment from "../pages/admin/virtualLabs/EditExperiment";
 /* ============================================================
    CBT
 ============================================================ */
-
+import CreateExam from "../pages/admin/cbt/CreateExam";
 import CBTDashboard from "../pages/admin/cbt/CBTDashboard";
 import SubjectsAdmin from "../pages/admin/cbt/SubjectsAdmin";
 import ExamsAdmin from "../pages/admin/cbt/ExamsAdmin";
@@ -254,7 +254,10 @@ const AdminRoutes = () => {
   path="lms/materials/:id"
   element={<MaterialEditor />}
 />
-
+<Route
+  path="cbt/exams/create"
+  element={<CreateExam />}
+/>
         <Route
           path="lms/materials/create"
           element={<CreateMaterial />}

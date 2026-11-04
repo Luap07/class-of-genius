@@ -1,6 +1,5 @@
-// src/components/AdminSidebar.jsx
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 
 import {
@@ -27,8 +26,6 @@ import {
   Library,
 } from "lucide-react";
 
-import { supabase } from "../lib/supabaseClient";
-
 /* ============================================================
    MENU
 ============================================================ */
@@ -40,29 +37,17 @@ const menuItems = [
     path: "/admin",
   },
 
-  /* ==========================================================
-     LMS
-  ========================================================== */
-
   {
     title: "LMS",
     icon: GraduationCap,
     path: "/admin/lms",
   },
 
-  /* ==========================================================
-     TASKS
-  ========================================================== */
-
   {
     title: "Tasks",
     icon: ClipboardList,
     path: "/admin/lms/tasks",
   },
-
-  /* ==========================================================
-     SCHOOLS
-  ========================================================== */
 
   {
     title: "Schools",
@@ -88,42 +73,23 @@ const menuItems = [
     ],
   },
 
-  /* ==========================================================
-     DOCUMENTS
-  ========================================================== */
-
   {
     title: "Documents",
     icon: FileText,
     path: "/admin/documents",
   },
 
-  /* ==========================================================
-     MATERIALS
-  ========================================================== */
-
   {
     title: "Materials",
     icon: Library,
-
-    // IMPORTANT:
-    // This must match AdminRoutes.jsx
     path: "/admin/lms/materials",
   },
-
-  /* ==========================================================
-     RESOURCES
-  ========================================================== */
 
   {
     title: "Resources",
     icon: Video,
     path: "/admin/resources",
   },
-
-  /* ==========================================================
-     VIRTUAL LABS
-  ========================================================== */
 
   {
     title: "Virtual Labs",
@@ -139,43 +105,35 @@ const menuItems = [
     title: "CBT",
     icon: ClipboardList,
     collapsible: true,
-
     children: [
       {
         title: "Overview",
         path: "/admin/cbt",
       },
-
       {
         title: "Upload Questions",
         path: "/admin/cbt/questions/upload",
       },
-
       {
         title: "Extract From Image",
         path: "/admin/cbt/questions/upload",
       },
-
       {
         title: "Manage Questions",
         path: "/admin/cbt/questions",
       },
-
       {
         title: "Subjects",
         path: "/admin/cbt/subjects",
       },
-
       {
         title: "Exams",
         path: "/admin/cbt/exams",
       },
-
       {
         title: "Results",
         path: "/admin/cbt/results",
       },
-
       {
         title: "Analytics",
         path: "/admin/cbt/analytics",
@@ -183,29 +141,17 @@ const menuItems = [
     ],
   },
 
-  /* ==========================================================
-     NOVELS
-  ========================================================== */
-
   {
     title: "Novels",
     icon: BookOpen,
     path: "/admin/novels",
   },
 
-  /* ==========================================================
-     USERS
-  ========================================================== */
-
   {
     title: "Users",
     icon: Users,
     path: "/admin/users",
   },
-
-  /* ==========================================================
-     ANALYTICS
-  ========================================================== */
 
   {
     title: "Analytics",
@@ -221,18 +167,15 @@ const menuItems = [
     title: "Languages",
     icon: Languages,
     collapsible: true,
-
     children: [
       {
         title: "Overview",
         path: "/admin/languages",
       },
-
       {
         title: "Vocabulary Bank",
         path: "/admin/languages/vocabulary",
       },
-
       {
         title: "Grammar Rules",
         path: "/admin/languages/grammar",
@@ -240,29 +183,17 @@ const menuItems = [
     ],
   },
 
-  /* ==========================================================
-     MESSAGES
-  ========================================================== */
-
   {
     title: "Messages",
     icon: MessageSquareText,
     path: "/admin/messages",
   },
 
-  /* ==========================================================
-     SETTINGS
-  ========================================================== */
-
   {
     title: "Settings",
     icon: Settings,
     path: "/admin/settings",
   },
-
-  /* ==========================================================
-     NEWSLETTER
-  ========================================================== */
 
   {
     title: "Newsletter",
@@ -290,50 +221,6 @@ const AdminSidebar = () => {
   const [schoolsOpen, setSchoolsOpen] =
     useState(false);
 
-  const [mediaCount, setMediaCount] =
-    useState(0);
-
-  /* ==========================================================
-     MEDIA COUNT
-  ========================================================== */
-
-  const fetchMediaCount = async () => {
-    try {
-      const { count, error } = await supabase
-        .from("media")
-        .select("*", {
-          count: "exact",
-          head: true,
-        });
-
-      if (error) {
-        console.error(
-          "Error fetching media count:",
-          error
-        );
-
-        return;
-      }
-
-      setMediaCount(count || 0);
-    } catch (error) {
-      console.error(
-        "Media count error:",
-        error
-      );
-    }
-  };
-
-  useEffect(() => {
-    fetchMediaCount();
-
-    const interval = setInterval(() => {
-      fetchMediaCount();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   /* ==========================================================
      COLLAPSIBLE STATE
   ========================================================== */
@@ -356,23 +243,17 @@ const AdminSidebar = () => {
 
   const toggleMenu = (title) => {
     if (title === "Languages") {
-      setLanguagesOpen(
-        (previous) => !previous
-      );
+      setLanguagesOpen((previous) => !previous);
       return;
     }
 
     if (title === "CBT") {
-      setCbtOpen(
-        (previous) => !previous
-      );
+      setCbtOpen((previous) => !previous);
       return;
     }
 
     if (title === "Schools") {
-      setSchoolsOpen(
-        (previous) => !previous
-      );
+      setSchoolsOpen((previous) => !previous);
     }
   };
 
@@ -383,9 +264,7 @@ const AdminSidebar = () => {
   return (
     <aside
       className={`relative flex h-screen shrink-0 flex-col select-none border-r border-slate-800 bg-slate-900 transition-all duration-300 ${
-        isCollapsed
-          ? "w-20"
-          : "w-72"
+        isCollapsed ? "w-20" : "w-72"
       }`}
     >
       {/* ======================================================
@@ -420,9 +299,7 @@ const AdminSidebar = () => {
         <button
           type="button"
           onClick={() =>
-            setIsCollapsed(
-              (previous) => !previous
-            )
+            setIsCollapsed((previous) => !previous)
           }
           className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
           title={
@@ -448,7 +325,7 @@ const AdminSidebar = () => {
           const Icon = item.icon;
 
           /* ==================================================
-             COLLAPSIBLE
+             COLLAPSIBLE ITEMS
           ================================================== */
 
           if (item.collapsible) {
@@ -464,23 +341,18 @@ const AdminSidebar = () => {
               }
 
               if (item.title === "Languages") {
-                collapsedPath =
-                  "/admin/languages";
+                collapsedPath = "/admin/languages";
               }
 
               if (item.title === "Schools") {
-                collapsedPath =
-                  "/admin/schools";
+                collapsedPath = "/admin/schools";
               }
 
               return (
                 <NavLink
                   key={item.title}
                   to={collapsedPath}
-                  end={
-                    collapsedPath ===
-                    "/admin/cbt"
-                  }
+                  end={collapsedPath === "/admin/cbt"}
                   className={({ isActive }) =>
                     `flex items-center justify-center rounded-xl p-3 transition-all duration-200 ${
                       isActive
@@ -499,23 +371,16 @@ const AdminSidebar = () => {
                EXPANDED SIDEBAR
             ================================================= */
 
-            const isOpen =
-              getOpenState(item.title);
+            const isOpen = getOpenState(item.title);
 
             return (
               <div
                 key={item.title}
                 className="space-y-1"
               >
-                {/* ==========================================
-                    SECTION BUTTON
-                ========================================== */}
-
                 <button
                   type="button"
-                  onClick={() =>
-                    toggleMenu(item.title)
-                  }
+                  onClick={() => toggleMenu(item.title)}
                   className={`group flex w-full items-center justify-between rounded-xl px-4 py-3 transition ${
                     isOpen
                       ? "bg-slate-800/60 text-white"
@@ -544,54 +409,45 @@ const AdminSidebar = () => {
                   )}
                 </button>
 
-                {/* ==========================================
-                    CHILDREN
-                ========================================== */}
+                {/* CHILDREN */}
 
                 {isOpen && (
                   <div className="ml-5 space-y-1 border-l border-slate-800 pl-3">
-                    {item.children.map(
-                      (child) => {
-                        const isQuestionImporter =
-                          child.path ===
-                          "/admin/cbt/questions/upload";
+                    {item.children.map((child) => {
+                      const isQuestionImporter =
+                        child.path ===
+                        "/admin/cbt/questions/upload";
 
-                        return (
-                          <NavLink
-                            key={`${child.title}-${child.path}`}
-                            to={child.path}
-                            end={
-                              child.path ===
-                                "/admin/cbt" ||
-                              child.path ===
-                                "/admin/schools" ||
-                              child.path ===
-                                "/admin/languages"
-                            }
-                            className={({ isActive }) =>
-                              `flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-200 ${
-                                isActive
-                                  ? "bg-blue-600 font-medium text-white shadow-md shadow-blue-900/20"
-                                  : isQuestionImporter
+                      return (
+                        <NavLink
+                          key={`${child.title}-${child.path}`}
+                          to={child.path}
+                          end={
+                            child.path === "/admin/cbt" ||
+                            child.path === "/admin/schools" ||
+                            child.path === "/admin/languages"
+                          }
+                          className={({ isActive }) =>
+                            `flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-200 ${
+                              isActive
+                                ? "bg-blue-600 font-medium text-white shadow-md shadow-blue-900/20"
+                                : isQuestionImporter
                                   ? "text-blue-400 hover:bg-blue-500/10 hover:text-blue-300"
                                   : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                              }`
-                            }
-                          >
-                            {isQuestionImporter && (
-                              <ImageIcon
-                                size={15}
-                                className="shrink-0"
-                              />
-                            )}
+                            }`
+                          }
+                        >
+                          {isQuestionImporter && (
+                            <ImageIcon
+                              size={15}
+                              className="shrink-0"
+                            />
+                          )}
 
-                            <span>
-                              {child.title}
-                            </span>
-                          </NavLink>
-                        );
-                      }
-                    )}
+                          <span>{child.title}</span>
+                        </NavLink>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -599,16 +455,14 @@ const AdminSidebar = () => {
           }
 
           /* ==================================================
-             STANDARD ITEM
+             STANDARD ITEMS
           ================================================== */
 
           return (
             <NavLink
               key={item.title}
               to={item.path}
-              end={
-                item.path === "/admin"
-              }
+              end={item.path === "/admin"}
               className={({ isActive }) =>
                 `flex items-center rounded-xl transition-all duration-200 ${
                   isCollapsed
@@ -620,33 +474,14 @@ const AdminSidebar = () => {
                     : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
                 }`
               }
-              title={
-                isCollapsed
-                  ? item.title
-                  : undefined
-              }
+              title={isCollapsed ? item.title : undefined}
             >
               <Icon size={20} />
 
               {!isCollapsed && (
-                <div className="flex flex-1 items-center justify-between">
-                  <span className="text-sm font-medium">
-                    {item.title}
-                  </span>
-
-                  {item.title ===
-                    "Media" && (
-                    <span
-                      className={`flex h-6 min-w-[24px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
-                        mediaCount > 0
-                          ? "border border-blue-500/20 bg-blue-500/15 text-blue-400"
-                          : "bg-slate-800 text-slate-500"
-                      }`}
-                    >
-                      {mediaCount}
-                    </span>
-                  )}
-                </div>
+                <span className="flex-1 text-sm font-medium">
+                  {item.title}
+                </span>
               )}
             </NavLink>
           );
@@ -663,9 +498,7 @@ const AdminSidebar = () => {
             <button
               type="button"
               onClick={() =>
-                setFooterCollapsed(
-                  (previous) => !previous
-                )
+                setFooterCollapsed((previous) => !previous)
               }
               className="absolute right-2.5 top-2.5 rounded p-1 text-slate-500 transition hover:text-white"
               title={
@@ -688,8 +521,7 @@ const AdminSidebar = () => {
                 </p>
 
                 <p className="mt-0.5 text-[11px] font-medium text-slate-500">
-                  Learning Management
-                  System
+                  Learning Management System
                 </p>
               </div>
             ) : (

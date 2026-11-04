@@ -1,3 +1,4 @@
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -40,8 +41,18 @@ import academyTutorMessages from "./routes/academyTutorMessages.js";
 import academyTutorAnnouncements from "./routes/academyTutorAnnouncements.js";
 import academyEnrollmentRoutes from "./routes/academyEnrollmentRoutes.js";
 import academyStudentMaterialsRoutes from "./routes/academyStudentMaterials.js";
+import cbtQuestionsRoutes from "./routes/cbtQuestionsRoutes.js";
+import schoolExamsRoutes from "./routes/schoolExamsRoutes.js";
+// ============================================================
+// ACADEMY CBT ROUTE
+// ============================================================
 
-// NEW: VERIFIED TUTOR MATERIALS ROUTE
+import academyCbtRoutes from "./routes/academyCbtRoutes.js";
+import schoolStudentExamRoutes from "./routes/schoolStudentExamRoutes.js";
+// ============================================================
+// VERIFIED TUTOR MATERIALS ROUTE
+// ============================================================
+
 import academyTutorMaterialsRoutes from "./routes/academyTutorMaterials.js";
 
 // ============================================================
@@ -182,21 +193,25 @@ const PREMIUM_PRODUCTS = {
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
+
   novel: {
     name: "Premium Novels",
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
+
   multilingual: {
     name: "Multilingual Access",
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
+
   lms: {
     name: "LMS Premium Access",
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
+
   virtual_lab: {
     name: "Virtual Laboratory",
     priceNaira: PREMIUM_PRICE_NAIRA,
@@ -333,6 +348,29 @@ app.use((req, res, next) => {
 });
 
 // ============================================================
+// ACADEMY CBT ROUTES
+// IMPORTANT: Register after body parsers and before 404.
+// ============================================================
+
+app.use("/api/academy", academyCbtRoutes);
+
+// ============================================================
+// SCHOOL STUDENT EXAMINATION ROUTES
+// Separate from Academy CBT.
+// ============================================================
+
+app.use(
+  "/api/school-student-exams",
+  schoolStudentExamRoutes
+);
+  // ============================================================
+// SCHOOL EXAMINATION ROUTES
+// Separate from the general CBT question bank.
+// ============================================================
+
+app.use("/api/admin/school-exams", schoolExamsRoutes);
+
+// ============================================================
 // STATIC UPLOADS
 // ============================================================
 
@@ -442,7 +480,11 @@ app.use(
   "/api/academy/tutor/materials",
   academyTutorMaterialsRoutes
 );
+// ============================================================
+// NEON CBT QUESTION ADMIN ROUTES
+// ============================================================
 
+app.use("/api/admin/cbt/questions", cbtQuestionsRoutes);
 // ============================================================
 // ACADEMY ENROLLMENT ROUTES
 // ============================================================
@@ -483,6 +525,15 @@ app.get("/", (req, res) => {
       studentAssignmentResult: "GET /api/academy/student/assignments/:id/result",
 
       tutorAssignments: "/api/academy/tutor/assignments",
+
+      // ACADEMY CBT
+      academyCBTExams: "GET /api/academy/student/cbt/exams",
+      academyCBTExam: "GET /api/academy/student/cbt/exams/:examId",
+      academyCBTStart: "POST /api/academy/student/cbt/exams/:examId/start",
+      academyCBTSaveAnswer: "PUT /api/academy/student/cbt/attempts/:attemptId/answers",
+      academyCBTSubmit: "POST /api/academy/student/cbt/attempts/:attemptId/submit",
+      academyCBTResult: "GET /api/academy/student/cbt/attempts/:attemptId/result",
+      academyCBTResults: "GET /api/academy/student/cbt/results",
 
       courses: "/api/courses",
       courseStats: "GET /api/courses/stats",
@@ -537,6 +588,9 @@ app.get("/", (req, res) => {
       tutorMaterials: databaseConfigured && jwtConfigured,
       studentAssignments: databaseConfigured,
       adminMaterials: databaseConfigured && jwtConfigured,
+
+      // ACADEMY CBT
+      academyCBT: databaseConfigured && jwtConfigured,
     },
   });
 });
@@ -589,6 +643,8 @@ app.get("/api/health", async (req, res) => {
     groqConfigured,
     paystackConfigured,
     paystackMode,
+
+    academyCBTConfigured: databaseConfigured && jwtConfigured,
 
     payment: {
       currency: "NGN",
@@ -1085,6 +1141,16 @@ const server = app.listen(PORT, () => {
   console.log("   POST   /api/academy/tutor/assignments");
   console.log("   GET    /api/academy/tutor/assignments");
   console.log("   GET    /api/academy/tutor/assignments/:id");
+
+  console.log("");
+  console.log("📝 ACADEMY CBT ROUTES:");
+  console.log("   GET    /api/academy/student/cbt/exams");
+  console.log("   GET    /api/academy/student/cbt/exams/:examId");
+  console.log("   POST   /api/academy/student/cbt/exams/:examId/start");
+  console.log("   PUT    /api/academy/student/cbt/attempts/:attemptId/answers");
+  console.log("   POST   /api/academy/student/cbt/attempts/:attemptId/submit");
+  console.log("   GET    /api/academy/student/cbt/attempts/:attemptId/result");
+  console.log("   GET    /api/academy/student/cbt/results");
 
   console.log("");
   console.log("📚 ACADEMY TASK ROUTES:");

@@ -7,42 +7,31 @@ import React, {
   useState,
 } from "react";
 
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useOutletContext } from "react-router-dom";
+import { motion } from "framer-motion";
 
 import {
-  motion,
-  AnimatePresence,
-} from "framer-motion";
-
-import {
-  AlertCircle,
-  ArrowLeft,
   ArrowRight,
-  Award,
   BookOpen,
   CalendarDays,
   CheckCircle2,
-  Check,
   Clock3,
   FileText,
   GraduationCap,
+  Info,
   Loader2,
-  Lock,
-  Play,
+  LockKeyhole,
   RefreshCw,
   ShieldCheck,
-  Timer,
-  Trophy,
-  XCircle,
+  X,
+  Hourglass,
 } from "lucide-react";
 
-// ============================================================
-// CONFIGURATION
-// ============================================================
+import CBTInstructions from "../academy/student-cbt/CBTInstructions";
+import CBTExamScreen from "../academy/student-cbt/CBTExamScreen";
 
 const API_BASE = (
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).replace(/\/+$/, "");
 
 const CBT_BASE = `${API_BASE}/api/academy/student/cbt`;
@@ -55,784 +44,1682 @@ const TOKEN_KEYS = [
   "token",
 ];
 
-const ANSWER_SAVE_DELAY = 500;
+const DARK_PANEL =
+  "rounded-2xl border border-white/[0.08] bg-[#071426]/90 shadow-[0_18px_60px_rgba(0,0,0,0.22)]";
+
+/* =========================================================
+   GENERAL HELPERS
+========================================================= */
+
+const clean = (value) =>
+  value === undefined || value === null ? "" : String(value).trim();
+
+const firstValue = (...values) =>
+  values.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+  );
+
+const normalizeSubject = (value) =>
+  clean(
+    typeof value === "string"
+      ? value
+      : value?.subject ||
+          value?.name ||
+          value?.title ||
+          value?.subject_name
+  ).toLowerCase();
 
 const getToken = () => {
   for (const key of TOKEN_KEYS) {
     const value = localStorage.getItem(key);
-
-    if (value) {
-      return value;
-    }
+    if (value) return value;
   }
 
   return "";
 };
 
-const getHeaders = (json = true) => {
-  const token = getToken();
+const getExamId = (item) =>
+  firstValue(
+    item?.examId,
+    item?.exam_id,
+    item?.school_exam_id,
+    item?.exam?.id,
+    item?.schoolExam?.id,
+    item?.id,
+    ""
+  );
 
-  const headers = {
-    Accept: "application/json",
-  };
+const getExamFromSubject = (item) =>
+  item?.exam || item?.schoolExam || item;
 
-  if (json) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-    headers["x-academy-token"] = token;
-    headers["x-student-token"] = token;
-  }
-
-  return headers;
-};
-
-const apiRequest = async (url, options = {}) => {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...getHeaders(),
-      ...(options.headers || {}),
-    },
-  });
-
-  let data = {};
-
-  try {
-    data = await response.json();
-  } catch {
-    data = {};
-  }
-
-  if (!response.ok || data.success === false) {
-    throw new Error(
-      data.message ||
-      data.error ||
-      `Request failed (${response.status}).`
-    );
-  }
-
-  return data;
-};
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-const clean = (value) => {
-  if (value === null || value === undefined) {
-    return "";
-  }
-
-  return String(value).trim();
-};
-
-const getExamId = (exam) =>
+const getQuestionId = (question, index) =>
   clean(
-    exam?.id ??
-    exam?.exam_id ??
-    exam?.examId ??
-    exam?.uuid
+    firstValue(
+      question?.id,
+      question?.question_id,
+      question?.uuid,
+      index
+    )
   );
 
-const getExamTitle = (exam) =>
-  clean(
-    exam?.title ||
-    exam?.name ||
-    exam?.exam_name ||
-    exam?.exam ||
-    "Scheduled Examination"
-  );
-
-const getExamDescription = (exam) =>
-  clean(
-    exam?.description ||
-    exam?.instructions ||
-    exam?.details
-  );
-
-const getExamSubjects = (exam) => {
-  const subjects =
-    exam?.subjects ||
-    exam?.registered_subjects ||
-    exam?.exam_subjects ||
-    [];
-
-  if (Array.isArray(subjects)) {
-    return subjects
-      .map((item) => {
-        if (typeof item === "string") {
-          return item;
-        }
-
-        return (
-          item?.subject ||
-          item?.name ||
-          item?.title ||
-          ""
-        );
-      })
-      .filter(Boolean);
-  }
-
-  if (typeof subjects === "string") {
-    try {
-      const parsed = JSON.parse(subjects);
-
-      if (Array.isArray(parsed)) {
-        return parsed.map(String).filter(Boolean);
-      }
-    } catch {
-      return subjects
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-    }
-  }
-
-  return [];
-};
-
-const getExamStart = (exam) =>
-  exam?.start_at ||
-  exam?.startAt ||
-  exam?.scheduled_start ||
-  exam?.scheduledStart ||
-  exam?.exam_date ||
-  exam?.start_date ||
-  null;
-
-const getExamEnd = (exam) =>
-  exam?.end_at ||
-  exam?.endAt ||
-  exam?.scheduled_end ||
-  exam?.scheduledEnd ||
-  exam?.end_date ||
-  null;
-
-const getDuration = (exam) => {
-  const value = Number(
-    exam?.duration_minutes ??
-    exam?.duration ??
-    exam?.time_limit ??
-    exam?.durationMinutes ??
-    60
-  );
-
-  return Number.isFinite(value) && value > 0
-    ? value
-    : 60;
-};
-
-const formatDate = (value) => {
-  if (!value) {
-    return "Not specified";
-  }
+const formatDateTime = (value) => {
+  if (!value) return "Not set";
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return clean(value);
-  }
+  if (Number.isNaN(date.getTime())) return "Not set";
 
-  return new Intl.DateTimeFormat("en-NG", {
+  return date.toLocaleString("en-NG", {
+    timeZone: "Africa/Lagos",
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: "Africa/Lagos",
-  }).format(date);
+  });
 };
 
-const formatDuration = (minutes) => {
-  const total = Math.max(0, Number(minutes) || 0);
+const isTrue = (value) =>
+  value === true ||
+  value === 1 ||
+  ["true", "1", "yes"].includes(
+    clean(value).toLowerCase()
+  );
 
-  const hours = Math.floor(total / 60);
-  const remaining = total % 60;
+/* =========================================================
+   PERMANENT SUBMISSION DETECTION
 
-  if (hours > 0) {
-    return `${hours} hour${hours === 1 ? "" : "s"} ${
-      remaining > 0 ? `${remaining} minutes` : ""
-    }`.trim();
+   IMPORTANT:
+   Do not use the general exam "status" field here.
+   That field may mean scheduled, published, closed, etc.
+   Only attempt-related information identifies submission.
+========================================================= */
+
+const getAttemptObjects = (item) => {
+  if (!item || typeof item !== "object") return [];
+
+  const exam = getExamFromSubject(item);
+
+  const objects = [
+    item,
+    item.attempt,
+    item.latestAttempt,
+    item.latest_attempt,
+    item.completedAttempt,
+    item.completed_attempt,
+    item.submittedAttempt,
+    item.submitted_attempt,
+    exam,
+    exam?.attempt,
+    exam?.latestAttempt,
+    exam?.latest_attempt,
+    exam?.completedAttempt,
+    exam?.completed_attempt,
+    exam?.submittedAttempt,
+    exam?.submitted_attempt,
+  ];
+
+  const arrays = [
+    item.attempts,
+    item.data?.attempts,
+    exam?.attempts,
+  ];
+
+  arrays.forEach((array) => {
+    if (Array.isArray(array)) {
+      objects.push(...array);
+    }
+  });
+
+  return objects.filter(
+    (value) => value && typeof value === "object"
+  );
+};
+
+const getSubmissionTimestamp = (item) => {
+  const objects = getAttemptObjects(item);
+
+  const timestamps = [
+    item?.submittedAt,
+    item?.submitted_at,
+    item?.submitted_at_time,
+    item?.completed_at,
+    item?.completedAt,
+    item?.exam?.submittedAt,
+    item?.exam?.submitted_at,
+    item?.schoolExam?.submittedAt,
+    item?.schoolExam?.submitted_at,
+  ];
+
+  objects.forEach((attempt) => {
+    timestamps.push(
+      attempt?.submittedAt,
+      attempt?.submitted_at,
+      attempt?.submitted_at_time,
+      attempt?.completedAt,
+      attempt?.completed_at
+    );
+  });
+
+  return firstValue(...timestamps, null);
+};
+
+const isExamSubmitted = (item) => {
+  if (!item || typeof item !== "object") return false;
+
+  const objects = getAttemptObjects(item);
+
+  const flags = [
+    item?.submitted,
+    item?.isSubmitted,
+    item?.is_submitted,
+    item?.hasSubmitted,
+    item?.has_submitted,
+    item?.exam?.submitted,
+    item?.exam?.is_submitted,
+    item?.schoolExam?.submitted,
+    item?.schoolExam?.is_submitted,
+  ];
+
+  objects.forEach((attempt) => {
+    flags.push(
+      attempt?.submitted,
+      attempt?.isSubmitted,
+      attempt?.is_submitted,
+      attempt?.hasSubmitted,
+      attempt?.has_submitted
+    );
+  });
+
+  if (flags.some(isTrue)) return true;
+
+  const statuses = objects
+    .map((attempt) =>
+      clean(
+        firstValue(
+          attempt?.attempt_status,
+          attempt?.attemptStatus,
+          attempt?.status
+        )
+      ).toLowerCase()
+    )
+    .filter(Boolean);
+
+  if (
+    statuses.some((status) =>
+      ["submitted", "completed", "complete"].includes(status)
+    )
+  ) {
+    return true;
   }
 
-  return `${remaining} minutes`;
+  /*
+   * An expired attempt is considered submitted only when
+   * the backend confirms that it has a submission/completion
+   * timestamp. This avoids confusing an expired schedule
+   * with a submitted examination.
+   */
+  const hasExpiredAttempt = objects.some((attempt) => {
+    const status = clean(
+      firstValue(
+        attempt?.attempt_status,
+        attempt?.attemptStatus,
+        attempt?.status
+      )
+    ).toLowerCase();
+
+    return (
+      status === "expired" &&
+      Boolean(
+        firstValue(
+          attempt?.submitted_at,
+          attempt?.submittedAt,
+          attempt?.completed_at,
+          attempt?.completedAt
+        )
+      )
+    );
+  });
+
+  return (
+    hasExpiredAttempt ||
+    Boolean(getSubmissionTimestamp(item))
+  );
 };
 
-const formatTime = (seconds) => {
-  const safe = Math.max(0, Math.floor(seconds || 0));
+const makeSubmittedSubject = (
+  subject,
+  submittedAt = new Date().toISOString(),
+  attemptId = null
+) => ({
+  ...subject,
+  submitted: true,
+  isSubmitted: true,
+  is_submitted: true,
+  has_submitted: true,
+  submittedAt,
+  submitted_at: submittedAt,
+  attemptId: firstValue(
+    attemptId,
+    subject?.attemptId,
+    subject?.attempt_id,
+    subject?.submitted_attempt_id,
+    null
+  ),
+  attemptStatus: "submitted",
+  attempt_status: "submitted",
+  attempt: {
+    ...(subject?.attempt || {}),
+    id: firstValue(
+      attemptId,
+      subject?.attempt?.id,
+      subject?.attempt_id,
+      null
+    ),
+    status: "submitted",
+    attempt_status: "submitted",
+    submitted: true,
+    submitted_at: submittedAt,
+  },
+});
 
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const remainingSeconds = safe % 60;
+/* =========================================================
+   SCHEDULE HELPERS
+========================================================= */
 
-  return [
-    String(hours).padStart(2, "0"),
-    String(minutes).padStart(2, "0"),
-    String(remainingSeconds).padStart(2, "0"),
-  ].join(":");
+const getScheduleStatus = (item, now = Date.now()) => {
+  const exam = getExamFromSubject(item);
+
+  const explicit = clean(
+    firstValue(
+      item?.availability_status,
+      item?.schedule_status
+    )
+  ).toLowerCase();
+
+  if (
+    ["not_scheduled", "not scheduled", "unscheduled"].includes(
+      explicit
+    )
+  ) {
+    return "not_scheduled";
+  }
+
+  const start = firstValue(
+    item?.scheduled_start_at,
+    item?.startAt,
+    item?.start_at,
+    exam?.scheduled_start_at,
+    exam?.start_at,
+    exam?.startAt
+  );
+
+  const end = firstValue(
+    item?.scheduled_end_at,
+    item?.endAt,
+    item?.end_at,
+    exam?.scheduled_end_at,
+    exam?.end_at,
+    exam?.endAt
+  );
+
+  if (!start || !end) {
+    if (explicit === "upcoming") return "upcoming";
+    if (explicit === "closed") return "closed";
+    return "not_scheduled";
+  }
+
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+
+  if (
+    !Number.isFinite(startMs) ||
+    !Number.isFinite(endMs) ||
+    endMs <= startMs
+  ) {
+    return "not_scheduled";
+  }
+
+  if (now < startMs) return "upcoming";
+  if (now > endMs) return "closed";
+
+  return "available";
 };
 
-const getQuestionId = (question) =>
+const statusPresentation = {
+  available: {
+    label: "Available now",
+    dot: "bg-emerald-400",
+    text: "text-emerald-300",
+    border: "border-emerald-400/20",
+    background: "bg-emerald-400/[0.07]",
+  },
+
+  upcoming: {
+    label: "Upcoming",
+    dot: "bg-amber-400",
+    text: "text-amber-300",
+    border: "border-amber-400/20",
+    background: "bg-amber-400/[0.07]",
+  },
+
+  closed: {
+    label: "Closed",
+    dot: "bg-rose-400",
+    text: "text-rose-300",
+    border: "border-rose-400/20",
+    background: "bg-rose-400/[0.07]",
+  },
+
+  not_scheduled: {
+    label: "Not scheduled",
+    dot: "bg-slate-400",
+    text: "text-slate-300",
+    border: "border-white/10",
+    background: "bg-white/[0.035]",
+  },
+
+  unavailable: {
+    label: "Unavailable",
+    dot: "bg-slate-400",
+    text: "text-slate-300",
+    border: "border-white/10",
+    background: "bg-white/[0.035]",
+  },
+
+  submitted: {
+    label: "Submitted",
+    dot: "bg-emerald-400",
+    text: "text-emerald-300",
+    border: "border-emerald-400/25",
+    background: "bg-emerald-400/[0.08]",
+  },
+};
+
+/* =========================================================
+   API RESPONSE HELPERS
+========================================================= */
+
+const readQuestionList = (payload) => {
+  const candidates = [
+    payload?.questions,
+    payload?.attempt?.questions,
+    payload?.data?.questions,
+    payload?.data?.attempt?.questions,
+  ];
+
+  return candidates.find(Array.isArray) || [];
+};
+
+const readAttempt = (payload) =>
+  payload?.attempt ||
+  payload?.data?.attempt ||
+  payload?.data ||
+  {};
+
+const readErrorMessage = (payload, fallback) =>
   clean(
-    question?.id ??
-    question?.question_id ??
-    question?.questionId
+    firstValue(
+      payload?.message,
+      payload?.error,
+      payload?.details,
+      payload?.data?.message,
+      fallback
+    )
   );
 
-const getQuestionText = (question) =>
-  question?.question ||
-  question?.question_text ||
-  question?.text ||
-  "";
+const isAlreadySubmittedError = (error) => {
+  const message = clean(error?.message).toLowerCase();
+  const code = clean(error?.code).toLowerCase();
 
-const getQuestionOptions = (question) => {
-  const raw = question?.options;
-
-  if (Array.isArray(raw)) {
-    return raw.map((option, index) => {
-      if (typeof option === "string") {
-        return {
-          key: String.fromCharCode(65 + index),
-          text: option,
-        };
-      }
-
-      return {
-        key:
-          option?.key ||
-          option?.label ||
-          option?.option ||
-          String.fromCharCode(65 + index),
-        text:
-          option?.text ||
-          option?.value ||
-          option?.content ||
-          "",
-      };
-    }).filter((option) => option.text);
-  }
-
-  if (raw && typeof raw === "object") {
-    return Object.entries(raw).map(([key, value]) => ({
-      key,
-      text:
-        typeof value === "string"
-          ? value
-          : value?.text || value?.value || "",
-    })).filter((option) => option.text);
-  }
-
-  return [
-    { key: "A", text: question?.optionA || question?.option_a },
-    { key: "B", text: question?.optionB || question?.option_b },
-    { key: "C", text: question?.optionC || question?.option_c },
-    { key: "D", text: question?.optionD || question?.option_d },
-  ].filter((option) => option.text);
-};
-
-const getSavedAnswer = (answers, questionId) => {
-  if (!answers || !questionId) {
-    return "";
-  }
-
-  return clean(
-    answers[questionId] ??
-    answers[String(questionId)] ??
-    ""
+  return (
+    error?.status === 409 ||
+    [
+      "attempt_already_completed",
+      "attempt_already_submitted",
+      "exam_already_submitted",
+      "already_submitted",
+      "already_completed",
+    ].includes(code) ||
+    message.includes("already completed") ||
+    message.includes("already submitted") ||
+    message.includes("has been submitted") ||
+    message.includes("attempt already")
   );
 };
 
-const extractQuestions = (data) => {
-  if (Array.isArray(data?.questions)) {
-    return data.questions;
+const getEnrolledSubjectNames = (value) => {
+  let subjects = value;
+
+  if (typeof subjects === "string") {
+    try {
+      subjects = JSON.parse(subjects);
+    } catch {
+      subjects = subjects.split(",").map((item) => item.trim());
+    }
   }
 
-  if (Array.isArray(data?.attempt?.questions)) {
-    return data.attempt.questions;
-  }
+  if (!Array.isArray(subjects)) return [];
 
-  if (Array.isArray(data?.data?.questions)) {
-    return data.data.questions;
+  return subjects
+    .map((subject) => {
+      if (typeof subject === "string") return clean(subject);
+
+      return clean(
+        firstValue(
+          subject?.subject,
+          subject?.name,
+          subject?.subject_name,
+          subject?.title
+        )
+      );
+    })
+    .filter(Boolean);
+};
+
+const getPayloadArray = (payload, ...keys) => {
+  for (const key of keys) {
+    const value = key
+      .split(".")
+      .reduce((object, part) => object?.[part], payload);
+
+    if (Array.isArray(value)) return value;
   }
 
   return [];
 };
 
-const extractAttempt = (data) =>
-  data?.attempt ||
-  data?.data?.attempt ||
-  data?.data ||
-  data;
+/* =========================================================
+   ACADEMY-WIDE COUNTDOWN
+========================================================= */
 
-const extractDeadline = (data, attempt, exam) => {
-  const deadline =
-    attempt?.expires_at ||
-    attempt?.expiresAt ||
-    attempt?.end_at ||
-    attempt?.endAt ||
-    data?.expires_at ||
-    data?.expiresAt ||
-    data?.end_at ||
-    data?.endAt;
-
-  if (deadline) {
-    const parsed = new Date(deadline).getTime();
-
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
+const getCountdownDetails = (startAt, endAt, now) => {
+  if (!startAt || !endAt) {
+    return {
+      status: "not_set",
+      label: "Schedule not set",
+      target: null,
+      message:
+        "The administrator has not configured the examination schedule yet.",
+    };
   }
 
-  const durationSeconds =
-    Number(
-      data?.remaining_seconds ??
-      data?.remainingSeconds ??
-      attempt?.remaining_seconds ??
-      attempt?.remainingSeconds
+  const start = new Date(startAt).getTime();
+  const end = new Date(endAt).getTime();
+
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    end <= start
+  ) {
+    return {
+      status: "not_set",
+      label: "Schedule unavailable",
+      target: null,
+      message: "The examination schedule is incomplete or invalid.",
+    };
+  }
+
+  if (now < start) {
+    return {
+      status: "upcoming",
+      label: "Examination begins in",
+      target: start,
+      message:
+        "Get ready. The Academy examination period has not started yet.",
+    };
+  }
+
+  if (now <= end) {
+    return {
+      status: "active",
+      label: "Examination closes in",
+      target: end,
+      message: "The Academy examination period is currently active.",
+    };
+  }
+
+  return {
+    status: "ended",
+    label: "Examination schedule has ended",
+    target: null,
+    message: "The scheduled Academy examination period is over.",
+  };
+};
+
+function CountdownUnit({ value, label }) {
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-[#020b19]/90 px-2 py-4 text-center sm:px-4">
+      <div className="font-mono text-2xl font-black tabular-nums tracking-tight text-white sm:text-4xl">
+        {String(value).padStart(2, "0")}
+      </div>
+
+      <div className="mt-2 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-[10px]">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function AcademyScheduleCountdown({ startAt, endAt, now }) {
+  const countdown = getCountdownDetails(startAt, endAt, now);
+
+  let days = 0;
+  let hours = 0;
+  let minutes = 0;
+  let seconds = 0;
+
+  if (countdown.target) {
+    const totalSeconds = Math.max(
+      0,
+      Math.ceil((countdown.target - now) / 1000)
     );
 
-  if (Number.isFinite(durationSeconds) && durationSeconds > 0) {
-    return Date.now() + durationSeconds * 1000;
+    days = Math.floor(totalSeconds / 86400);
+    hours = Math.floor((totalSeconds % 86400) / 3600);
+    minutes = Math.floor((totalSeconds % 3600) / 60);
+    seconds = totalSeconds % 60;
   }
 
-  const startedAt =
-    attempt?.started_at ||
-    attempt?.startedAt;
+  const isActive = countdown.status === "active";
+  const isEnded = countdown.status === "ended";
 
-  if (startedAt) {
-    const duration = getDuration(exam);
-    const start = new Date(startedAt).getTime();
+  return (
+    <div className="mt-6 overflow-hidden rounded-2xl border border-blue-400/15 bg-[#020b19]/80 p-4 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
+              isEnded
+                ? "border-rose-400/20 bg-rose-400/10 text-rose-300"
+                : isActive
+                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                  : "border-blue-400/20 bg-blue-400/10 text-blue-300"
+            }`}
+          >
+            {isEnded ? <Clock3 size={21} /> : <Hourglass size={21} />}
+          </div>
 
-    if (Number.isFinite(start)) {
-      return start + duration * 60 * 1000;
-    }
-  }
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+              Academy examination countdown
+            </p>
 
-  return Date.now() + getDuration(exam) * 60 * 1000;
-};
+            <h3 className="mt-1 text-base font-bold text-white sm:text-lg">
+              {countdown.label}
+            </h3>
+          </div>
+        </div>
 
-const getExamStatus = (exam) => {
-  const status = clean(exam?.status).toLowerCase();
+        <span
+          className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${
+            isEnded
+              ? "border-rose-400/20 bg-rose-400/[0.07] text-rose-300"
+              : isActive
+                ? "border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-300"
+                : countdown.status === "upcoming"
+                  ? "border-blue-400/20 bg-blue-400/[0.07] text-blue-300"
+                  : "border-white/10 bg-white/[0.04] text-slate-400"
+          }`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              isEnded
+                ? "bg-rose-400"
+                : isActive
+                  ? "bg-emerald-400"
+                  : countdown.status === "upcoming"
+                    ? "bg-blue-400"
+                    : "bg-slate-500"
+            }`}
+          />
 
-  if (
-    ["cancelled", "canceled", "disabled", "draft"].includes(status)
-  ) {
-    return "unavailable";
-  }
+          {isEnded
+            ? "Ended"
+            : isActive
+              ? "Schedule active"
+              : countdown.status === "upcoming"
+                ? "Upcoming"
+                : "Not configured"}
+        </span>
+      </div>
 
-  const now = Date.now();
+      {countdown.target ? (
+        <div className="mt-5 grid grid-cols-4 gap-2 sm:gap-3">
+          <CountdownUnit value={days} label="Days" />
+          <CountdownUnit value={hours} label="Hours" />
+          <CountdownUnit value={minutes} label="Minutes" />
+          <CountdownUnit value={seconds} label="Seconds" />
+        </div>
+      ) : (
+        <div
+          className={`mt-5 rounded-xl border p-5 text-center ${
+            isEnded
+              ? "border-rose-400/15 bg-rose-400/[0.05]"
+              : "border-white/[0.07] bg-white/[0.025]"
+          }`}
+        >
+          <p
+            className={`text-sm font-semibold ${
+              isEnded ? "text-rose-300" : "text-slate-300"
+            }`}
+          >
+            {countdown.message}
+          </p>
+        </div>
+      )}
 
-  const start = getExamStart(exam)
-    ? new Date(getExamStart(exam)).getTime()
-    : null;
+      <p className="mt-4 text-xs leading-5 text-slate-500">
+        {countdown.message}
+      </p>
+    </div>
+  );
+}
 
-  const end = getExamEnd(exam)
-    ? new Date(getExamEnd(exam)).getTime()
-    : null;
+/* =========================================================
+   SMALL UI COMPONENTS
+========================================================= */
 
-  if (Number.isFinite(end) && now > end) {
-    return "closed";
-  }
+function StatusPill({ status }) {
+  const presentation =
+    statusPresentation[status] || statusPresentation.unavailable;
 
-  if (Number.isFinite(start) && now < start) {
-    return "upcoming";
-  }
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${presentation.border} ${presentation.background} ${presentation.text}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${presentation.dot}`} />
+      {presentation.label}
+    </span>
+  );
+}
 
-  if (
-    status === "published" ||
-    status === "scheduled" ||
-    status === "active" ||
-    status === "ongoing"
-  ) {
-    return "available";
-  }
+function InfoTile({ icon: Icon, label, value }) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[#020b19]/70 p-4">
+      <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
+        <Icon size={14} />
+        {label}
+      </div>
 
-  if (!status && Number.isFinite(start)) {
-    return "available";
-  }
+      <div className="text-sm font-semibold text-slate-100">
+        {value || "—"}
+      </div>
+    </div>
+  );
+}
 
-  return status === "completed" ? "closed" : "available";
-};
+function PrimaryButton({
+  children,
+  onClick,
+  disabled = false,
+  loading = false,
+  type = "button",
+  className = "",
+}) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled || loading}
+      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45 ${className}`}
+    >
+      {loading ? <Loader2 size={17} className="animate-spin" /> : null}
+      {children}
+    </button>
+  );
+}
 
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
+function SecondaryButton({
+  children,
+  onClick,
+  disabled = false,
+  className = "",
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* =========================================================
+   MAIN COMPONENT
+========================================================= */
 
 export default function StudentCBT() {
-  const navigate = useNavigate();
-
   const outletContext = useOutletContext() || {};
 
-  const student = outletContext.student || {};
+  const [screen, setScreen] = useState("welcome");
 
-  // ----------------------------------------------------------
-  // STATE
-  // ----------------------------------------------------------
-
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const [error, setError] = useState("");
-
-  const [exams, setExams] = useState([]);
-  const [results, setResults] = useState([]);
-
-  const [registeredSubjects, setRegisteredSubjects] = useState([]);
-
-  const [screen, setScreen] = useState("dashboard");
-
-  const [selectedExam, setSelectedExam] = useState(null);
-
-  const [attempt, setAttempt] = useState(null);
-
-  const [questions, setQuestions] = useState([]);
-
-  const [answers, setAnswers] = useState({});
-
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-
-  const [markedQuestions, setMarkedQuestions] = useState([]);
-
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
-
-  const [examDeadline, setExamDeadline] = useState(null);
-
-  const [startingExam, setStartingExam] = useState(false);
-
+  const [loading, setLoading] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const [submitConfirmation, setSubmitConfirmation] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  const [examResult, setExamResult] = useState(null);
+  const [student, setStudent] = useState(
+    outletContext?.student || outletContext?.user || null
+  );
 
-  const [reviewMode, setReviewMode] = useState(false);
+  const [examInfo, setExamInfo] = useState(null);
+  const [subjects, setSubjects] = useState([]);
+  const [activeSubmittedCard, setActiveSubmittedCard] = useState(null);
 
-  const [saveStatus, setSaveStatus] = useState("saved");
+  const [selectedSubject, setSelectedSubject] = useState(null);
+  const [selectedExam, setSelectedExam] = useState(null);
 
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [questions, setQuestions] = useState([]);
+  const [attempt, setAttempt] = useState(null);
+  const [answers, setAnswers] = useState({});
 
-  const [showQuestionGrid, setShowQuestionGrid] = useState(true);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [markedQuestions, setMarkedQuestions] = useState([]);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
 
-  const [now, setNow] = useState(Date.now());
+  const [mobileQuestionNav, setMobileQuestionNav] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
-  // ----------------------------------------------------------
-  // REFS
-  // ----------------------------------------------------------
+  const [submittedMessage, setSubmittedMessage] = useState("");
+  const [submissionTimestamp, setSubmissionTimestamp] = useState(null);
 
-  const saveTimerRef = useRef(null);
-
-  const answersRef = useRef({});
+  const [scheduleNow, setScheduleNow] = useState(Date.now());
 
   const submittingRef = useRef(false);
-
+  const answersRef = useRef({});
+  const attemptRef = useRef(null);
+  const questionsRef = useRef([]);
   const deadlineRef = useRef(null);
+  const saveTimerRef = useRef(null);
+  const lastSavedRef = useRef("");
+  const timerSubmittingRef = useRef(false);
 
-  const mountedRef = useRef(true);
+  const token = useMemo(() => getToken(), []);
 
-  // ----------------------------------------------------------
-  // STUDENT DETAILS
-  // ----------------------------------------------------------
+  /* =========================================================
+     API REQUEST
+  ========================================================= */
 
-  const studentName =
-    student?.full_name ||
-    student?.name ||
-    student?.student_name ||
-    [
-      student?.first_name,
-      student?.last_name,
-    ].filter(Boolean).join(" ") ||
-    "Student";
+  const apiRequest = useCallback(
+    async (path, options = {}) => {
+      const currentToken = getToken() || token;
 
-  // ==========================================================
-  // LOAD EXAMS AND RESULTS
-  // ==========================================================
+      const headers = {
+        Accept: "application/json",
 
-  const loadDashboard = useCallback(async (isRefresh = false) => {
-    if (!getToken()) {
-      setError(
-        "Your student login session could not be found. Please sign in again."
-      );
+        ...(options.body
+          ? { "Content-Type": "application/json" }
+          : {}),
 
-      setLoading(false);
-      return;
-    }
+        ...(currentToken
+          ? {
+              Authorization: `Bearer ${currentToken}`,
+              "x-academy-token": currentToken,
+              "x-student-token": currentToken,
+            }
+          : {}),
 
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
+        ...(options.headers || {}),
+      };
+
+      const response = await fetch(`${CBT_BASE}${path}`, {
+        ...options,
+        headers,
+        credentials: "include",
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+
+      let payload = {};
+
+      if (contentType.includes("application/json")) {
+        payload = await response.json();
       } else {
-        setLoading(true);
+        const raw = await response.text();
+        payload = raw ? { message: raw } : {};
       }
 
+      if (!response.ok || payload?.success === false) {
+        const requestError = new Error(
+          readErrorMessage(
+            payload,
+            `Request failed (${response.status})`
+          )
+        );
+
+        requestError.status = response.status;
+        requestError.code =
+          payload?.code || payload?.errorCode || null;
+        requestError.payload = payload;
+
+        throw requestError;
+      }
+
+      return payload;
+    },
+    [token]
+  );
+
+  /* =========================================================
+     MARK A SUBJECT AS SUBMITTED IMMEDIATELY
+  ========================================================= */
+
+  const markSubjectSubmitted = useCallback(
+    (subjectRow, timestamp, attemptId = null) => {
+      const submittedAt =
+        timestamp || new Date().toISOString();
+
+      const targetExamId = getExamId(subjectRow);
+      const targetSubject = normalizeSubject(subjectRow?.subject);
+
+      setSubjects((current) =>
+        current.map((item) => {
+          const sameExam =
+            targetExamId &&
+            getExamId(item) &&
+            String(getExamId(item)) === String(targetExamId);
+
+          const sameSubject =
+            targetSubject &&
+            normalizeSubject(item.subject) === targetSubject;
+
+          if (!sameExam && !sameSubject) return item;
+
+          return makeSubmittedSubject(
+            item,
+            submittedAt,
+            attemptId
+          );
+        })
+      );
+
+      if (selectedSubject) {
+        const sameSelectedExam =
+          targetExamId &&
+          String(getExamId(selectedSubject)) === String(targetExamId);
+
+        const sameSelectedSubject =
+          targetSubject &&
+          normalizeSubject(selectedSubject.subject) === targetSubject;
+
+        if (sameSelectedExam || sameSelectedSubject) {
+          setSelectedSubject((current) =>
+            current
+              ? makeSubmittedSubject(
+                  current,
+                  submittedAt,
+                  attemptId
+                )
+              : current
+          );
+        }
+      }
+
+      if (selectedExam) {
+        const sameSelectedExam =
+          targetExamId &&
+          String(getExamId(selectedExam)) === String(targetExamId);
+
+        if (sameSelectedExam) {
+          setSelectedExam((current) =>
+            current
+              ? makeSubmittedSubject(
+                  current,
+                  submittedAt,
+                  attemptId
+                )
+              : current
+          );
+        }
+      }
+    },
+    [selectedSubject, selectedExam]
+  );
+
+  /* =========================================================
+     LOAD ENROLLED SUBJECTS AND SUBMISSION STATUS
+  ========================================================= */
+
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const payload = await apiRequest("/exams");
+
+      const sourceStudent =
+        payload?.student ||
+        payload?.data?.student ||
+        outletContext?.student ||
+        outletContext?.user ||
+        null;
+
+      if (sourceStudent) {
+        setStudent(sourceStudent);
+      }
+
+      const rawSubjectRows = getPayloadArray(
+        payload,
+        "subjects",
+        "data.subjects"
+      );
+
+      const rawExams = getPayloadArray(
+        payload,
+        "exams",
+        "data.exams"
+      );
+
+      const enrollmentSubjects = firstValue(
+        payload?.registeredSubjects,
+        payload?.enrolledSubjects,
+        payload?.student?.subjects,
+        sourceStudent?.subjects,
+        payload?.data?.registeredSubjects,
+        payload?.data?.enrolledSubjects,
+        []
+      );
+
+      const enrolledNames =
+        getEnrolledSubjectNames(enrollmentSubjects);
+
+      const rowNames = rawSubjectRows
+        .map((row) =>
+          clean(
+            firstValue(
+              row?.subject,
+              row?.subject_name,
+              row?.name
+            )
+          )
+        )
+        .filter(Boolean);
+
+      const names = enrolledNames.length
+        ? enrolledNames
+        : rowNames;
+
+      const allNames = [
+        ...new Map(
+          names.map((name) => [
+            normalizeSubject(name),
+            name,
+          ])
+        ).values(),
+      ];
+
+      const mappedSubjects = allNames.map((subjectName) => {
+        const existingRow =
+          rawSubjectRows.find(
+            (row) =>
+              normalizeSubject(
+                row?.subject ||
+                  row?.subject_name ||
+                  row?.name
+              ) === normalizeSubject(subjectName)
+          ) || null;
+
+        const examInList =
+          rawExams.find(
+            (exam) =>
+              normalizeSubject(exam?.subject) ===
+              normalizeSubject(subjectName)
+          ) || null;
+
+        /*
+         * Do not mistake a subject/enrollment row's own ID
+         * for the actual examination ID.
+         *
+         * Prefer an actual nested exam object, then the
+         * matching exam from the exams array.
+         */
+        const nestedExam =
+          existingRow?.exam ||
+          existingRow?.schoolExam ||
+          null;
+
+        const rowExamId = firstValue(
+          existingRow?.exam_id,
+          existingRow?.examId,
+          existingRow?.school_exam_id,
+          nestedExam?.id
+        );
+
+        const matchingExamById =
+          rowExamId
+            ? rawExams.find(
+                (exam) =>
+                  String(exam?.id) === String(rowExamId)
+              )
+            : null;
+
+        const exam =
+          nestedExam ||
+          matchingExamById ||
+          examInList ||
+          null;
+
+        /*
+         * Submission metadata can be attached to either
+         * the subject row or the matching exam.
+         */
+        const combined = {
+          ...(existingRow || {}),
+
+          subject: subjectName,
+          exam: exam || null,
+
+          examId: firstValue(
+            exam?.id,
+            rowExamId,
+            existingRow?.exam_id,
+            null
+          ),
+
+          scheduled_start_at: firstValue(
+            existingRow?.scheduled_start_at,
+            existingRow?.startAt,
+            existingRow?.start_at,
+            exam?.scheduled_start_at,
+            exam?.start_at,
+            exam?.startAt
+          ),
+
+          scheduled_end_at: firstValue(
+            existingRow?.scheduled_end_at,
+            existingRow?.endAt,
+            existingRow?.end_at,
+            exam?.scheduled_end_at,
+            exam?.end_at,
+            exam?.endAt
+          ),
+
+          duration_minutes: firstValue(
+            existingRow?.duration_minutes,
+            exam?.duration_minutes,
+            exam?.durationMinutes
+          ),
+
+          total_questions: firstValue(
+            existingRow?.total_questions,
+            existingRow?.question_count,
+            exam?.total_questions,
+            exam?.question_count
+          ),
+
+          instructions: firstValue(
+            existingRow?.instructions,
+            exam?.instructions,
+            ""
+          ),
+
+          title: firstValue(
+            existingRow?.title,
+            exam?.title,
+            `${subjectName} Examination`
+          ),
+
+          /*
+           * Preserve both camelCase and snake_case response
+           * fields because the API may return either format.
+           */
+          submitted: Boolean(
+            existingRow?.submitted ||
+              existingRow?.isSubmitted ||
+              existingRow?.is_submitted ||
+              existingRow?.has_submitted ||
+              exam?.submitted ||
+              exam?.isSubmitted ||
+              exam?.is_submitted ||
+              exam?.has_submitted
+          ),
+
+          isSubmitted: Boolean(
+            existingRow?.submitted ||
+              existingRow?.isSubmitted ||
+              existingRow?.is_submitted ||
+              existingRow?.has_submitted ||
+              exam?.submitted ||
+              exam?.isSubmitted ||
+              exam?.is_submitted ||
+              exam?.has_submitted
+          ),
+
+          submittedAt: firstValue(
+            existingRow?.submittedAt,
+            existingRow?.submitted_at,
+            existingRow?.latest_attempt?.submitted_at,
+            existingRow?.latestAttempt?.submitted_at,
+            existingRow?.attempt?.submitted_at,
+            exam?.submittedAt,
+            exam?.submitted_at,
+            exam?.latest_attempt?.submitted_at,
+            exam?.latestAttempt?.submitted_at,
+            exam?.attempt?.submitted_at,
+            null
+          ),
+
+          submitted_at: firstValue(
+            existingRow?.submitted_at,
+            existingRow?.submittedAt,
+            existingRow?.latest_attempt?.submitted_at,
+            existingRow?.latestAttempt?.submitted_at,
+            exam?.submitted_at,
+            exam?.submittedAt,
+            exam?.latest_attempt?.submitted_at,
+            exam?.latestAttempt?.submitted_at,
+            null
+          ),
+
+          attemptId: firstValue(
+            existingRow?.attemptId,
+            existingRow?.attempt_id,
+            existingRow?.submitted_attempt_id,
+            existingRow?.latest_attempt?.id,
+            existingRow?.latestAttempt?.id,
+            existingRow?.attempt?.id,
+            exam?.attemptId,
+            exam?.attempt_id,
+            exam?.submitted_attempt_id,
+            exam?.latest_attempt?.id,
+            exam?.latestAttempt?.id,
+            exam?.attempt?.id,
+            null
+          ),
+
+          attemptStatus: firstValue(
+            existingRow?.attemptStatus,
+            existingRow?.attempt_status,
+            existingRow?.latest_attempt?.status,
+            existingRow?.latestAttempt?.status,
+            existingRow?.attempt?.status,
+            exam?.attemptStatus,
+            exam?.attempt_status,
+            exam?.latest_attempt?.status,
+            exam?.latestAttempt?.status,
+            exam?.attempt?.status,
+            null
+          ),
+
+          attempt_status: firstValue(
+            existingRow?.attempt_status,
+            existingRow?.attemptStatus,
+            existingRow?.latest_attempt?.status,
+            existingRow?.latestAttempt?.status,
+            existingRow?.attempt?.status,
+            exam?.attempt_status,
+            exam?.attemptStatus,
+            exam?.latest_attempt?.status,
+            exam?.latestAttempt?.status,
+            exam?.attempt?.status,
+            null
+          ),
+
+          latest_attempt: firstValue(
+            existingRow?.latest_attempt,
+            existingRow?.latestAttempt,
+            exam?.latest_attempt,
+            exam?.latestAttempt,
+            null
+          ),
+
+          latestAttempt: firstValue(
+            existingRow?.latestAttempt,
+            existingRow?.latest_attempt,
+            exam?.latestAttempt,
+            exam?.latest_attempt,
+            null
+          ),
+
+          attempts: firstValue(
+            existingRow?.attempts,
+            exam?.attempts,
+            []
+          ),
+        };
+
+        const submitted =
+          isExamSubmitted(combined) ||
+          isExamSubmitted(exam);
+
+        const submittedAt = firstValue(
+          getSubmissionTimestamp(combined),
+          getSubmissionTimestamp(exam),
+          null
+        );
+
+        const finalSubject = submitted
+          ? makeSubmittedSubject(
+              combined,
+              submittedAt,
+              combined.attemptId
+            )
+          : {
+              ...combined,
+              submitted: false,
+              isSubmitted: false,
+            };
+
+        const scheduleStatus = getScheduleStatus(
+          finalSubject,
+          Date.now()
+        );
+
+        return {
+          ...finalSubject,
+          status: scheduleStatus,
+        };
+      });
+
+      setSubjects(mappedSubjects);
+
+      setExamInfo(
+        payload?.examInfo ||
+          payload?.examination ||
+          payload?.details ||
+          payload?.data?.examInfo ||
+          null
+      );
+
+      if (!mappedSubjects.length) {
+        setNotice(
+          "No registered subjects were returned for this student. Please contact the Academy administrator."
+        );
+      } else {
+        setNotice("");
+      }
+    } catch (requestError) {
+      setError(
+        requestError.message ||
+          "Unable to load your examination subjects."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [apiRequest, outletContext]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  /* =========================================================
+     LIVE ACADEMY-WIDE COUNTDOWN
+  ========================================================= */
+
+  useEffect(() => {
+    if (screen !== "subjects") return undefined;
+
+    const interval = window.setInterval(() => {
+      setScheduleNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [screen]);
+
+  /* =========================================================
+     REFRESH ADMIN SCHEDULE
+  ========================================================= */
+
+  useEffect(() => {
+    if (screen !== "subjects") return undefined;
+
+    let active = true;
+
+    const refreshGlobalSchedule = async () => {
+      try {
+        const payload = await apiRequest("/exams");
+
+        if (!active) return;
+
+        const latestSchedule =
+          payload?.examInfo ||
+          payload?.examination ||
+          payload?.details ||
+          payload?.data?.examInfo ||
+          null;
+
+        if (latestSchedule) {
+          setExamInfo(latestSchedule);
+        }
+
+        setScheduleNow(Date.now());
+      } catch (refreshError) {
+        console.warn(
+          "Unable to refresh Academy examination schedule:",
+          refreshError.message
+        );
+      }
+    };
+
+    const interval = window.setInterval(
+      refreshGlobalSchedule,
+      30000
+    );
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [screen, apiRequest]);
+
+  /* =========================================================
+     REFRESH SUBJECT SCHEDULE STATUS
+  ========================================================= */
+
+  useEffect(() => {
+    if (screen !== "subjects") return undefined;
+
+    const interval = window.setInterval(() => {
+      setSubjects((current) =>
+        current.map((item) => ({
+          ...item,
+          status: isExamSubmitted(item)
+            ? "submitted"
+            : getScheduleStatus(item, Date.now()),
+        }))
+      );
+    }, 15000);
+
+    return () => window.clearInterval(interval);
+  }, [screen]);
+
+  /* =========================================================
+     OPEN ONE SUBJECT
+  ========================================================= */
+
+  const openSubject = useCallback(
+    async (subjectRow) => {
       setError("");
+      setNotice("");
 
-      const [examResponse, resultResponse] = await Promise.all([
-        apiRequest(`${CBT_BASE}/exams`),
-
-        apiRequest(`${CBT_BASE}/results`).catch(() => ({
-          results: [],
-        })),
-      ]);
-
-      if (!mountedRef.current) {
+      if (isExamSubmitted(subjectRow)) {
+        setActiveSubmittedCard(
+          `${normalizeSubject(subjectRow.subject)}-${getExamId(subjectRow) || "none"}`
+        );
         return;
       }
 
-      const examList =
-        examResponse?.exams ||
-        examResponse?.data?.exams ||
-        examResponse?.data ||
-        [];
-
-      const resultList =
-        resultResponse?.results ||
-        resultResponse?.data?.results ||
-        resultResponse?.data ||
-        [];
-
-      setExams(Array.isArray(examList) ? examList : []);
-
-      setResults(Array.isArray(resultList) ? resultList : []);
-
-      const subjects =
-        examResponse?.registeredSubjects ||
-        examResponse?.registered_subjects ||
-        examResponse?.subjects ||
-        [];
-
-      setRegisteredSubjects(
-        Array.isArray(subjects)
-          ? subjects.map((item) =>
-              typeof item === "string"
-                ? item
-                : item?.subject || item?.name || ""
-            ).filter(Boolean)
-          : []
+      const status = getScheduleStatus(
+        subjectRow,
+        Date.now()
       );
-    } catch (err) {
-      console.error("ACADEMY CBT DASHBOARD ERROR:", err);
 
-      if (mountedRef.current) {
-        setError(err.message || "Unable to load your examinations.");
+      if (status !== "available") {
+        setError(
+          status === "upcoming"
+            ? "This subject's examination has not started yet."
+            : status === "closed"
+              ? "The scheduled time for this examination has ended."
+              : "An examination has not been scheduled for this subject yet."
+        );
+
+        return;
       }
-    } finally {
-      if (mountedRef.current) {
+
+      const examId = getExamId(subjectRow);
+
+      if (!examId) {
+        setError(
+          "The examination for this subject could not be found."
+        );
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        const payload = await apiRequest(
+          `/exams/${encodeURIComponent(examId)}`
+        );
+
+        const exam =
+          payload?.exam ||
+          payload?.data?.exam ||
+          payload?.data ||
+          getExamFromSubject(subjectRow);
+
+        if (isExamSubmitted(exam)) {
+          const submittedAt =
+            getSubmissionTimestamp(exam) ||
+            new Date().toISOString();
+
+          markSubjectSubmitted(
+            subjectRow,
+            submittedAt,
+            exam?.attemptId ||
+              exam?.attempt_id ||
+              exam?.latest_attempt?.id
+          );
+
+          setActiveSubmittedCard(
+            `${normalizeSubject(subjectRow.subject)}-${examId}`
+          );
+
+          return;
+        }
+
+        setSelectedSubject(subjectRow);
+
+        setSelectedExam({
+          ...exam,
+
+          id: firstValue(exam?.id, examId),
+
+          subject: firstValue(
+            exam?.subject,
+            subjectRow.subject
+          ),
+
+          duration_minutes: firstValue(
+            exam?.duration_minutes,
+            exam?.durationMinutes,
+            subjectRow.duration_minutes
+          ),
+
+          scheduled_start_at: firstValue(
+            exam?.scheduled_start_at,
+            exam?.start_at,
+            subjectRow.scheduled_start_at
+          ),
+
+          scheduled_end_at: firstValue(
+            exam?.scheduled_end_at,
+            exam?.end_at,
+            subjectRow.scheduled_end_at
+          ),
+
+          instructions: firstValue(
+            exam?.instructions,
+            subjectRow.instructions,
+            ""
+          ),
+
+          title: firstValue(
+            exam?.title,
+            subjectRow.title,
+            `${subjectRow.subject} Examination`
+          ),
+
+          total_questions: firstValue(
+            exam?.total_questions,
+            exam?.question_count,
+            subjectRow.total_questions
+          ),
+        });
+
+        setScreen("subject-details");
+      } catch (requestError) {
+        if (isAlreadySubmittedError(requestError)) {
+          const submittedAt =
+            getSubmissionTimestamp(requestError.payload) ||
+            new Date().toISOString();
+
+          markSubjectSubmitted(subjectRow, submittedAt);
+
+          setActiveSubmittedCard(
+            `${normalizeSubject(subjectRow.subject)}-${examId}`
+          );
+
+          setError("");
+        } else {
+          setError(
+            requestError.message ||
+              "Unable to open this examination."
+          );
+        }
+      } finally {
         setLoading(false);
-        setRefreshing(false);
       }
-    }
-  }, []);
-
-  useEffect(() => {
-    mountedRef.current = true;
-
-    loadDashboard();
-
-    return () => {
-      mountedRef.current = false;
-
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-      }
-    };
-  }, [loadDashboard]);
-
-  // ==========================================================
-  // CLOCK
-  // ==========================================================
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // ==========================================================
-  // DERIVED EXAM LISTS
-  // ==========================================================
-
-  const availableExams = useMemo(
-    () =>
-      exams.filter(
-        (exam) => getExamStatus(exam) === "available"
-      ),
-    [exams, now]
+    },
+    [apiRequest, markSubjectSubmitted]
   );
 
-  const upcomingExams = useMemo(
-    () =>
-      exams.filter(
-        (exam) => getExamStatus(exam) === "upcoming"
-      ),
-    [exams, now]
-  );
-
-  const closedExams = useMemo(
-    () =>
-      exams.filter(
-        (exam) =>
-          ["closed", "unavailable"].includes(
-            getExamStatus(exam)
-          )
-      ),
-    [exams, now]
-  );
-
-  // ==========================================================
-  // EXAM DETAILS
-  // ==========================================================
-
-  const openExam = useCallback(async (exam) => {
-    const examId = getExamId(exam);
-
-    if (!examId) {
-      setError("This examination does not have a valid ID.");
-      return;
-    }
-
-    try {
-      setError("");
-
-      setSelectedExam(exam);
-
-      setShowInstructions(true);
-
-      setScreen("instructions");
-
-      const response = await apiRequest(
-        `${CBT_BASE}/exams/${encodeURIComponent(examId)}`
-      );
-
-      const fullExam =
-        response?.exam ||
-        response?.data?.exam ||
-        response?.data ||
-        exam;
-
-      setSelectedExam(fullExam);
-    } catch (err) {
-      console.error("CBT EXAM DETAILS ERROR:", err);
-
-      setError(err.message || "Unable to load examination details.");
-
-      setScreen("dashboard");
-    }
-  }, []);
-
-  // ==========================================================
-  // START EXAM
-  // ==========================================================
+  /* =========================================================
+     START EXAMINATION
+  ========================================================= */
 
   const startExam = useCallback(async () => {
-    if (!selectedExam || startingExam) {
+    if (!selectedExam?.id || !selectedSubject) return;
+
+    if (
+      isExamSubmitted(selectedSubject) ||
+      isExamSubmitted(selectedExam)
+    ) {
+      setScreen("subjects");
+      setError("");
+      await loadDashboard();
       return;
     }
 
-    const examId = getExamId(selectedExam);
+    const latestStatus = getScheduleStatus(
+      selectedSubject,
+      Date.now()
+    );
 
-    if (!examId) {
-      setError("Invalid examination.");
+    if (latestStatus !== "available") {
+      setError("This examination is not currently available.");
+      setScreen("subjects");
+      await loadDashboard();
       return;
     }
 
-    if (getExamStatus(selectedExam) === "upcoming") {
-      setError("This examination has not started yet.");
-      return;
-    }
+    setStarting(true);
+    setError("");
+
+    submittingRef.current = false;
+    timerSubmittingRef.current = false;
 
     try {
-      setStartingExam(true);
-      setError("");
-
-      const response = await apiRequest(
-        `${CBT_BASE}/exams/${encodeURIComponent(examId)}/start`,
+      const payload = await apiRequest(
+        `/exams/${encodeURIComponent(selectedExam.id)}/start`,
         {
           method: "POST",
           body: JSON.stringify({}),
         }
       );
 
-      const newAttempt = extractAttempt(response);
+      const newAttempt = readAttempt(payload);
+      const questionList = readQuestionList(payload);
 
-      const questionList = extractQuestions(response);
+      if (!newAttempt?.id && !newAttempt?.attempt_id) {
+        throw new Error(
+          "The server did not return an examination attempt."
+        );
+      }
 
       if (!questionList.length) {
         throw new Error(
-          "No examination questions were returned. Please contact your administrator."
+          "No questions have been uploaded for this subject yet."
         );
       }
 
-      const attemptId =
-        newAttempt?.id ||
-        newAttempt?.attempt_id ||
-        newAttempt?.attemptId;
-
-      if (!attemptId) {
-        throw new Error(
-          "The server did not return a valid examination attempt."
-        );
-      }
-
-      const savedAnswers =
-        newAttempt?.answers ||
-        response?.answers ||
-        {};
-
-      const normalizedAnswers = {};
-
-      if (Array.isArray(savedAnswers)) {
-        savedAnswers.forEach((item) => {
-          const questionId =
-            item?.question_id ||
-            item?.questionId;
-
-          const answer =
-            item?.answer ??
-            item?.selected_answer ??
-            item?.selectedAnswer;
-
-          if (questionId && answer !== undefined) {
-            normalizedAnswers[String(questionId)] = String(answer);
-          }
-        });
-      } else if (
-        savedAnswers &&
-        typeof savedAnswers === "object"
-      ) {
-        Object.entries(savedAnswers).forEach(([key, value]) => {
-          normalizedAnswers[String(key)] =
-            typeof value === "object"
-              ? String(
-                  value?.answer ??
-                  value?.selected_answer ??
-                  ""
-                )
-              : String(value ?? "");
-        });
-      }
-
-      const deadline = extractDeadline(
-        response,
-        newAttempt,
-        selectedExam
+      const attemptId = firstValue(
+        newAttempt.id,
+        newAttempt.attempt_id
       );
 
-      setAttempt(newAttempt);
+      const normalizedAttempt = {
+        ...newAttempt,
+        id: attemptId,
+      };
+
+      setAttempt(normalizedAttempt);
+      attemptRef.current = normalizedAttempt;
 
       setQuestions(questionList);
+      questionsRef.current = questionList;
 
-      setAnswers(normalizedAnswers);
+      const initialAnswers =
+        newAttempt?.answers &&
+        typeof newAttempt.answers === "object"
+          ? newAttempt.answers
+          : payload?.answers &&
+              typeof payload.answers === "object"
+            ? payload.answers
+            : {};
 
-      answersRef.current = normalizedAnswers;
+      setAnswers(initialAnswers);
+      answersRef.current = initialAnswers;
 
+      lastSavedRef.current = JSON.stringify(initialAnswers);
+
+      setCurrentQuestionIndex(0);
       setMarkedQuestions([]);
 
-      setCurrentQuestion(0);
+      const serverRemaining = Number(
+        firstValue(
+          payload?.remaining_seconds,
+          payload?.remainingSeconds,
+          newAttempt?.remaining_seconds,
+          newAttempt?.remainingSeconds
+        )
+      );
 
-      setExamDeadline(deadline);
+      const expiry = firstValue(
+        newAttempt?.expires_at,
+        newAttempt?.expiresAt,
+        payload?.expires_at,
+        payload?.expiresAt
+      );
+
+      let deadline = null;
+
+      if (expiry) {
+        const parsed = new Date(expiry).getTime();
+
+        if (Number.isFinite(parsed)) {
+          deadline = parsed;
+        }
+      }
+
+      if (
+        !deadline &&
+        Number.isFinite(serverRemaining) &&
+        serverRemaining > 0
+      ) {
+        deadline = Date.now() + serverRemaining * 1000;
+      }
+
+      if (!deadline) {
+        const duration = Number(
+          firstValue(
+            newAttempt?.duration_minutes,
+            selectedExam?.duration_minutes,
+            selectedExam?.durationMinutes,
+            60
+          )
+        );
+
+        deadline =
+          Date.now() + Math.max(1, duration) * 60 * 1000;
+      }
 
       deadlineRef.current = deadline;
 
@@ -843,1620 +1730,1284 @@ export default function StudentCBT() {
         )
       );
 
-      setSaveStatus("saved");
-
-      setReviewMode(false);
-
+      setMobileQuestionNav(false);
+      setShowSubmitConfirm(false);
       setScreen("exam");
-    } catch (err) {
-      console.error("CBT START EXAM ERROR:", err);
+    } catch (requestError) {
+      if (isAlreadySubmittedError(requestError)) {
+        const submittedAt =
+          getSubmissionTimestamp(requestError.payload) ||
+          new Date().toISOString();
 
-      setError(err.message || "Unable to start examination.");
+        markSubjectSubmitted(
+          selectedSubject,
+          submittedAt,
+          requestError?.payload?.attempt?.id ||
+            requestError?.payload?.attempt_id
+        );
+
+        setScreen("subjects");
+        setSelectedExam(null);
+        setSelectedSubject(null);
+        setError("");
+
+        await loadDashboard();
+
+        /*
+         * Re-apply the local submitted state after refresh
+         * in case the dashboard response is briefly stale.
+         */
+        markSubjectSubmitted(selectedSubject, submittedAt);
+      } else {
+        setError(
+          requestError.message ||
+            "Unable to start this examination."
+        );
+      }
     } finally {
-      setStartingExam(false);
+      setStarting(false);
     }
-  }, [selectedExam, startingExam]);
+  }, [
+    apiRequest,
+    loadDashboard,
+    markSubjectSubmitted,
+    selectedExam,
+    selectedSubject,
+  ]);
 
-  // ==========================================================
-  // SAVE ANSWERS
-  // ==========================================================
+  /* =========================================================
+     SAVE ANSWERS
+  ========================================================= */
 
-  const saveAnswers = useCallback(async (answerData) => {
-    if (!attempt || submittingRef.current) {
-      return;
-    }
+  const saveAnswers = useCallback(
+    async (answersToSave = answersRef.current, quiet = false) => {
+      const currentAttempt = attemptRef.current;
 
-    const attemptId =
-      attempt?.id ||
-      attempt?.attempt_id ||
-      attempt?.attemptId;
+      if (!currentAttempt?.id || !questionsRef.current.length) {
+        return;
+      }
 
-    if (!attemptId) {
-      return;
-    }
+      const serialized = JSON.stringify(answersToSave || {});
 
-    try {
-      setSaveStatus("saving");
+      if (serialized === lastSavedRef.current) {
+        return;
+      }
 
-      await apiRequest(
-        `${CBT_BASE}/attempts/${encodeURIComponent(attemptId)}/answers`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            answers: answerData,
-          }),
+      if (!quiet) setSaving(true);
+
+      try {
+        await apiRequest(
+          `/attempts/${encodeURIComponent(currentAttempt.id)}/answers`,
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              answers: answersToSave || {},
+            }),
+          }
+        );
+
+        lastSavedRef.current = serialized;
+      } catch (requestError) {
+        if (!quiet) {
+          setError(
+            requestError.message ||
+              "Unable to save your answers."
+          );
         }
-      );
-
-      if (mountedRef.current) {
-        setSaveStatus("saved");
+      } finally {
+        if (!quiet) setSaving(false);
       }
-    } catch (err) {
-      console.error("CBT ANSWER SAVE ERROR:", err);
+    },
+    [apiRequest]
+  );
 
-      if (mountedRef.current) {
-        setSaveStatus("error");
-      }
-    }
-  }, [attempt]);
-
-  const scheduleAnswerSave = useCallback((nextAnswers) => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-    }
-
-    saveTimerRef.current = setTimeout(() => {
-      saveAnswers(nextAnswers);
-    }, ANSWER_SAVE_DELAY);
-  }, [saveAnswers]);
-
-  // ==========================================================
-  // SELECT ANSWER
-  // ==========================================================
-
-  const selectAnswer = useCallback((questionId, answer) => {
-    if (!questionId || submittingRef.current) {
-      return;
-    }
-
-    setAnswers((previous) => {
+  const updateAnswer = useCallback(
+    (questionId, answer) => {
       const next = {
-        ...previous,
-        [String(questionId)]: String(answer),
+        ...answersRef.current,
+        [questionId]: answer,
       };
 
       answersRef.current = next;
+      setAnswers(next);
 
-      scheduleAnswerSave(next);
-
-      return next;
-    });
-  }, [scheduleAnswerSave]);
-
-  // ==========================================================
-  // MARK QUESTION FOR REVIEW
-  // ==========================================================
-
-  const toggleMarkQuestion = useCallback((questionId) => {
-    setMarkedQuestions((previous) => {
-      if (previous.includes(questionId)) {
-        return previous.filter((id) => id !== questionId);
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
       }
 
-      return [...previous, questionId];
-    });
-  }, []);
+      saveTimerRef.current = window.setTimeout(() => {
+        saveAnswers(next, true);
+      }, 650);
+    },
+    [saveAnswers]
+  );
 
-  // ==========================================================
-  // COUNTDOWN
-  // ==========================================================
+  /* =========================================================
+     SUBMIT EXAMINATION
+  ========================================================= */
 
-  useEffect(() => {
-    if (screen !== "exam" || !examDeadline) {
-      return;
-    }
+  const submitExam = useCallback(
+    async (automatic = false) => {
+      const currentAttempt = attemptRef.current;
 
-    const updateTimer = () => {
-      const remaining = Math.max(
-        0,
-        Math.floor((examDeadline - Date.now()) / 1000)
-      );
+      if (!currentAttempt?.id || submittingRef.current) {
+        return;
+      }
 
-      setRemainingSeconds(remaining);
-    };
-
-    updateTimer();
-
-    const interval = setInterval(updateTimer, 1000);
-
-    return () => clearInterval(interval);
-  }, [screen, examDeadline]);
-
-  // ==========================================================
-  // SUBMIT EXAM
-  // ==========================================================
-
-  const submitExam = useCallback(async (automatic = false) => {
-    if (!attempt || submittingRef.current) {
-      return;
-    }
-
-    const attemptId =
-      attempt?.id ||
-      attempt?.attempt_id ||
-      attempt?.attemptId;
-
-    if (!attemptId) {
-      setError("Your examination attempt could not be identified.");
-      return;
-    }
-
-    try {
       submittingRef.current = true;
-
       setSubmitting(true);
-
+      setShowSubmitConfirm(false);
       setError("");
 
       if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
+        window.clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
 
-      const response = await apiRequest(
-        `${CBT_BASE}/attempts/${encodeURIComponent(attemptId)}/submit`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            answers: answersRef.current,
-            automatic,
-          }),
+      try {
+        const serialized = JSON.stringify(
+          answersRef.current || {}
+        );
+
+        if (serialized !== lastSavedRef.current) {
+          await apiRequest(
+            `/attempts/${encodeURIComponent(currentAttempt.id)}/answers`,
+            {
+              method: "PUT",
+              body: JSON.stringify({
+                answers: answersRef.current || {},
+              }),
+            }
+          );
+
+          lastSavedRef.current = serialized;
         }
-      );
 
-      const result =
-        response?.result ||
-        response?.data?.result ||
-        response?.attempt ||
-        response?.data ||
-        response;
+        const submissionPayload = await apiRequest(
+          `/attempts/${encodeURIComponent(currentAttempt.id)}/submit`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              answers: answersRef.current || {},
+              automatic,
+            }),
+          }
+        );
 
-      setExamResult(result);
+        const submissionResult =
+          submissionPayload?.result ||
+          submissionPayload?.data?.result ||
+          submissionPayload?.data ||
+          submissionPayload;
 
-      setScreen("result");
+        const submittedAt = firstValue(
+          submissionResult?.submittedAt,
+          submissionResult?.submitted_at,
+          submissionPayload?.submittedAt,
+          submissionPayload?.submitted_at,
+          submissionResult?.attempt?.submitted_at,
+          new Date().toISOString()
+        );
 
-      setSubmitConfirmation(false);
+        const submittedAttemptId = firstValue(
+          submissionResult?.attempt?.id,
+          submissionResult?.attempt_id,
+          submissionPayload?.attempt?.id,
+          currentAttempt.id
+        );
 
-      setSaveStatus("saved");
+        setSubmissionTimestamp(submittedAt);
 
-      await loadDashboard(true);
-    } catch (err) {
-      console.error("CBT SUBMISSION ERROR:", err);
+        setSubmittedMessage(
+          automatic
+            ? "Your examination time has ended. Your answers have been submitted."
+            : "Your examination has been submitted successfully."
+        );
 
-      setError(
-        err.message ||
-        "Unable to submit examination. Please try again."
-      );
-    } finally {
-      submittingRef.current = false;
+        markSubjectSubmitted(
+          selectedSubject || selectedExam,
+          submittedAt,
+          submittedAttemptId
+        );
 
-      setSubmitting(false);
-    }
-  }, [attempt, loadDashboard]);
+        setScreen("submitted");
 
-  // ==========================================================
-  // AUTO SUBMIT WHEN TIME EXPIRES
-  // ==========================================================
+        setAttempt(null);
+        attemptRef.current = null;
+        deadlineRef.current = null;
+      } catch (requestError) {
+        submittingRef.current = false;
+
+        setError(
+          requestError.message ||
+            "Your examination could not be submitted. Please try again."
+        );
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [
+      apiRequest,
+      markSubjectSubmitted,
+      selectedExam,
+      selectedSubject,
+    ]
+  );
+
+  /* =========================================================
+     INDIVIDUAL EXAMINATION COUNTDOWN
+  ========================================================= */
 
   useEffect(() => {
-    if (
-      screen !== "exam" ||
-      remainingSeconds > 0 ||
-      submittingRef.current
-    ) {
-      return;
+    if (screen !== "exam" || !deadlineRef.current) {
+      return undefined;
     }
 
-    submitExam(true);
-  }, [screen, remainingSeconds, submitExam]);
+    const tick = () => {
+      const seconds = Math.max(
+        0,
+        Math.floor(
+          (deadlineRef.current - Date.now()) / 1000
+        )
+      );
 
-  // ==========================================================
-  // QUESTION COUNTS
-  // ==========================================================
+      setRemainingSeconds(seconds);
+
+      if (
+        seconds <= 0 &&
+        !timerSubmittingRef.current &&
+        !submittingRef.current
+      ) {
+        timerSubmittingRef.current = true;
+        submitExam(true);
+      }
+    };
+
+    tick();
+
+    const interval = window.setInterval(tick, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [screen, submitExam]);
+
+  /* =========================================================
+     CLEANUP
+  ========================================================= */
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
+
+  /* =========================================================
+     RETURN TO SUBJECTS
+  ========================================================= */
+
+  const returnToSubjects = useCallback(async () => {
+    setScreen("subjects");
+
+    setSelectedSubject(null);
+    setSelectedExam(null);
+    setQuestions([]);
+    setAnswers({});
+
+    answersRef.current = {};
+    questionsRef.current = [];
+
+    setAttempt(null);
+    attemptRef.current = null;
+
+    setCurrentQuestionIndex(0);
+    setMarkedQuestions([]);
+    setRemainingSeconds(0);
+
+    setMobileQuestionNav(false);
+    setShowSubmitConfirm(false);
+
+    setError("");
+    setNotice("");
+
+    submittingRef.current = false;
+    timerSubmittingRef.current = false;
+    deadlineRef.current = null;
+
+    await loadDashboard();
+  }, [loadDashboard]);
+
+  /* =========================================================
+     QUESTION STATE
+  ========================================================= */
+
+  const currentQuestion =
+    questions[currentQuestionIndex] || null;
+
+  const currentQuestionId = currentQuestion
+    ? getQuestionId(currentQuestion, currentQuestionIndex)
+    : "";
+
+  const currentOptions = useMemo(() => {
+    if (!currentQuestion) return [];
+
+    const raw = firstValue(
+      currentQuestion?.options,
+      currentQuestion?.answers,
+      currentQuestion?.choices,
+      []
+    );
+
+    let options = raw;
+
+    if (typeof raw === "string") {
+      try {
+        options = JSON.parse(raw);
+      } catch {
+        options = [];
+      }
+    }
+
+    if (!Array.isArray(options)) {
+      if (options && typeof options === "object") {
+        options = Object.entries(options).map(([label, text]) => ({
+          label,
+          text,
+        }));
+      } else {
+        options = [];
+      }
+    }
+
+    return options.map((option, index) => {
+      if (typeof option === "string") {
+        return {
+          label: String.fromCharCode(65 + index),
+          text: option,
+          value: option,
+        };
+      }
+
+      const fallbackLetter = String.fromCharCode(65 + index);
+
+      const label = clean(
+        firstValue(
+          option?.key,
+          option?.option_key,
+          option?.letter,
+          option?.option_label,
+          typeof option?.label === "string" &&
+            option.label.length <= 3
+            ? option.label
+            : null,
+          typeof option?.value === "string" &&
+            option.value.length <= 3
+            ? option.value
+            : null,
+          fallbackLetter
+        )
+      );
+
+      const text = clean(
+        firstValue(
+          option?.text,
+          option?.content,
+          option?.answer,
+          option?.option_text,
+          typeof option?.label === "string" &&
+            option.label.length > 3
+            ? option.label
+            : null,
+          typeof option?.value === "string" &&
+            option.value.length > 3
+            ? option.value
+            : null,
+          ""
+        )
+      );
+
+      return {
+        ...option,
+        label,
+        text,
+        value: clean(
+          firstValue(
+            option?.key,
+            option?.option_key,
+            option?.letter,
+            option?.option_label,
+            typeof option?.value === "string" &&
+              option.value.length <= 3
+              ? option.value
+              : null,
+            label
+          )
+        ),
+      };
+    });
+  }, [currentQuestion]);
+
+  const currentAnswer = currentQuestionId
+    ? answers[currentQuestionId]
+    : undefined;
 
   const answeredCount = useMemo(
     () =>
-      questions.filter((question) => {
-        const id = getQuestionId(question);
+      questions.filter((question, index) => {
+        const value = answers[getQuestionId(question, index)];
 
-        return Boolean(getSavedAnswer(answers, id));
+        return (
+          value !== undefined &&
+          value !== null &&
+          clean(value) !== ""
+        );
       }).length,
-    [questions, answers]
+    [answers, questions]
   );
 
-  const unansweredCount = questions.length - answeredCount;
-
-  const currentQuestionData = questions[currentQuestion];
-
-  const currentQuestionId = getQuestionId(currentQuestionData);
-
-  const currentAnswer = getSavedAnswer(
-    answers,
-    currentQuestionId
+  const unansweredCount = Math.max(
+    0,
+    questions.length - answeredCount
   );
 
-  const currentOptions = useMemo(
-    () => getQuestionOptions(currentQuestionData || {}),
-    [currentQuestionData]
+  /* =========================================================
+     ANSWER SELECTION
+  ========================================================= */
+
+  const selectAnswer = useCallback(
+    (option) => {
+      if (!currentQuestionId) return;
+
+      const selectedValue =
+        option !== null && typeof option === "object"
+          ? firstValue(
+              option.value,
+              option.text,
+              option.label,
+              option.content,
+              option.id
+            )
+          : option;
+
+      const answer = clean(selectedValue);
+
+      if (!answer) return;
+
+      updateAnswer(currentQuestionId, answer);
+    },
+    [currentQuestionId, updateAnswer]
   );
 
-  // ==========================================================
-  // QUESTION NAVIGATION
-  // ==========================================================
+  const toggleMarked = useCallback((questionId) => {
+    setMarkedQuestions((current) =>
+      current.includes(questionId)
+        ? current.filter((id) => id !== questionId)
+        : [...current, questionId]
+    );
+  }, []);
 
-  const goToQuestion = (index) => {
-    if (index < 0 || index >= questions.length) {
-      return;
-    }
+  const goToQuestion = useCallback(
+    (index) => {
+      if (index < 0 || index >= questions.length) return;
 
-    setCurrentQuestion(index);
-  };
-
-  const nextQuestion = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion((previous) => previous + 1);
-    }
-  };
-
-  const previousQuestion = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion((previous) => previous - 1);
-    }
-  };
-
-  // ==========================================================
-  // EXIT EXAM
-  // ==========================================================
-
-  const exitExam = () => {
-    if (screen === "exam") {
-      setError(
-        "Your examination is still in progress. Submit it before leaving."
-      );
-      return;
-    }
-
-    setScreen("dashboard");
-  };
-
-  // ==========================================================
-  // RESULT HELPERS
-  // ==========================================================
-
-  const resultScore = Number(
-    examResult?.score ??
-    examResult?.marks_obtained ??
-    examResult?.total_score ??
-    examResult?.correct_answers ??
-    0
+      setCurrentQuestionIndex(index);
+      setMobileQuestionNav(false);
+    },
+    [questions.length]
   );
 
-  const resultTotal = Number(
-    examResult?.total_marks ??
-    examResult?.maximum_score ??
-    examResult?.total_questions ??
-    examResult?.question_count ??
-    questions.length ??
-    0
+  /* =========================================================
+     SUBJECT COUNTS
+  ========================================================= */
+
+  const submittedSubjects = useMemo(
+    () => subjects.filter(isExamSubmitted),
+    [subjects]
   );
 
-  const resultPercentage = Number(
-    examResult?.percentage ??
-    (
-      resultTotal > 0
-        ? (resultScore / resultTotal) * 100
-        : 0
+  const activeSubjects = useMemo(
+    () => subjects.filter((item) => !isExamSubmitted(item)),
+    [subjects]
+  );
+
+  const subjectCounts = useMemo(
+    () => ({
+      available: activeSubjects.filter(
+        (item) =>
+          getScheduleStatus(item, scheduleNow) === "available"
+      ).length,
+
+      upcoming: activeSubjects.filter(
+        (item) =>
+          getScheduleStatus(item, scheduleNow) === "upcoming"
+      ).length,
+
+      closed: activeSubjects.filter(
+        (item) =>
+          getScheduleStatus(item, scheduleNow) === "closed"
+      ).length,
+
+      submitted: submittedSubjects.length,
+    }),
+    [activeSubjects, submittedSubjects, scheduleNow]
+  );
+
+  const studentName = clean(
+    firstValue(
+      student?.full_name,
+      student?.name,
+      [
+        student?.first_name,
+        student?.middle_name,
+        student?.last_name,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      "Student"
     )
   );
 
-  const passed =
-    examResult?.passed ??
-    examResult?.status === "passed" ??
-    resultPercentage >= 50;
+  /* =========================================================
+     SCREEN 1: WELCOME
+  ========================================================= */
 
-  // ==========================================================
-  // LOADING SCREEN
-  // ==========================================================
-
-  if (loading) {
-    return (
-      <div className="min-h-[65vh] flex flex-col items-center justify-center text-center text-slate-300">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-400 mb-4" />
-
-        <h2 className="text-lg font-semibold text-white">
-          Loading your examinations
-        </h2>
-
-        <p className="text-sm text-slate-400 mt-2">
-          Checking your scheduled Academy CBT exams...
-        </p>
-      </div>
-    );
-  }
-
-  // ==========================================================
-  // EXAMINATION SCREEN
-  // ==========================================================
-
-  if (screen === "exam") {
-    if (!currentQuestionData) {
-      return (
-        <div className="p-6 text-center text-white">
-          <AlertCircle className="w-10 h-10 mx-auto mb-3 text-red-400" />
-
-          <p>Examination questions could not be displayed.</p>
-
-          <button
-            onClick={() => submitExam(true)}
-            className="mt-5 px-5 py-3 rounded-xl bg-red-600"
-          >
-            Submit examination
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-5 text-slate-200">
-        {/* EXAM HEADER */}
-
-        <div className="rounded-2xl border border-slate-700 bg-[#071426] p-4 md:p-5">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-                <ShieldCheck size={15} />
-                Scholiqen Academy CBT
-              </div>
-
-              <h1 className="text-xl md:text-2xl font-bold text-white mt-2">
-                {getExamTitle(selectedExam)}
-              </h1>
-
-              <p className="text-sm text-slate-400 mt-1">
-                {studentName}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div
-                className={`rounded-xl border px-4 py-3 ${
-                  remainingSeconds <= 300
-                    ? "border-red-500/50 bg-red-500/10"
-                    : "border-slate-700 bg-[#020617]"
-                }`}
-              >
-                <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
-                  <Timer size={14} />
-                  Time remaining
-                </div>
-
-                <div
-                  className={`font-mono text-xl font-bold ${
-                    remainingSeconds <= 300
-                      ? "text-red-400"
-                      : "text-white"
-                  }`}
-                >
-                  {formatTime(remainingSeconds)}
-                </div>
-              </div>
-
-              <button
-                onClick={() => setSubmitConfirmation(true)}
-                disabled={submitting}
-                className="px-4 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold disabled:opacity-50"
-              >
-                Submit
-              </button>
-            </div>
+  const renderWelcome = () => (
+    <main className="mx-auto flex min-h-[calc(100vh-90px)] w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
+      <div className="grid w-full items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45 }}
+        >
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/[0.07] px-4 py-2 text-xs font-semibold text-blue-200">
+            <ShieldCheck size={14} />
+            Secure Academy Examination
           </div>
 
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            <div className="rounded-xl bg-[#020617] p-3">
-              <p className="text-xs text-slate-400">Questions</p>
-              <p className="text-xl font-bold text-white">
-                {questions.length}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-[#020617] p-3">
-              <p className="text-xs text-slate-400">Answered</p>
-              <p className="text-xl font-bold text-emerald-400">
-                {answeredCount}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-[#020617] p-3">
-              <p className="text-xs text-slate-400">Unanswered</p>
-              <p className="text-xl font-bold text-amber-400">
-                {unansweredCount}
-              </p>
-            </div>
-          </div>
-
-          <div className="h-2 rounded-full bg-slate-800 overflow-hidden mt-4">
-            <div
-              className="h-full bg-blue-500 transition-all"
-              style={{
-                width: `${
-                  questions.length
-                    ? (answeredCount / questions.length) * 100
-                    : 0
-                }%`,
-              }}
-            />
-          </div>
-
-          <div className="flex justify-between items-center mt-2 text-xs text-slate-400">
-            <span>Answer progress</span>
-
-            <span>
-              {answeredCount}/{questions.length}
-            </span>
-          </div>
-        </div>
-
-        {/* SAVE STATUS */}
-
-        <div className="flex justify-between items-center text-xs px-1">
-          <span className="text-slate-400">
-            Question {currentQuestion + 1} of {questions.length}
-          </span>
-
-          <span className="flex items-center gap-2">
-            {saveStatus === "saving" && (
-              <>
-                <Loader2 size={13} className="animate-spin" />
-                Saving answer...
-              </>
-            )}
-
-            {saveStatus === "saved" && (
-              <>
-                <CheckCircle2 size={13} className="text-emerald-400" />
-                Answers saved
-              </>
-            )}
-
-            {saveStatus === "error" && (
-              <>
-                <AlertCircle size={13} className="text-red-400" />
-                Save failed
-              </>
-            )}
-          </span>
-        </div>
-
-        {/* QUESTION AND NAVIGATION */}
-
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
-          <div className="rounded-2xl border border-slate-700 bg-[#071426] overflow-hidden">
-            <div className="border-b border-slate-700 p-4 md:p-5 flex justify-between items-center">
-              <div>
-                <p className="text-xs text-blue-400 font-semibold uppercase tracking-wider">
-                  {currentQuestionData.subject || selectedExam?.subject || "Examination"}
-                </p>
-
-                <h2 className="text-white font-semibold mt-1">
-                  Question {currentQuestion + 1}
-                </h2>
-              </div>
-
-              <button
-                onClick={() => toggleMarkQuestion(currentQuestionId)}
-                className={`text-xs rounded-lg px-3 py-2 border ${
-                  markedQuestions.includes(currentQuestionId)
-                    ? "border-amber-500/50 bg-amber-500/10 text-amber-300"
-                    : "border-slate-600 text-slate-400 hover:text-white"
-                }`}
-              >
-                {markedQuestions.includes(currentQuestionId)
-                  ? "Marked for review"
-                  : "Mark for review"}
-              </button>
-            </div>
-
-            <div className="p-5 md:p-7">
-              {currentQuestionData.passage && (
-                <div className="rounded-xl border border-slate-700 bg-[#020617] p-4 mb-5">
-                  {currentQuestionData.passage_title && (
-                    <h3 className="font-semibold text-white mb-2">
-                      {currentQuestionData.passage_title}
-                    </h3>
-                  )}
-
-                  <p className="text-sm leading-7 text-slate-300 whitespace-pre-wrap">
-                    {currentQuestionData.passage}
-                  </p>
-                </div>
-              )}
-
-              {currentQuestionData.image && (
-                <div className="mb-5">
-                  <img
-                    src={
-                      currentQuestionData.image.startsWith("http")
-                        ? currentQuestionData.image
-                        : `${API_BASE}${currentQuestionData.image.startsWith("/") ? "" : "/"}${currentQuestionData.image}`
-                    }
-                    alt="Question illustration"
-                    className="max-h-80 max-w-full rounded-xl object-contain"
-                  />
-                </div>
-              )}
-
-              <div className="text-base md:text-lg leading-8 text-white whitespace-pre-wrap">
-                {getQuestionText(currentQuestionData)}
-              </div>
-
-              <div className="space-y-3 mt-7">
-                {currentOptions.map((option) => {
-                  const selected =
-                    currentAnswer.toUpperCase() ===
-                    option.key.toUpperCase();
-
-                  return (
-                    <button
-                      key={option.key}
-                      onClick={() =>
-                        selectAnswer(currentQuestionId, option.key)
-                      }
-                      disabled={submitting}
-                      className={`w-full flex items-start gap-3 p-4 rounded-xl border text-left transition-all ${
-                        selected
-                          ? "border-blue-500 bg-blue-500/10"
-                          : "border-slate-700 bg-[#020617] hover:border-slate-500"
-                      }`}
-                    >
-                      <span
-                        className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-sm font-bold ${
-                          selected
-                            ? "bg-blue-600 text-white"
-                            : "bg-slate-800 text-slate-300"
-                        }`}
-                      >
-                        {option.key}
-                      </span>
-
-                      <span className="flex-1 text-sm md:text-base leading-7 text-slate-200 pt-0.5">
-                        {option.text}
-                      </span>
-
-                      {selected && (
-                        <CheckCircle2
-                          size={19}
-                          className="text-blue-400 shrink-0"
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {!currentOptions.length && (
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300 mt-5">
-                  No answer options were supplied for this question.
-                </div>
-              )}
-
-              {/* NAVIGATION */}
-
-              <div className="flex flex-wrap justify-between gap-3 mt-9 pt-5 border-t border-slate-700">
-                <button
-                  onClick={previousQuestion}
-                  disabled={currentQuestion === 0}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-30"
-                >
-                  <ArrowLeft size={17} />
-                  Previous
-                </button>
-
-                {currentQuestion < questions.length - 1 ? (
-                  <button
-                    onClick={nextQuestion}
-                    className="flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold"
-                  >
-                    Next question
-                    <ArrowRight size={17} />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setSubmitConfirmation(true)}
-                    className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
-                  >
-                    Finish examination
-                    <Check size={17} />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* QUESTION NAVIGATION PANEL */}
-
-          <aside className="rounded-2xl border border-slate-700 bg-[#071426] p-4 h-fit">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-white">
-                Question navigator
-              </h3>
-
-              <button
-                onClick={() => setShowQuestionGrid((value) => !value)}
-                className="text-xs text-blue-400"
-              >
-                {showQuestionGrid ? "Hide" : "Show"}
-              </button>
-            </div>
-
-            {showQuestionGrid && (
-              <>
-                <div className="grid grid-cols-5 gap-2">
-                  {questions.map((question, index) => {
-                    const id = getQuestionId(question);
-
-                    const answered = Boolean(
-                      getSavedAnswer(answers, id)
-                    );
-
-                    const marked = markedQuestions.includes(id);
-
-                    const active = currentQuestion === index;
-
-                    return (
-                      <button
-                        key={id || index}
-                        onClick={() => goToQuestion(index)}
-                        className={`aspect-square rounded-lg text-sm font-semibold border ${
-                          active
-                            ? "border-blue-400 bg-blue-600 text-white"
-                            : marked
-                              ? "border-amber-500 bg-amber-500/20 text-amber-300"
-                              : answered
-                                ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300"
-                                : "border-slate-600 bg-[#020617] text-slate-400"
-                        }`}
-                      >
-                        {index + 1}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="space-y-3 mt-5 text-xs text-slate-400">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-emerald-500/30 border border-emerald-500" />
-                    Answered
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-amber-500/30 border border-amber-500" />
-                    Marked for review
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-[#020617] border border-slate-600" />
-                    Not answered
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-blue-600 border border-blue-400" />
-                    Current question
-                  </div>
-                </div>
-              </>
-            )}
-
-            <div className="border-t border-slate-700 mt-5 pt-4">
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-400">Answered</span>
-                <span className="text-emerald-400 font-semibold">
-                  {answeredCount}
-                </span>
-              </div>
-
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-400">Unanswered</span>
-                <span className="text-amber-400 font-semibold">
-                  {unansweredCount}
-                </span>
-              </div>
-
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">Review</span>
-                <span className="text-white font-semibold">
-                  {markedQuestions.length}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setSubmitConfirmation(true)}
-              disabled={submitting}
-              className="w-full mt-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold disabled:opacity-50"
-            >
-              Submit examination
-            </button>
-          </aside>
-        </div>
-
-        {/* SUBMISSION CONFIRMATION */}
-
-        <AnimatePresence>
-          {submitConfirmation && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.95, y: 15 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.95, y: 15 }}
-                className="w-full max-w-md rounded-2xl border border-slate-700 bg-[#071426] p-6"
-              >
-                <div className="w-12 h-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-4">
-                  <FileText size={24} />
-                </div>
-
-                <h2 className="text-xl font-bold text-white">
-                  Submit examination?
-                </h2>
-
-                <p className="text-sm text-slate-400 leading-6 mt-2">
-                  Are you sure you want to submit this examination?
-                  You will not be able to change your answers afterward.
-                </p>
-
-                <div className="grid grid-cols-2 gap-3 mt-5">
-                  <div className="rounded-xl bg-[#020617] p-3">
-                    <p className="text-xs text-slate-400">
-                      Answered
-                    </p>
-
-                    <p className="text-xl font-bold text-emerald-400">
-                      {answeredCount}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-[#020617] p-3">
-                    <p className="text-xs text-slate-400">
-                      Unanswered
-                    </p>
-
-                    <p className="text-xl font-bold text-amber-400">
-                      {unansweredCount}
-                    </p>
-                  </div>
-                </div>
-
-                {unansweredCount > 0 && (
-                  <p className="text-xs text-amber-300 mt-4">
-                    You still have {unansweredCount} unanswered question(s).
-                  </p>
-                )}
-
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={() => setSubmitConfirmation(false)}
-                    disabled={submitting}
-                    className="flex-1 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-800"
-                  >
-                    Continue exam
-                  </button>
-
-                  <button
-                    onClick={() => submitExam(false)}
-                    disabled={submitting}
-                    className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {submitting ? (
-                      <Loader2 size={17} className="animate-spin" />
-                    ) : (
-                      <Check size={17} />
-                    )}
-
-                    {submitting ? "Submitting..." : "Submit now"}
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* SUBMISSION ERROR */}
-
-        {error && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 flex gap-3 text-sm text-red-300">
-            <AlertCircle size={18} className="shrink-0" />
-            {error}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ==========================================================
-  // RESULT SCREEN
-  // ==========================================================
-
-  if (screen === "result") {
-    return (
-      <div className="max-w-3xl mx-auto space-y-6 text-slate-200">
-        <div className="rounded-2xl border border-slate-700 bg-[#071426] p-6 md:p-9 text-center">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-            {passed ? (
-              <Trophy size={32} />
-            ) : (
-              <Award size={32} />
-            )}
-          </div>
-
-          <p className="text-xs uppercase tracking-widest text-blue-400 font-semibold mt-5">
-            Examination completed
+          <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-blue-300">
+            Welcome to
           </p>
 
-          <h1 className="text-2xl md:text-3xl font-bold text-white mt-2">
-            {passed ? "Well done!" : "Examination submitted"}
+          <h1 className="max-w-2xl text-4xl font-black leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl">
+            Scholiqen CBT
+            <span className="mt-2 block text-blue-400">
+              Academy Session Examination
+            </span>
           </h1>
 
-          <p className="text-sm text-slate-400 mt-2">
-            {getExamTitle(selectedExam)}
+          <p className="mt-6 max-w-xl text-base leading-8 text-slate-400">
+            Your examination portal is ready. Review the
+            examination details and instructions before
+            proceeding to the subjects registered under your
+            Academy enrollment.
           </p>
 
-          <div className="my-8">
-            <div className="text-5xl md:text-6xl font-black text-white">
-              {Number.isFinite(resultPercentage)
-                ? resultPercentage.toFixed(1)
-                : "0.0"}
-              <span className="text-2xl text-slate-400">%</span>
-            </div>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <PrimaryButton onClick={() => setScreen("details")}>
+              Proceed to Examination Details
+              <ArrowRight size={17} />
+            </PrimaryButton>
 
-            <p className="text-sm text-slate-400 mt-2">
-              Your examination score
-            </p>
+            <span className="text-xs text-slate-500">
+              Please read the instructions carefully.
+            </span>
           </div>
+        </motion.div>
 
-          <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
-            <div className="rounded-xl bg-[#020617] p-4">
-              <p className="text-xs text-slate-400">
-                Score
-              </p>
-
-              <p className="text-xl font-bold text-white mt-1">
-                {resultScore}
-                {resultTotal > 0 ? ` / ${resultTotal}` : ""}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-[#020617] p-4">
-              <p className="text-xs text-slate-400">
-                Result
-              </p>
-
-              <p
-                className={`text-xl font-bold mt-1 ${
-                  passed ? "text-emerald-400" : "text-amber-400"
-                }`}
-              >
-                {passed ? "Passed" : "Completed"}
-              </p>
-            </div>
-          </div>
-
-          {examResult?.feedback && (
-            <div className="mt-6 rounded-xl bg-[#020617] border border-slate-700 p-4 text-left">
-              <h3 className="text-sm font-semibold text-white mb-2">
-                Feedback
-              </h3>
-
-              <p className="text-sm text-slate-400 leading-6">
-                {examResult.feedback}
-              </p>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row justify-center gap-3 mt-8">
-            <button
-              onClick={() => {
-                setScreen("dashboard");
-                setAttempt(null);
-                setQuestions([]);
-                setAnswers({});
-                setExamResult(null);
-                setSelectedExam(null);
-                setExamDeadline(null);
-                loadDashboard(true);
-              }}
-              className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold"
-            >
-              Back to examinations
-            </button>
-
-            <button
-              onClick={() => navigate("/academy/student/progress")}
-              className="px-6 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-800"
-            >
-              View my progress
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ==========================================================
-  // INSTRUCTIONS SCREEN
-  // ==========================================================
-
-  if (screen === "instructions" && selectedExam) {
-    const examStatus = getExamStatus(selectedExam);
-
-    const subjects = getExamSubjects(selectedExam);
-
-    const startTime = getExamStart(selectedExam);
-
-    const endTime = getExamEnd(selectedExam);
-
-    return (
-      <div className="max-w-4xl mx-auto space-y-5 text-slate-200">
-        <button
-          onClick={() => {
-            setScreen("dashboard");
-            setSelectedExam(null);
-            setError("");
-          }}
-          className="flex items-center gap-2 text-sm text-slate-400 hover:text-white"
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="relative"
         >
-          <ArrowLeft size={17} />
-          Back to examinations
-        </button>
+          <div className="absolute -inset-5 rounded-[2rem] bg-blue-500/[0.06] blur-3xl" />
 
-        <div className="rounded-2xl border border-slate-700 bg-[#071426] overflow-hidden">
-          <div className="p-6 md:p-8 border-b border-slate-700">
-            <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-              <GraduationCap size={17} />
-              Scholiqen Academy
-            </div>
+          <div className={`${DARK_PANEL} relative overflow-hidden p-6 sm:p-8`}>
+            <div className="absolute right-0 top-0 h-44 w-44 rounded-full bg-blue-500/[0.08] blur-3xl" />
 
-            <h1 className="text-2xl md:text-3xl font-bold text-white mt-4">
-              {getExamTitle(selectedExam)}
-            </h1>
-
-            <p className="text-sm text-slate-400 mt-2">
-              Read the examination information and instructions carefully before starting.
-            </p>
-
-            <div className="flex flex-wrap gap-2 mt-5">
-              <span
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
-                  examStatus === "available"
-                    ? "bg-emerald-500/10 text-emerald-400"
-                    : examStatus === "upcoming"
-                      ? "bg-amber-500/10 text-amber-300"
-                      : "bg-red-500/10 text-red-300"
-                }`}
-              >
-                {examStatus === "available"
-                  ? "Available"
-                  : examStatus === "upcoming"
-                    ? "Not started"
-                    : "Unavailable"}
-              </span>
-
-              <span className="px-3 py-1.5 rounded-full bg-slate-800 text-slate-300 text-xs">
-                {formatDuration(getDuration(selectedExam))}
-              </span>
-            </div>
-          </div>
-
-          <div className="p-6 md:p-8 space-y-7">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="rounded-xl bg-[#020617] border border-slate-700 p-4">
-                <div className="flex items-center gap-2 text-slate-400 text-xs">
-                  <CalendarDays size={15} />
-                  Scheduled start
-                </div>
-
-                <p className="text-white font-semibold mt-2">
-                  {formatDate(startTime)}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-[#020617] border border-slate-700 p-4">
-                <div className="flex items-center gap-2 text-slate-400 text-xs">
-                  <Clock3 size={15} />
-                  Scheduled closing
-                </div>
-
-                <p className="text-white font-semibold mt-2">
-                  {formatDate(endTime)}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-white font-semibold mb-3">
-                Examination subjects
-              </h2>
-
-              {subjects.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {subjects.map((subject) => (
-                    <span
-                      key={subject}
-                      className="px-3 py-2 rounded-lg border border-slate-700 bg-[#020617] text-sm text-slate-300"
-                    >
-                      {subject}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-slate-400">
-                  Your examination subjects will be determined by your registered course and the examination configuration.
-                </p>
-              )}
-            </div>
-
-            {getExamDescription(selectedExam) && (
+            <div className="relative flex min-h-[330px] flex-col justify-between">
               <div>
-                <h2 className="text-white font-semibold mb-3">
-                  Examination information
+                <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-300/20 bg-blue-500/10 text-blue-300">
+                  <GraduationCap size={34} />
+                </div>
+
+                <h2 className="text-2xl font-bold text-white">
+                  Your examination journey
                 </h2>
 
-                <div className="rounded-xl border border-slate-700 bg-[#020617] p-4 text-sm leading-7 text-slate-300 whitespace-pre-wrap">
-                  {getExamDescription(selectedExam)}
-                </div>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
+                  Follow the steps in order. Each subject
+                  examination is independent and follows its
+                  own approved schedule.
+                </p>
               </div>
-            )}
 
-            <div>
-              <h2 className="text-white font-semibold mb-4">
-                Examination instructions
-              </h2>
-
-              <div className="space-y-3">
+              <div className="mt-8 space-y-4">
                 {[
-                  "Make sure you have a stable internet connection before starting.",
-                  "The examination timer starts when your attempt begins.",
-                  "Answer each question by selecting the option you consider correct.",
-                  "Use the question navigator to move between questions.",
-                  "You can mark questions for review before submitting.",
-                  "Your answers are saved while you work.",
-                  "The examination will be submitted automatically when the time expires.",
-                  "You cannot change your answers after submitting the examination.",
-                ].map((instruction, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start gap-3 text-sm text-slate-300"
-                  >
-                    <CheckCircle2
-                      size={17}
-                      className="text-emerald-400 shrink-0 mt-0.5"
-                    />
+                  ["01", "Welcome and examination details"],
+                  ["02", "Review your registered subjects"],
+                  ["03", "Take each available subject examination"],
+                  ["04", "Submit your answers"],
+                ].map(([number, label]) => (
+                  <div key={number} className="flex items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue-400/20 bg-blue-400/[0.07] text-xs font-bold text-blue-300">
+                      {number}
+                    </span>
 
-                    <span>{instruction}</span>
+                    <span className="text-sm font-medium text-slate-300">
+                      {label}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
-
-            {error && (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
-                {error}
-              </div>
-            )}
-
-            {examStatus === "upcoming" && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-                <div className="flex items-center gap-2 text-amber-300 font-semibold text-sm">
-                  <Lock size={17} />
-                  Examination not yet available
-                </div>
-
-                <p className="text-xs text-amber-200/80 mt-2">
-                  You can start this examination when the scheduled start time arrives.
-                </p>
-              </div>
-            )}
-
-            <button
-              onClick={startExam}
-              disabled={
-                startingExam ||
-                examStatus !== "available"
-              }
-              className="w-full flex items-center justify-center gap-3 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {startingExam ? (
-                <>
-                  <Loader2 size={19} className="animate-spin" />
-                  Starting examination...
-                </>
-              ) : examStatus === "upcoming" ? (
-                <>
-                  <Lock size={19} />
-                  Examination not yet open
-                </>
-              ) : (
-                <>
-                  <Play size={19} />
-                  I am ready - Start examination
-                </>
-              )}
-            </button>
           </div>
-        </div>
+        </motion.div>
       </div>
-    );
-  }
+    </main>
+  );
 
-  // ==========================================================
-  // DASHBOARD SCREEN
-  // ==========================================================
+  /* =========================================================
+     SCREEN 3: REGISTERED SUBJECTS
+  ========================================================= */
 
-  return (
-    <div className="space-y-6 text-slate-200">
-      {/* HEADER */}
-
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+  const renderSubjects = () => (
+    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-            <GraduationCap size={16} />
-            Scholiqen Academy
-          </div>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-300">
+            Student examination portal
+          </p>
 
-          <h1 className="text-2xl md:text-3xl font-bold text-white mt-2">
-            Computer Based Test
+          <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">
+            Your Registered Subjects
           </h1>
 
-          <p className="text-sm text-slate-400 mt-2">
-            Welcome, {studentName}. View your scheduled examinations and check your results.
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400">
+            All subjects in your Academy enrollment are listed
+            below. Each subject has its own questions, schedule
+            and examination duration.
           </p>
         </div>
 
-        <button
-          onClick={() => loadDashboard(true)}
-          disabled={refreshing}
-          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-700 bg-[#071426] hover:bg-slate-800 text-sm text-slate-300 disabled:opacity-50"
-        >
+        <SecondaryButton onClick={loadDashboard} disabled={loading}>
           <RefreshCw
-            size={16}
-            className={refreshing ? "animate-spin" : ""}
+            size={15}
+            className={loading ? "animate-spin" : ""}
           />
           Refresh
-        </button>
+        </SecondaryButton>
       </div>
 
-      {/* ERROR */}
+      {(() => {
+        const generalStart = firstValue(
+          examInfo?.scheduled_start_at,
+          examInfo?.start_at,
+          examInfo?.startAt,
+          examInfo?.exam_start_at,
+          examInfo?.schedule_start_at
+        );
 
-      {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 flex items-start gap-3 text-sm text-red-300">
-          <AlertCircle size={18} className="shrink-0 mt-0.5" />
+        const generalEnd = firstValue(
+          examInfo?.scheduled_end_at,
+          examInfo?.end_at,
+          examInfo?.endAt,
+          examInfo?.exam_end_at,
+          examInfo?.schedule_end_at
+        );
 
-          <div className="flex-1">
-            {error}
-          </div>
+        const generalTitle = firstValue(
+          examInfo?.title,
+          examInfo?.exam_title,
+          "General Examination Schedule"
+        );
 
-          <button
-            onClick={() => setError("")}
-            className="text-red-300 hover:text-white"
-          >
-            <XCircle size={17} />
-          </button>
-        </div>
-      )}
+        return (
+          <section className={`${DARK_PANEL} mb-6 p-5 sm:p-6`}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-300">
+                  Academy-wide schedule
+                </p>
 
-      {/* SUMMARY */}
+                <h2 className="mt-2 text-lg font-bold text-white">
+                  {generalTitle}
+                </h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-slate-700 bg-[#071426] p-5">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
-            <FileText size={20} />
-          </div>
-
-          <p className="text-sm text-slate-400 mt-4">
-            Total examinations
-          </p>
-
-          <p className="text-3xl font-bold text-white mt-1">
-            {exams.length}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-700 bg-[#071426] p-5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-            <Play size={20} />
-          </div>
-
-          <p className="text-sm text-slate-400 mt-4">
-            Available now
-          </p>
-
-          <p className="text-3xl font-bold text-white mt-1">
-            {availableExams.length}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-700 bg-[#071426] p-5">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400">
-            <CalendarDays size={20} />
-          </div>
-
-          <p className="text-sm text-slate-400 mt-4">
-            Upcoming exams
-          </p>
-
-          <p className="text-3xl font-bold text-white mt-1">
-            {upcomingExams.length}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-700 bg-[#071426] p-5">
-          <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
-            <Award size={20} />
-          </div>
-
-          <p className="text-sm text-slate-400 mt-4">
-            Completed results
-          </p>
-
-          <p className="text-3xl font-bold text-white mt-1">
-            {results.length}
-          </p>
-        </div>
-      </div>
-
-      {/* REGISTERED SUBJECTS */}
-
-      {registeredSubjects.length > 0 && (
-        <div className="rounded-2xl border border-slate-700 bg-[#071426] p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <BookOpen size={18} className="text-blue-400" />
-
-            <h2 className="font-semibold text-white">
-              Your registered subjects
-            </h2>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {registeredSubjects.map((subject) => (
-              <span
-                key={subject}
-                className="px-3 py-2 rounded-lg border border-slate-700 bg-[#020617] text-sm text-slate-300"
-              >
-                {subject}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* AVAILABLE EXAMS */}
-
-      <section>
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-white">
-              Available examinations
-            </h2>
-
-            <p className="text-xs text-slate-400 mt-1">
-              Examinations currently within their scheduled access window.
-            </p>
-          </div>
-
-          <span className="text-xs text-emerald-400">
-            {availableExams.length} available
-          </span>
-        </div>
-
-        {availableExams.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {availableExams.map((exam) => {
-              const subjects = getExamSubjects(exam);
-
-              return (
-                <motion.div
-                  key={getExamId(exam)}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="rounded-2xl border border-slate-700 bg-[#071426] p-5 flex flex-col"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
-                      <GraduationCap size={23} />
-                    </div>
-
-                    <span className="text-xs px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400">
-                      Available
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-white text-lg mt-5">
-                    {getExamTitle(exam)}
-                  </h3>
-
-                  <p className="text-xs text-slate-400 mt-2 leading-6 line-clamp-3">
-                    {getExamDescription(exam) ||
-                      "Scheduled computer-based examination for your registered subjects."}
-                  </p>
-
-                  <div className="space-y-3 mt-5 text-xs">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Clock3 size={15} />
-                      {formatDuration(getDuration(exam))}
-                    </div>
-
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <CalendarDays size={15} />
-                      {formatDate(getExamStart(exam))}
-                    </div>
-
-                    {subjects.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {subjects.slice(0, 4).map((subject) => (
-                          <span
-                            key={subject}
-                            className="rounded-lg bg-[#020617] border border-slate-700 px-2 py-1 text-slate-300"
-                          >
-                            {subject}
-                          </span>
-                        ))}
-
-                        {subjects.length > 4 && (
-                          <span className="text-slate-500 py-1">
-                            +{subjects.length - 4} more
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => openExam(exam)}
-                    className="w-full mt-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm flex items-center justify-center gap-2"
-                  >
-                    View instructions
-                    <ArrowRight size={16} />
-                  </button>
-                </motion.div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-slate-700 bg-[#071426] p-8 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto text-blue-400">
-              <CalendarDays size={26} />
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  General examination dates and times configured by the administrator.
+                </p>
+              </div>
             </div>
 
-            <h3 className="text-white font-semibold mt-4">
-              No examination available right now
-            </h3>
+            <AcademyScheduleCountdown
+              startAt={generalStart}
+              endAt={generalEnd}
+              now={scheduleNow}
+            />
 
-            <p className="text-sm text-slate-400 max-w-md mx-auto mt-2 leading-6">
-              Your administrator has not opened an examination for you yet. Upcoming scheduled examinations will appear here when they are published.
-            </p>
-          </div>
-        )}
-      </section>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <InfoTile
+                icon={CalendarDays}
+                label="General start"
+                value={formatDateTime(generalStart)}
+              />
 
-      {/* UPCOMING EXAMS */}
+              <InfoTile
+                icon={Clock3}
+                label="General end"
+                value={formatDateTime(generalEnd)}
+              />
+            </div>
+          </section>
+        );
+      })()}
 
-      {upcomingExams.length > 0 && (
-        <section>
-          <div className="mb-4">
-            <h2 className="text-lg font-bold text-white">
-              Upcoming examinations
-            </h2>
-
-            <p className="text-xs text-slate-400 mt-1">
-              These examinations are locked until their scheduled start time.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {upcomingExams.map((exam) => (
-              <div
-                key={getExamId(exam)}
-                className="rounded-xl border border-slate-700 bg-[#071426] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
-                    <Lock size={19} />
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold text-white">
-                      {getExamTitle(exam)}
-                    </h3>
-
-                    <p className="text-xs text-slate-400 mt-1">
-                      Starts: {formatDate(getExamStart(exam))}
-                    </p>
-
-                    <p className="text-xs text-slate-500 mt-1">
-                      Duration: {formatDuration(getDuration(exam))}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => openExam(exam)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm"
-                >
-                  View details
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* RECENT RESULTS */}
-
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-white">
-              Examination results
-            </h2>
-
-            <p className="text-xs text-slate-400 mt-1">
-              Your actual submitted examination records.
-            </p>
-          </div>
-
-          <button
-            onClick={() => navigate("/academy/student/progress")}
-            className="text-xs text-blue-400 hover:text-blue-300"
-          >
-            View progress
-          </button>
-        </div>
-
-        {results.length > 0 ? (
-          <div className="rounded-2xl border border-slate-700 bg-[#071426] overflow-hidden">
-            {results.slice(0, 8).map((result, index) => {
-              const title =
-                result?.exam_title ||
-                result?.title ||
-                result?.exam_name ||
-                result?.exam ||
-                "Completed examination";
-
-              const percentage = Number(
-                result?.percentage ??
-                result?.score_percentage ??
-                0
-              );
-
-              return (
-                <div
-                  key={
-                    result?.id ||
-                    result?.attempt_id ||
-                    index
-                  }
-                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700 last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
-                      <Award size={19} />
-                    </div>
-
-                    <div>
-                      <h3 className="text-sm font-semibold text-white">
-                        {title}
-                      </h3>
-
-                      <p className="text-xs text-slate-400 mt-1">
-                        {formatDate(
-                          result?.submitted_at ||
-                          result?.completed_at ||
-                          result?.created_at
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <span
-                      className={`text-sm font-bold ${
-                        percentage >= 50
-                          ? "text-emerald-400"
-                          : "text-amber-400"
-                      }`}
-                    >
-                      {percentage.toFixed(1)}%
-                    </span>
-
-                    <span className="text-xs text-slate-400">
-                      {result?.status || "Submitted"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-slate-700 bg-[#071426] p-7 text-center">
-            <Award size={28} className="mx-auto text-slate-500" />
-
-            <p className="text-sm font-semibold text-white mt-3">
-              No examination results yet
-            </p>
-
-            <p className="text-xs text-slate-400 mt-2">
-              Your results will appear here after you submit an examination.
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* CLOSED EXAMS */}
-
-      {closedExams.length > 0 && (
-        <section>
-          <h2 className="text-lg font-bold text-white mb-4">
-            Closed examinations
-          </h2>
-
-          <div className="space-y-3">
-            {closedExams.map((exam) => (
-              <div
-                key={getExamId(exam)}
-                className="rounded-xl border border-slate-800 bg-[#071426]/70 p-4 flex items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-800 text-slate-500 flex items-center justify-center">
-                    <FileText size={18} />
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-semibold text-slate-300">
-                      {getExamTitle(exam)}
-                    </p>
-
-                    <p className="text-xs text-slate-500 mt-1">
-                      {formatDate(getExamStart(exam))}
-                    </p>
-                  </div>
-                </div>
-
-                <span className="text-xs text-slate-500">
-                  Closed
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* FOOTER */}
-
-      <div className="rounded-2xl border border-slate-700 bg-[#071426] p-5 flex items-start gap-3">
-        <ShieldCheck size={20} className="text-blue-400 shrink-0 mt-0.5" />
-
-        <div>
-          <h3 className="text-sm font-semibold text-white">
-            Examination security
-          </h3>
-
-          <p className="text-xs text-slate-400 mt-1 leading-6">
-            Examination access is controlled by the server schedule. Your examination time is managed by the backend, and refreshing the page should not restart your attempt.
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className={`${DARK_PANEL} p-4`}>
+          <p className="text-xs text-slate-400">Available now</p>
+          <p className="mt-1 text-2xl font-black text-emerald-300">
+            {subjectCounts.available}
           </p>
         </div>
+
+        <div className={`${DARK_PANEL} p-4`}>
+          <p className="text-xs text-slate-400">Upcoming</p>
+          <p className="mt-1 text-2xl font-black text-amber-300">
+            {subjectCounts.upcoming}
+          </p>
+        </div>
+
+        <div className={`${DARK_PANEL} p-4`}>
+          <p className="text-xs text-slate-400">Closed</p>
+          <p className="mt-1 text-2xl font-black text-rose-300">
+            {subjectCounts.closed}
+          </p>
+        </div>
+
+        <div className={`${DARK_PANEL} p-4`}>
+          <p className="text-xs text-slate-400">Submitted</p>
+          <p className="mt-1 text-2xl font-black text-emerald-300">
+            {subjectCounts.submitted}
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-rose-400/20 bg-rose-400/[0.07] p-4 text-sm text-rose-200">
+          <Info size={17} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+
+          <button
+            type="button"
+            onClick={() => setError("")}
+            className="ml-auto text-rose-200/70 hover:text-white"
+            aria-label="Dismiss error"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {notice && (
+        <div className="mb-5 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-4 text-sm text-amber-100">
+          {notice}
+        </div>
+      )}
+
+      {loading && !subjects.length ? (
+        <div className={`${DARK_PANEL} flex min-h-56 items-center justify-center gap-3 text-sm text-slate-400`}>
+          <Loader2 className="animate-spin text-blue-300" size={20} />
+          Loading your registered subjects...
+        </div>
+      ) : subjects.length ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {subjects.map((item, index) => {
+            const submitted = isExamSubmitted(item);
+
+            const status = submitted
+              ? "submitted"
+              : getScheduleStatus(item, scheduleNow);
+
+            const exam = getExamFromSubject(item);
+
+            const presentation =
+              statusPresentation[status] ||
+              statusPresentation.unavailable;
+
+            const canOpen =
+              !submitted &&
+              status === "available" &&
+              Boolean(getExamId(item));
+
+            const cardKey = `${normalizeSubject(item.subject)}-${getExamId(item) || "none"}`;
+
+            const submittedLabelVisible =
+              submitted && activeSubmittedCard === cardKey;
+
+            const revealSubmitted = () => {
+              if (submitted) {
+                setActiveSubmittedCard(cardKey);
+              }
+            };
+
+            return (
+              <motion.article
+                key={cardKey}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  delay: Math.min(index * 0.035, 0.2),
+                }}
+                role={submitted ? "button" : undefined}
+                tabIndex={submitted ? 0 : undefined}
+                aria-label={
+                  submitted
+                    ? `${item.subject} — Submitted`
+                    : undefined
+                }
+                onClick={revealSubmitted}
+                onKeyDown={(event) => {
+                  if (
+                    submitted &&
+                    (event.key === "Enter" || event.key === " ")
+                  ) {
+                    event.preventDefault();
+                    revealSubmitted();
+                  }
+                }}
+                className={`${DARK_PANEL} group relative flex min-h-[270px] flex-col overflow-hidden p-5 transition hover:border-white/[0.14] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
+                  submitted
+                    ? "cursor-pointer border-emerald-400/15"
+                    : ""
+                }`}
+              >
+                <div
+                  className={`flex min-h-full flex-1 flex-col ${
+                    submitted
+                      ? "opacity-40 grayscale transition-all duration-200 group-hover:opacity-55 group-hover:grayscale-0"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div
+                      className={`flex h-11 w-11 items-center justify-center rounded-xl border ${
+                        submitted
+                          ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-300"
+                          : "border-blue-400/15 bg-blue-500/[0.08] text-blue-300"
+                      }`}
+                    >
+                      {submitted ? (
+                        <CheckCircle2 size={21} />
+                      ) : (
+                        <BookOpen size={21} />
+                      )}
+                    </div>
+
+                    {!submitted && <StatusPill status={status} />}
+                  </div>
+
+                  <div className="mt-5">
+                    <h2 className="text-lg font-bold text-white">
+                      {item.subject}
+                    </h2>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      {clean(
+                        firstValue(
+                          item.title,
+                          exam?.title,
+                          `${item.subject} Examination`
+                        )
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <CalendarDays size={14} className="text-slate-500" />
+                      <span>
+                        Starts: {formatDateTime(item.scheduled_start_at)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <CalendarDays size={14} className="text-slate-500" />
+                      <span>
+                        Ends: {formatDateTime(item.scheduled_end_at)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <Clock3 size={14} className="text-slate-500" />
+                      <span>
+                        Duration:{" "}
+                        {item.duration_minutes
+                          ? `${item.duration_minutes} minutes`
+                          : "Set by administrator"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <FileText size={14} className="text-slate-500" />
+                      <span>
+                        {item.total_questions
+                          ? `${item.total_questions} questions`
+                          : "Questions set by administrator"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {!submitted && (
+                    <div className="mt-auto pt-6">
+                      {canOpen ? (
+                        <PrimaryButton
+                          className="w-full"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openSubject(item);
+                          }}
+                          loading={
+                            loading &&
+                            selectedSubject?.subject === item.subject
+                          }
+                        >
+                          View Examination
+                          <ArrowRight size={16} />
+                        </PrimaryButton>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold ${presentation.border} ${presentation.background} ${presentation.text} opacity-80`}
+                        >
+                          {status === "upcoming" ? (
+                            <LockKeyhole size={15} />
+                          ) : status === "closed" ? (
+                            <Clock3 size={15} />
+                          ) : (
+                            <CalendarDays size={15} />
+                          )}
+
+                          {status === "upcoming"
+                            ? "Not Yet Available"
+                            : status === "closed"
+                              ? "Examination Closed"
+                              : "Not Scheduled"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {submitted && (
+                  <div
+                    className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-[#020617]/55 backdrop-blur-[2px] transition-opacity duration-200 ${
+                      submittedLabelVisible
+                        ? "opacity-100"
+                        : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-5 py-2.5 text-sm font-black tracking-wide text-emerald-300 shadow-xl shadow-black/30">
+                      <CheckCircle2 size={17} />
+                      Submitted
+                    </span>
+                  </div>
+                )}
+              </motion.article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={`${DARK_PANEL} flex min-h-64 flex-col items-center justify-center px-6 text-center`}>
+          <BookOpen size={34} className="text-slate-500" />
+
+          <h2 className="mt-4 text-lg font-bold text-white">
+            No registered subjects found
+          </h2>
+
+          <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">
+            Your enrolled subjects could not be loaded. Please
+            contact the Academy administrator to confirm your
+            enrollment.
+          </p>
+        </div>
+      )}
+    </main>
+  );
+
+  /* =========================================================
+     SUBJECT EXAMINATION DETAILS
+  ========================================================= */
+
+  const renderSubjectDetails = () => {
+    const alreadySubmitted =
+      isExamSubmitted(selectedSubject) ||
+      isExamSubmitted(selectedExam);
+
+    const status = alreadySubmitted
+      ? "submitted"
+      : getScheduleStatus(selectedSubject || {}, Date.now());
+
+    const canStart = status === "available" && !alreadySubmitted;
+
+    return (
+      <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-7">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-300">
+            Subject examination
+          </p>
+
+          <h1 className="mt-2 text-3xl font-black text-white">
+            {selectedExam?.subject || selectedSubject?.subject}
+          </h1>
+
+          <p className="mt-2 text-sm text-slate-400">
+            Review the details for this subject before starting.
+          </p>
+        </div>
+
+        <section className={`${DARK_PANEL} p-5 sm:p-7`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                {selectedExam?.title ||
+                  `${selectedSubject?.subject} Examination`}
+              </h2>
+
+              <p className="mt-1 text-xs text-slate-500">
+                {selectedExam?.class_name ||
+                  selectedSubject?.class_name ||
+                  "Academy Examination"}
+              </p>
+            </div>
+
+            <StatusPill status={status} />
+          </div>
+
+          {alreadySubmitted && (
+            <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
+              <div className="flex items-center gap-2 font-bold text-emerald-300">
+                <CheckCircle2 size={17} />
+                This examination has already been submitted.
+              </div>
+
+              <p className="mt-2 text-sm text-slate-300">
+                Submission time:{" "}
+                {formatDateTime(
+                  getSubmissionTimestamp(selectedSubject) ||
+                    getSubmissionTimestamp(selectedExam)
+                )}
+              </p>
+            </div>
+          )}
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <InfoTile
+              icon={CalendarDays}
+              label="Scheduled start"
+              value={formatDateTime(
+                selectedExam?.scheduled_start_at
+              )}
+            />
+
+            <InfoTile
+              icon={CalendarDays}
+              label="Scheduled end"
+              value={formatDateTime(
+                selectedExam?.scheduled_end_at
+              )}
+            />
+
+            <InfoTile
+              icon={Clock3}
+              label="Examination duration"
+              value={
+                selectedExam?.duration_minutes
+                  ? `${selectedExam.duration_minutes} minutes`
+                  : "Set by administrator"
+              }
+            />
+
+            <InfoTile
+              icon={FileText}
+              label="Total questions"
+              value={
+                selectedExam?.total_questions ||
+                "As uploaded by administrator"
+              }
+            />
+          </div>
+
+          <div className="mt-7 rounded-xl border border-white/[0.07] bg-[#020b19]/70 p-5">
+            <h3 className="text-sm font-bold text-white">
+              Instructions
+            </h3>
+
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-300">
+              {clean(
+                firstValue(
+                  selectedExam?.instructions,
+                  "Read each question carefully. Select the option that best answers the question. Your answers are saved automatically. You may move between questions before submitting."
+                )
+              )}
+            </p>
+          </div>
+
+          <div className="mt-7 flex flex-col-reverse justify-between gap-3 border-t border-white/[0.07] pt-6 sm:flex-row sm:items-center">
+            <SecondaryButton
+              onClick={() => {
+                setError("");
+                setScreen("subjects");
+              }}
+            >
+              Back to Subjects
+            </SecondaryButton>
+
+            <PrimaryButton
+              onClick={startExam}
+              loading={starting}
+              disabled={!canStart}
+            >
+              {alreadySubmitted
+                ? "Already Submitted"
+                : canStart
+                  ? "Start This Examination"
+                  : "Examination Not Available"}
+
+              <ArrowRight size={17} />
+            </PrimaryButton>
+          </div>
+        </section>
+      </main>
+    );
+  };
+
+  /* =========================================================
+     SUBMISSION CONFIRMATION
+  ========================================================= */
+
+  const renderSubmitted = () => (
+    <main className="mx-auto flex min-h-[calc(100vh-90px)] w-full max-w-3xl items-center px-4 py-12 sm:px-6">
+      <motion.section
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`${DARK_PANEL} w-full px-6 py-10 text-center sm:px-10`}
+      >
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
+          <CheckCircle2 size={42} />
+        </div>
+
+        <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">
+          Submission complete
+        </p>
+
+        <h1 className="mt-3 text-3xl font-black text-white">
+          Examination Submitted
+        </h1>
+
+        <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-slate-400">
+          {submittedMessage ||
+            "Your answers have been submitted successfully."}
+        </p>
+
+        {submissionTimestamp && (
+          <div className="mx-auto mt-6 max-w-md rounded-xl border border-emerald-400/15 bg-emerald-400/[0.045] p-4 text-left">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-300">
+              <CalendarDays size={15} />
+              Submission date and time
+            </div>
+
+            <p className="mt-2 text-base font-bold text-white">
+              {formatDateTime(submissionTimestamp)}
+            </p>
+          </div>
+        )}
+
+        <p className="mt-5 text-xs text-slate-500">
+          You can return to your registered subjects to
+          continue with another examination when it becomes
+          available. This subject will remain marked as submitted.
+        </p>
+
+        <PrimaryButton
+          className="mt-8"
+          onClick={returnToSubjects}
+        >
+          Return to Registered Subjects
+          <ArrowRight size={16} />
+        </PrimaryButton>
+      </motion.section>
+    </main>
+  );
+
+  /* =========================================================
+     MAIN RENDER
+  ========================================================= */
+
+  return (
+    <div className="relative min-h-screen bg-[#020617] text-white">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -left-40 top-20 h-96 w-96 rounded-full bg-blue-600/[0.055] blur-[110px]" />
+
+        <div className="absolute -right-40 bottom-0 h-96 w-96 rounded-full bg-indigo-500/[0.045] blur-[110px]" />
+      </div>
+
+      <div className="relative">
+        {screen === "welcome" && renderWelcome()}
+
+        {screen === "details" && (
+          <CBTInstructions
+            examInfo={examInfo}
+            student={student}
+            onBack={() => setScreen("welcome")}
+            onContinue={() => {
+              setError("");
+              setScreen("subjects");
+            }}
+          />
+        )}
+
+        {screen === "subjects" && renderSubjects()}
+
+        {screen === "subject-details" && renderSubjectDetails()}
+
+        {screen === "exam" && (
+          <CBTExamScreen
+            selectedExam={selectedExam}
+            questions={questions}
+            answers={answers}
+            currentQuestionIndex={currentQuestionIndex}
+            currentQuestion={currentQuestion}
+            currentQuestionId={currentQuestionId}
+            currentOptions={currentOptions}
+            currentAnswer={currentAnswer}
+            markedQuestions={markedQuestions}
+            remainingSeconds={remainingSeconds}
+            answeredCount={answeredCount}
+            unansweredCount={unansweredCount}
+            saving={saving}
+            submitting={submitting}
+            error={error}
+            mobileQuestionNav={mobileQuestionNav}
+            showSubmitConfirm={showSubmitConfirm}
+            onSelectAnswer={selectAnswer}
+            onToggleMarked={toggleMarked}
+            onGoToQuestion={goToQuestion}
+            onToggleMobileNav={() =>
+              setMobileQuestionNav((value) => !value)
+            }
+            onCloseMobileNav={() => setMobileQuestionNav(false)}
+            onShowSubmitConfirm={() => setShowSubmitConfirm(true)}
+            onCloseSubmitConfirm={() =>
+              setShowSubmitConfirm(false)
+            }
+            onSubmit={() => submitExam(false)}
+            onReturnToSubjects={returnToSubjects}
+          />
+        )}
+
+        {screen === "submitted" && renderSubmitted()}
       </div>
     </div>
   );

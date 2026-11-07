@@ -1,3 +1,4 @@
+
 import express from "express";
 import jwt from "jsonwebtoken";
 import pool from "../lib/db.js";
@@ -101,7 +102,6 @@ const ensureTables = async () => {
       );
     `);
 
-    // Upgrade existing school_exams tables.
     await pool.query(`
       ALTER TABLE school_exams
       ADD COLUMN IF NOT EXISTS scheduled_start_at TIMESTAMPTZ;
@@ -134,6 +134,87 @@ const ensureTables = async () => {
       );
     `);
 
+    // One independent, school-wide examination schedule.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_exam_schedule (
+        id SMALLINT PRIMARY KEY DEFAULT 1
+          CHECK (id = 1),
+        start_at TIMESTAMPTZ,
+        end_at TIMESTAMPTZ,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by TEXT
+      );
+    `);
+
+    await pool.query(`
+      INSERT INTO school_exam_schedule (id)
+      VALUES (1)
+      ON CONFLICT (id) DO NOTHING;
+    `);
+
+    // Student examination attempts.
+    // These columns match academyCbtRoutes.js.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_exam_attempts (
+        id UUID PRIMARY KEY,
+
+        exam_id BIGINT NOT NULL
+          REFERENCES school_exams(id)
+          ON DELETE CASCADE,
+
+        student_id TEXT NOT NULL,
+
+        enrollment_id TEXT NOT NULL,
+
+        student_name TEXT DEFAULT '',
+
+        student_email TEXT DEFAULT '',
+
+        student_class TEXT DEFAULT '',
+
+        subject TEXT NOT NULL,
+
+        question_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+
+        answers JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+        started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+        expires_at TIMESTAMPTZ NOT NULL,
+
+        submitted_at TIMESTAMPTZ,
+
+        duration_seconds INTEGER NOT NULL DEFAULT 0,
+
+        total_questions INTEGER NOT NULL DEFAULT 0,
+
+        correct_answers INTEGER NOT NULL DEFAULT 0,
+
+        incorrect_answers INTEGER NOT NULL DEFAULT 0,
+
+        unanswered INTEGER NOT NULL DEFAULT 0,
+
+        total_marks NUMERIC(10,2) NOT NULL DEFAULT 0,
+
+        obtained_marks NUMERIC(10,2) NOT NULL DEFAULT 0,
+
+        score NUMERIC(6,2) NOT NULL DEFAULT 0,
+
+        status TEXT NOT NULL DEFAULT 'in_progress'
+          CHECK (
+            status IN (
+              'in_progress',
+              'submitted',
+              'expired'
+            )
+          ),
+
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
     await pool.query(`
       CREATE INDEX IF NOT EXISTS
       idx_school_exams_class_subject
@@ -158,6 +239,30 @@ const ensureTables = async () => {
       ON school_exam_questions(exam_id, question_order);
     `);
 
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS
+      idx_school_exam_attempts_student
+      ON school_exam_attempts(student_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS
+      idx_school_exam_attempts_enrollment
+      ON school_exam_attempts(enrollment_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS
+      idx_school_exam_attempts_exam
+      ON school_exam_attempts(exam_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS
+      idx_school_exam_attempts_status
+      ON school_exam_attempts(status, submitted_at DESC);
+    `);
+
     tablesReady = true;
   })();
 
@@ -175,12 +280,24 @@ const ensureTables = async () => {
 
 const clean = (value) => String(value ?? "").trim();
 
+const calculateGrade = (score) => {
+  const percentage = Number(score) || 0;
+
+  if (percentage >= 80) return "A";
+  if (percentage >= 70) return "B";
+  if (percentage >= 60) return "C";
+  if (percentage >= 50) return "D";
+  if (percentage >= 40) return "E";
+
+  return "F";
+};
+
 /**
  * datetime-local values have no timezone information.
  * Interpret those values as Africa/Lagos (UTC+1).
  *
- * Values already containing Z or a timezone offset are
- * interpreted as explicit timestamps.
+ * Values containing Z or an explicit timezone offset
+ * are interpreted as explicit timestamps.
  */
 const normalizeScheduleDate = (value) => {
   if (
@@ -210,7 +327,6 @@ const normalizeScheduleDate = (value) => {
       second = "0",
     ] = localDateTimeMatch;
 
-    // Nigeria is UTC+1.
     date = new Date(
       Date.UTC(
         Number(year),
@@ -264,6 +380,182 @@ const normalizeOptions = (options) => {
 
   return [];
 };
+
+// ============================================================
+// SCHOOL-WIDE EXAMINATION SCHEDULE
+// ============================================================
+
+/**
+ * GET /api/admin/school-exams/schedule
+ *
+ * Returns the one general school examination schedule.
+ */
+router.get("/schedule", requireAdmin, async (req, res) => {
+  try {
+    await ensureTables();
+
+    const result = await pool.query(`
+      SELECT
+        id,
+        start_at,
+        end_at,
+        updated_at,
+        updated_by
+      FROM school_exam_schedule
+      WHERE id = 1
+      LIMIT 1
+    `);
+
+    const schedule = result.rows[0] || {
+      start_at: null,
+      end_at: null,
+      updated_at: null,
+      updated_by: null,
+    };
+
+    return res.status(200).json({
+      success: true,
+      schedule,
+    });
+  } catch (error) {
+    console.error("SCHOOL-WIDE SCHEDULE FETCH ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Unable to fetch the school examination schedule.",
+      details:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
+    });
+  }
+});
+
+/**
+ * PUT /api/admin/school-exams/schedule
+ *
+ * Saves or clears the one general school examination schedule.
+ */
+router.put("/schedule", requireAdmin, async (req, res) => {
+  try {
+    await ensureTables();
+
+    const body = req.body || {};
+
+    const rawStart =
+      body.start_at ??
+      body.startAt ??
+      body.scheduled_start_at ??
+      body.scheduledStartAt ??
+      null;
+
+    const rawEnd =
+      body.end_at ??
+      body.endAt ??
+      body.scheduled_end_at ??
+      body.scheduledEndAt ??
+      null;
+
+    const hasStart = clean(rawStart) !== "";
+    const hasEnd = clean(rawEnd) !== "";
+
+    if (hasStart !== hasEnd) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Both the examination start and closing date/time are required.",
+      });
+    }
+
+    let startAt = null;
+    let endAt = null;
+
+    if (hasStart && hasEnd) {
+      startAt = normalizeScheduleDate(rawStart);
+      endAt = normalizeScheduleDate(rawEnd);
+
+      if (!startAt) {
+        return res.status(400).json({
+          success: false,
+          error: "The examination start date or time is invalid.",
+        });
+      }
+
+      if (!endAt) {
+        return res.status(400).json({
+          success: false,
+          error: "The examination closing date or time is invalid.",
+        });
+      }
+
+      if (
+        new Date(endAt).getTime() <=
+        new Date(startAt).getTime()
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "The closing date and time must be later than the start date and time.",
+        });
+      }
+    }
+
+    const adminReference =
+      req.admin.id ||
+      req.admin.userId ||
+      req.admin.user_id ||
+      req.admin.email ||
+      null;
+
+    const result = await pool.query(
+      `
+        INSERT INTO school_exam_schedule (
+          id,
+          start_at,
+          end_at,
+          updated_at,
+          updated_by
+        )
+        VALUES (1, $1, $2, NOW(), $3)
+
+        ON CONFLICT (id)
+        DO UPDATE SET
+          start_at = EXCLUDED.start_at,
+          end_at = EXCLUDED.end_at,
+          updated_at = NOW(),
+          updated_by = EXCLUDED.updated_by
+
+        RETURNING
+          id,
+          start_at,
+          end_at,
+          updated_at,
+          updated_by
+      `,
+      [startAt, endAt, adminReference]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        startAt && endAt
+          ? "School-wide examination schedule saved successfully."
+          : "School-wide examination schedule cleared successfully.",
+      schedule: result.rows[0],
+    });
+  } catch (error) {
+    console.error("SCHOOL-WIDE SCHEDULE SAVE ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Unable to save the school examination schedule.",
+      details:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
+    });
+  }
+});
 
 // ============================================================
 // NORMALIZE QUESTION
@@ -482,7 +774,8 @@ const validateExamPayload = (body = {}) => {
 
   if (hasStart !== hasEnd) {
     return {
-      error: "Both examination start and end times are required.",
+      error:
+        "Both examination start and end times are required.",
     };
   }
 
@@ -508,7 +801,8 @@ const validateExamPayload = (body = {}) => {
       new Date(scheduledStartAt).getTime()
   ) {
     return {
-      error: "The examination end time must be later than its start time.",
+      error:
+        "The examination end time must be later than its start time.",
     };
   }
 
@@ -523,7 +817,8 @@ const validateExamPayload = (body = {}) => {
 
   if (body.questions.length > 500) {
     return {
-      error: "An examination cannot contain more than 500 questions.",
+      error:
+        "An examination cannot contain more than 500 questions.",
     };
   }
 
@@ -872,6 +1167,231 @@ router.get("/", requireAdmin, async (req, res) => {
 });
 
 // ============================================================
+// GET ALL STUDENT EXAMINATION RESULTS
+// GET /api/admin/school-exams/results
+//
+// IMPORTANT:
+// This route MUST remain above GET /:id.
+// Otherwise Express interprets "results" as an examination ID.
+// ============================================================
+
+router.get("/results", requireAdmin, async (req, res) => {
+  try {
+    await ensureTables();
+
+    const result = await pool.query(`
+      SELECT
+        a.id AS attempt_id,
+        a.exam_id,
+
+        a.student_id,
+        a.enrollment_id,
+        a.student_name,
+        a.student_email,
+        a.student_class,
+
+        a.subject,
+
+        a.started_at,
+        a.submitted_at,
+        a.expires_at,
+
+        a.duration_seconds,
+
+        a.total_questions,
+        a.correct_answers,
+        a.incorrect_answers,
+        a.unanswered,
+
+        a.total_marks,
+        a.obtained_marks,
+
+        a.score,
+        a.status,
+
+        a.created_at,
+
+        e.title AS exam_title,
+        e.exam_type,
+        e.class_name AS exam_class,
+        e.duration_minutes
+
+      FROM school_exam_attempts a
+
+      INNER JOIN school_exams e
+        ON e.id = a.exam_id
+
+      WHERE a.status IN ('submitted', 'expired')
+        AND LOWER(e.exam_type) = LOWER('School Examination')
+
+      ORDER BY
+        a.submitted_at DESC NULLS LAST,
+        a.created_at DESC
+    `);
+
+    const results = result.rows.map((attempt) => {
+      const score = Number(attempt.score) || 0;
+
+      const totalMarks = Number(attempt.total_marks) || 0;
+      const obtainedMarks = Number(attempt.obtained_marks) || 0;
+
+      const totalQuestions =
+        Number(attempt.total_questions) || 0;
+
+      const correctAnswers =
+        Number(attempt.correct_answers) || 0;
+
+      const incorrectAnswers =
+        Number(attempt.incorrect_answers) || 0;
+
+      const unanswered =
+        Number(attempt.unanswered) || 0;
+
+      const studentName =
+        clean(attempt.student_name) || "Name not available";
+
+      const studentReference =
+        clean(attempt.enrollment_id) || "Reference not available";
+
+      const className =
+        clean(attempt.student_class) ||
+        clean(attempt.exam_class) ||
+        "Class not available";
+
+      return {
+        // IDs
+        id: attempt.attempt_id,
+        attemptId: attempt.attempt_id,
+        attempt_id: attempt.attempt_id,
+        examId: attempt.exam_id,
+        exam_id: attempt.exam_id,
+
+        // Student information
+        studentId: attempt.student_id,
+        student_id: attempt.student_id,
+
+        studentName,
+        student_name: studentName,
+        fullName: studentName,
+        full_name: studentName,
+
+        studentReference,
+        student_reference: studentReference,
+        studentRef: studentReference,
+        student_ref: studentReference,
+        reference: studentReference,
+        enrollmentId: attempt.enrollment_id,
+        enrollment_id: attempt.enrollment_id,
+        enrollmentReference: studentReference,
+        enrollment_reference: studentReference,
+
+        studentEmail: attempt.student_email || "",
+        student_email: attempt.student_email || "",
+        email: attempt.student_email || "",
+
+        // Class
+        className,
+        class_name: className,
+        studentClass: className,
+        student_class: className,
+
+        // Examination
+        exam: attempt.exam_title,
+        examTitle: attempt.exam_title,
+        exam_title: attempt.exam_title,
+        title: attempt.exam_title,
+        examType: attempt.exam_type,
+        exam_type: attempt.exam_type,
+
+        // Subject
+        subject: attempt.subject,
+
+        // Scores
+        score,
+        percentage: score,
+        scorePercentage: score,
+        score_percentage: score,
+        grade: calculateGrade(score),
+
+        totalMarks,
+        total_marks: totalMarks,
+        obtainedMarks,
+        obtained_marks: obtainedMarks,
+
+        // Question breakdown
+        totalQuestions,
+        total_questions: totalQuestions,
+
+        correctAnswers,
+        correct_answers: correctAnswers,
+
+        incorrectAnswers,
+        incorrect_answers: incorrectAnswers,
+
+        unanswered,
+
+        // Timing
+        startedAt: attempt.started_at,
+        started_at: attempt.started_at,
+
+        submittedAt: attempt.submitted_at,
+        submitted_at: attempt.submitted_at,
+
+        expiresAt: attempt.expires_at,
+        expires_at: attempt.expires_at,
+
+        durationSeconds:
+          Number(attempt.duration_seconds) || 0,
+
+        duration_seconds:
+          Number(attempt.duration_seconds) || 0,
+
+        durationMinutes:
+          Math.round(
+            (Number(attempt.duration_seconds) || 0) / 60
+          ),
+
+        duration_minutes:
+          Math.round(
+            (Number(attempt.duration_seconds) || 0) / 60
+          ),
+
+        examDurationMinutes:
+          Number(attempt.duration_minutes) || 0,
+
+        // Submission status
+        status: attempt.status,
+
+        createdAt: attempt.created_at,
+        created_at: attempt.created_at,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: results.length,
+      results,
+    });
+  } catch (error) {
+    console.error(
+      "SCHOOL EXAMINATION RESULTS FETCH ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error: "Unable to fetch school examination results.",
+      results: [],
+      count: 0,
+      details:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
+    });
+  }
+});
+
+// ============================================================
 // GET ONE SCHOOL EXAMINATION WITH ALL QUESTIONS
 // GET /api/admin/school-exams/:id
 // ============================================================
@@ -1139,9 +1659,5 @@ router.delete("/:id", requireAdmin, async (req, res) => {
     });
   }
 });
-
-// ============================================================
-// EXPORT
-// ============================================================
 
 export default router;

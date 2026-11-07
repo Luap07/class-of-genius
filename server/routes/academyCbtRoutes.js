@@ -12,7 +12,8 @@ const router = express.Router();
 
 const MAX_QUESTIONS_PER_SUBJECT = 100;
 const MAX_EXAM_DURATION = 600;
-const DEFAULT_QUESTIONS_PER_SUBJECT = 40;
+const DEFAULT_EXAM_DURATION = 60;
+const LAGOS_TIME_ZONE = "Africa/Lagos";
 
 const clean = (value) =>
   value === undefined || value === null
@@ -26,22 +27,24 @@ const normalizeSubject = (value) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-const parseArray = (value) => {
-  if (Array.isArray(value)) {
-    return value;
-  }
+const normalizeClass = (value) =>
+  clean(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  if (!value) {
-    return [];
-  }
+const normalizeAnswer = (value) =>
+  clean(value).toLowerCase().replace(/\s+/g, " ");
+
+const parseArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
 
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
-
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
+      if (Array.isArray(parsed)) return parsed;
     } catch {
       return value
         .split(",")
@@ -53,12 +56,34 @@ const parseArray = (value) => {
   return [];
 };
 
+const parseObject = (value) => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+
+      return parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+        ? parsed
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+};
+
 const uniqueSubjects = (subjects) => {
   const seen = new Set();
 
   return subjects
     .map((subject) => {
-      if (typeof subject === "object" && subject !== null) {
+      if (subject && typeof subject === "object") {
         return clean(
           subject.name ||
           subject.subject ||
@@ -72,9 +97,7 @@ const uniqueSubjects = (subjects) => {
     .filter((subject) => {
       const normalized = normalizeSubject(subject);
 
-      if (!normalized || seen.has(normalized)) {
-        return false;
-      }
+      if (!normalized || seen.has(normalized)) return false;
 
       seen.add(normalized);
       return true;
@@ -89,9 +112,7 @@ const getJwtSecret = () =>
   );
 
 const getToken = (req) => {
-  const authorization = clean(
-    req.headers.authorization
-  );
+  const authorization = clean(req.headers.authorization);
 
   if (!authorization.toLowerCase().startsWith("bearer ")) {
     return "";
@@ -109,11 +130,268 @@ const asyncHandler = (handler) =>
     }
   };
 
+const getCorrectAnswer = (question) =>
+  clean(
+    question.correct_answer ||
+    question.answer ||
+    question.correctAnswer
+  );
+
+const getAttemptQuestionIds = (attempt) =>
+  parseArray(attempt.question_ids).map(String);
+
+const getAttemptAnswers = (attempt) =>
+  parseObject(attempt.answers);
+
+const getStudentClass = (student) => {
+  const enrollment = student.enrollment || {};
+  const user = student.user || {};
+
+  return clean(
+    enrollment.class_name ||
+    enrollment.class ||
+    enrollment.grade ||
+    enrollment.level ||
+    enrollment.student_class ||
+    user.class_name ||
+    user.class ||
+    user.grade ||
+    user.level
+  );
+};
+
+const getAvailability = (startAt, endAt) => {
+  const now = Date.now();
+  const start = new Date(startAt).getTime();
+  const end = new Date(endAt).getTime();
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return "upcoming";
+  }
+
+  if (now > end) return "closed";
+  if (now < start) return "upcoming";
+
+  return "available";
+};
+
+/* =========================================================
+   QUESTION OPTION HELPERS
+========================================================= */
+
+const isOptionKey = (value) => {
+  const normalized = clean(value).toUpperCase();
+  return /^[A-Z]$/.test(normalized);
+};
+
+const getOptionText = (option, fallbackKey = "") => {
+  if (typeof option === "string" || typeof option === "number") {
+    return clean(option);
+  }
+
+  if (!option || typeof option !== "object") {
+    return "";
+  }
+
+  const candidates = [
+    option.text,
+    option.content,
+    option.option_text,
+    option.answer,
+    option.description,
+    option.option,
+    option.label,
+    option.value,
+  ];
+
+  for (const candidate of candidates) {
+    const value = clean(candidate);
+
+    if (!value) continue;
+
+    if (
+      isOptionKey(value) &&
+      normalizeAnswer(value) === normalizeAnswer(fallbackKey)
+    ) {
+      continue;
+    }
+
+    if (
+      isOptionKey(value) &&
+      candidates.some((item) => {
+        const other = clean(item);
+
+        return (
+          other &&
+          !isOptionKey(other) &&
+          normalizeAnswer(other) !== normalizeAnswer(fallbackKey)
+        );
+      })
+    ) {
+      continue;
+    }
+
+    return value;
+  }
+
+  return "";
+};
+
+const normalizeQuestionOption = (option, index, forcedKey = "") => {
+  const generatedKey = String.fromCharCode(65 + index);
+
+  if (typeof option === "string" || typeof option === "number") {
+    return {
+      value: clean(forcedKey) || generatedKey,
+      label: clean(option),
+    };
+  }
+
+  if (!option || typeof option !== "object") {
+    return null;
+  }
+
+  const explicitValue = clean(
+    option.value ||
+    option.key ||
+    option.letter ||
+    option.option_key ||
+    option.optionKey
+  );
+
+  const explicitLabel = clean(option.label);
+  const optionField = clean(option.option);
+
+  let answerKey =
+    clean(forcedKey) ||
+    (isOptionKey(explicitValue) ? explicitValue : "") ||
+    (isOptionKey(explicitLabel) ? explicitLabel : "") ||
+    (isOptionKey(optionField) ? optionField : "") ||
+    generatedKey;
+
+  answerKey = answerKey.toUpperCase();
+
+  let answerText = "";
+
+  const textCandidates = [
+    option.text,
+    option.content,
+    option.option_text,
+    option.optionText,
+    option.answer,
+    option.description,
+    option.option,
+    option.label,
+    option.value,
+  ];
+
+  for (const candidate of textCandidates) {
+    const value = clean(candidate);
+
+    if (!value) continue;
+
+    if (isOptionKey(value) && value.toUpperCase() === answerKey) {
+      continue;
+    }
+
+    answerText = value;
+    break;
+  }
+
+  if (!answerText && explicitLabel && !isOptionKey(explicitLabel)) {
+    answerText = explicitLabel;
+  }
+
+  if (!answerText && explicitValue && !isOptionKey(explicitValue)) {
+    answerText = explicitValue;
+  }
+
+  return {
+    value: answerKey,
+    label: answerText,
+  };
+};
+
+const parseQuestionOptions = (question) => {
+  let raw = question.options;
+
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      raw = raw
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
+  if (Array.isArray(raw) && raw.length) {
+    return raw
+      .map((option, index) =>
+        normalizeQuestionOption(option, index)
+      )
+      .filter((option) => option && option.label);
+  }
+
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const entries = Object.entries(raw);
+
+    if (entries.length) {
+      return entries
+        .map(([key, option], index) =>
+          normalizeQuestionOption(option, index, key)
+        )
+        .filter((option) => option && option.label);
+    }
+  }
+
+  const fallbackOptions = [
+    question.optionA,
+    question.optionB,
+    question.optionC,
+    question.optionD,
+  ];
+
+  return fallbackOptions
+    .map((option, index) => ({
+      value: String.fromCharCode(65 + index),
+      label: clean(option),
+    }))
+    .filter((option) => option.label);
+};
+
+/* =========================================================
+   ANSWER MARKING
+========================================================= */
+
+const isCorrectAnswer = (question, submittedAnswer) => {
+  const submitted = normalizeAnswer(submittedAnswer);
+  const correct = normalizeAnswer(getCorrectAnswer(question));
+
+  if (!submitted || !correct) return false;
+
+  if (submitted === correct) {
+    return true;
+  }
+
+  const options = parseQuestionOptions(question);
+
+  const correctOption = options.find((option) =>
+    normalizeAnswer(option.value) === correct ||
+    normalizeAnswer(option.label) === correct
+  );
+
+  if (!correctOption) return false;
+
+  return (
+    submitted === normalizeAnswer(correctOption.value) ||
+    submitted === normalizeAnswer(correctOption.label)
+  );
+};
+
 /* =========================================================
    DATABASE INITIALIZATION
-
-   Creates the examination schedule and attempt tables.
-   Existing cbt_questions remains your question bank.
 ========================================================= */
 
 let initializationPromise = null;
@@ -125,87 +403,37 @@ const initializeCBTDatabase = async () => {
 
   initializationPromise = (async () => {
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS academy_cbt_exams (
-        id BIGSERIAL PRIMARY KEY,
-
-        title TEXT NOT NULL,
-
-        description TEXT DEFAULT '',
-
-        exam_code TEXT UNIQUE,
-
-        subjects TEXT[] NOT NULL DEFAULT '{}',
-
-        questions_per_subject INTEGER
-          NOT NULL DEFAULT 40,
-
-        duration_minutes INTEGER
-          NOT NULL DEFAULT 120,
-
-        start_at TIMESTAMPTZ NOT NULL,
-
-        end_at TIMESTAMPTZ NOT NULL,
-
-        status TEXT NOT NULL DEFAULT 'draft'
-          CHECK (
-            status IN (
-              'draft',
-              'published',
-              'cancelled',
-              'completed'
-            )
-          ),
-
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-
-        CHECK (duration_minutes > 0),
-
-        CHECK (questions_per_subject > 0),
-
-        CHECK (end_at > start_at)
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS academy_cbt_attempts (
+      CREATE TABLE IF NOT EXISTS school_exam_attempts (
         id UUID PRIMARY KEY,
 
         exam_id BIGINT NOT NULL
-          REFERENCES academy_cbt_exams(id)
+          REFERENCES school_exams(id)
           ON DELETE CASCADE,
 
         student_id TEXT NOT NULL,
-
-        enrollment_id TEXT,
+        enrollment_id TEXT NOT NULL,
 
         student_name TEXT DEFAULT '',
-
         student_email TEXT DEFAULT '',
+        student_class TEXT DEFAULT '',
 
-        subjects TEXT[] NOT NULL DEFAULT '{}',
+        subject TEXT NOT NULL,
 
         question_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
-
         answers JSONB NOT NULL DEFAULT '{}'::jsonb,
 
         started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
         expires_at TIMESTAMPTZ NOT NULL,
-
         submitted_at TIMESTAMPTZ,
 
         duration_seconds INTEGER NOT NULL DEFAULT 0,
-
         total_questions INTEGER NOT NULL DEFAULT 0,
-
         correct_answers INTEGER NOT NULL DEFAULT 0,
-
         incorrect_answers INTEGER NOT NULL DEFAULT 0,
-
         unanswered INTEGER NOT NULL DEFAULT 0,
 
+        total_marks NUMERIC(10,2) NOT NULL DEFAULT 0,
+        obtained_marks NUMERIC(10,2) NOT NULL DEFAULT 0,
         score NUMERIC(6,2) NOT NULL DEFAULT 0,
 
         status TEXT NOT NULL DEFAULT 'in_progress'
@@ -218,36 +446,60 @@ const initializeCBTDatabase = async () => {
           ),
 
         created_at TIMESTAMPTZ DEFAULT NOW(),
-
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS
-      idx_academy_cbt_attempts_student
-      ON academy_cbt_attempts(student_id)
+      CREATE TABLE IF NOT EXISTS school_exam_schedule (
+        id SMALLINT PRIMARY KEY DEFAULT 1
+          CHECK (id = 1),
+
+        start_at TIMESTAMPTZ,
+        end_at TIMESTAMPTZ,
+
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by TEXT
+      )
+    `);
+
+    await pool.query(`
+      INSERT INTO school_exam_schedule (id)
+      VALUES (1)
+      ON CONFLICT (id) DO NOTHING
     `);
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS
-      idx_academy_cbt_attempts_exam
-      ON academy_cbt_attempts(exam_id)
+      idx_school_exam_attempts_student
+      ON school_exam_attempts(student_id)
     `);
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS
-      idx_academy_cbt_attempts_enrollment
-      ON academy_cbt_attempts(enrollment_id)
+      idx_school_exam_attempts_enrollment
+      ON school_exam_attempts(enrollment_id)
     `);
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS
-      idx_academy_cbt_questions_exam_subject
-      ON cbt_questions(exam, subject)
+      idx_school_exam_attempts_exam
+      ON school_exam_attempts(exam_id)
     `);
 
-    console.log("ACADEMY CBT DATABASE READY");
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS
+      idx_school_exam_questions_exam
+      ON school_exam_questions(exam_id)
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS
+      idx_school_exams_class_subject
+      ON school_exams(class_name, subject)
+    `);
+
+    console.log("SCHOOL EXAMINATION DATABASE READY");
   })().catch((error) => {
     initializationPromise = null;
     throw error;
@@ -273,8 +525,6 @@ const authenticateStudent = async (req, res, next) => {
     }
 
     if (!secret) {
-      console.error("CBT JWT SECRET IS NOT CONFIGURED");
-
       return res.status(500).json({
         success: false,
         message: "Authentication configuration is missing.",
@@ -295,7 +545,7 @@ const authenticateStudent = async (req, res, next) => {
     ) {
       return res.status(403).json({
         success: false,
-        message: "Only authenticated students can access CBT.",
+        message: "Only authenticated students can access examinations.",
       });
     }
 
@@ -306,9 +556,7 @@ const authenticateStudent = async (req, res, next) => {
       decoded.sub
     );
 
-    const email = clean(
-      decoded.email
-    ).toLowerCase();
+    const email = clean(decoded.email).toLowerCase();
 
     if (!userId && !email) {
       return res.status(401).json({
@@ -433,7 +681,7 @@ const authenticateStudent = async (req, res, next) => {
         `,
         [enrollmentId]
       );
-    } else if (studentEmail) {
+    } else {
       enrollmentResult = await pool.query(
         `
           SELECT *
@@ -486,9 +734,8 @@ const authenticateStudent = async (req, res, next) => {
       });
     }
 
-    req.cbtStudent = {
+    const student = {
       id: clean(user.id),
-
       email: studentEmail,
 
       name: clean(
@@ -501,20 +748,27 @@ const authenticateStudent = async (req, res, next) => {
         ].filter(Boolean).join(" ")
       ),
 
-      enrollmentId: clean(
-        enrollment.enrollment_id
-      ),
+      enrollmentId: clean(enrollment.enrollment_id),
 
       enrollment,
-
       user,
-
       subjects: registeredSubjects,
     };
 
+    student.className = getStudentClass(student);
+
+    if (!student.className) {
+      return res.status(403).json({
+        success: false,
+        message: "Your enrolled class could not be identified.",
+      });
+    }
+
+    req.cbtStudent = student;
+
     next();
   } catch (error) {
-    console.error("CBT STUDENT AUTH ERROR:", error);
+    console.error("SCHOOL EXAM STUDENT AUTH ERROR:", error);
 
     return res.status(401).json({
       success: false,
@@ -524,115 +778,58 @@ const authenticateStudent = async (req, res, next) => {
 };
 
 /* =========================================================
-   QUESTION HELPERS
+   GENERAL SCHOOL EXAMINATION SCHEDULE
 ========================================================= */
 
-const parseQuestionOptions = (question) => {
-  const parsed = parseArray(question.options);
+const getSchoolExamSchedule = async () => {
+  const result = await pool.query(`
+    SELECT
+      id,
+      start_at,
+      end_at,
+      updated_at
+    FROM school_exam_schedule
+    WHERE id = 1
+    LIMIT 1
+  `);
 
-  if (parsed.length) {
-    return parsed.map((option, index) => {
-      if (typeof option === "string") {
-        return {
-          value: String.fromCharCode(65 + index),
-          label: option,
-        };
-      }
-
-      return {
-        value: clean(
-          option.value ||
-          option.key ||
-          String.fromCharCode(65 + index)
-        ),
-
-        label: clean(
-          option.label ||
-          option.text ||
-          option.option ||
-          option.value
-        ),
-      };
-    });
-  }
-
-  return [
-    question.optionA,
-    question.optionB,
-    question.optionC,
-    question.optionD,
-  ]
-    .filter((option) => option !== null && option !== undefined)
-    .map((option, index) => ({
-      value: String.fromCharCode(65 + index),
-      label: clean(option),
-    }));
+  return result.rows[0] || null;
 };
 
-const sanitizeQuestion = (question) => ({
-  id: question.id,
+const getEffectiveSchedule = (exam, schedule) => ({
+  startAt:
+    schedule?.start_at ||
+    exam.scheduled_start_at ||
+    null,
 
-  subject: question.subject,
-
-  question: question.question,
-
-  question_type: question.question_type || "objective",
-
-  options: parseQuestionOptions(question),
-
-  image: question.image || null,
-
-  passage_title: question.passage_title || null,
-
-  passage: question.passage || null,
-
-  passage_image: question.passage_image || null,
+  endAt:
+    schedule?.end_at ||
+    exam.scheduled_end_at ||
+    null,
 });
 
-const normalizeAnswer = (value) =>
-  clean(value).toLowerCase().replace(/\s+/g, " ");
-
-const getCorrectAnswer = (question) =>
-  clean(
-    question.answer ||
-    question.correct_answer ||
-    question.correctAnswer
-  );
-
-const getExamQuestionIds = (attempt) => {
-  return parseArray(attempt.question_ids).map(String);
-};
-
-const getAttemptAnswers = (attempt) => {
-  const answers = attempt.answers;
-
-  if (!answers || typeof answers !== "object") {
-    return {};
-  }
-
-  return answers;
-};
-
-const isWithinExamWindow = (exam) => {
-  const now = Date.now();
-
-  return (
-    now >= new Date(exam.start_at).getTime() &&
-    now <= new Date(exam.end_at).getTime()
-  );
-};
-
 /* =========================================================
-   EXAM ACCESS HELPERS
+   STUDENT EXAM ELIGIBILITY
 ========================================================= */
 
 const getExamForStudent = async (examId, student) => {
   const result = await pool.query(
     `
-      SELECT *
-      FROM academy_cbt_exams
-      WHERE id = $1
-        AND status = 'published'
+      SELECT
+        e.*,
+        COUNT(q.id)::INTEGER AS question_count
+
+      FROM school_exams e
+
+      LEFT JOIN school_exam_questions q
+        ON q.exam_id = e.id
+
+      WHERE e.id = $1
+        AND LOWER(e.exam_type) = LOWER('School Examination')
+        AND LOWER(e.status) = 'published'
+
+      GROUP BY e.id
+
       LIMIT 1
     `,
     [examId]
@@ -640,39 +837,129 @@ const getExamForStudent = async (examId, student) => {
 
   const exam = result.rows[0];
 
-  if (!exam) {
+  if (!exam) return null;
+
+  if (
+    normalizeClass(exam.class_name) !==
+    normalizeClass(student.className)
+  ) {
     return null;
   }
 
-  const examSubjects = uniqueSubjects(
-    parseArray(exam.subjects)
+  const eligible = student.subjects.some(
+    (subject) =>
+      normalizeSubject(subject) ===
+      normalizeSubject(exam.subject)
   );
 
-  const studentSubjects = student.subjects;
+  if (!eligible) return null;
 
-  const eligibleSubjects = examSubjects.filter(
-    (examSubject) =>
-      studentSubjects.some(
-        (studentSubject) =>
-          normalizeSubject(studentSubject) ===
-          normalizeSubject(examSubject)
-      )
+  const schedule = await getSchoolExamSchedule();
+
+  const effectiveSchedule = getEffectiveSchedule(
+    exam,
+    schedule
   );
 
-  if (!eligibleSubjects.length) {
+  if (!effectiveSchedule.startAt || !effectiveSchedule.endAt) {
     return null;
   }
 
   return {
     ...exam,
-    eligibleSubjects,
+    scheduleStart: effectiveSchedule.startAt,
+    scheduleEnd: effectiveSchedule.endAt,
+    availability: getAvailability(
+      effectiveSchedule.startAt,
+      effectiveSchedule.endAt
+    ),
   };
 };
 
 /* =========================================================
-   GET STUDENT EXAMINATIONS
+   QUESTION SANITIZATION
+========================================================= */
+
+const sanitizeQuestion = (question) => ({
+  id: String(question.id),
+
+  subject: question.subject,
+
+  question:
+    question.question_text ||
+    question.question ||
+    "",
+
+  question_type:
+    question.question_type ||
+    "objective",
+
+  options: parseQuestionOptions(question),
+
+  image:
+    question.image_url ||
+    question.image ||
+    null,
+
+  passage_id:
+    question.passage_id || null,
+
+  passage_title:
+    question.passage_title || null,
+
+  passage:
+    question.passage || null,
+
+  passage_order:
+    question.passage_order ?? null,
+
+  marks:
+    Number(question.marks) || 1,
+});
+
+const getQuestionsForAttempt = async (questionIds) => {
+  if (!questionIds.length) return [];
+
+  const result = await pool.query(
+    `
+      SELECT
+        id,
+        exam_id,
+        question_order,
+        question_type,
+        question_text,
+        options,
+        image_url,
+        passage_id,
+        passage_title,
+        passage,
+        passage_order,
+        marks
+
+      FROM school_exam_questions
+
+      WHERE id::text = ANY($1::text[])
+
+      ORDER BY
+        array_position(
+          $1::text[],
+          id::text
+        ),
+        question_order ASC
+    `,
+    [questionIds]
+  );
+
+  return result.rows;
+};
+
+/* =========================================================
+   GET STUDENT SCHOOL EXAMINATIONS
 
    GET /student/cbt/exams
+
+   Includes each student's latest attempt so the frontend
+   can identify subjects that have already been submitted.
 ========================================================= */
 
 router.get(
@@ -682,86 +969,193 @@ router.get(
     await initializeCBTDatabase();
 
     const student = req.cbtStudent;
+    const schedule = await getSchoolExamSchedule();
 
     const result = await pool.query(
       `
-        SELECT *
-        FROM academy_cbt_exams
-        WHERE status = 'published'
-        ORDER BY start_at ASC
-      `
+        SELECT
+          e.*,
+
+          COUNT(q.id)::INTEGER AS question_count,
+
+          latest_attempt.id AS attempt_id,
+          latest_attempt.status AS attempt_status,
+          latest_attempt.submitted_at AS submitted_at,
+          latest_attempt.started_at AS attempt_started_at,
+          latest_attempt.expires_at AS attempt_expires_at,
+          latest_attempt.score AS attempt_score,
+
+          CASE
+            WHEN latest_attempt.submitted_at IS NOT NULL
+              OR latest_attempt.status IN ('submitted', 'expired')
+            THEN TRUE
+            ELSE FALSE
+          END AS submitted
+
+        FROM school_exams e
+
+        LEFT JOIN school_exam_questions q
+          ON q.exam_id = e.id
+
+        LEFT JOIN LATERAL (
+          SELECT
+            a.id,
+            a.status,
+            a.submitted_at,
+            a.started_at,
+            a.expires_at,
+            a.score
+
+          FROM school_exam_attempts a
+
+          WHERE a.exam_id = e.id
+            AND a.student_id = $1
+            AND a.enrollment_id = $2
+
+          ORDER BY a.created_at DESC
+
+          LIMIT 1
+        ) latest_attempt ON TRUE
+
+        WHERE LOWER(e.exam_type) = LOWER('School Examination')
+          AND LOWER(e.status) = 'published'
+
+        GROUP BY
+          e.id,
+          latest_attempt.id,
+          latest_attempt.status,
+          latest_attempt.submitted_at,
+          latest_attempt.started_at,
+          latest_attempt.expires_at,
+          latest_attempt.score
+
+        ORDER BY e.subject ASC, e.created_at DESC
+      `,
+      [student.id, student.enrollmentId]
     );
 
     const exams = result.rows
-      .map((exam) => {
-        const examSubjects = uniqueSubjects(
-          parseArray(exam.subjects)
-        );
-
-        const eligibleSubjects = examSubjects.filter(
+      .filter((exam) =>
+        normalizeClass(exam.class_name) ===
+        normalizeClass(student.className)
+      )
+      .filter((exam) =>
+        student.subjects.some(
           (subject) =>
-            student.subjects.some(
-              (registered) =>
-                normalizeSubject(registered) ===
-                normalizeSubject(subject)
-            )
+            normalizeSubject(subject) ===
+            normalizeSubject(exam.subject)
+        )
+      )
+      .map((exam) => {
+        const effectiveSchedule = getEffectiveSchedule(
+          exam,
+          schedule
         );
 
-        if (!eligibleSubjects.length) {
-          return null;
-        }
+        const startAt = effectiveSchedule.startAt;
+        const endAt = effectiveSchedule.endAt;
 
-        const now = Date.now();
+        const availability =
+          startAt && endAt
+            ? getAvailability(startAt, endAt)
+            : "upcoming";
 
-        const startsAt = new Date(
-          exam.start_at
-        ).getTime();
+        const submitted =
+          Boolean(exam.submitted) ||
+          Boolean(exam.submitted_at) ||
+          ["submitted", "expired"].includes(
+            clean(exam.attempt_status).toLowerCase()
+          );
 
-        const endsAt = new Date(
-          exam.end_at
-        ).getTime();
-
-        let availability = "upcoming";
-
-        if (now > endsAt) {
-          availability = "closed";
-        } else if (now >= startsAt) {
-          availability = "available";
-        }
+        const latestAttempt = exam.attempt_id
+          ? {
+              id: exam.attempt_id,
+              attemptId: exam.attempt_id,
+              status: exam.attempt_status,
+              submittedAt: exam.submitted_at,
+              submitted_at: exam.submitted_at,
+              startedAt: exam.attempt_started_at,
+              expiresAt: exam.attempt_expires_at,
+              score: Number(exam.attempt_score) || 0,
+            }
+          : null;
 
         return {
           id: exam.id,
 
           title: exam.title,
 
-          description: exam.description,
+          examType: exam.exam_type,
 
-          examCode: exam.exam_code,
+          subject: exam.subject,
 
-          subjects: eligibleSubjects,
+          className: exam.class_name,
 
-          questionsPerSubject:
-            exam.questions_per_subject,
+          description: exam.instructions || "",
+
+          instructions: exam.instructions || "",
 
           durationMinutes:
-            exam.duration_minutes,
+            Number(exam.duration_minutes) ||
+            DEFAULT_EXAM_DURATION,
 
-          startAt: exam.start_at,
+          totalQuestions: Number(exam.question_count) || 0,
 
-          endAt: exam.end_at,
+          questionCount: Number(exam.question_count) || 0,
+
+          startAt,
+          endAt,
+
+          scheduled_start_at: startAt,
+          scheduled_end_at: endAt,
 
           availability,
-        };
-      })
-      .filter(Boolean);
 
-    res.json({
+          status: exam.status,
+
+          // Submission information.
+          submitted,
+          isSubmitted: submitted,
+
+          submittedAt: exam.submitted_at || null,
+          submitted_at: exam.submitted_at || null,
+
+          attemptId: exam.attempt_id || null,
+          attemptStatus: exam.attempt_status || null,
+
+          latestAttempt,
+          latest_attempt: latestAttempt,
+        };
+      });
+
+    return res.json({
       success: true,
 
       student: {
+        id: student.id,
         name: student.name,
-
+        email: student.email,
+        className: student.className,
         subjects: student.subjects,
+      },
+
+      registeredSubjects: student.subjects,
+      enrolledSubjects: student.subjects,
+
+      examInfo: {
+        startAt: schedule?.start_at || null,
+        endAt: schedule?.end_at || null,
+
+        scheduled_start_at: schedule?.start_at || null,
+        scheduled_end_at: schedule?.end_at || null,
+
+        updatedAt: schedule?.updated_at || null,
+      },
+
+      schedule: {
+        start_at: schedule?.start_at || null,
+        end_at: schedule?.end_at || null,
+        updated_at: schedule?.updated_at || null,
       },
 
       exams,
@@ -770,7 +1164,9 @@ router.get(
 );
 
 /* =========================================================
-   GET EXAM DETAILS
+   GET SCHOOL EXAMINATION DETAILS
+
+   GET /student/cbt/exams/:examId
 ========================================================= */
 
 router.get(
@@ -787,7 +1183,8 @@ router.get(
     if (!exam) {
       return res.status(404).json({
         success: false,
-        message: "Examination not found or not available for your registered subjects.",
+        message:
+          "School Examination not found for your class or registered subjects.",
       });
     }
 
@@ -799,34 +1196,44 @@ router.get(
 
         title: exam.title,
 
-        description: exam.description,
+        examType: exam.exam_type,
 
-        subjects: exam.eligibleSubjects,
+        subject: exam.subject,
 
-        questionsPerSubject:
-          exam.questions_per_subject,
+        className: exam.class_name,
+
+        description: exam.instructions || "",
+
+        instructions: exam.instructions || "",
 
         durationMinutes:
-          exam.duration_minutes,
+          Number(exam.duration_minutes) ||
+          DEFAULT_EXAM_DURATION,
 
-        startAt: exam.start_at,
+        totalQuestions: Number(exam.question_count) || 0,
 
-        endAt: exam.end_at,
+        questionCount: Number(exam.question_count) || 0,
 
-        availability: isWithinExamWindow(exam)
-          ? "available"
-          : Date.now() < new Date(exam.start_at).getTime()
-            ? "upcoming"
-            : "closed",
+        startAt: exam.scheduleStart,
+
+        endAt: exam.scheduleEnd,
+
+        scheduled_start_at: exam.scheduleStart,
+
+        scheduled_end_at: exam.scheduleEnd,
+
+        availability: exam.availability,
       },
     });
   })
 );
 
 /* =========================================================
-   START OR RESUME EXAMINATION
+   START OR RESUME SCHOOL EXAMINATION
 
    POST /student/cbt/exams/:examId/start
+
+   Completed attempts are checked BEFORE schedule checks.
 ========================================================= */
 
 router.post(
@@ -845,40 +1252,31 @@ router.post(
     if (!exam) {
       return res.status(404).json({
         success: false,
-        message: "Examination not found or unavailable for your registered subjects.",
+        message:
+          "School Examination not found for your class or registered subjects.",
       });
     }
 
     const now = new Date();
 
-    if (now < new Date(exam.start_at)) {
-      return res.status(403).json({
-        success: false,
-        code: "EXAM_NOT_STARTED",
-
-        message: "This examination has not started yet.",
-
-        startAt: exam.start_at,
-      });
-    }
-
-    if (now > new Date(exam.end_at)) {
-      return res.status(403).json({
-        success: false,
-        code: "EXAM_CLOSED",
-
-        message: "The examination period has ended.",
-      });
-    }
+    /*
+      IMPORTANT:
+      Check for a completed attempt before checking the schedule.
+      This ensures a previously submitted exam is still identified
+      as submitted even when the examination period has closed.
+    */
 
     const existingResult = await pool.query(
       `
         SELECT *
-        FROM academy_cbt_attempts
+        FROM school_exam_attempts
+
         WHERE exam_id = $1
           AND student_id = $2
           AND enrollment_id = $3
+
         ORDER BY created_at DESC
+
         LIMIT 1
       `,
       [
@@ -890,69 +1288,83 @@ router.post(
 
     const existingAttempt = existingResult.rows[0];
 
+    if (
+      existingAttempt &&
+      (
+        existingAttempt.submitted_at ||
+        ["submitted", "expired"].includes(existingAttempt.status)
+      )
+    ) {
+      return res.status(409).json({
+        success: false,
+
+        code: "ATTEMPT_ALREADY_COMPLETED",
+
+        message: "You have already completed this examination.",
+
+        result: {
+          attemptId: existingAttempt.id,
+
+          submittedAt: existingAttempt.submitted_at,
+
+          score: Number(existingAttempt.score),
+
+          status: existingAttempt.status,
+        },
+      });
+    }
+
+    const startAt = new Date(exam.scheduleStart);
+    const endAt = new Date(exam.scheduleEnd);
+
+    if (now < startAt) {
+      return res.status(403).json({
+        success: false,
+
+        code: "EXAM_NOT_STARTED",
+
+        message: "The School Examination has not started yet.",
+
+        startAt: exam.scheduleStart,
+      });
+    }
+
+    if (now > endAt) {
+      return res.status(403).json({
+        success: false,
+
+        code: "EXAM_CLOSED",
+
+        message: "The School Examination period has ended.",
+
+        endAt: exam.scheduleEnd,
+      });
+    }
+
+    /*
+      Resume an existing in-progress attempt.
+    */
+
     if (existingAttempt) {
-      if (
-        existingAttempt.status === "submitted" ||
-        existingAttempt.status === "expired"
-      ) {
-        return res.status(409).json({
-          success: false,
-          code: "ATTEMPT_ALREADY_COMPLETED",
-
-          message: "You have already completed this examination.",
-
-          result: {
-            attemptId: existingAttempt.id,
-
-            score: Number(existingAttempt.score),
-
-            status: existingAttempt.status,
-          },
-        });
-      }
-
-      if (
-        now >= new Date(existingAttempt.expires_at) ||
-        now > new Date(exam.end_at)
-      ) {
+      if (now >= new Date(existingAttempt.expires_at)) {
         return res.status(403).json({
           success: false,
+
           code: "ATTEMPT_EXPIRED",
 
-          message: "Your examination time has expired. Submit your answers.",
+          message: "Your examination time has expired.",
         });
       }
 
-      const questionIds = getExamQuestionIds(
+      const questionIds = getAttemptQuestionIds(
         existingAttempt
       );
 
-      const questionResult = await pool.query(
-        `
-          SELECT
-            id,
-            exam,
-            subject,
-            question,
-            question_type,
-            options,
-            optionA,
-            optionB,
-            optionC,
-            optionD,
-            image,
-            passage_title,
-            passage,
-            passage_image
-          FROM cbt_questions
-          WHERE id::text = ANY($1::text[])
-          ORDER BY array_position(
-            $1::text[],
-            id::text
-          )
-        `,
-        [questionIds]
+      const questions = await getQuestionsForAttempt(
+        questionIds
       );
+
+      const safeQuestions = questions.map(sanitizeQuestion);
 
       return res.json({
         success: true,
@@ -966,7 +1378,9 @@ router.post(
 
           expiresAt: existingAttempt.expires_at,
 
-          durationMinutes: exam.duration_minutes,
+          durationMinutes:
+            Number(exam.duration_minutes) ||
+            DEFAULT_EXAM_DURATION,
 
           answers: getAttemptAnswers(existingAttempt),
         },
@@ -976,70 +1390,65 @@ router.post(
 
           title: exam.title,
 
-          subjects: exam.eligibleSubjects,
+          subject: exam.subject,
 
-          questions: questionResult.rows.map(
-            sanitizeQuestion
-          ),
+          className: exam.class_name,
+
+          instructions: exam.instructions || "",
+
+          questions: safeQuestions,
         },
+
+        questions: safeQuestions,
       });
     }
 
-    const questionsPerSubject = Math.min(
-      Math.max(
-        Number(exam.questions_per_subject) ||
-        DEFAULT_QUESTIONS_PER_SUBJECT,
-        1
-      ),
-      MAX_QUESTIONS_PER_SUBJECT
+    /*
+      Create a new attempt.
+    */
+
+    const questionResult = await pool.query(
+      `
+        SELECT
+          id,
+          exam_id,
+          question_order,
+          question_type,
+          question_text,
+          options,
+          image_url,
+          passage_id,
+          passage_title,
+          passage,
+          passage_order,
+          marks
+
+        FROM school_exam_questions
+
+        WHERE exam_id = $1
+
+        ORDER BY
+          question_order ASC,
+          id ASC
+
+        LIMIT $2
+      `,
+      [
+        exam.id,
+        MAX_QUESTIONS_PER_SUBJECT,
+      ]
     );
 
-    const selectedQuestions = [];
-
-    for (const subject of exam.eligibleSubjects) {
-      const questionResult = await pool.query(
-        `
-          SELECT
-            id,
-            exam,
-            subject,
-            question,
-            question_type,
-            options,
-            optionA,
-            optionB,
-            optionC,
-            optionD,
-            image,
-            passage_title,
-            passage,
-            passage_image
-          FROM cbt_questions
-          WHERE LOWER(TRIM(subject)) = LOWER(TRIM($1))
-            AND (
-              active = TRUE
-              OR active IS NULL
-            )
-          ORDER BY RANDOM()
-          LIMIT $2
-        `,
-        [
-          subject,
-          questionsPerSubject,
-        ]
-      );
-
-      selectedQuestions.push(
-        ...questionResult.rows
-      );
-    }
+    const selectedQuestions = questionResult.rows;
 
     if (!selectedQuestions.length) {
       return res.status(404).json({
         success: false,
+
         code: "NO_QUESTIONS",
 
-        message: "No examination questions are available for your registered subjects.",
+        message:
+          "No questions have been uploaded for this examination yet.",
       });
     }
 
@@ -1049,7 +1458,8 @@ router.post(
 
     const durationMinutes = Math.min(
       Math.max(
-        Number(exam.duration_minutes) || 120,
+        Number(exam.duration_minutes) ||
+        DEFAULT_EXAM_DURATION,
         1
       ),
       MAX_EXAM_DURATION
@@ -1059,25 +1469,24 @@ router.post(
       now.getTime() + durationMinutes * 60 * 1000
     );
 
-    const examEnd = new Date(exam.end_at);
-
     const expiresAt =
-      calculatedExpiry < examEnd
+      calculatedExpiry < endAt
         ? calculatedExpiry
-        : examEnd;
+        : endAt;
 
     const attemptId = crypto.randomUUID();
 
     const insertResult = await pool.query(
       `
-        INSERT INTO academy_cbt_attempts (
+        INSERT INTO school_exam_attempts (
           id,
           exam_id,
           student_id,
           enrollment_id,
           student_name,
           student_email,
-          subjects,
+          student_class,
+          subject,
           question_ids,
           answers,
           started_at,
@@ -1085,6 +1494,7 @@ router.post(
           total_questions,
           status
         )
+
         VALUES (
           $1,
           $2,
@@ -1093,13 +1503,15 @@ router.post(
           $5,
           $6,
           $7,
-          $8::jsonb,
+          $8,
+          $9::jsonb,
           '{}'::jsonb,
-          $9,
           $10,
           $11,
+          $12,
           'in_progress'
         )
+
         RETURNING *
       `,
       [
@@ -1115,7 +1527,9 @@ router.post(
 
         student.email,
 
-        exam.eligibleSubjects,
+        student.className,
+
+        exam.subject,
 
         JSON.stringify(questionIds),
 
@@ -1128,6 +1542,10 @@ router.post(
     );
 
     const attempt = insertResult.rows[0];
+
+    const safeQuestions = selectedQuestions.map(
+      sanitizeQuestion
+    );
 
     res.status(201).json({
       success: true,
@@ -1151,28 +1569,24 @@ router.post(
 
         title: exam.title,
 
-        subjects: exam.eligibleSubjects,
+        subject: exam.subject,
 
-        questions: selectedQuestions.map(
-          sanitizeQuestion
-        ),
+        className: exam.class_name,
+
+        instructions: exam.instructions || "",
+
+        questions: safeQuestions,
       },
+
+      questions: safeQuestions,
     });
   })
 );
 
 /* =========================================================
-   SAVE EXAM ANSWERS
+   SAVE SCHOOL EXAMINATION ANSWERS
 
    PUT /student/cbt/attempts/:attemptId/answers
-
-   Body:
-   {
-     "answers": {
-       "questionId": "A",
-       "questionId2": "C"
-     }
-   }
 ========================================================= */
 
 router.put(
@@ -1182,7 +1596,6 @@ router.put(
     await initializeCBTDatabase();
 
     const student = req.cbtStudent;
-
     const answers = req.body?.answers;
 
     if (
@@ -1199,10 +1612,12 @@ router.put(
     const attemptResult = await pool.query(
       `
         SELECT *
-        FROM academy_cbt_attempts
+        FROM school_exam_attempts
+
         WHERE id = $1
           AND student_id = $2
           AND enrollment_id = $3
+
         LIMIT 1
       `,
       [
@@ -1217,7 +1632,7 @@ router.put(
     if (!attempt) {
       return res.status(404).json({
         success: false,
-        message: "Examination attempt not found.",
+        message: "School Examination attempt not found.",
       });
     }
 
@@ -1231,6 +1646,7 @@ router.put(
     if (Date.now() >= new Date(attempt.expires_at).getTime()) {
       return res.status(403).json({
         success: false,
+
         code: "ATTEMPT_EXPIRED",
 
         message: "Your examination time has expired.",
@@ -1238,7 +1654,7 @@ router.put(
     }
 
     const allowedQuestionIds = new Set(
-      getExamQuestionIds(attempt)
+      getAttemptQuestionIds(attempt)
     );
 
     const sanitizedAnswers = {};
@@ -1262,9 +1678,7 @@ router.put(
       }
     }
 
-    const previousAnswers = getAttemptAnswers(
-      attempt
-    );
+    const previousAnswers = getAttemptAnswers(attempt);
 
     const mergedAnswers = {
       ...previousAnswers,
@@ -1273,19 +1687,19 @@ router.put(
 
     await pool.query(
       `
-        UPDATE academy_cbt_attempts
+        UPDATE school_exam_attempts
+
         SET
           answers = $1::jsonb,
           updated_at = NOW()
+
         WHERE id = $2
           AND student_id = $3
           AND status = 'in_progress'
       `,
       [
         JSON.stringify(mergedAnswers),
-
         attempt.id,
-
         student.id,
       ]
     );
@@ -1295,9 +1709,7 @@ router.put(
 
       message: "Examination answers saved.",
 
-      savedAnswers: Object.keys(
-        mergedAnswers
-      ).length,
+      savedAnswers: Object.keys(mergedAnswers).length,
 
       expiresAt: attempt.expires_at,
     });
@@ -1305,16 +1717,9 @@ router.put(
 );
 
 /* =========================================================
-   SUBMIT EXAMINATION
+   SUBMIT SCHOOL EXAMINATION
 
    POST /student/cbt/attempts/:attemptId/submit
-
-   Body:
-   {
-     "answers": {
-       "questionId": "A"
-     }
-   }
 ========================================================= */
 
 router.post(
@@ -1324,7 +1729,6 @@ router.post(
     await initializeCBTDatabase();
 
     const student = req.cbtStudent;
-
     const client = await pool.connect();
 
     try {
@@ -1333,10 +1737,12 @@ router.post(
       const attemptResult = await client.query(
         `
           SELECT *
-          FROM academy_cbt_attempts
+          FROM school_exam_attempts
+
           WHERE id = $1
             AND student_id = $2
             AND enrollment_id = $3
+
           FOR UPDATE
         `,
         [
@@ -1353,7 +1759,7 @@ router.post(
 
         return res.status(404).json({
           success: false,
-          message: "Examination attempt not found.",
+          message: "School Examination attempt not found.",
         });
       }
 
@@ -1366,14 +1772,8 @@ router.post(
         });
       }
 
-      const questionIds = getExamQuestionIds(
-        attempt
-      );
-
-      const previousAnswers = getAttemptAnswers(
-        attempt
-      );
-
+      const questionIds = getAttemptQuestionIds(attempt);
+      const previousAnswers = getAttemptAnswers(attempt);
       const incomingAnswers = req.body?.answers;
 
       const mergedAnswers = {
@@ -1385,16 +1785,12 @@ router.post(
         typeof incomingAnswers === "object" &&
         !Array.isArray(incomingAnswers)
       ) {
-        const allowedQuestionIds = new Set(
-          questionIds
-        );
+        const allowedQuestionIds = new Set(questionIds);
 
         for (const [questionId, answer] of Object.entries(
           incomingAnswers
         )) {
-          if (
-            !allowedQuestionIds.has(String(questionId))
-          ) {
+          if (!allowedQuestionIds.has(String(questionId))) {
             continue;
           }
 
@@ -1417,14 +1813,20 @@ router.post(
         `
           SELECT
             id,
-            answer,
             correct_answer,
-            "correctAnswer",
-            question_type
-          FROM cbt_questions
+            question_type,
+            options,
+            marks
+
+          FROM school_exam_questions
+
           WHERE id::text = ANY($1::text[])
+            AND exam_id = $2
         `,
-        [questionIds]
+        [
+          questionIds,
+          attempt.exam_id,
+        ]
       );
 
       const questionMap = new Map(
@@ -1438,15 +1840,23 @@ router.post(
       let incorrectAnswers = 0;
       let unanswered = 0;
 
+      let totalMarks = 0;
+      let obtainedMarks = 0;
+
       for (const questionId of questionIds) {
-        const question = questionMap.get(
-          String(questionId)
-        );
+        const question = questionMap.get(String(questionId));
 
         if (!question) {
           unanswered++;
           continue;
         }
+
+        const marks = Math.max(
+          Number(question.marks) || 1,
+          0
+        );
+
+        totalMarks += marks;
 
         const submittedAnswer = clean(
           mergedAnswers[String(questionId)]
@@ -1457,15 +1867,9 @@ router.post(
           continue;
         }
 
-        const correctAnswer = getCorrectAnswer(
-          question
-        );
-
-        if (
-          normalizeAnswer(submittedAnswer) ===
-          normalizeAnswer(correctAnswer)
-        ) {
+        if (isCorrectAnswer(question, submittedAnswer)) {
           correctAnswers++;
+          obtainedMarks += marks;
         } else {
           incorrectAnswers++;
         }
@@ -1474,81 +1878,62 @@ router.post(
       const totalQuestions = questionIds.length;
 
       const score =
-        totalQuestions > 0
+        totalMarks > 0
           ? Number(
               (
-                (correctAnswers / totalQuestions) *
+                (obtainedMarks / totalMarks) *
                 100
               ).toFixed(2)
             )
           : 0;
 
       const submittedAt = new Date();
-
-      const startedAt = new Date(
-        attempt.started_at
-      );
+      const startedAt = new Date(attempt.started_at);
 
       const durationSeconds = Math.max(
         0,
         Math.floor(
-          (submittedAt.getTime() - startedAt.getTime()) /
-          1000
+          (submittedAt.getTime() - startedAt.getTime()) / 1000
         )
       );
 
       const expired =
         submittedAt >= new Date(attempt.expires_at);
 
-      const status = expired
-        ? "expired"
-        : "submitted";
+      const status = expired ? "expired" : "submitted";
 
       await client.query(
         `
-          UPDATE academy_cbt_attempts
+          UPDATE school_exam_attempts
+
           SET
             answers = $1::jsonb,
-
             submitted_at = $2,
-
             duration_seconds = $3,
-
             total_questions = $4,
-
             correct_answers = $5,
-
             incorrect_answers = $6,
-
             unanswered = $7,
-
-            score = $8,
-
-            status = $9,
-
+            total_marks = $8,
+            obtained_marks = $9,
+            score = $10,
+            status = $11,
             updated_at = NOW()
 
-          WHERE id = $10
+          WHERE id = $12
         `,
         [
           JSON.stringify(mergedAnswers),
-
           submittedAt,
-
           durationSeconds,
-
           totalQuestions,
-
           correctAnswers,
-
           incorrectAnswers,
-
           unanswered,
-
+          totalMarks,
+          obtainedMarks,
           score,
-
           status,
-
           attempt.id,
         ]
       );
@@ -1558,10 +1943,14 @@ router.post(
       return res.json({
         success: true,
 
-        message: "Examination submitted successfully.",
+        message: "School Examination submitted successfully.",
 
         result: {
           attemptId: attempt.id,
+
+          examId: attempt.exam_id,
+
+          subject: attempt.subject,
 
           totalQuestions,
 
@@ -1570,6 +1959,10 @@ router.post(
           incorrectAnswers,
 
           unanswered,
+
+          totalMarks,
+
+          obtainedMarks,
 
           score,
 
@@ -1606,24 +1999,15 @@ router.get(
     const result = await pool.query(
       `
         SELECT
-          a.id,
-          a.exam_id,
-          a.student_name,
-          a.subjects,
-          a.started_at,
-          a.submitted_at,
-          a.duration_seconds,
-          a.total_questions,
-          a.correct_answers,
-          a.incorrect_answers,
-          a.unanswered,
-          a.score,
-          a.status,
-          e.title AS exam_title
+          a.*,
 
-        FROM academy_cbt_attempts a
+          e.title AS exam_title,
 
-        INNER JOIN academy_cbt_exams e
+          e.class_name AS exam_class
+
+        FROM school_exam_attempts a
+
+        INNER JOIN school_exams e
           ON e.id = a.exam_id
 
         WHERE a.id = $1
@@ -1634,9 +2018,7 @@ router.get(
       `,
       [
         req.params.attemptId,
-
         req.cbtStudent.id,
-
         req.cbtStudent.enrollmentId,
       ]
     );
@@ -1663,11 +2045,15 @@ router.get(
       result: {
         attemptId: attempt.id,
 
+        examId: attempt.exam_id,
+
         exam: attempt.exam_title,
 
         student: attempt.student_name,
 
-        subjects: attempt.subjects,
+        className: attempt.exam_class,
+
+        subject: attempt.subject,
 
         startedAt: attempt.started_at,
 
@@ -1683,7 +2069,13 @@ router.get(
 
         unanswered: attempt.unanswered,
 
+        totalMarks: Number(attempt.total_marks),
+
+        obtainedMarks: Number(attempt.obtained_marks),
+
         score: Number(attempt.score),
+
+        percentage: Number(attempt.score),
 
         status: attempt.status,
       },
@@ -1692,7 +2084,7 @@ router.get(
 );
 
 /* =========================================================
-   GET STUDENT CBT HISTORY
+   GET STUDENT SCHOOL EXAMINATION HISTORY
 
    GET /student/cbt/results
 ========================================================= */
@@ -1708,20 +2100,24 @@ router.get(
         SELECT
           a.id,
           a.exam_id,
-          a.subjects,
+          a.subject,
+          a.student_class,
           a.started_at,
           a.submitted_at,
           a.total_questions,
           a.correct_answers,
           a.incorrect_answers,
           a.unanswered,
+          a.total_marks,
+          a.obtained_marks,
           a.score,
           a.status,
+
           e.title AS exam_title
 
-        FROM academy_cbt_attempts a
+        FROM school_exam_attempts a
 
-        INNER JOIN academy_cbt_exams e
+        INNER JOIN school_exams e
           ON e.id = a.exam_id
 
         WHERE a.student_id = $1
@@ -1731,7 +2127,6 @@ router.get(
       `,
       [
         req.cbtStudent.id,
-
         req.cbtStudent.enrollmentId,
       ]
     );
@@ -1748,7 +2143,9 @@ router.get(
 
         exam: attempt.exam_title,
 
-        subjects: attempt.subjects,
+        subject: attempt.subject,
+
+        className: attempt.student_class,
 
         startedAt: attempt.started_at,
 
@@ -1761,6 +2158,10 @@ router.get(
         incorrectAnswers: attempt.incorrect_answers,
 
         unanswered: attempt.unanswered,
+
+        totalMarks: Number(attempt.total_marks),
+
+        obtainedMarks: Number(attempt.obtained_marks),
 
         score: Number(attempt.score),
 
@@ -1775,7 +2176,7 @@ router.get(
 ========================================================= */
 
 router.use((error, req, res, next) => {
-  console.error("ACADEMY CBT ROUTE ERROR:", error);
+  console.error("SCHOOL EXAMINATION ROUTE ERROR:", error);
 
   if (res.headersSent) {
     return next(error);
@@ -1783,7 +2184,10 @@ router.use((error, req, res, next) => {
 
   res.status(500).json({
     success: false,
-    message: "An error occurred while processing your CBT request.",
+
+    message:
+      "An error occurred while processing your School Examination request.",
+
     error:
       process.env.NODE_ENV === "development"
         ? error.message

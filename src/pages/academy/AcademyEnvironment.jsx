@@ -842,7 +842,7 @@ export default function AcademyEnvironment() {
               </div>
 
               <Link
-                to="/OurStory"
+                to="/our-story"
                 className="group mt-9 inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.04] px-5 py-3 text-sm font-bold text-white transition duration-300 hover:-translate-y-0.5 hover:bg-white/[0.08]"
               >
                 Discover Scholiqen

@@ -181,6 +181,81 @@ const parseOptions = (options) => {
 };
 
 // ============================================================
+// LAGOS DATE/TIME HELPERS
+// ============================================================
+
+// Convert a database timestamp into a datetime-local value
+// displayed in Lagos time (WAT).
+const toLagosDateTimeInput = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Lagos",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const get = (type) =>
+    parts.find((part) => part.type === type)?.value || "";
+
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+};
+
+// Convert a datetime-local value to an ISO timestamp.
+// Lagos uses UTC+1 and does not observe daylight saving time.
+const lagosDateTimeToISO = (value) => {
+  if (!value) return "";
+
+  const match = String(value).match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+
+  if (!match) return "";
+
+  const [, year, month, day, hour, minute, second = "00"] =
+    match;
+
+  const utcTimestamp = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour) - 1,
+    Number(minute),
+    Number(second)
+  );
+
+  const date = new Date(utcTimestamp);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toISOString();
+};
+
+const formatLagosDateTime = (value) => {
+  if (!value) return "Not scheduled";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Invalid date";
+  }
+
+  return date.toLocaleString("en-NG", {
+    timeZone: "Africa/Lagos",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+};
+
+// ============================================================
 // NORMALIZE SAVED QUESTION
 // ============================================================
 
@@ -336,6 +411,16 @@ export default function CreateExam() {
 
   const [status, setStatus] =
     useState("draft");
+
+  // ----------------------------------------------------------
+  // EXAMINATION SCHEDULE
+  // ----------------------------------------------------------
+
+  const [scheduledStartAt, setScheduledStartAt] =
+    useState("");
+
+  const [scheduledEndAt, setScheduledEndAt] =
+    useState("");
 
   // ----------------------------------------------------------
   // QUESTIONS
@@ -553,6 +638,25 @@ export default function CreateExam() {
           )
         );
 
+        // Restore the saved examination schedule.
+        setScheduledStartAt(
+          toLagosDateTimeInput(
+            exam.scheduled_start_at ??
+            exam.scheduledStartAt ??
+            exam.start_at ??
+            exam.startAt
+          )
+        );
+
+        setScheduledEndAt(
+          toLagosDateTimeInput(
+            exam.scheduled_end_at ??
+            exam.scheduledEndAt ??
+            exam.end_at ??
+            exam.endAt
+          )
+        );
+
         setInstructions(
           exam.instructions || ""
         );
@@ -654,6 +758,9 @@ export default function CreateExam() {
       );
 
       setDuration("60");
+
+      setScheduledStartAt("");
+      setScheduledEndAt("");
 
       setInstructions(
         "Answer all questions. Choose the correct option for each objective question."
@@ -1214,6 +1321,29 @@ export default function CreateExam() {
       return "Enter a valid examination duration between 1 and 1440 minutes.";
     }
 
+    // Schedule validation.
+    if (!scheduledStartAt) {
+      return "Select the examination start date and time.";
+    }
+
+    if (!scheduledEndAt) {
+      return "Select the examination closing date and time.";
+    }
+
+    const startISO = lagosDateTimeToISO(scheduledStartAt);
+    const endISO = lagosDateTimeToISO(scheduledEndAt);
+
+    if (!startISO || !endISO) {
+      return "Enter valid examination schedule dates and times.";
+    }
+
+    if (
+      new Date(endISO).getTime() <=
+      new Date(startISO).getTime()
+    ) {
+      return "The examination closing time must be later than its starting time.";
+    }
+
     if (!questions.length) {
       return "Add at least one question.";
     }
@@ -1308,6 +1438,14 @@ export default function CreateExam() {
         class_name: className,
         subject: subject.trim(),
         duration_minutes: Number(duration),
+
+        // Send ISO timestamps representing Lagos local time.
+        scheduled_start_at:
+          lagosDateTimeToISO(scheduledStartAt),
+
+        scheduled_end_at:
+          lagosDateTimeToISO(scheduledEndAt),
+
         instructions: instructions.trim(),
         status,
 
@@ -1352,7 +1490,6 @@ export default function CreateExam() {
             passage_order:
               question.passage_order || null,
 
-            // Directly uploaded image data URL.
             image_url:
               question.image_url || null,
           })
@@ -1647,7 +1784,7 @@ export default function CreateExam() {
                 </h2>
 
                 <p className="mt-1 text-xs text-slate-400">
-                  Set the class, subject and examination information.
+                  Set the class, subject, schedule and examination information.
                 </p>
               </div>
             </div>
@@ -1703,6 +1840,9 @@ export default function CreateExam() {
                     setEditingExamId("");
                     setIsEditing(false);
                     setSavedExams([]);
+
+                    setScheduledStartAt("");
+                    setScheduledEndAt("");
 
                     setError("");
                     setSuccess("");
@@ -1845,6 +1985,122 @@ export default function CreateExam() {
                   <option value="draft">Draft</option>
                   <option value="published">Published</option>
                 </select>
+              </div>
+
+              {/* EXAMINATION SCHEDULE */}
+
+              <div className="sm:col-span-2 mt-2 rounded-2xl border border-blue-500/20 bg-blue-500/[0.035] p-5">
+
+                <div className="mb-5 flex items-start gap-3">
+
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
+                    <Clock size={19} />
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Examination Schedule
+                    </h3>
+
+                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                      Set when students are allowed to start and when the examination closes.
+                      All times use Lagos time (WAT).
+                    </p>
+                  </div>
+
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+
+                  {/* START DATE */}
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold text-slate-300">
+                      Examination Start Date &amp; Time
+                    </label>
+
+                    <input
+                      type="datetime-local"
+                      value={scheduledStartAt}
+                      onChange={(event) =>
+                        setScheduledStartAt(event.target.value)
+                      }
+                      className="w-full rounded-xl border border-white/10 bg-[#020b19] px-4 py-3 text-sm text-white outline-none transition focus:border-blue-500/60"
+                    />
+
+                    <p className="mt-2 text-[10px] text-slate-500">
+                      Students cannot start before this time.
+                    </p>
+                  </div>
+
+                  {/* END DATE */}
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold text-slate-300">
+                      Examination Closing Date &amp; Time
+                    </label>
+
+                    <input
+                      type="datetime-local"
+                      value={scheduledEndAt}
+                      min={scheduledStartAt || undefined}
+                      onChange={(event) =>
+                        setScheduledEndAt(event.target.value)
+                      }
+                      className="w-full rounded-xl border border-white/10 bg-[#020b19] px-4 py-3 text-sm text-white outline-none transition focus:border-blue-500/60"
+                    />
+
+                    <p className="mt-2 text-[10px] text-slate-500">
+                      Students cannot continue after this time.
+                    </p>
+                  </div>
+
+                </div>
+
+                {scheduledStartAt && scheduledEndAt && (
+                  <div className="mt-5 rounded-xl border border-white/[0.07] bg-[#020b19] p-4">
+
+                    {lagosDateTimeToISO(scheduledEndAt) &&
+                    lagosDateTimeToISO(scheduledStartAt) &&
+                    new Date(lagosDateTimeToISO(scheduledEndAt)) >
+                    new Date(lagosDateTimeToISO(scheduledStartAt)) ? (
+                      <div className="flex items-start gap-3">
+
+                        <CheckCircle2
+                          size={17}
+                          className="mt-0.5 shrink-0 text-emerald-400"
+                        />
+
+                        <div>
+                          <p className="text-xs font-bold text-emerald-300">
+                            Schedule configured
+                          </p>
+
+                          <p className="mt-1 text-xs leading-5 text-slate-400">
+                            Students will be able to start at the scheduled opening time.
+                            The examination will close automatically at the scheduled end time.
+                          </p>
+                        </div>
+
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3">
+
+                        <AlertCircle
+                          size={17}
+                          className="mt-0.5 shrink-0 text-red-400"
+                        />
+
+                        <p className="text-xs text-red-300">
+                          The closing time must be later than the opening time.
+                        </p>
+
+                      </div>
+                    )}
+
+                  </div>
+                )}
+
               </div>
 
               {/* INSTRUCTIONS */}
@@ -2532,6 +2788,20 @@ export default function CreateExam() {
               {subject || "No subject selected"} ·{" "}
               {questions.length} questions
             </p>
+
+            <p className="mt-2 text-xs text-slate-500">
+              Opens: {formatLagosDateTime(
+                scheduledStartAt
+                  ? lagosDateTimeToISO(scheduledStartAt)
+                  : ""
+              )}
+              {" · "}
+              Closes: {formatLagosDateTime(
+                scheduledEndAt
+                  ? lagosDateTimeToISO(scheduledEndAt)
+                  : ""
+              )}
+            </p>
           </div>
 
           <button
@@ -2608,6 +2878,40 @@ export default function CreateExam() {
                 <p className="mt-2 text-xs text-slate-500">
                   Duration: {duration} minutes · Total Marks: {totalMarks}
                 </p>
+
+                {/* SCHEDULE PREVIEW */}
+
+                <div className="mt-5 grid gap-3 text-left sm:grid-cols-2">
+
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                      Opens
+                    </p>
+
+                    <p className="mt-2 text-sm font-semibold text-white">
+                      {formatLagosDateTime(
+                        scheduledStartAt
+                          ? lagosDateTimeToISO(scheduledStartAt)
+                          : ""
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">
+                      Closes
+                    </p>
+
+                    <p className="mt-2 text-sm font-semibold text-white">
+                      {formatLagosDateTime(
+                        scheduledEndAt
+                          ? lagosDateTimeToISO(scheduledEndAt)
+                          : ""
+                      )}
+                    </p>
+                  </div>
+
+                </div>
 
                 {instructions && (
                   <p className="mt-5 rounded-xl bg-white/[0.035] p-4 text-left text-sm leading-6 text-slate-300">

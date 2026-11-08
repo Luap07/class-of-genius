@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useEffect,
@@ -30,6 +31,21 @@ import {
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+const SCHOOL_CLASSES = [
+  "Primary 1",
+  "Primary 2",
+  "Primary 3",
+  "Primary 4",
+  "Primary 5",
+  "Primary 6",
+  "JSS 1",
+  "JSS 2",
+  "JSS 3",
+  "SS 1",
+  "SS 2",
+  "SS 3",
+];
+
 const getStoredTutor = () => {
   const keys = [
     "tutorReference",
@@ -45,10 +61,7 @@ const getStoredTutor = () => {
 
       try {
         const parsed = JSON.parse(value);
-
-        if (parsed && typeof parsed === "object") {
-          return parsed;
-        }
+        if (parsed && typeof parsed === "object") return parsed;
       } catch {
         return { reference: value };
       }
@@ -62,7 +75,6 @@ const getStoredTutor = () => {
 
 const getTutorReference = () => {
   const tutor = getStoredTutor();
-
   if (!tutor) return "";
 
   return String(
@@ -78,7 +90,6 @@ const getTutorReference = () => {
 
 const getTutorName = () => {
   const tutor = getStoredTutor();
-
   if (!tutor) return "Tutor";
 
   return (
@@ -90,111 +101,68 @@ const getTutorName = () => {
   );
 };
 
-const normaliseClass = (item) => {
-  if (!item) return null;
+const clean = (value) =>
+  value === undefined || value === null
+    ? ""
+    : String(value).trim();
 
-  if (typeof item === "string") {
-    return {
-      id: item,
-      name: item,
-      grade: item,
-      class_name: item,
-      subjects: [],
-    };
-  }
+const normaliseClassName = (value) => {
+  const name = clean(value).replace(/\s+/g, " ").toLowerCase();
 
-  const id =
-    item.id ??
-    item.class_id ??
-    item.classId ??
-    item.grade_id ??
-    item.gradeId ??
-    item.value ??
-    item.name ??
-    "";
+  const match = name.match(/^(primary|pry)\s*([1-6])$/i);
+  if (match) return `Primary ${match[2]}`;
 
-  const name =
-    item.name ??
-    item.class_name ??
-    item.className ??
-    item.grade ??
-    item.grade_name ??
-    item.gradeName ??
-    item.title ??
-    item.label ??
-    String(id || "");
+  const junior = name.match(/^(jss|js)\s*([1-3])$/i);
+  if (junior) return `JSS ${junior[2]}`;
 
-  const grade =
-    item.grade ??
-    item.grade_name ??
-    item.gradeName ??
-    item.class_name ??
-    item.className ??
-    item.name ??
-    name;
+  const senior = name.match(/^(ss|sss)\s*([1-3])$/i);
+  if (senior) return `SS ${senior[2]}`;
 
-  const subjects =
-    item.subjects ??
-    item.assignedSubjects ??
-    item.assigned_subjects ??
-    item.subject_list ??
-    item.subjects_list ??
-    [];
-
-  return {
-    ...item,
-    id,
-    name,
-    grade,
-    class_name: name,
-    subjects: Array.isArray(subjects) ? subjects : [],
-  };
+  return SCHOOL_CLASSES.find(
+    (item) => item.toLowerCase() === name
+  ) || "";
 };
 
 const normaliseSubject = (item) => {
   if (!item) return null;
 
   if (typeof item === "string") {
-    return {
-      id: item,
-      name: item,
-    };
+    const name = item.trim();
+    return name ? { id: name, name } : null;
   }
 
-  const id =
-    item.id ??
-    item.subject_id ??
-    item.subjectId ??
-    item.value ??
-    item.name ??
-    "";
+  const name = clean(
+    item.name ||
+      item.subject_name ||
+      item.subjectName ||
+      item.title ||
+      item.label ||
+      item.subject
+  );
 
-  const name =
-    item.name ??
-    item.subject_name ??
-    item.subjectName ??
-    item.title ??
-    item.label ??
-    String(id || "");
+  if (!name) return null;
 
   return {
     ...item,
-    id,
+    id: item.id ?? item.subject_id ?? item.subjectId ?? name,
     name,
   };
 };
 
 const extractArray = (data, keys = []) => {
   if (Array.isArray(data)) return data;
-
-  if (!data || typeof data !== "object") {
-    return [];
-  }
+  if (!data || typeof data !== "object") return [];
 
   for (const key of keys) {
-    if (Array.isArray(data[key])) {
-      return data[key];
-    }
+    if (Array.isArray(data[key])) return data[key];
+  }
+
+  if (data.data && typeof data.data === "object") {
+    return extractArray(data.data, keys);
+  }
+
+  if (data.result && typeof data.result === "object") {
+    return extractArray(data.result, keys);
   }
 
   return [];
@@ -257,9 +225,7 @@ const getStatus = (session) => {
   ).toLowerCase();
 
   if (
-    raw === "live" ||
-    raw === "started" ||
-    raw === "active" ||
+    ["live", "started", "active"].includes(raw) ||
     session?.is_live === true ||
     session?.isLive === true
   ) {
@@ -267,9 +233,7 @@ const getStatus = (session) => {
   }
 
   if (
-    raw === "ended" ||
-    raw === "completed" ||
-    raw === "finished" ||
+    ["ended", "completed", "finished"].includes(raw) ||
     session?.ended_at ||
     session?.endedAt
   ) {
@@ -283,10 +247,7 @@ const formatDateTime = (value) => {
   if (!value) return "Not scheduled";
 
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
+  if (Number.isNaN(date.getTime())) return value;
 
   return date.toLocaleString([], {
     weekday: "short",
@@ -300,8 +261,7 @@ const formatDateTime = (value) => {
 
 const toDateTimeLocalValue = (date) => {
   const local = new Date(
-    date.getTime() -
-      date.getTimezoneOffset() * 60000
+    date.getTime() - date.getTimezoneOffset() * 60000
   );
 
   return local.toISOString().slice(0, 16);
@@ -337,14 +297,12 @@ const StatusBadge = ({ status }) => {
 export default function TutorLiveClasses() {
   const navigate = useNavigate();
 
-  const [classes, setClasses] = useState([]);
+  const [classes, setClasses] = useState(SCHOOL_CLASSES);
+  const [classSubjects, setClassSubjects] = useState({});
   const [sessions, setSessions] = useState([]);
 
-  const [loadingClasses, setLoadingClasses] =
-    useState(true);
-
-  const [loadingSessions, setLoadingSessions] =
-    useState(true);
+  const [loadingClasses, setLoadingClasses] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(true);
 
   const [creating, setCreating] = useState(false);
   const [startingId, setStartingId] = useState("");
@@ -356,8 +314,7 @@ export default function TutorLiveClasses() {
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [showCreateModal, setShowCreateModal] =
-    useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -383,6 +340,8 @@ export default function TutorLiveClasses() {
     [tutorReference]
   );
 
+  // The dropdown always uses the fixed SCHOOL_CLASSES list.
+  // The API is only used to collect subject suggestions.
   const fetchClasses = useCallback(async () => {
     setLoadingClasses(true);
 
@@ -396,15 +355,13 @@ export default function TutorLiveClasses() {
         }
       );
 
-      const data = await response
-        .json()
-        .catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
           data?.message ||
             data?.error ||
-            "Unable to load your assigned classes."
+            "Unable to load assigned subjects."
         );
       }
 
@@ -416,60 +373,71 @@ export default function TutorLiveClasses() {
         "results",
       ]);
 
-      const normalised = rawClasses
-        .map(normaliseClass)
-        .filter(Boolean);
+      const subjectMap = {};
 
-      setClasses(normalised);
+      rawClasses.forEach((item) => {
+        if (!item || typeof item !== "object") return;
 
-      setForm((current) => {
-        if (
-          current.classId ||
-          normalised.length === 0
-        ) {
-          return current;
+        const rawName =
+          item.class_name ||
+          item.className ||
+          item.grade_name ||
+          item.gradeName ||
+          item.grade ||
+          item.class ||
+          item.name ||
+          "";
+
+        const className = normaliseClassName(rawName);
+        if (!className) return;
+
+        const rawSubjects =
+          item.subjects ||
+          item.assignedSubjects ||
+          item.assigned_subjects ||
+          item.subject_list ||
+          item.subjects_list ||
+          [];
+
+        const subjectList = Array.isArray(rawSubjects)
+          ? [...rawSubjects]
+          : [];
+
+        const singleSubject =
+          item.subject_name ||
+          item.subjectName ||
+          item.subject;
+
+        if (singleSubject) subjectList.push(singleSubject);
+
+        if (!subjectMap[className]) {
+          subjectMap[className] = [];
         }
 
-        const firstClass = normalised[0];
+        subjectList.forEach((subject) => {
+          const normalized = normaliseSubject(subject);
+          if (!normalized) return;
 
-        const firstSubject =
-          Array.isArray(firstClass.subjects) &&
-          firstClass.subjects.length
-            ? normaliseSubject(
-                firstClass.subjects[0]
-              )
-            : null;
+          const exists = subjectMap[className].some(
+            (existing) =>
+              existing.name.toLowerCase() ===
+              normalized.name.toLowerCase()
+          );
 
-        const className = String(
-          firstClass.name ||
-            firstClass.class_name ||
-            firstClass.grade ||
-            ""
-        ).trim();
-
-        const grade = String(
-          firstClass.grade ||
-            firstClass.grade_name ||
-            className
-        ).trim();
-
-        return {
-          ...current,
-          classId: String(firstClass.id || ""),
-          className,
-          grade,
-          subject: firstSubject?.name || "",
-        };
+          if (!exists) {
+            subjectMap[className].push(normalized);
+          }
+        });
       });
-    } catch (err) {
-      console.error(
-        "Fetch tutor classes error:",
-        err
-      );
 
+      setClasses(SCHOOL_CLASSES);
+      setClassSubjects(subjectMap);
+    } catch (err) {
+      console.error("Fetch tutor classes error:", err);
+      setClasses(SCHOOL_CLASSES);
+      setClassSubjects({});
       setError(
-        err?.message ||
-          "Unable to load your assigned classes."
+        err?.message || "Unable to load assigned subjects."
       );
     } finally {
       setLoadingClasses(false);
@@ -489,9 +457,7 @@ export default function TutorLiveClasses() {
         }
       );
 
-      const data = await response
-        .json()
-        .catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
@@ -511,16 +477,10 @@ export default function TutorLiveClasses() {
 
       setSessions(rawSessions);
     } catch (err) {
-      console.error(
-        "Fetch live classes error:",
-        err
-      );
-
+      console.error("Fetch live classes error:", err);
       setSessions([]);
-
       setError(
-        err?.message ||
-          "Unable to load your live classes."
+        err?.message || "Unable to load your live classes."
       );
     } finally {
       setLoadingSessions(false);
@@ -533,36 +493,19 @@ export default function TutorLiveClasses() {
   }, [fetchClasses, fetchSessions]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      fetchSessions();
-    }, 30000);
-
+    const timer = setInterval(fetchSessions, 30000);
     return () => clearInterval(timer);
   }, [fetchSessions]);
 
   const selectedClass = useMemo(
-    () =>
-      classes.find(
-        (item) =>
-          String(item.id) ===
-          String(form.classId)
-      ),
-    [classes, form.classId]
+    () => form.className || "",
+    [form.className]
   );
 
-  const availableSubjects = useMemo(() => {
-    if (!selectedClass) return [];
-
-    const subjects =
-      selectedClass.subjects ||
-      selectedClass.assignedSubjects ||
-      selectedClass.assigned_subjects ||
-      [];
-
-    return subjects
-      .map(normaliseSubject)
-      .filter(Boolean);
-  }, [selectedClass]);
+  const availableSubjects = useMemo(
+    () => classSubjects[selectedClass] || [],
+    [classSubjects, selectedClass]
+  );
 
   const updateForm = (field, value) => {
     setForm((current) => ({
@@ -572,60 +515,38 @@ export default function TutorLiveClasses() {
   };
 
   const handleClassChange = (value) => {
-    const nextClass = classes.find(
-      (item) =>
-        String(item.id) === String(value)
-    );
-
-    const subjects =
-      nextClass?.subjects ||
-      nextClass?.assignedSubjects ||
-      nextClass?.assigned_subjects ||
-      [];
-
-    const firstSubject =
-      subjects.length
-        ? normaliseSubject(subjects[0])
-        : null;
-
-    const className = String(
-      nextClass?.name ||
-        nextClass?.class_name ||
-        nextClass?.className ||
-        nextClass?.grade ||
-        nextClass?.grade_name ||
-        nextClass?.gradeName ||
-        ""
-    ).trim();
-
-    const grade = String(
-      nextClass?.grade ||
-        nextClass?.grade_name ||
-        nextClass?.gradeName ||
-        nextClass?.class_name ||
-        nextClass?.className ||
-        className
-    ).trim();
+    const className = normaliseClassName(value);
 
     setForm((current) => ({
       ...current,
-      classId: String(value || ""),
+      classId: className,
       className,
-      grade,
-      subject: firstSubject?.name || "",
+      grade: className,
+      subject: "",
     }));
+  };
+
+  const resetForm = () => {
+    setForm({
+      title: "",
+      description: "",
+      classId: "",
+      className: "",
+      grade: "",
+      subject: "",
+      scheduledAt: toDateTimeLocalValue(
+        new Date(Date.now() + 30 * 60 * 1000)
+      ),
+    });
   };
 
   const handleCreate = async (event) => {
     event.preventDefault();
-
     setError("");
     setSuccess("");
 
     if (!tutorReference) {
-      setError(
-        "Tutor reference was not found. Please log in again."
-      );
+      setError("Tutor reference was not found. Please log in again.");
       return;
     }
 
@@ -634,78 +555,28 @@ export default function TutorLiveClasses() {
       return;
     }
 
-    if (!form.classId) {
-      setError("Please select a class.");
-      return;
-    }
-
-    const selected = classes.find(
-      (item) =>
-        String(item.id) ===
-        String(form.classId)
-    );
-
-    const finalClassName = String(
-      selected?.name ||
-        selected?.class_name ||
-        selected?.className ||
-        selected?.grade ||
-        selected?.grade_name ||
-        selected?.gradeName ||
-        form.className ||
-        form.grade ||
-        ""
-    ).trim();
-
-    const finalGrade = String(
-      selected?.grade ||
-        selected?.grade_name ||
-        selected?.gradeName ||
-        selected?.class_name ||
-        selected?.className ||
-        finalClassName ||
-        form.grade ||
-        form.className ||
-        ""
-    ).trim();
-
-    if (!finalClassName) {
-      setError(
-        "The selected class has no class name/grade."
-      );
-      return;
-    }
-
-    if (!finalGrade) {
-      setError(
-        "The selected class has no grade."
-      );
+    if (!form.className || !SCHOOL_CLASSES.includes(form.className)) {
+      setError("Please select a valid class.");
       return;
     }
 
     if (!form.subject.trim()) {
-      setError("Please select a subject.");
+      setError("Please enter or select a subject.");
       return;
     }
 
     if (!form.scheduledAt) {
-      setError(
-        "Please select the live class date and time."
-      );
+      setError("Please select the live class date and time.");
       return;
     }
 
-    const selectedDate = new Date(
-      form.scheduledAt
-    );
+    const selectedDate = new Date(form.scheduledAt);
 
     if (
       Number.isNaN(selectedDate.getTime()) ||
       selectedDate.getTime() <= Date.now()
     ) {
-      setError(
-        "The live class date and time must be in the future."
-      );
+      setError("The live class date and time must be in the future.");
       return;
     }
 
@@ -719,21 +590,18 @@ export default function TutorLiveClasses() {
         title: form.title.trim(),
         description: form.description.trim(),
 
-        classId: String(form.classId),
-        class_id: String(form.classId),
-
-        className: finalClassName,
-        class_name: finalClassName,
-
-        grade: finalGrade,
+        // The selected class name is used consistently.
+        classId: form.className,
+        class_id: form.className,
+        className: form.className,
+        class_name: form.className,
+        grade: form.className,
 
         subject: form.subject.trim(),
         subject_name: form.subject.trim(),
 
-        scheduledAt:
-          selectedDate.toISOString(),
-        scheduled_at:
-          selectedDate.toISOString(),
+        scheduledAt: selectedDate.toISOString(),
+        scheduled_at: selectedDate.toISOString(),
       };
 
       const response = await fetch(
@@ -747,13 +615,10 @@ export default function TutorLiveClasses() {
       );
 
       const rawText = await response.text();
-
       let data = {};
 
       try {
-        data = rawText
-          ? JSON.parse(rawText)
-          : {};
+        data = rawText ? JSON.parse(rawText) : {};
       } catch {
         data = {};
       }
@@ -774,77 +639,28 @@ export default function TutorLiveClasses() {
         data?.live_class ||
         data?.data;
 
-      if (
-        createdSession &&
-        typeof createdSession === "object"
-      ) {
+      if (createdSession && typeof createdSession === "object") {
         setSessions((current) => [
           createdSession,
-          ...current,
+          ...current.filter(
+            (item) =>
+              String(getSessionId(item)) !==
+              String(getSessionId(createdSession))
+          ),
         ]);
       }
 
       setSuccess(
-        data?.message ||
-          "Live class scheduled successfully."
+        data?.message || "Live class scheduled successfully."
       );
 
-      const firstClass = classes[0];
-
-      const firstSubject =
-        firstClass?.subjects?.length
-          ? normaliseSubject(
-              firstClass.subjects[0]
-            )
-          : null;
-
-      const firstClassName = String(
-        firstClass?.name ||
-          firstClass?.class_name ||
-          firstClass?.className ||
-          firstClass?.grade ||
-          firstClass?.grade_name ||
-          ""
-      ).trim();
-
-      const firstGrade = String(
-        firstClass?.grade ||
-          firstClass?.grade_name ||
-          firstClass?.gradeName ||
-          firstClass?.class_name ||
-          firstClassName
-      ).trim();
-
-      setForm({
-        title: "",
-        description: "",
-        classId: firstClass?.id
-          ? String(firstClass.id)
-          : "",
-        className: firstClassName,
-        grade: firstGrade,
-        subject: firstSubject?.name || "",
-        scheduledAt:
-          toDateTimeLocalValue(
-            new Date(
-              Date.now() +
-                30 * 60 * 1000
-            )
-          ),
-      });
-
+      resetForm();
       setShowCreateModal(false);
-
       await fetchSessions();
     } catch (err) {
-      console.error(
-        "CREATE LIVE CLASS ERROR:",
-        err
-      );
-
+      console.error("CREATE LIVE CLASS ERROR:", err);
       setError(
-        err?.message ||
-          "Unable to create the live class."
+        err?.message || "Unable to create the live class."
       );
     } finally {
       setCreating(false);
@@ -858,9 +674,7 @@ export default function TutorLiveClasses() {
     setSuccess("");
 
     if (!id) {
-      setError(
-        "This live class has no valid session ID."
-      );
+      setError("This live class has no valid session ID.");
       return;
     }
 
@@ -868,9 +682,7 @@ export default function TutorLiveClasses() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/academy/tutor/live-classes/${encodeURIComponent(
-          id
-        )}/start`,
+        `${API_BASE_URL}/api/academy/tutor/live-classes/${encodeURIComponent(id)}/start`,
         {
           method: "POST",
           credentials: "include",
@@ -884,9 +696,7 @@ export default function TutorLiveClasses() {
         }
       );
 
-      const data = await response
-        .json()
-        .catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
@@ -904,55 +714,28 @@ export default function TutorLiveClasses() {
         {};
 
       setSessions((current) =>
-        current.map((item) => {
-          if (
-            String(getSessionId(item)) !==
-            String(id)
-          ) {
-            return item;
-          }
-
-          return {
-            ...item,
-            ...updated,
-            status: "live",
-            session_status: "live",
-            is_live: true,
-            started_at:
-              updated?.started_at ||
-              new Date().toISOString(),
-          };
-        })
+        current.map((item) =>
+          String(getSessionId(item)) === String(id)
+            ? {
+                ...item,
+                ...updated,
+                status: "live",
+                session_status: "live",
+                is_live: true,
+                started_at:
+                  updated?.started_at || new Date().toISOString(),
+              }
+            : item
+        )
       );
 
-      setSuccess(
-        data?.message ||
-          "Live class started successfully."
-      );
-
+      setSuccess(data?.message || "Live class started successfully.");
       await fetchSessions();
 
-      /*
-       * Go to the INTERNAL TutorLiveClassroom.
-       *
-       * App.jsx defines:
-       * /academy/tutor/live/:id
-       */
-      navigate(
-        `/academy/tutor/live/${encodeURIComponent(
-          String(id)
-        )}`
-      );
+      navigate(`/academy/tutor/live/${encodeURIComponent(String(id))}`);
     } catch (err) {
-      console.error(
-        "Start live class error:",
-        err
-      );
-
-      setError(
-        err?.message ||
-          "Unable to start this live class."
-      );
+      console.error("Start live class error:", err);
+      setError(err?.message || "Unable to start this live class.");
     } finally {
       setStartingId("");
     }
@@ -962,17 +745,11 @@ export default function TutorLiveClasses() {
     const id = getSessionId(session);
 
     if (!id) {
-      setError(
-        "This live class has no valid session ID."
-      );
+      setError("This live class has no valid session ID.");
       return;
     }
 
-    if (
-      !window.confirm(
-        "Are you sure you want to end this live class?"
-      )
-    ) {
+    if (!window.confirm("Are you sure you want to end this live class?")) {
       return;
     }
 
@@ -982,9 +759,7 @@ export default function TutorLiveClasses() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/academy/tutor/live-classes/${encodeURIComponent(
-          id
-        )}/end`,
+        `${API_BASE_URL}/api/academy/tutor/live-classes/${encodeURIComponent(id)}/end`,
         {
           method: "POST",
           credentials: "include",
@@ -998,9 +773,7 @@ export default function TutorLiveClasses() {
         }
       );
 
-      const data = await response
-        .json()
-        .catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
@@ -1018,43 +791,26 @@ export default function TutorLiveClasses() {
         {};
 
       setSessions((current) =>
-        current.map((item) => {
-          if (
-            String(getSessionId(item)) !==
-            String(id)
-          ) {
-            return item;
-          }
-
-          return {
-            ...item,
-            ...updated,
-            status: "ended",
-            session_status: "ended",
-            is_live: false,
-            ended_at:
-              updated?.ended_at ||
-              new Date().toISOString(),
-          };
-        })
+        current.map((item) =>
+          String(getSessionId(item)) === String(id)
+            ? {
+                ...item,
+                ...updated,
+                status: "ended",
+                session_status: "ended",
+                is_live: false,
+                ended_at:
+                  updated?.ended_at || new Date().toISOString(),
+              }
+            : item
+        )
       );
 
-      setSuccess(
-        data?.message ||
-          "Live class ended successfully."
-      );
-
+      setSuccess(data?.message || "Live class ended successfully.");
       await fetchSessions();
     } catch (err) {
-      console.error(
-        "End live class error:",
-        err
-      );
-
-      setError(
-        err?.message ||
-          "Unable to end the live class."
-      );
+      console.error("End live class error:", err);
+      setError(err?.message || "Unable to end the live class.");
     } finally {
       setEndingId("");
     }
@@ -1065,9 +821,7 @@ export default function TutorLiveClasses() {
     const status = getStatus(session);
 
     if (!id) {
-      setError(
-        "This live class has no valid session ID."
-      );
+      setError("This live class has no valid session ID.");
       return;
     }
 
@@ -1094,9 +848,7 @@ export default function TutorLiveClasses() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/academy/tutor/live-classes/${encodeURIComponent(
-          id
-        )}`,
+        `${API_BASE_URL}/api/academy/tutor/live-classes/${encodeURIComponent(id)}`,
         {
           method: "DELETE",
           credentials: "include",
@@ -1108,9 +860,7 @@ export default function TutorLiveClasses() {
         }
       );
 
-      const data = await response
-        .json()
-        .catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
@@ -1122,97 +872,53 @@ export default function TutorLiveClasses() {
 
       setSessions((current) =>
         current.filter(
-          (item) =>
-            String(getSessionId(item)) !==
-            String(id)
+          (item) => String(getSessionId(item)) !== String(id)
         )
       );
 
-      setSuccess(
-        data?.message ||
-          "Live class deleted successfully."
-      );
+      setSuccess(data?.message || "Live class deleted successfully.");
     } catch (err) {
-      console.error(
-        "Delete live class error:",
-        err
-      );
-
-      setError(
-        err?.message ||
-          "Unable to delete the live class."
-      );
+      console.error("Delete live class error:", err);
+      setError(err?.message || "Unable to delete the live class.");
     } finally {
       setDeletingId("");
     }
   };
 
-  /*
-   * JOIN INTERNAL CLASSROOM
-   */
   const handleJoin = (session) => {
     const id = getSessionId(session);
 
     if (!id) {
-      setError(
-        "This live class has no valid session ID."
-      );
+      setError("This live class has no valid session ID.");
       return;
     }
 
-    /*
-     * IMPORTANT:
-     * This MUST match App.jsx:
-     *
-     * /academy/tutor/live/:id
-     */
-    navigate(
-      `/academy/tutor/live/${encodeURIComponent(
-        String(id)
-      )}`
-    );
+    navigate(`/academy/tutor/live/${encodeURIComponent(String(id))}`);
   };
 
   const handleCopyLink = async (session) => {
     const joinUrl = getJoinUrl(session);
 
     if (!joinUrl) {
-      setError(
-        "There is no classroom link to copy."
-      );
+      setError("There is no classroom link to copy.");
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(
-        joinUrl
-      );
-
-      setSuccess(
-        "Live classroom link copied."
-      );
+      await navigator.clipboard.writeText(joinUrl);
+      setSuccess("Live classroom link copied.");
     } catch {
-      setError(
-        "Unable to copy the live classroom link."
-      );
+      setError("Unable to copy the live classroom link.");
     }
   };
 
   const filteredSessions = useMemo(() => {
-    const query = search
-      .trim()
-      .toLowerCase();
+    const query = search.trim().toLowerCase();
 
     return sessions.filter((session) => {
       const status = getStatus(session);
 
-      if (
-        filter !== "all" &&
-        status !== filter
-      ) {
-        return false;
-      }
-
+      if (filter !== "all" && status !== filter) return false;
       if (!query) return true;
 
       const text = [
@@ -1238,13 +944,9 @@ export default function TutorLiveClasses() {
     sessions.forEach((session) => {
       const status = getStatus(session);
 
-      if (status === "live") {
-        live++;
-      } else if (status === "ended") {
-        ended++;
-      } else {
-        scheduled++;
-      }
+      if (status === "live") live++;
+      else if (status === "ended") ended++;
+      else scheduled++;
     });
 
     return {
@@ -1262,17 +964,13 @@ export default function TutorLiveClasses() {
           <div>
             <div className="mb-2 flex items-center gap-2">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10">
-                <Radio
-                  size={21}
-                  className="text-cyan-300"
-                />
+                <Radio size={21} className="text-cyan-300" />
               </div>
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-400">
                   Academy
                 </p>
-
                 <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                   Live Classes
                 </h1>
@@ -1280,8 +978,7 @@ export default function TutorLiveClasses() {
             </div>
 
             <p className="max-w-2xl text-sm leading-6 text-slate-400">
-              Create and manage live lessons for
-              your assigned classes and subjects.
+              Create and manage live lessons for your assigned classes and subjects.
             </p>
 
             {tutorName && (
@@ -1311,11 +1008,6 @@ export default function TutorLiveClasses() {
               onClick={() => {
                 setError("");
                 setSuccess("");
-
-                if (classes.length === 0) {
-                  fetchClasses();
-                }
-
                 setShowCreateModal(true);
               }}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
@@ -1329,34 +1021,16 @@ export default function TutorLiveClasses() {
         <AnimatePresence>
           {error && (
             <motion.div
-              initial={{
-                opacity: 0,
-                y: -8,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
-              exit={{
-                opacity: 0,
-                y: -8,
-              }}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
               className="mb-5 flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4"
             >
-              <AlertCircle
-                size={19}
-                className="mt-0.5 shrink-0 text-red-400"
-              />
-
-              <p className="flex-1 text-sm text-red-200">
-                {error}
-              </p>
-
+              <AlertCircle size={19} className="mt-0.5 shrink-0 text-red-400" />
+              <p className="flex-1 text-sm text-red-200">{error}</p>
               <button
                 type="button"
-                onClick={() =>
-                  setError("")
-                }
+                onClick={() => setError("")}
                 className="text-red-300 transition hover:text-white"
               >
                 <X size={17} />
@@ -1366,34 +1040,16 @@ export default function TutorLiveClasses() {
 
           {success && (
             <motion.div
-              initial={{
-                opacity: 0,
-                y: -8,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
-              exit={{
-                opacity: 0,
-                y: -8,
-              }}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
               className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4"
             >
-              <CheckCircle2
-                size={19}
-                className="mt-0.5 shrink-0 text-emerald-400"
-              />
-
-              <p className="flex-1 text-sm text-emerald-200">
-                {success}
-              </p>
-
+              <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-emerald-400" />
+              <p className="flex-1 text-sm text-emerald-200">{success}</p>
               <button
                 type="button"
-                onClick={() =>
-                  setSuccess("")
-                }
+                onClick={() => setSuccess("")}
                 className="text-emerald-300 transition hover:text-white"
               >
                 <X size={17} />
@@ -1403,125 +1059,66 @@ export default function TutorLiveClasses() {
         </AnimatePresence>
 
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <button
-            type="button"
-            onClick={() =>
-              setFilter("all")
-            }
-            className={`rounded-2xl border p-4 text-left transition ${
-              filter === "all"
-                ? "border-cyan-400/30 bg-cyan-400/10"
-                : "border-slate-800 bg-[#071426] hover:border-slate-700"
-            }`}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <Video
-                size={19}
-                className="text-cyan-300"
-              />
-              <span className="text-xs text-slate-500">
-                TOTAL
-              </span>
-            </div>
+          {[
+            {
+              key: "all",
+              label: "Live classes",
+              heading: "TOTAL",
+              count: counts.all,
+              icon: Video,
+              active: "border-cyan-400/30 bg-cyan-400/10",
+              iconColor: "text-cyan-300",
+            },
+            {
+              key: "live",
+              label: "Currently live",
+              heading: "NOW",
+              count: counts.live,
+              icon: Radio,
+              active: "border-red-400/30 bg-red-400/10",
+              iconColor: "text-red-300",
+            },
+            {
+              key: "scheduled",
+              label: "Scheduled",
+              heading: "UPCOMING",
+              count: counts.scheduled,
+              icon: CalendarDays,
+              active: "border-cyan-400/30 bg-cyan-400/10",
+              iconColor: "text-cyan-300",
+            },
+            {
+              key: "ended",
+              label: "Ended",
+              heading: "PAST",
+              count: counts.ended,
+              icon: CheckCircle2,
+              active: "border-slate-600 bg-slate-800/60",
+              iconColor: "text-slate-400",
+            },
+          ].map((item) => {
+            const Icon = item.icon;
 
-            <p className="text-2xl font-bold text-white">
-              {counts.all}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-400">
-              Live classes
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setFilter("live")
-            }
-            className={`rounded-2xl border p-4 text-left transition ${
-              filter === "live"
-                ? "border-red-400/30 bg-red-400/10"
-                : "border-slate-800 bg-[#071426] hover:border-slate-700"
-            }`}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <Radio
-                size={19}
-                className="text-red-300"
-              />
-              <span className="text-xs text-slate-500">
-                NOW
-              </span>
-            </div>
-
-            <p className="text-2xl font-bold text-white">
-              {counts.live}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-400">
-              Currently live
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setFilter("scheduled")
-            }
-            className={`rounded-2xl border p-4 text-left transition ${
-              filter === "scheduled"
-                ? "border-cyan-400/30 bg-cyan-400/10"
-                : "border-slate-800 bg-[#071426] hover:border-slate-700"
-            }`}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <CalendarDays
-                size={19}
-                className="text-cyan-300"
-              />
-              <span className="text-xs text-slate-500">
-                UPCOMING
-              </span>
-            </div>
-
-            <p className="text-2xl font-bold text-white">
-              {counts.scheduled}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-400">
-              Scheduled
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setFilter("ended")
-            }
-            className={`rounded-2xl border p-4 text-left transition ${
-              filter === "ended"
-                ? "border-slate-600 bg-slate-800/60"
-                : "border-slate-800 bg-[#071426] hover:border-slate-700"
-            }`}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <CheckCircle2
-                size={19}
-                className="text-slate-400"
-              />
-              <span className="text-xs text-slate-500">
-                PAST
-              </span>
-            </div>
-
-            <p className="text-2xl font-bold text-white">
-              {counts.ended}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-400">
-              Ended
-            </p>
-          </button>
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setFilter(item.key)}
+                className={`rounded-2xl border p-4 text-left transition ${
+                  filter === item.key
+                    ? item.active
+                    : "border-slate-800 bg-[#071426] hover:border-slate-700"
+                }`}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <Icon size={19} className={item.iconColor} />
+                  <span className="text-xs text-slate-500">{item.heading}</span>
+                </div>
+                <p className="text-2xl font-bold text-white">{item.count}</p>
+                <p className="mt-1 text-xs text-slate-400">{item.label}</p>
+              </button>
+            );
+          })}
         </div>
 
         <div className="mb-5 flex flex-col gap-3 sm:flex-row">
@@ -1530,13 +1127,10 @@ export default function TutorLiveClasses() {
               size={18}
               className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
             />
-
             <input
               type="text"
               value={search}
-              onChange={(event) =>
-                setSearch(event.target.value)
-              }
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search live classes..."
               className="w-full rounded-xl border border-slate-800 bg-[#071426] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
             />
@@ -1544,50 +1138,30 @@ export default function TutorLiveClasses() {
 
           <select
             value={filter}
-            onChange={(event) =>
-              setFilter(event.target.value)
-            }
+            onChange={(event) => setFilter(event.target.value)}
             className="rounded-xl border border-slate-800 bg-[#071426] px-4 py-3 text-sm text-slate-200 outline-none focus:border-cyan-400/40"
           >
-            <option value="all">
-              All classes
-            </option>
-            <option value="live">
-              Live now
-            </option>
-            <option value="scheduled">
-              Scheduled
-            </option>
-            <option value="ended">
-              Ended
-            </option>
+            <option value="all">All classes</option>
+            <option value="live">Live now</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="ended">Ended</option>
           </select>
         </div>
 
         {loadingSessions ? (
           <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-slate-800 bg-[#071426]">
             <div className="text-center">
-              <Loader2
-                size={30}
-                className="mx-auto mb-3 animate-spin text-cyan-400"
-              />
-
+              <Loader2 size={30} className="mx-auto mb-3 animate-spin text-cyan-400" />
               <p className="text-sm font-medium text-slate-300">
                 Loading live classes...
               </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Please wait
-              </p>
+              <p className="mt-1 text-xs text-slate-500">Please wait</p>
             </div>
           </div>
         ) : filteredSessions.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-800 bg-[#071426] px-6 py-16 text-center">
             <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
-              <Video
-                size={28}
-                className="text-cyan-300"
-              />
+              <Video size={28} className="text-cyan-300" />
             </div>
 
             <h2 className="text-lg font-bold text-white">
@@ -1600,307 +1174,201 @@ export default function TutorLiveClasses() {
                 : "Create your first live class and start teaching your students online."}
             </p>
 
-            {!search &&
-              filter === "all" && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowCreateModal(true)
-                  }
-                  className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
-                >
-                  <Plus size={17} />
-                  Create Live Class
-                </button>
-              )}
+            {!search && filter === "all" && (
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(true)}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
+              >
+                <Plus size={17} />
+                Create Live Class
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
-            {filteredSessions.map(
-              (session, index) => {
-                const status =
-                  getStatus(session);
+            {filteredSessions.map((session, index) => {
+              const status = getStatus(session);
+              const id = getSessionId(session);
+              const title = session?.title || session?.name || "Live Class";
+              const description =
+                session?.description || "Live learning session";
+              const scheduledAt = getScheduledAt(session);
+              const joinUrl = getJoinUrl(session);
 
-                const id =
-                  getSessionId(session);
+              return (
+                <motion.article
+                  key={id || `${title}-${index}`}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(index * 0.04, 0.3) }}
+                  className={`group overflow-hidden rounded-2xl border bg-[#071426] transition ${
+                    status === "live"
+                      ? "border-red-400/25"
+                      : "border-slate-800 hover:border-slate-700"
+                  }`}
+                >
+                  <div className="relative overflow-hidden border-b border-slate-800 p-5">
+                    <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-cyan-400/5 blur-3xl" />
 
-                const title =
-                  session?.title ||
-                  session?.name ||
-                  "Live Class";
-
-                const description =
-                  session?.description ||
-                  "Live learning session";
-
-                const scheduledAt =
-                  getScheduledAt(session);
-
-                const joinUrl =
-                  getJoinUrl(session);
-
-                return (
-                  <motion.article
-                    key={
-                      id ||
-                      `${title}-${index}`
-                    }
-                    initial={{
-                      opacity: 0,
-                      y: 12,
-                    }}
-                    animate={{
-                      opacity: 1,
-                      y: 0,
-                    }}
-                    transition={{
-                      delay: Math.min(
-                        index * 0.04,
-                        0.3
-                      ),
-                    }}
-                    className={`group overflow-hidden rounded-2xl border bg-[#071426] transition ${
-                      status === "live"
-                        ? "border-red-400/25"
-                        : "border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    <div className="relative overflow-hidden border-b border-slate-800 p-5">
-                      <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-cyan-400/5 blur-3xl" />
-
-                      <div className="relative flex items-start justify-between gap-4">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <div
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                              status === "live"
-                                ? "bg-red-500/10 text-red-300"
-                                : "bg-cyan-400/10 text-cyan-300"
-                            }`}
-                          >
-                            {status === "live" ? (
-                              <Radio size={21} />
-                            ) : (
-                              <Video size={21} />
-                            )}
-                          </div>
-
-                          <div className="min-w-0">
-                            <div className="mb-2">
-                              <StatusBadge
-                                status={status}
-                              />
-                            </div>
-
-                            <h2 className="truncate text-base font-bold text-white">
-                              {title}
-                            </h2>
-
-                            <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">
-                              {description}
-                            </p>
-                          </div>
+                    <div className="relative flex items-start justify-between gap-4">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div
+                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                            status === "live"
+                              ? "bg-red-500/10 text-red-300"
+                              : "bg-cyan-400/10 text-cyan-300"
+                          }`}
+                        >
+                          {status === "live" ? (
+                            <Radio size={21} />
+                          ) : (
+                            <Video size={21} />
+                          )}
                         </div>
 
+                        <div className="min-w-0">
+                          <div className="mb-2">
+                            <StatusBadge status={status} />
+                          </div>
+                          <h2 className="truncate text-base font-bold text-white">
+                            {title}
+                          </h2>
+                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">
+                            {description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(session)}
+                        disabled={deletingId === String(id) || status === "live"}
+                        className="shrink-0 rounded-lg p-2 text-slate-600 transition hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
+                        title={
+                          status === "live"
+                            ? "End the live class first"
+                            : "Delete"
+                        }
+                      >
+                        {deletingId === String(id) ? (
+                          <Loader2 size={17} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={17} />
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="relative mt-5 grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-slate-800 bg-[#020617]/50 p-3">
+                        <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                          <Users size={13} />
+                          Class
+                        </div>
+                        <p className="truncate text-sm font-semibold text-slate-200">
+                          {getClassName(session)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-800 bg-[#020617]/50 p-3">
+                        <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                          <FileText size={13} />
+                          Subject
+                        </div>
+                        <p className="truncate text-sm font-semibold text-slate-200">
+                          {getSubjectName(session)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
+                      <Calendar size={14} />
+                      <span>{formatDateTime(scheduledAt)}</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {status === "scheduled" && (
                         <button
                           type="button"
-                          onClick={() =>
-                            handleDelete(
-                              session
-                            )
-                          }
-                          disabled={
-                            deletingId ===
-                              String(id) ||
-                            status === "live"
-                          }
-                          className="shrink-0 rounded-lg p-2 text-slate-600 transition hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
-                          title={
-                            status === "live"
-                              ? "End the live class first"
-                              : "Delete"
-                          }
+                          onClick={() => handleStart(session)}
+                          disabled={startingId === String(id)}
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {deletingId ===
-                          String(id) ? (
-                            <Loader2
-                              size={17}
-                              className="animate-spin"
-                            />
+                          {startingId === String(id) ? (
+                            <>
+                              <Loader2 size={16} className="animate-spin" />
+                              Starting...
+                            </>
                           ) : (
-                            <Trash2 size={17} />
+                            <>
+                              <Play size={16} fill="currentColor" />
+                              Start Live
+                            </>
                           )}
                         </button>
-                      </div>
+                      )}
 
-                      <div className="relative mt-5 grid grid-cols-2 gap-3">
-                        <div className="rounded-xl border border-slate-800 bg-[#020617]/50 p-3">
-                          <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                            <Users size={13} />
-                            Class
-                          </div>
-
-                          <p className="truncate text-sm font-semibold text-slate-200">
-                            {getClassName(
-                              session
-                            )}
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl border border-slate-800 bg-[#020617]/50 p-3">
-                          <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                            <FileText size={13} />
-                            Subject
-                          </div>
-
-                          <p className="truncate text-sm font-semibold text-slate-200">
-                            {getSubjectName(
-                              session
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-4">
-                      <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
-                        <Calendar size={14} />
-
-                        <span>
-                          {formatDateTime(
-                            scheduledAt
-                          )}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {status === "scheduled" && (
+                      {status === "live" && (
+                        <>
                           <button
                             type="button"
-                            onClick={() =>
-                              handleStart(
-                                session
-                              )
-                            }
-                            disabled={
-                              startingId ===
-                              String(id)
-                            }
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => handleJoin(session)}
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
                           >
-                            {startingId ===
-                            String(id) ? (
-                              <>
-                                <Loader2
-                                  size={16}
-                                  className="animate-spin"
-                                />
-                                Starting...
-                              </>
+                            <Video size={16} />
+                            Join Room
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleEnd(session)}
+                            disabled={endingId === String(id)}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {endingId === String(id) ? (
+                              <Loader2 size={16} className="animate-spin" />
                             ) : (
-                              <>
-                                <Play
-                                  size={16}
-                                  fill="currentColor"
-                                />
-                                Start Live
-                              </>
+                              <Square size={15} fill="currentColor" />
+                            )}
+                            End
+                          </button>
+                        </>
+                      )}
+
+                      {status === "ended" && (
+                        <>
+                          {joinUrl && (
+                            <button
+                              type="button"
+                              onClick={() => handleCopyLink(session)}
+                              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+                            >
+                              <Copy size={16} />
+                              Copy Link
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(session)}
+                            disabled={deletingId === String(id)}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                          >
+                            {deletingId === String(id) ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={16} />
                             )}
                           </button>
-                        )}
-
-                        {status === "live" && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleJoin(
-                                  session
-                                )
-                              }
-                              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
-                            >
-                              <Video size={16} />
-                              Join Room
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleEnd(
-                                  session
-                                )
-                              }
-                              disabled={
-                                endingId ===
-                                String(id)
-                              }
-                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {endingId ===
-                              String(id) ? (
-                                <Loader2
-                                  size={16}
-                                  className="animate-spin"
-                                />
-                              ) : (
-                                <Square
-                                  size={15}
-                                  fill="currentColor"
-                                />
-                              )}
-                              End
-                            </button>
-                          </>
-                        )}
-
-                        {status === "ended" && (
-                          <>
-                            {joinUrl && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleCopyLink(
-                                    session
-                                  )
-                                }
-                                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
-                              >
-                                <Copy size={16} />
-                                Copy Link
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleDelete(
-                                  session
-                                )
-                              }
-                              disabled={
-                                deletingId ===
-                                String(id)
-                              }
-                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
-                            >
-                              {deletingId ===
-                              String(id) ? (
-                                <Loader2
-                                  size={16}
-                                  className="animate-spin"
-                                />
-                              ) : (
-                                <Trash2 size={16} />
-                              )}
-                            </button>
-                          </>
-                        )}
-                      </div>
+                        </>
+                      )}
                     </div>
-                  </motion.article>
-                );
-              }
-            )}
+                  </div>
+                </motion.article>
+              );
+            })}
           </div>
         )}
       </div>
@@ -1914,8 +1382,7 @@ export default function TutorLiveClasses() {
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
             onMouseDown={(event) => {
               if (
-                event.target ===
-                  event.currentTarget &&
+                event.target === event.currentTarget &&
                 !creating
               ) {
                 setShowCreateModal(false);
@@ -1923,21 +1390,9 @@ export default function TutorLiveClasses() {
             }}
           >
             <motion.div
-              initial={{
-                opacity: 0,
-                y: 20,
-                scale: 0.98,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-                scale: 1,
-              }}
-              exit={{
-                opacity: 0,
-                y: 20,
-                scale: 0.98,
-              }}
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
               className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-800 bg-[#071426] shadow-2xl"
             >
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-800 bg-[#071426]/95 px-5 py-4 backdrop-blur sm:px-6">
@@ -1945,15 +1400,12 @@ export default function TutorLiveClasses() {
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
                     <Video size={20} />
                   </div>
-
                   <div>
                     <h2 className="text-lg font-bold text-white">
                       Create Live Class
                     </h2>
-
                     <p className="text-xs text-slate-500">
-                      Schedule your next online
-                      lesson
+                      Schedule your next online lesson
                     </p>
                   </div>
                 </div>
@@ -1961,35 +1413,23 @@ export default function TutorLiveClasses() {
                 <button
                   type="button"
                   disabled={creating}
-                  onClick={() =>
-                    setShowCreateModal(false)
-                  }
+                  onClick={() => setShowCreateModal(false)}
                   className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-800 hover:text-white disabled:opacity-40"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <form
-                onSubmit={handleCreate}
-                className="space-y-5 p-5 sm:p-6"
-              >
+              <form onSubmit={handleCreate} className="space-y-5 p-5 sm:p-6">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-200">
-                    Live Class Title
-                    <span className="ml-1 text-red-400">
-                      *
-                    </span>
+                    Live Class Title <span className="text-red-400">*</span>
                   </label>
-
                   <input
                     type="text"
                     value={form.title}
                     onChange={(event) =>
-                      updateForm(
-                        "title",
-                        event.target.value
-                      )
+                      updateForm("title", event.target.value)
                     }
                     placeholder="e.g. Algebra Revision Class"
                     className="w-full rounded-xl border border-slate-800 bg-[#020617] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40"
@@ -2004,15 +1444,11 @@ export default function TutorLiveClasses() {
                       Optional
                     </span>
                   </label>
-
                   <textarea
                     rows={3}
                     value={form.description}
                     onChange={(event) =>
-                      updateForm(
-                        "description",
-                        event.target.value
-                      )
+                      updateForm("description", event.target.value)
                     }
                     placeholder="Tell students what this lesson will cover..."
                     className="w-full resize-none rounded-xl border border-slate-800 bg-[#020617] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40"
@@ -2022,141 +1458,105 @@ export default function TutorLiveClasses() {
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-200">
-                      Class
-                      <span className="ml-1 text-red-400">
-                        *
-                      </span>
+                      Class <span className="text-red-400">*</span>
                     </label>
 
-                    {loadingClasses ? (
-                      <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-800 bg-[#020617] px-4 text-sm text-slate-500">
-                        <Loader2
-                          size={16}
-                          className="animate-spin"
-                        />
-                        Loading classes...
-                      </div>
-                    ) : classes.length === 0 ? (
-                      <div className="rounded-xl border border-red-400/20 bg-red-500/5 p-3 text-xs leading-5 text-red-300">
-                        No assigned classes were
-                        found for this tutor.
-                      </div>
-                    ) : (
-                      <select
-                        value={form.classId}
-                        onChange={(event) =>
-                          handleClassChange(
-                            event.target.value
-                          )
-                        }
-                        className="w-full rounded-xl border border-slate-800 bg-[#020617] px-4 py-3 text-sm text-white outline-none focus:border-cyan-400/40"
-                        required
-                      >
-                        <option value="">
-                          Select class
-                        </option>
+                    <select
+                      value={form.className}
+                      onChange={(event) =>
+                        handleClassChange(event.target.value)
+                      }
+                      className="w-full rounded-xl border border-slate-800 bg-[#020617] px-4 py-3 text-sm text-white outline-none focus:border-cyan-400/40"
+                      required
+                    >
+                      <option value="">Select class</option>
+                      <optgroup label="Primary School">
+                        {SCHOOL_CLASSES.filter((item) =>
+                          item.startsWith("Primary")
+                        ).map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </optgroup>
 
-                        {classes.map(
-                          (item, index) => (
-                            <option
-                              key={
-                                item.id ||
-                                index
-                              }
-                              value={String(
-                                item.id
-                              )}
-                            >
-                              {item.name}
-                            </option>
-                          )
-                        )}
-                      </select>
+                      <optgroup label="Junior Secondary School">
+                        {SCHOOL_CLASSES.filter((item) =>
+                          item.startsWith("JSS")
+                        ).map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </optgroup>
+
+                      <optgroup label="Senior Secondary School">
+                        {SCHOOL_CLASSES.filter((item) =>
+                          item.startsWith("SS")
+                        ).map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+
+                    {form.className && (
+                      <p className="mt-2 text-xs text-slate-600">
+                        Selected:{" "}
+                        <span className="text-slate-400">
+                          {form.className}
+                        </span>
+                      </p>
                     )}
-
-                    {form.classId &&
-                      form.className && (
-                        <p className="mt-2 text-xs text-slate-600">
-                          Selected:{" "}
-                          <span className="text-slate-400">
-                            {form.className}
-                          </span>
-                        </p>
-                      )}
                   </div>
 
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-200">
-                      Subject
-                      <span className="ml-1 text-red-400">
-                        *
-                      </span>
+                      Subject <span className="text-red-400">*</span>
                     </label>
 
-                    {availableSubjects.length > 0 ? (
-                      <select
-                        value={form.subject}
-                        onChange={(event) =>
-                          updateForm(
-                            "subject",
-                            event.target.value
-                          )
-                        }
-                        className="w-full rounded-xl border border-slate-800 bg-[#020617] px-4 py-3 text-sm text-white outline-none focus:border-cyan-400/40"
-                        required
-                      >
-                        <option value="">
-                          Select subject
-                        </option>
+                    <input
+                      type="text"
+                      list="tutor-live-class-subjects"
+                      value={form.subject}
+                      onChange={(event) =>
+                        updateForm("subject", event.target.value)
+                      }
+                      placeholder={
+                        form.className
+                          ? "Type or select a subject"
+                          : "Select a class first"
+                      }
+                      disabled={!form.className}
+                      autoComplete="off"
+                      className="w-full rounded-xl border border-slate-800 bg-[#020617] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-50"
+                      required
+                    />
 
-                        {availableSubjects.map(
-                          (
-                            subject,
-                            index
-                          ) => (
-                            <option
-                              key={
-                                subject.id ||
-                                index
-                              }
-                              value={
-                                subject.name
-                              }
-                            >
-                              {subject.name}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={form.subject}
-                        onChange={(event) =>
-                          updateForm(
-                            "subject",
-                            event.target.value
-                          )
-                        }
-                        placeholder={
-                          form.classId
-                            ? "Enter subject"
-                            : "Select a class first"
-                        }
-                        disabled={!form.classId}
-                        className="w-full rounded-xl border border-slate-800 bg-[#020617] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-50"
-                        required
-                      />
-                    )}
+                    <datalist id="tutor-live-class-subjects">
+                      {availableSubjects.map((subject) => (
+                        <option
+                          key={subject.id || subject.name}
+                          value={subject.name}
+                        />
+                      ))}
+                    </datalist>
+
+                    <p className="mt-2 text-xs text-slate-600">
+                      {form.className
+                        ? availableSubjects.length
+                          ? "Choose a suggestion or type any subject."
+                          : "No subject suggestions found. You can type the subject yourself."
+                        : "Choose a class before entering a subject."}
+                    </p>
                   </div>
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-200">
-                    Scheduled Date & Time
-                    <span className="ml-1 text-red-400">
-                      *
-                    </span>
+                    Scheduled Date & Time{" "}
+                    <span className="text-red-400">*</span>
                   </label>
 
                   <div className="relative">
@@ -2164,21 +1564,14 @@ export default function TutorLiveClasses() {
                       size={17}
                       className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
                     />
-
                     <input
                       type="datetime-local"
                       value={form.scheduledAt}
                       onChange={(event) =>
-                        updateForm(
-                          "scheduledAt",
-                          event.target.value
-                        )
+                        updateForm("scheduledAt", event.target.value)
                       }
                       min={toDateTimeLocalValue(
-                        new Date(
-                          Date.now() +
-                            60 * 1000
-                        )
+                        new Date(Date.now() + 60 * 1000)
                       )}
                       className="w-full rounded-xl border border-slate-800 bg-[#020617] py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-cyan-400/40"
                       required
@@ -2186,9 +1579,7 @@ export default function TutorLiveClasses() {
                   </div>
 
                   <p className="mt-2 text-xs text-slate-600">
-                    Students will see this
-                    session as scheduled until
-                    you start it.
+                    Students will see this session as scheduled until you start it.
                   </p>
                 </div>
 
@@ -2197,18 +1588,12 @@ export default function TutorLiveClasses() {
                     <div className="mt-0.5 shrink-0 text-cyan-300">
                       <Radio size={18} />
                     </div>
-
                     <div>
                       <p className="text-sm font-semibold text-cyan-200">
-                        Class and subject are
-                        required
+                        Class and subject are required
                       </p>
-
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Only students assigned to
-                        the selected class and
-                        subject should receive
-                        this live class.
+                        Select a class from Primary 1 to SS 3, then type or select the subject for the lesson.
                       </p>
                     </div>
                   </div>
@@ -2218,9 +1603,7 @@ export default function TutorLiveClasses() {
                   <button
                     type="button"
                     disabled={creating}
-                    onClick={() =>
-                      setShowCreateModal(false)
-                    }
+                    onClick={() => setShowCreateModal(false)}
                     className="rounded-xl border border-slate-700 bg-slate-800/50 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-800 disabled:opacity-40"
                   >
                     Cancel
@@ -2228,19 +1611,12 @@ export default function TutorLiveClasses() {
 
                   <button
                     type="submit"
-                    disabled={
-                      creating ||
-                      loadingClasses ||
-                      classes.length === 0
-                    }
+                    disabled={creating || !form.className}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {creating ? (
                       <>
-                        <Loader2
-                          size={17}
-                          className="animate-spin"
-                        />
+                        <Loader2 size={17} className="animate-spin" />
                         Creating...
                       </>
                     ) : (

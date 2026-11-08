@@ -1,31 +1,38 @@
+
 import React from "react";
+
 import {
-  Play,
-  Square,
   Presentation,
   PenTool,
   Video,
   MessageCircle,
   Users,
-  MonitorUp,
   FolderOpen,
   Clock3,
   Radio,
+  MonitorUp,
 } from "lucide-react";
 
+/* =========================================================
+   CLASSROOM TOOLBAR
+========================================================= */
+
 export default function ClassroomToolbar({
-  activePanel = "presentation",
+  activePanel = "video",
   onPanelChange,
+
   isLive = false,
-  starting = false,
-  ending = false,
-  onStartClass,
-  onEndClass,
+
   screenSharing = false,
-  onScreenShareChange,
+  onToggleScreenShare,
+
   participantCount = 0,
   duration = 0,
 }) {
+  /* =======================================================
+     DURATION
+  ======================================================= */
+
   const formatDuration = (seconds) => {
     const total = Math.max(0, Number(seconds) || 0);
 
@@ -47,7 +54,16 @@ export default function ClassroomToolbar({
     ].join(":");
   };
 
+  /* =======================================================
+     TOOL PANELS
+  ======================================================= */
+
   const panels = [
+    {
+      id: "video",
+      label: "Video",
+      icon: Video,
+    },
     {
       id: "presentation",
       label: "Presentation",
@@ -55,13 +71,8 @@ export default function ClassroomToolbar({
     },
     {
       id: "whiteboard",
-      label: "Board",
+      label: "Whiteboard",
       icon: PenTool,
-    },
-    {
-      id: "video",
-      label: "Video",
-      icon: Video,
     },
     {
       id: "chat",
@@ -80,100 +91,50 @@ export default function ClassroomToolbar({
     },
   ];
 
+  /* =======================================================
+     PANEL NAVIGATION
+  ======================================================= */
+
   const handlePanelClick = (panelId) => {
-    if (onPanelChange) {
-      onPanelChange(panelId);
-    }
+    if (typeof onPanelChange !== "function") return;
+
+    onPanelChange(panelId);
   };
+
+  /* =======================================================
+     SCREEN SHARING
+  ======================================================= */
 
   const handleScreenShare = () => {
-    if (onScreenShareChange) {
-      onScreenShareChange(!screenSharing);
+    if (!isLive || typeof onToggleScreenShare !== "function") {
+      return;
     }
 
-    if (onPanelChange) {
-      onPanelChange("video");
-    }
+    onToggleScreenShare();
   };
 
+  /* =======================================================
+     RENDER
+  ======================================================= */
+
   return (
-    <div className="relative w-full border-t border-white/[0.08] bg-[#080b12]/95 backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.35)]">
-      {/* Subtle top glow */}
+    <div className="relative w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-[#080b12]/95 shadow-[0_-10px_40px_rgba(0,0,0,0.25)] backdrop-blur-2xl">
+
+      {/* TOP ACCENT */}
+
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-400/40 to-transparent" />
 
-      {/* Main toolbar */}
-      <div className="px-3 sm:px-5 py-3">
+      {/* TOOLBAR */}
+
+      <div className="px-3 py-3 sm:px-4">
+
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
 
-          {/* Start / End */}
-          {!isLive ? (
-            <button
-              type="button"
-              onClick={onStartClass}
-              disabled={starting || ending}
-              className="
-                group relative flex-shrink-0 inline-flex items-center gap-2
-                px-4 py-2.5 rounded-xl
-                bg-gradient-to-r from-emerald-500 to-emerald-600
-                hover:from-emerald-400 hover:to-emerald-500
-                text-white text-sm font-semibold
-                shadow-[0_8px_25px_rgba(16,185,129,0.18)]
-                hover:shadow-[0_8px_30px_rgba(16,185,129,0.3)]
-                border border-emerald-400/20
-                disabled:opacity-50 disabled:cursor-not-allowed
-                transition-all duration-200
-              "
-            >
-              <span className="absolute inset-0 rounded-xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+          {/* NAVIGATION BUTTONS */}
 
-              <Play
-                size={16}
-                fill="currentColor"
-                className="relative"
-              />
-
-              <span className="relative">
-                {starting ? "Starting..." : "Start class"}
-              </span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onEndClass}
-              disabled={ending}
-              className="
-                group relative flex-shrink-0 inline-flex items-center gap-2
-                px-4 py-2.5 rounded-xl
-                bg-gradient-to-r from-red-500 to-rose-600
-                hover:from-red-400 hover:to-rose-500
-                text-white text-sm font-semibold
-                shadow-[0_8px_25px_rgba(239,68,68,0.18)]
-                hover:shadow-[0_8px_30px_rgba(239,68,68,0.3)]
-                border border-red-400/20
-                disabled:opacity-50 disabled:cursor-not-allowed
-                transition-all duration-200
-              "
-            >
-              <span className="absolute inset-0 rounded-xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-
-              <Square
-                size={15}
-                fill="currentColor"
-                className="relative"
-              />
-
-              <span className="relative">
-                {ending ? "Ending..." : "End class"}
-              </span>
-            </button>
-          )}
-
-          {/* Divider */}
-          <div className="hidden sm:block w-px h-8 bg-white/[0.08] mx-1" />
-
-          {/* Panels */}
           {panels.map((panel) => {
             const Icon = panel.icon;
+
             const active = activePanel === panel.id;
 
             return (
@@ -181,42 +142,46 @@ export default function ClassroomToolbar({
                 key={panel.id}
                 type="button"
                 onClick={() => handlePanelClick(panel.id)}
+                aria-label={panel.label}
+                aria-pressed={active}
+                title={panel.label}
                 className={`
-                  group relative flex-shrink-0
-                  inline-flex items-center gap-2
-                  px-3 py-2.5 rounded-xl
-                  text-sm font-medium
-                  border
+                  group relative inline-flex flex-shrink-0
+                  items-center justify-center gap-2
+                  rounded-xl border px-3 py-2.5
+                  text-xs font-semibold
                   transition-all duration-200
 
                   ${
                     active
                       ? `
+                        border-indigo-400/30
                         bg-indigo-500/15
                         text-indigo-300
-                        border-indigo-400/25
                         shadow-[0_0_20px_rgba(99,102,241,0.10)]
                       `
                       : `
+                        border-white/[0.06]
                         bg-white/[0.025]
                         text-slate-400
-                        border-white/[0.06]
+                        hover:border-white/[0.12]
                         hover:bg-white/[0.07]
                         hover:text-white
-                        hover:border-white/[0.12]
                       `
                   }
                 `}
               >
-                {/* Active indicator */}
+
+                {/* ACTIVE INDICATOR */}
+
                 {active && (
-                  <span className="absolute left-1/2 -bottom-[1px] -translate-x-1/2 w-5 h-[2px] rounded-full bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.9)]" />
+                  <span className="absolute -bottom-[1px] left-1/2 h-[2px] w-6 -translate-x-1/2 rounded-full bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.9)]" />
                 )}
 
                 <Icon
                   size={17}
                   className={`
-                    transition-transform duration-200
+                    flex-shrink-0 transition-colors
                     ${
                       active
                         ? "text-indigo-300"
@@ -225,31 +190,25 @@ export default function ClassroomToolbar({
                   `}
                 />
 
-                <span className="hidden md:inline">
+                <span className="hidden sm:inline">
                   {panel.label}
                 </span>
+
+                {/* PEOPLE COUNT */}
 
                 {panel.id === "participants" &&
                   participantCount > 0 && (
                     <span
                       className={`
-                        min-w-[20px] h-5 px-1.5
-                        rounded-full
-                        flex items-center justify-center
-                        text-[10px] font-bold
-                        border
+                        flex h-5 min-w-5 items-center
+                        justify-center rounded-full
+                        border px-1.5 text-[10px]
+                        font-bold
+
                         ${
                           active
-                            ? `
-                              bg-indigo-500/20
-                              text-indigo-200
-                              border-indigo-400/20
-                            `
-                            : `
-                              bg-white/[0.07]
-                              text-slate-400
-                              border-white/[0.06]
-                            `
+                            ? "border-indigo-400/20 bg-indigo-500/20 text-indigo-200"
+                            : "border-white/[0.06] bg-white/[0.07] text-slate-400"
                         }
                       `}
                     >
@@ -260,88 +219,78 @@ export default function ClassroomToolbar({
             );
           })}
 
-          {/* Screen share */}
-          <button
-            type="button"
-            onClick={handleScreenShare}
-            disabled={!isLive}
-            className={`
-              group relative flex-shrink-0
-              inline-flex items-center gap-2
-              px-3 py-2.5 rounded-xl
-              text-sm font-medium
-              border
-              transition-all duration-200
+          {/* SPACER */}
 
-              ${
-                screenSharing
-                  ? `
-                    bg-sky-500/15
-                    text-sky-300
-                    border-sky-400/25
-                    shadow-[0_0_20px_rgba(14,165,233,0.12)]
-                  `
-                  : `
-                    bg-white/[0.025]
-                    text-slate-400
-                    border-white/[0.06]
-                    hover:bg-white/[0.07]
-                    hover:text-white
-                    hover:border-white/[0.12]
-                  `
+          <div className="min-w-2 flex-1" />
+
+          {/* SCREEN SHARE */}
+
+          {typeof onToggleScreenShare === "function" && (
+            <button
+              type="button"
+              onClick={handleScreenShare}
+              disabled={!isLive}
+              title={
+                !isLive
+                  ? "Start the class first"
+                  : screenSharing
+                    ? "Stop screen sharing"
+                    : "Share your screen"
               }
+              className={`
+                inline-flex flex-shrink-0
+                items-center justify-center gap-2
+                rounded-xl border px-3 py-2.5
+                text-xs font-semibold
+                transition-all duration-200
 
-              disabled:opacity-30
-              disabled:cursor-not-allowed
-            `}
-            title={
-              isLive
-                ? screenSharing
-                  ? "Stop screen sharing"
-                  : "Share your screen"
-                : "Start the class first"
-            }
-          >
-            <MonitorUp
-              size={17}
-              className={
-                screenSharing
-                  ? "text-sky-300"
-                  : "text-slate-500 group-hover:text-slate-200"
-              }
-            />
+                ${
+                  screenSharing
+                    ? "border-sky-400/25 bg-sky-500/15 text-sky-300"
+                    : "border-white/[0.06] bg-white/[0.025] text-slate-400 hover:border-white/[0.12] hover:bg-white/[0.07] hover:text-white"
+                }
 
-            <span className="hidden lg:inline">
-              {screenSharing ? "Stop share" : "Share screen"}
-            </span>
-          </button>
+                disabled:cursor-not-allowed
+                disabled:opacity-30
+              `}
+            >
+              <MonitorUp
+                size={17}
+                className="flex-shrink-0"
+              />
 
-          {/* Spacer */}
-          <div className="flex-1 min-w-2" />
+              <span className="hidden lg:inline">
+                {screenSharing
+                  ? "Stop share"
+                  : "Share screen"}
+              </span>
+            </button>
+          )}
 
-          {/* Live status */}
+          {/* LIVE STATUS */}
+
           <div
             className={`
-              flex-shrink-0
-              flex items-center gap-2
-              px-3 py-2
-              rounded-xl
-              border
+              flex flex-shrink-0 items-center gap-2
+              rounded-xl border px-3 py-2.5
+
               ${
                 isLive
-                  ? "bg-red-500/10 border-red-400/15"
-                  : "bg-white/[0.025] border-white/[0.06]"
+                  ? "border-red-400/15 bg-red-500/10"
+                  : "border-white/[0.06] bg-white/[0.025]"
               }
             `}
           >
-            <span className="relative flex items-center justify-center">
+            <span className="relative flex h-2.5 w-2.5 items-center justify-center">
+
               {isLive && (
-                <span className="absolute w-3 h-3 rounded-full bg-red-500/30 animate-ping" />
+                <span className="absolute h-3 w-3 animate-ping rounded-full bg-red-500/30" />
               )}
 
               <span
                 className={`
-                  relative w-2.5 h-2.5 rounded-full
+                  relative h-2.5 w-2.5 rounded-full
+
                   ${
                     isLive
                       ? "bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]"
@@ -353,8 +302,9 @@ export default function ClassroomToolbar({
 
             <span
               className={`
-                hidden sm:inline
-                text-xs font-bold tracking-wider
+                hidden text-[10px] font-bold
+                tracking-wider sm:inline
+
                 ${
                   isLive
                     ? "text-red-400"
@@ -366,25 +316,17 @@ export default function ClassroomToolbar({
             </span>
           </div>
 
-          {/* Timer */}
+          {/* TIMER */}
+
           {isLive && (
-            <div
-              className="
-                flex-shrink-0
-                flex items-center gap-2
-                px-3 py-2
-                rounded-xl
-                bg-white/[0.025]
-                border border-white/[0.06]
-                text-slate-300
-              "
-            >
+            <div className="flex flex-shrink-0 items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2.5 text-slate-300">
+
               <Clock3
                 size={15}
                 className="text-slate-500"
               />
 
-              <span className="text-sm font-mono font-medium tracking-wide">
+              <span className="font-mono text-xs font-semibold tracking-wide">
                 {formatDuration(duration)}
               </span>
             </div>
@@ -392,39 +334,35 @@ export default function ClassroomToolbar({
         </div>
       </div>
 
-      {/* Live information bar */}
+      {/* LIVE INFORMATION */}
+
       {isLive && (
-        <div className="relative px-3 sm:px-5 py-2.5 border-t border-white/[0.06] bg-white/[0.015]">
+        <div className="border-t border-white/[0.06] bg-white/[0.015] px-3 py-2.5 sm:px-4">
+
           <div className="flex items-center justify-between gap-3">
 
-            {/* Live message */}
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-red-500/10 border border-red-400/10">
+            <div className="flex min-w-0 items-center gap-2">
+
+              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg border border-red-400/10 bg-red-500/10">
                 <Radio
                   size={14}
                   className="text-red-400"
                 />
               </div>
 
-              <span className="text-xs text-slate-400 truncate">
-                Your class is currently live
+              <span className="truncate text-[11px] text-slate-400">
+                Your classroom is currently live
               </span>
             </div>
 
-            {/* Stats */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="flex flex-shrink-0 items-center gap-2">
 
-              <div
-                className="
-                  flex items-center gap-1.5
-                  px-2.5 py-1.5
-                  rounded-lg
-                  bg-white/[0.025]
-                  border border-white/[0.05]
-                  text-xs text-slate-400
-                "
-              >
-                <Users size={13} className="text-slate-500" />
+              <div className="flex items-center gap-1.5 rounded-lg border border-white/[0.05] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-400">
+
+                <Users
+                  size={13}
+                  className="text-slate-500"
+                />
 
                 <span>
                   {participantCount}{" "}
@@ -434,17 +372,8 @@ export default function ClassroomToolbar({
                 </span>
               </div>
 
-              <div
-                className="
-                  hidden sm:flex
-                  items-center gap-1.5
-                  px-2.5 py-1.5
-                  rounded-lg
-                  bg-white/[0.025]
-                  border border-white/[0.05]
-                  text-xs text-slate-400
-                "
-              >
+              <div className="hidden items-center gap-1.5 rounded-lg border border-white/[0.05] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-slate-400 sm:flex">
+
                 <Clock3
                   size={13}
                   className="text-slate-500"

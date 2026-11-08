@@ -4,7 +4,10 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
+import http from "node:http";
+import jwt from "jsonwebtoken";
+import { fileURLToPath } from "node:url";
+import { Server as SocketIOServer } from "socket.io";
 
 import pool from "./lib/db.js";
 
@@ -26,7 +29,7 @@ import learningMaterialsRouter from "./routes/learningMaterials.js";
 import tutorAssignmentsRouter from "./routes/academyTutorAssignments.js";
 
 // ============================================================
-// SCHOLIQEN ACADEMY ROUTES
+// ACADEMY ROUTES
 // ============================================================
 
 import academyTaskManagementRoutes from "./routes/academyTaskManagementRoutes.js";
@@ -43,20 +46,12 @@ import academyEnrollmentRoutes from "./routes/academyEnrollmentRoutes.js";
 import academyStudentMaterialsRoutes from "./routes/academyStudentMaterials.js";
 import cbtQuestionsRoutes from "./routes/cbtQuestionsRoutes.js";
 import schoolExamsRoutes from "./routes/schoolExamsRoutes.js";
-// ============================================================
-// ACADEMY CBT ROUTE
-// ============================================================
-
 import academyCbtRoutes from "./routes/academyCbtRoutes.js";
 import schoolStudentExamRoutes from "./routes/schoolStudentExamRoutes.js";
-// ============================================================
-// VERIFIED TUTOR MATERIALS ROUTE
-// ============================================================
-
 import academyTutorMaterialsRoutes from "./routes/academyTutorMaterials.js";
 
 // ============================================================
-// PATH CONFIGURATION
+// PATHS AND ENVIRONMENT
 // ============================================================
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,32 +60,98 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, "..");
 const ENV_PATH = path.join(ROOT_DIR, ".env");
 
-// ============================================================
-// LOAD ENVIRONMENT
-// ============================================================
-
 const envResult = dotenv.config({
   path: ENV_PATH,
   override: false,
 });
 
 if (envResult.error) {
-  console.warn("");
-  console.warn("⚠️ Could not load .env");
-  console.warn("📁 Expected:", ENV_PATH);
-  console.warn("Reason:", envResult.error.message);
-  console.warn("");
+  console.warn("Could not load .env:", envResult.error.message);
+  console.warn("Expected:", ENV_PATH);
 } else {
-  console.log(`✅ Environment loaded from: ${ENV_PATH}`);
+  console.log(`Environment loaded from: ${ENV_PATH}`);
 }
 
-// ============================================================
-// APP
-// ============================================================
-
 const app = express();
-
 app.disable("x-powered-by");
+
+const PORT = Number(process.env.PORT) || 5000;
+
+const FRONTEND_URL =
+  process.env.FRONTEND_URL?.trim() ||
+  "http://localhost:5173";
+
+const DATABASE_URL = process.env.DATABASE_URL?.trim();
+
+const JWT_SECRET =
+  process.env.JWT_SECRET?.trim() ||
+  process.env.ACADEMY_JWT_SECRET?.trim() ||
+  process.env.AUTH_SECRET?.trim();
+
+const PAYSTACK_SECRET_KEY =
+  process.env.PAYSTACK_SECRET_KEY?.trim();
+
+const GROQ_API_KEY = process.env.GROQ_API_KEY?.trim();
+
+const databaseConfigured = Boolean(DATABASE_URL);
+const jwtConfigured = Boolean(JWT_SECRET);
+const paystackConfigured = Boolean(PAYSTACK_SECRET_KEY);
+const groqConfigured = Boolean(GROQ_API_KEY);
+
+// ============================================================
+// PAYMENT CONFIGURATION
+// ============================================================
+
+const PREMIUM_PRICE_NAIRA = 100;
+const PREMIUM_PRICE_KOBO = PREMIUM_PRICE_NAIRA * 100;
+
+const PREMIUM_PRODUCTS = {
+  cbt: {
+    name: "CBT Practice",
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
+  },
+  novel: {
+    name: "Premium Novels",
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
+  },
+  multilingual: {
+    name: "Multilingual Access",
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
+  },
+  lms: {
+    name: "LMS Premium Access",
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
+  },
+  virtual_lab: {
+    name: "Virtual Laboratory",
+    priceNaira: PREMIUM_PRICE_NAIRA,
+    priceKobo: PREMIUM_PRICE_KOBO,
+  },
+};
+
+const paystackMode = PAYSTACK_SECRET_KEY?.startsWith("sk_live_")
+  ? "live"
+  : PAYSTACK_SECRET_KEY?.startsWith("sk_test_")
+    ? "test"
+    : "not-configured";
+
+console.log("");
+console.log("==================================================");
+console.log("SCHOLIQEN ENVIRONMENT CHECK");
+console.log("==================================================");
+console.log(`Root .env:       ${ENV_PATH}`);
+console.log(`PostgreSQL:      ${databaseConfigured ? "FOUND" : "MISSING"}`);
+console.log(`JWT Secret:      ${jwtConfigured ? "FOUND" : "MISSING"}`);
+console.log(`Paystack:        ${paystackConfigured ? "FOUND" : "MISSING"}`);
+console.log(`Groq:            ${groqConfigured ? "FOUND" : "MISSING"}`);
+console.log(`Test Price:      ₦${PREMIUM_PRICE_NAIRA}`);
+console.log(`Paystack Amount: ${PREMIUM_PRICE_KOBO} kobo`);
+console.log(`Paystack Mode:   ${paystackMode}`);
+console.log("==================================================");
 
 // ============================================================
 // UPLOAD DIRECTORIES
@@ -113,10 +174,6 @@ const TASK_SUBMISSIONS_DIR = path.join(
   "task-submissions"
 );
 
-// ============================================================
-// CREATE UPLOAD DIRECTORIES
-// ============================================================
-
 for (const directory of [
   UPLOADS_DIR,
   ACADEMY_ASSIGNMENTS_DIR,
@@ -127,163 +184,32 @@ for (const directory of [
   TASK_SUBMISSIONS_DIR,
 ]) {
   try {
-    fs.mkdirSync(directory, {
-      recursive: true,
-    });
+    fs.mkdirSync(directory, { recursive: true });
   } catch (error) {
     console.error(
-      `❌ Unable to prepare upload directory: ${directory}`,
+      `Unable to prepare upload directory: ${directory}`,
       error?.message
     );
   }
 }
 
 // ============================================================
-// PORT
+// CORS
 // ============================================================
 
-const PORT = Number(process.env.PORT) || 5000;
-
-// ============================================================
-// ENVIRONMENT VARIABLES
-// ============================================================
-
-const FRONTEND_URL =
-  process.env.FRONTEND_URL?.trim() ||
-  "http://localhost:5173";
-
-const DATABASE_URL = process.env.DATABASE_URL?.trim();
-const JWT_SECRET = process.env.JWT_SECRET?.trim();
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY?.trim();
-const GROQ_API_KEY = process.env.GROQ_API_KEY?.trim();
-
-// ============================================================
-// CONFIGURATION STATUS
-// ============================================================
-
-const databaseConfigured = Boolean(DATABASE_URL);
-const jwtConfigured = Boolean(JWT_SECRET);
-const paystackConfigured = Boolean(PAYSTACK_SECRET_KEY);
-const groqConfigured = Boolean(GROQ_API_KEY);
-
-// ============================================================
-// PAYSTACK MODE
-// ============================================================
-
-const paystackMode = PAYSTACK_SECRET_KEY?.startsWith("sk_live_")
-  ? "live"
-  : PAYSTACK_SECRET_KEY?.startsWith("sk_test_")
-    ? "test"
-    : "not-configured";
-
-// ============================================================
-// PAYMENT CONFIGURATION
-// ============================================================
-
-const PREMIUM_PRICE_NAIRA = 100;
-const PREMIUM_PRICE_KOBO = PREMIUM_PRICE_NAIRA * 100;
-
-// ============================================================
-// PREMIUM PRODUCTS
-// ============================================================
-
-const PREMIUM_PRODUCTS = {
-  cbt: {
-    name: "CBT Practice",
-    priceNaira: PREMIUM_PRICE_NAIRA,
-    priceKobo: PREMIUM_PRICE_KOBO,
-  },
-
-  novel: {
-    name: "Premium Novels",
-    priceNaira: PREMIUM_PRICE_NAIRA,
-    priceKobo: PREMIUM_PRICE_KOBO,
-  },
-
-  multilingual: {
-    name: "Multilingual Access",
-    priceNaira: PREMIUM_PRICE_NAIRA,
-    priceKobo: PREMIUM_PRICE_KOBO,
-  },
-
-  lms: {
-    name: "LMS Premium Access",
-    priceNaira: PREMIUM_PRICE_NAIRA,
-    priceKobo: PREMIUM_PRICE_KOBO,
-  },
-
-  virtual_lab: {
-    name: "Virtual Laboratory",
-    priceNaira: PREMIUM_PRICE_NAIRA,
-    priceKobo: PREMIUM_PRICE_KOBO,
-  },
-};
-
-// ============================================================
-// ENVIRONMENT CHECK
-// ============================================================
-
-console.log("");
-console.log("==================================================");
-console.log("🔧 SCHOLIQEN ENVIRONMENT CHECK");
-console.log("==================================================");
-
-console.log(`📁 Root .env:       ${ENV_PATH}`);
-
-console.log(
-  `🗄️ PostgreSQL:      ${databaseConfigured ? "FOUND ✅" : "MISSING ❌"}`
-);
-
-console.log(
-  `🎫 JWT Secret:      ${jwtConfigured ? "FOUND ✅" : "MISSING ❌"}`
-);
-
-console.log(
-  `💳 Paystack:        ${paystackConfigured ? "FOUND ✅" : "MISSING ❌"}`
-);
-
-console.log(
-  `🤖 Groq:            ${groqConfigured ? "FOUND ✅" : "MISSING ❌"}`
-);
-
-console.log(`💰 Test Price:      ₦${PREMIUM_PRICE_NAIRA}`);
-console.log(`🪙 Paystack Amount: ${PREMIUM_PRICE_KOBO} kobo`);
-console.log(`📦 Products:        ${Object.keys(PREMIUM_PRODUCTS).length}`);
-console.log(`🔐 Paystack Mode:   ${paystackMode}`);
-
-console.log("==================================================");
-console.log("");
-
-// ============================================================
-// CORS CONFIGURATION
-// ============================================================
-
-const allowedOrigins = [
+const allowedOrigins = new Set([
   FRONTEND_URL,
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-];
+]);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
+    // Preserve the existing permissive CORS behavior.
     return callback(null, true);
   },
-
   credentials: true,
-
-  methods: [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
-  ],
-
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Origin",
     "Content-Type",
@@ -298,7 +224,6 @@ const corsOptions = {
     "x-student-token",
     "x-material-access-token",
   ],
-
   optionsSuccessStatus: 204,
 };
 
@@ -306,7 +231,622 @@ app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 
 // ============================================================
-// PAYSTACK WEBHOOK RAW BODY
+// HTTP SERVER
+// ============================================================
+
+const server = http.createServer(app);
+
+// ============================================================
+// SOCKET.IO
+// ============================================================
+
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: (origin, callback) => callback(null, true),
+    credentials: true,
+    methods: ["GET", "POST"],
+  },
+  transports: ["websocket", "polling"],
+  pingInterval: 25000,
+  pingTimeout: 20000,
+  maxHttpBufferSize: 1e6,
+});
+
+// ============================================================
+// LIVE CLASSROOM HELPERS
+// ============================================================
+
+const clean = (value) => {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+};
+
+const getSocketToken = (socket) => {
+  const authToken = clean(socket.handshake?.auth?.token);
+
+  if (authToken) {
+    return authToken.replace(/^Bearer\s+/i, "");
+  }
+
+  const authorization = clean(
+    socket.handshake?.headers?.authorization
+  );
+
+  if (authorization) {
+    return authorization.replace(/^Bearer\s+/i, "");
+  }
+
+  return "";
+};
+
+const getTokenRole = (payload) => {
+  const role = clean(
+    payload?.userType ||
+    payload?.user_type ||
+    payload?.type ||
+    payload?.role
+  ).toLowerCase();
+
+  if (["tutor", "academy_tutor"].includes(role)) {
+    return "tutor";
+  }
+
+  if (
+    ["student", "academy_student", "academystudent"].includes(role)
+  ) {
+    return "student";
+  }
+
+  return "";
+};
+
+const getTutorReference = (payload) => {
+  return clean(
+    payload?.tutorReference ||
+    payload?.tutor_reference ||
+    payload?.reference
+  );
+};
+
+/*
+ * The student enrollment reference must come from the verified JWT.
+ * A client-supplied enrollment ID is never accepted as proof of identity.
+ */
+const getEnrollmentReference = (payload) => {
+  return clean(
+    payload?.enrollmentId ||
+    payload?.enrollment_id ||
+    payload?.studentEnrollmentId ||
+    payload?.student_enrollment_id ||
+    payload?.enrollmentReference ||
+    payload?.enrollment_reference
+  );
+};
+
+const getLiveRoomName = (classId) => {
+  return `scholiqen-live-${String(classId)}`;
+};
+
+const getSocketError = (message, code = "LIVE_CLASS_ERROR") => ({
+  success: false,
+  code,
+  message,
+});
+
+// ============================================================
+// SOCKET AUTHENTICATION
+// ============================================================
+
+io.use((socket, next) => {
+  try {
+    if (!JWT_SECRET) {
+      return next(
+        new Error("Server JWT authentication is not configured.")
+      );
+    }
+
+    const token = getSocketToken(socket);
+
+    if (!token) {
+      return next(new Error("Authentication token is required."));
+    }
+
+    const payload = jwt.verify(token, JWT_SECRET);
+
+    const role = getTokenRole(payload);
+
+    if (!role) {
+      return next(new Error("Invalid classroom account role."));
+    }
+
+    if (role === "tutor") {
+      const tutorReference = getTutorReference(payload);
+
+      if (!tutorReference) {
+        return next(new Error("Tutor reference is missing."));
+      }
+
+      socket.data.identity = {
+        role: "tutor",
+        tutorReference,
+        tokenPayload: payload,
+      };
+    }
+
+    if (role === "student") {
+      const enrollmentId = getEnrollmentReference(payload);
+
+      if (!enrollmentId) {
+        return next(
+          new Error(
+            "Student enrollment reference is missing from the login token."
+          )
+        );
+      }
+
+      socket.data.identity = {
+        role: "student",
+        enrollmentId,
+        tokenPayload: payload,
+      };
+    }
+
+    return next();
+  } catch (error) {
+    console.error("LIVE SOCKET AUTH ERROR:", error?.message);
+
+    return next(
+      new Error("Invalid or expired classroom authentication token.")
+    );
+  }
+});
+
+// ============================================================
+// VERIFY CLASSROOM ACCESS
+// ============================================================
+
+const authorizeLiveClass = async (socket, classId) => {
+  const identity = socket.data.identity;
+
+  if (!identity) {
+    throw new Error("Socket identity is missing.");
+  }
+
+  if (!classId || !/^\d+$/.test(String(classId))) {
+    throw new Error("A valid live classroom ID is required.");
+  }
+
+  const classroomResult = await pool.query(
+    `
+      SELECT
+        id,
+        tutor_reference,
+        status,
+        title,
+        room_id,
+        room_code
+      FROM academy_live_classes
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [classId]
+  );
+
+  if (!classroomResult.rows.length) {
+    throw new Error("Live classroom was not found.");
+  }
+
+  const classroom = classroomResult.rows[0];
+
+  const status = clean(classroom.status).toLowerCase();
+
+  if (["ended", "completed", "cancelled", "canceled"].includes(status)) {
+    throw new Error("This live classroom has already ended.");
+  }
+
+  if (identity.role === "tutor") {
+    const tutorResult = await pool.query(
+      `
+        SELECT
+          tutor_reference,
+          application_status
+        FROM academy_tutor_applications
+        WHERE tutor_reference = $1
+        LIMIT 1
+      `,
+      [identity.tutorReference]
+    );
+
+    if (!tutorResult.rows.length) {
+      throw new Error("Verified tutor account was not found.");
+    }
+
+    const tutorStatus = clean(
+      tutorResult.rows[0].application_status
+    ).toLowerCase();
+
+    if (tutorStatus !== "verified") {
+      throw new Error("Only verified tutors can host live classes.");
+    }
+
+    if (
+      clean(classroom.tutor_reference) !==
+      identity.tutorReference
+    ) {
+      throw new Error(
+        "You are not authorized to host this classroom."
+      );
+    }
+  }
+
+  if (identity.role === "student") {
+    const participantResult = await pool.query(
+      `
+        SELECT
+          id,
+          enrollment_id,
+          student_name,
+          role,
+          is_present,
+          left_at
+        FROM academy_live_participants
+        WHERE live_class_id = $1
+          AND enrollment_id = $2
+          AND is_present = TRUE
+          AND left_at IS NULL
+        ORDER BY id DESC
+        LIMIT 1
+      `,
+      [classId, identity.enrollmentId]
+    );
+
+    if (!participantResult.rows.length) {
+      throw new Error(
+        "You have not joined this classroom as an authorized participant."
+      );
+    }
+
+    socket.data.participant = participantResult.rows[0];
+  }
+
+  return classroom;
+};
+
+// ============================================================
+// SOCKET TARGET VALIDATION
+// ============================================================
+
+const getAuthorizedTarget = async (socket, targetSocketId) => {
+  const targetId = clean(targetSocketId);
+
+  if (!targetId) {
+    throw new Error("Target socket ID is required.");
+  }
+
+  const targetSocket = io.sockets.sockets.get(targetId);
+
+  if (!targetSocket) {
+    throw new Error("The other classroom participant is offline.");
+  }
+
+  const sender = socket.data.liveClass;
+  const target = targetSocket.data.liveClass;
+
+  if (!sender || !target) {
+    throw new Error("Both participants must join the classroom first.");
+  }
+
+  if (String(sender.classId) !== String(target.classId)) {
+    throw new Error("Participants are not in the same classroom.");
+  }
+
+  if (sender.role === target.role) {
+    throw new Error("Invalid signaling destination.");
+  }
+
+  return targetSocket;
+};
+
+// ============================================================
+// SOCKET CONNECTION
+// ============================================================
+
+io.on("connection", (socket) => {
+  console.log("Live socket authenticated:", socket.id);
+
+  socket.emit("socket:connected", {
+    success: true,
+    socketId: socket.id,
+    role: socket.data.identity?.role,
+    message: "Authenticated live connection established.",
+  });
+
+  // ----------------------------------------------------------
+  // JOIN CLASSROOM
+  // ----------------------------------------------------------
+
+  socket.on("live:join", async (payload = {}, callback) => {
+    try {
+      const classId = clean(
+        payload.classId ||
+        payload.liveClassId ||
+        payload.live_class_id
+      );
+
+      const classroom = await authorizeLiveClass(
+        socket,
+        classId
+      );
+
+      const room = getLiveRoomName(classId);
+
+      // Leave an old room if this socket changes classrooms.
+      if (socket.data.liveClass?.room) {
+        socket.leave(socket.data.liveClass.room);
+      }
+
+      socket.join(room);
+
+      socket.data.liveClass = {
+        classId: String(classId),
+        room,
+        role: socket.data.identity.role,
+        tutorReference: socket.data.identity.tutorReference || "",
+        enrollmentId: socket.data.identity.enrollmentId || "",
+        joinedAt: new Date().toISOString(),
+      };
+
+      const response = {
+        success: true,
+        socketId: socket.id,
+        classId: String(classId),
+        room,
+        role: socket.data.identity.role,
+        classroomTitle: classroom.title || "",
+        message: "You have joined the live classroom.",
+      };
+
+      socket.emit("live:joined", response);
+
+      if (typeof callback === "function") {
+        callback(response);
+      }
+
+      // Notify the other participants.
+      socket.to(room).emit("live:peer-joined", {
+        socketId: socket.id,
+        role: socket.data.identity.role,
+        classId: String(classId),
+      });
+
+      // If the tutor joins, notify students already waiting.
+      if (socket.data.identity.role === "tutor") {
+        socket.to(room).emit("live:tutor-available", {
+          tutorSocketId: socket.id,
+          classId: String(classId),
+        });
+      }
+
+      // If a student joins, notify the tutor.
+      if (socket.data.identity.role === "student") {
+        socket.to(room).emit("live:student-ready", {
+          studentSocketId: socket.id,
+          classId: String(classId),
+        });
+      }
+
+      console.log(
+        `LIVE JOIN: ${socket.data.identity.role} ${socket.id} -> class ${classId}`
+      );
+    } catch (error) {
+      console.error("LIVE JOIN ERROR:", error?.message);
+
+      const response = getSocketError(
+        error?.message || "Unable to join live classroom.",
+        "LIVE_JOIN_FAILED"
+      );
+
+      socket.emit("live:error", response);
+
+      if (typeof callback === "function") {
+        callback(response);
+      }
+    }
+  });
+
+  // ----------------------------------------------------------
+  // STUDENT READY
+  // ----------------------------------------------------------
+
+  socket.on("live:ready", () => {
+    const liveClass = socket.data.liveClass;
+
+    if (!liveClass || liveClass.role !== "student") {
+      return;
+    }
+
+    socket.to(liveClass.room).emit("live:student-ready", {
+      studentSocketId: socket.id,
+      classId: liveClass.classId,
+    });
+  });
+
+  // ----------------------------------------------------------
+  // WEBRTC OFFER: TUTOR -> STUDENT
+  // ----------------------------------------------------------
+
+  socket.on("webrtc:offer", async (payload = {}, callback) => {
+    try {
+      const liveClass = socket.data.liveClass;
+
+      if (!liveClass || liveClass.role !== "tutor") {
+        throw new Error("Only the classroom tutor can send offers.");
+      }
+
+      const target = await getAuthorizedTarget(
+        socket,
+        payload.targetSocketId
+      );
+
+      if (target.data.liveClass.role !== "student") {
+        throw new Error("WebRTC offer must be sent to a student.");
+      }
+
+      target.emit("webrtc:offer", {
+        offer: payload.offer,
+        fromSocketId: socket.id,
+        classId: liveClass.classId,
+      });
+
+      if (typeof callback === "function") {
+        callback({ success: true });
+      }
+    } catch (error) {
+      console.error("WEBRTC OFFER ERROR:", error?.message);
+
+      if (typeof callback === "function") {
+        callback(getSocketError(error.message, "WEBRTC_OFFER_FAILED"));
+      }
+    }
+  });
+
+  // ----------------------------------------------------------
+  // WEBRTC ANSWER: STUDENT -> TUTOR
+  // ----------------------------------------------------------
+
+  socket.on("webrtc:answer", async (payload = {}, callback) => {
+    try {
+      const liveClass = socket.data.liveClass;
+
+      if (!liveClass || liveClass.role !== "student") {
+        throw new Error("Only students can answer classroom offers.");
+      }
+
+      const target = await getAuthorizedTarget(
+        socket,
+        payload.targetSocketId
+      );
+
+      if (target.data.liveClass.role !== "tutor") {
+        throw new Error("WebRTC answer must be sent to the tutor.");
+      }
+
+      target.emit("webrtc:answer", {
+        answer: payload.answer,
+        fromSocketId: socket.id,
+        classId: liveClass.classId,
+      });
+
+      if (typeof callback === "function") {
+        callback({ success: true });
+      }
+    } catch (error) {
+      console.error("WEBRTC ANSWER ERROR:", error?.message);
+
+      if (typeof callback === "function") {
+        callback(getSocketError(error.message, "WEBRTC_ANSWER_FAILED"));
+      }
+    }
+  });
+
+  // ----------------------------------------------------------
+  // ICE CANDIDATE RELAY
+  // ----------------------------------------------------------
+
+  socket.on(
+    "webrtc:ice-candidate",
+    async (payload = {}, callback) => {
+      try {
+        const liveClass = socket.data.liveClass;
+
+        if (!liveClass) {
+          throw new Error("Join the classroom before sending ICE candidates.");
+        }
+
+        const target = await getAuthorizedTarget(
+          socket,
+          payload.targetSocketId
+        );
+
+        target.emit("webrtc:ice-candidate", {
+          candidate: payload.candidate,
+          fromSocketId: socket.id,
+          classId: liveClass.classId,
+        });
+
+        if (typeof callback === "function") {
+          callback({ success: true });
+        }
+      } catch (error) {
+        console.error("ICE CANDIDATE ERROR:", error?.message);
+
+        if (typeof callback === "function") {
+          callback(
+            getSocketError(error.message, "ICE_CANDIDATE_FAILED")
+          );
+        }
+      }
+    }
+  );
+
+  // ----------------------------------------------------------
+  // MEDIA STATE
+  // ----------------------------------------------------------
+
+  socket.on("live:media-state", (payload = {}) => {
+    const liveClass = socket.data.liveClass;
+
+    if (!liveClass) return;
+
+    socket.to(liveClass.room).emit("live:media-state", {
+      socketId: socket.id,
+      role: liveClass.role,
+      cameraEnabled: Boolean(payload.cameraEnabled),
+      microphoneEnabled: Boolean(payload.microphoneEnabled),
+      screenSharing: Boolean(payload.screenSharing),
+    });
+  });
+
+  // ----------------------------------------------------------
+  // LEAVE CLASSROOM
+  // ----------------------------------------------------------
+
+  socket.on("live:leave", () => {
+    const liveClass = socket.data.liveClass;
+
+    if (!liveClass) return;
+
+    socket.to(liveClass.room).emit("live:peer-left", {
+      socketId: socket.id,
+      role: liveClass.role,
+      classId: liveClass.classId,
+    });
+
+    socket.leave(liveClass.room);
+    socket.data.liveClass = null;
+  });
+
+  // ----------------------------------------------------------
+  // DISCONNECT
+  // ----------------------------------------------------------
+
+  socket.on("disconnect", (reason) => {
+    const liveClass = socket.data.liveClass;
+
+    if (liveClass) {
+      socket.to(liveClass.room).emit("live:peer-left", {
+        socketId: socket.id,
+        role: liveClass.role,
+        classId: liveClass.classId,
+      });
+    }
+
+    console.log("Live socket disconnected:", socket.id, reason);
+  });
+});
+
+// ============================================================
+// BODY PARSERS
 // ============================================================
 
 app.use(
@@ -317,19 +857,11 @@ app.use(
   })
 );
 
-// ============================================================
-// JSON BODY PARSER
-// ============================================================
-
 app.use(
   express.json({
     limit: "2mb",
   })
 );
-
-// ============================================================
-// URL ENCODED BODY
-// ============================================================
 
 app.use(
   express.urlencoded({
@@ -349,26 +881,19 @@ app.use((req, res, next) => {
 
 // ============================================================
 // ACADEMY CBT ROUTES
-// IMPORTANT: Register after body parsers and before 404.
 // ============================================================
 
 app.use("/api/academy", academyCbtRoutes);
-
-// ============================================================
-// SCHOOL STUDENT EXAMINATION ROUTES
-// Separate from Academy CBT.
-// ============================================================
 
 app.use(
   "/api/school-student-exams",
   schoolStudentExamRoutes
 );
-  // ============================================================
-// SCHOOL EXAMINATION ROUTES
-// Separate from the general CBT question bank.
-// ============================================================
 
-app.use("/api/admin/school-exams", schoolExamsRoutes);
+app.use(
+  "/api/admin/school-exams",
+  schoolExamsRoutes
+);
 
 // ============================================================
 // STATIC UPLOADS
@@ -378,7 +903,6 @@ app.use(
   "/uploads",
   express.static(UPLOADS_DIR, {
     fallthrough: true,
-
     setHeaders: (res, filePath) => {
       res.setHeader("Access-Control-Allow-Origin", FRONTEND_URL);
       res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -404,49 +928,35 @@ app.use(
 
       const lowerPath = String(filePath || "").toLowerCase();
 
-      if (lowerPath.endsWith(".pdf")) {
-        res.setHeader("Content-Type", "application/pdf");
+      const mimeTypes = {
+        ".pdf": "application/pdf",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".mov": "video/quicktime",
+        ".doc": "application/msword",
+        ".docx":
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      };
+
+      const extension = path.extname(lowerPath);
+
+      if (mimeTypes[extension]) {
+        res.setHeader("Content-Type", mimeTypes[extension]);
+      }
+
+      if ([".pdf", ".mp4", ".webm", ".mov"].includes(extension)) {
         res.setHeader("Content-Disposition", "inline");
+      }
+
+      if ([".pdf", ".doc", ".docx"].includes(extension)) {
         res.setHeader("X-Content-Type-Options", "nosniff");
-        return;
-      }
-
-      if (lowerPath.endsWith(".mp4")) {
-        res.setHeader("Content-Type", "video/mp4");
-        res.setHeader("Content-Disposition", "inline");
-        return;
-      }
-
-      if (lowerPath.endsWith(".webm")) {
-        res.setHeader("Content-Type", "video/webm");
-        res.setHeader("Content-Disposition", "inline");
-        return;
-      }
-
-      if (lowerPath.endsWith(".mov")) {
-        res.setHeader("Content-Type", "video/quicktime");
-        res.setHeader("Content-Disposition", "inline");
-        return;
-      }
-
-      if (lowerPath.endsWith(".doc")) {
-        res.setHeader("Content-Type", "application/msword");
-        return;
-      }
-
-      if (lowerPath.endsWith(".docx")) {
-        res.setHeader(
-          "Content-Type",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        );
-        return;
       }
     },
   })
 );
 
 // ============================================================
-// LEGACY / EXISTING TUTOR ASSIGNMENT ROUTER
+// MATERIAL ROUTES
 // ============================================================
 
 app.use(
@@ -454,89 +964,48 @@ app.use(
   tutorAssignmentsRouter
 );
 
-// ============================================================
-// ADMIN MATERIAL ROUTES
-// ============================================================
-
 app.use(
   "/api/admin/lms/materials",
   learningMaterialsRouter
 );
-
-// ============================================================
-// STUDENT MATERIAL ROUTES
-// ============================================================
 
 app.use(
   "/api/academy/student/materials",
   academyStudentMaterialsRoutes
 );
 
-// ============================================================
-// VERIFIED TUTOR MATERIAL ROUTES
-// ============================================================
-
 app.use(
   "/api/academy/tutor/materials",
   academyTutorMaterialsRoutes
 );
-// ============================================================
-// NEON CBT QUESTION ADMIN ROUTES
-// ============================================================
-
-app.use("/api/admin/cbt/questions", cbtQuestionsRoutes);
-// ============================================================
-// ACADEMY ENROLLMENT ROUTES
-// ============================================================
 
 app.use(
-  "/api/academy",
-  academyEnrollmentRoutes
+  "/api/admin/cbt/questions",
+  cbtQuestionsRoutes
 );
 
 // ============================================================
-// ROOT ROUTE
+// ACADEMY ENROLLMENT
+// ============================================================
+
+app.use("/api/academy", academyEnrollmentRoutes);
+
+// ============================================================
+// ROOT
 // ============================================================
 
 app.get("/", (req, res) => {
-  return res.status(200).json({
+  res.status(200).json({
     success: true,
     message: "Scholiqen Backend is running.",
     server: "online",
     environment: process.env.NODE_ENV || "development",
+    frontend: FRONTEND_URL,
 
     endpoints: {
       auth: "/api/auth",
-      signup: "POST /api/auth/signup",
-      login: "POST /api/auth/login",
-      currentUser: "GET /api/auth/me",
-
       admin: "/api/admin",
-      adminDashboard: "GET /api/admin/dashboard",
-
-      adminMaterials: "/api/admin/lms/materials",
-      studentMaterials: "/api/academy/student/materials",
-      tutorMaterials: "/api/academy/tutor/materials",
-
-      studentAssignments: "GET /api/academy/student/assignments",
-      studentAssignment: "GET /api/academy/student/assignments/:id",
-      studentAssignmentFile: "GET /api/academy/student/assignments/:id/file",
-      submitStudentAssignment: "POST /api/academy/student/assignments/:id/submit",
-      studentAssignmentResult: "GET /api/academy/student/assignments/:id/result",
-
-      tutorAssignments: "/api/academy/tutor/assignments",
-
-      // ACADEMY CBT
-      academyCBTExams: "GET /api/academy/student/cbt/exams",
-      academyCBTExam: "GET /api/academy/student/cbt/exams/:examId",
-      academyCBTStart: "POST /api/academy/student/cbt/exams/:examId/start",
-      academyCBTSaveAnswer: "PUT /api/academy/student/cbt/attempts/:attemptId/answers",
-      academyCBTSubmit: "POST /api/academy/student/cbt/attempts/:attemptId/submit",
-      academyCBTResult: "GET /api/academy/student/cbt/attempts/:attemptId/result",
-      academyCBTResults: "GET /api/academy/student/cbt/results",
-
       courses: "/api/courses",
-      courseStats: "GET /api/courses/stats",
       courseCategories: "/api/course-categories",
       documents: "/api/documents",
       resources: "/api/resources",
@@ -545,10 +1014,13 @@ app.get("/", (req, res) => {
       tutor: "/api/tutor",
       payments: "/api/payments",
       academy: "/api/academy",
-      health: "GET /api/health",
+      health: "/api/health",
+      liveConnection: "Socket.IO",
+      liveJoinEvent: "live:join",
+      liveOfferEvent: "webrtc:offer",
+      liveAnswerEvent: "webrtc:answer",
+      liveIceEvent: "webrtc:ice-candidate",
     },
-
-    frontend: FRONTEND_URL,
 
     database: {
       provider: "PostgreSQL / Neon",
@@ -588,9 +1060,9 @@ app.get("/", (req, res) => {
       tutorMaterials: databaseConfigured && jwtConfigured,
       studentAssignments: databaseConfigured,
       adminMaterials: databaseConfigured && jwtConfigured,
-
-      // ACADEMY CBT
       academyCBT: databaseConfigured && jwtConfigured,
+      socketIO: true,
+      webRTCSignaling: true,
     },
   });
 });
@@ -616,13 +1088,13 @@ app.get("/api/health", async (req, res) => {
       databaseMessage = "connection failed";
 
       console.error(
-        "❌ PostgreSQL health check failed:",
+        "PostgreSQL health check failed:",
         error?.message
       );
     }
   }
 
-  return res.status(200).json({
+  res.status(200).json({
     success: true,
     server: "online",
     service: "Scholiqen Backend",
@@ -646,6 +1118,13 @@ app.get("/api/health", async (req, res) => {
 
     academyCBTConfigured: databaseConfigured && jwtConfigured,
 
+    liveClassroom: {
+      socketIO: true,
+      authentication: jwtConfigured,
+      signalingHandlers: true,
+      transport: "WebRTC signaling",
+    },
+
     payment: {
       currency: "NGN",
       testPriceNaira: PREMIUM_PRICE_NAIRA,
@@ -664,7 +1143,10 @@ app.get("/api/health", async (req, res) => {
 app.get("/api/cbt/questions", async (req, res) => {
   try {
     const exam = String(req.query.exam || "").trim();
-    const subjectsParam = String(req.query.subjects || "").trim();
+
+    const subjectsParam = String(
+      req.query.subjects || ""
+    ).trim();
 
     if (!exam) {
       return res.status(400).json({
@@ -731,9 +1213,7 @@ app.get("/api/cbt/questions", async (req, res) => {
     }
 
     query += `
-      ORDER BY
-        subject ASC,
-        created_at DESC
+      ORDER BY subject ASC, created_at DESC
     `;
 
     const result = await pool.query(query, values);
@@ -742,7 +1222,9 @@ app.get("/api/cbt/questions", async (req, res) => {
 
     result.rows.forEach((row) => {
       const subject = row.subject || "Unknown";
-      subjectCounts[subject] = (subjectCounts[subject] || 0) + 1;
+
+      subjectCounts[subject] =
+        (subjectCounts[subject] || 0) + 1;
     });
 
     return res.status(200).json({
@@ -753,7 +1235,7 @@ app.get("/api/cbt/questions", async (req, res) => {
       subjectCounts,
     });
   } catch (error) {
-    console.error("❌ CBT QUESTIONS API ERROR:", error);
+    console.error("CBT QUESTIONS API ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -776,8 +1258,7 @@ app.get("/api/cbt/questions", async (req, res) => {
 app.get("/api/cbt/questions/count", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT
-        COUNT(*)::integer AS count
+      SELECT COUNT(*)::integer AS count
       FROM cbt_questions
     `);
 
@@ -790,7 +1271,7 @@ app.get("/api/cbt/questions/count", async (req, res) => {
       questionCount: count,
     });
   } catch (error) {
-    console.error("❌ CBT QUESTION COUNT ERROR:", error);
+    console.error("CBT QUESTION COUNT ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -807,124 +1288,46 @@ app.get("/api/cbt/questions/count", async (req, res) => {
 });
 
 // ============================================================
-// AUTH ROUTES
+// EXISTING API ROUTES
 // ============================================================
 
 app.use("/api/auth", authRoutes);
-
-// ============================================================
-// ADMIN ROUTES
-// ============================================================
-
 app.use("/api/admin", adminRoutes);
-
-// ============================================================
-// COURSE ROUTES
-// ============================================================
-
 app.use("/api/courses", courseRoutes);
-
-// ============================================================
-// COURSE CATEGORY ROUTES
-// ============================================================
-
 app.use("/api/course-categories", courseCategoryRoutes);
-
-// ============================================================
-// DOCUMENT ROUTES
-// ============================================================
-
 app.use("/api/documents", documentRoutes);
-
-// ============================================================
-// RESOURCE ROUTES
-// ============================================================
-
 app.use("/api/resources", resourceRoutes);
-
-// ============================================================
-// TASK ROUTES
-// ============================================================
-
 app.use("/api/tasks", taskRoutes);
-
-// ============================================================
-// NOVEL ROUTES
-// ============================================================
-
 app.use("/api/novels", novelRoutes);
-
-// ============================================================
-// AI TUTOR ROUTES
-// ============================================================
-
 app.use("/api/tutor", tutorRoutes);
-
-// ============================================================
-// PAYMENT ROUTES
-// ============================================================
-
 app.use("/api/payments", paymentRoutes);
 
 // ============================================================
-// ACADEMY TASK SUBMISSIONS
+// ACADEMY ROUTES
 // ============================================================
 
 app.use("/api/academy", academyTaskSubmissionRoutes);
-
-// ============================================================
-// ACADEMY TASK MANAGEMENT
-// ============================================================
-
 app.use("/api/academy", academyTaskManagementRoutes);
-
-// ============================================================
-// ACADEMY MAIN ROUTES
-// ============================================================
-
 app.use("/api/academy", academyRoutes);
-
-// ============================================================
-// ACADEMY ASSIGNMENTS
-// ============================================================
-
 app.use("/api/academy", academyAssignmentRoutes);
-
-// ============================================================
-// ACADEMY LESSONS
-// ============================================================
-
 app.use("/api/academy", academyLessonRoutes);
-
-// ============================================================
-// ACADEMY TEACHING
-// ============================================================
-
 app.use("/api/academy", academyTeachingRoutes);
-
-// ============================================================
-// ACADEMY LIVE CLASSES
-// ============================================================
-
 app.use("/api/academy", academyLiveClassRoutes);
 
-// ============================================================
-// ACADEMY TUTOR ATTENDANCE
-// ============================================================
+app.use(
+  "/api/academy/tutor",
+  academyTutorAttendanceRoutes
+);
 
-app.use("/api/academy/tutor", academyTutorAttendanceRoutes);
+app.use(
+  "/api/academy/tutor",
+  academyTutorMessages
+);
 
-// ============================================================
-// ACADEMY TUTOR MESSAGES
-// ============================================================
-
-app.use("/api/academy/tutor", academyTutorMessages);
-
-// ============================================================
-// ACADEMY TUTOR ANNOUNCEMENTS
-// ============================================================
-
-app.use("/api/academy/tutor", academyTutorAnnouncements);
+app.use(
+  "/api/academy/tutor",
+  academyTutorAnnouncements
+);
 
 // ============================================================
 // LEGACY ASSIGNMENT FILE URL COMPATIBILITY
@@ -1026,13 +1429,10 @@ app.get("/:filename", (req, res, next) => {
           return next();
         }
 
-        console.error(
-          "❌ Legacy assignment file delivery failed:",
-          {
-            filename,
-            message: error.message,
-          }
-        );
+        console.error("Legacy assignment file delivery failed:", {
+          filename,
+          message: error.message,
+        });
 
         return res.status(error.statusCode || 500).json({
           success: false,
@@ -1042,7 +1442,7 @@ app.get("/:filename", (req, res, next) => {
     });
   } catch (error) {
     console.error(
-      "❌ Legacy assignment file route error:",
+      "Legacy assignment file route error:",
       error?.message
     );
 
@@ -1056,7 +1456,7 @@ app.get("/:filename", (req, res, next) => {
 
 app.use((req, res) => {
   console.warn(
-    `⚠️ Route not found: ${req.method} ${req.originalUrl}`
+    `Route not found: ${req.method} ${req.originalUrl}`
   );
 
   return res.status(404).json({
@@ -1074,14 +1474,13 @@ app.use((req, res) => {
 app.use((error, req, res, next) => {
   console.error("");
   console.error("==================================================");
-  console.error("❌ SCHOLIQEN SERVER ERROR");
+  console.error("SCHOLIQEN SERVER ERROR");
   console.error("==================================================");
   console.error("Method:", req.method);
   console.error("URL:", req.originalUrl);
   console.error("Message:", error?.message);
   console.error("Stack:", error?.stack);
   console.error("==================================================");
-  console.error("");
 
   if (res.headersSent) {
     return next(error);
@@ -1097,88 +1496,49 @@ app.use((error, req, res, next) => {
 // START SERVER
 // ============================================================
 
-const server = app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log("");
   console.log("==================================================");
-  console.log("🚀 SCHOLIQEN BACKEND SERVER");
+  console.log("SCHOLIQEN BACKEND SERVER");
   console.log("==================================================");
-  console.log(`🌐 Server: http://localhost:${PORT}`);
-  console.log(`🌐 Frontend: ${FRONTEND_URL}`);
-  console.log(`📂 Uploads: ${UPLOADS_DIR}`);
-  console.log(`📄 Assignment uploads: ${ACADEMY_ASSIGNMENTS_DIR}`);
-  console.log(`📥 Task submission uploads: ${TASK_SUBMISSIONS_DIR}`);
+  console.log(`Server: http://localhost:${PORT}`);
+  console.log(`Frontend: ${FRONTEND_URL}`);
+  console.log(`Uploads: ${UPLOADS_DIR}`);
+  console.log(`Assignment uploads: ${ACADEMY_ASSIGNMENTS_DIR}`);
+  console.log(`Task submission uploads: ${TASK_SUBMISSIONS_DIR}`);
 
   console.log(
-    `🗄️ Database: ${
-      databaseConfigured ? "Configured ✅" : "Not configured ❌"
-    }`
+    `Database: ${databaseConfigured ? "Configured" : "Not configured"}`
   );
 
   console.log(
-    `🎫 JWT: ${jwtConfigured ? "Configured ✅" : "Missing ❌"}`
+    `JWT: ${jwtConfigured ? "Configured" : "Missing"}`
   );
 
   console.log(
-    `🤖 Groq: ${groqConfigured ? "Configured ✅" : "Missing ❌"}`
+    `Groq: ${groqConfigured ? "Configured" : "Missing"}`
   );
 
   console.log(
-    `💳 Paystack: ${
-      paystackConfigured ? "Configured" : "Not configured"
-    }`
+    `Paystack: ${paystackConfigured ? "Configured" : "Not configured"}`
   );
 
   console.log("");
-  console.log("📝 STUDENT ASSIGNMENT ROUTES:");
-  console.log("   GET    /api/academy/student/assignments");
-  console.log("   GET    /api/academy/student/assignments/:id");
-  console.log("   GET    /api/academy/student/assignments/:id/file");
-  console.log("   POST   /api/academy/student/assignments/:id/submit");
-  console.log("   GET    /api/academy/student/assignments/:id/result");
+  console.log("LIVE CLASSROOM:");
+  console.log("   Socket.IO: ENABLED");
+  console.log("   JWT authentication: ENABLED");
+  console.log("   Classroom authorization: ENABLED");
+  console.log("   WebRTC signaling: ENABLED");
+  console.log("   Offer / Answer / ICE relay: ENABLED");
 
   console.log("");
-  console.log("👨‍🏫 TUTOR ASSIGNMENT ROUTES:");
-  console.log("   POST   /api/academy/tutor/assignments");
-  console.log("   GET    /api/academy/tutor/assignments");
-  console.log("   GET    /api/academy/tutor/assignments/:id");
-
-  console.log("");
-  console.log("📝 ACADEMY CBT ROUTES:");
-  console.log("   GET    /api/academy/student/cbt/exams");
-  console.log("   GET    /api/academy/student/cbt/exams/:examId");
-  console.log("   POST   /api/academy/student/cbt/exams/:examId/start");
-  console.log("   PUT    /api/academy/student/cbt/attempts/:attemptId/answers");
-  console.log("   POST   /api/academy/student/cbt/attempts/:attemptId/submit");
-  console.log("   GET    /api/academy/student/cbt/attempts/:attemptId/result");
-  console.log("   GET    /api/academy/student/cbt/results");
-
-  console.log("");
-  console.log("📚 ACADEMY TASK ROUTES:");
-  console.log("   GET    /api/academy/tutor/tasks");
-  console.log("   GET    /api/academy/tutor/tasks/:taskId");
-  console.log("   PATCH  /api/academy/tutor/tasks/:taskId");
-  console.log("   DELETE /api/academy/tutor/tasks/:taskId");
-  console.log("   POST   /api/academy/tutor/tasks");
-  console.log("   GET    /api/academy/tutor/task-submissions");
-  console.log("   GET    /api/academy/tutor/task-submissions/:submissionId");
-  console.log("   PATCH  /api/academy/tutor/task-submissions/:submissionId/review");
-  console.log("   POST   /api/academy/student/tasks/:taskId/submission");
-
-  console.log("");
-  console.log("📚 MATERIAL ROUTES:");
-  console.log("   GET    /api/admin/lms/materials");
-  console.log("   GET    /api/academy/student/materials");
-  console.log("   GET    /api/academy/tutor/materials");
-
-  console.log("");
-  console.log("❤️ HEALTH:");
-  console.log("   GET    /api/health");
+  console.log("HEALTH:");
+  console.log("   GET /api/health");
 
   console.log("");
   console.log("==================================================");
-  console.log("✅ SCHOLIQEN SERVER READY");
+  console.log("SCHOLIQEN SERVER READY");
   console.log("==================================================");
-  console.log("");
 });
 
 // ============================================================
@@ -1186,13 +1546,10 @@ const server = app.listen(PORT, () => {
 // ============================================================
 
 server.on("error", (error) => {
-  console.error("");
-  console.error("❌ SERVER STARTUP ERROR");
-  console.error(error);
-  console.error("");
+  console.error("SERVER STARTUP ERROR:", error);
 
   if (error?.code === "EADDRINUSE") {
-    console.error(`❌ Port ${PORT} is already in use.`);
+    console.error(`Port ${PORT} is already in use.`);
   }
 });
 
@@ -1200,25 +1557,45 @@ server.on("error", (error) => {
 // GRACEFUL SHUTDOWN
 // ============================================================
 
+let isShuttingDown = false;
+
 const shutdown = async (signal) => {
-  console.log("");
-  console.log(`🛑 ${signal} received. Shutting down...`);
+  if (isShuttingDown) return;
+
+  isShuttingDown = true;
+
+  console.log(`${signal} received. Shutting down...`);
+
+  io.disconnectSockets(true);
 
   server.close(async () => {
     try {
       await pool.end();
-      console.log("🗄️ Database connection pool closed.");
+      console.log("Database connection pool closed.");
     } catch (error) {
       console.error(
-        "❌ Error closing database pool:",
+        "Error closing database pool:",
         error?.message
       );
     }
 
-    console.log("✅ Server shutdown complete.");
+    console.log("Server shutdown complete.");
     process.exit(0);
   });
+
+  io.close();
+
+  setTimeout(() => {
+    console.error("Forced shutdown after timeout.");
+    process.exit(1);
+  }, 10000).unref();
 };
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+// ============================================================
+// EXPORTS
+// ============================================================
+
+export { app, server, io };

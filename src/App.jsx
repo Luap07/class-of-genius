@@ -26,7 +26,7 @@ import ResetPassword from "./pages/ResetPassword";
 /* ============================================================
    SCHOLIQEN ACADEMY
 ============================================================ */
-
+import StudentLiveClassroom from "./pages/academy/StudentLiveClassroom";
 import StudentTaskSubmission from "./pages/academy/StudentTaskSubmission";
 import AcademyEnvironment from "./pages/academy/AcademyEnvironment";
 import Academy from "./pages/Academy";
@@ -1621,6 +1621,14 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+  path="/academy/live-class/:roomCode"
+  element={
+    <AcademyProtectedRoute>
+      <StudentLiveClassroom />
+    </AcademyProtectedRoute>
+  }
+/>
 
         <Route
           path="/cbt/start"

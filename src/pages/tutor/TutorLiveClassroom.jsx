@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useEffect,
@@ -71,11 +72,7 @@ const getToken = () => {
 };
 
 const readTutor = () => {
-  const keys = [
-    "tutor",
-    "academyTutor",
-    "scholiqen_user",
-  ];
+  const keys = ["tutor", "academyTutor", "scholiqen_user"];
 
   for (const key of keys) {
     try {
@@ -128,9 +125,7 @@ const getHeaders = () => {
 
   return {
     "Content-Type": "application/json",
-    ...(token
-      ? { Authorization: `Bearer ${token}` }
-      : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(reference
       ? {
           "x-tutor-reference": reference,
@@ -142,25 +137,22 @@ const getHeaders = () => {
 };
 
 const apiRequest = async (endpoint, options = {}) => {
-  const response = await fetch(
-    `${API_BASE_URL}${endpoint}`,
-    {
-      credentials: "include",
-      ...options,
-      headers: {
-        ...getHeaders(),
-        ...(options.headers || {}),
-      },
-    }
-  );
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    credentials: "include",
+    ...options,
+    headers: {
+      ...getHeaders(),
+      ...(options.headers || {}),
+    },
+  });
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     throw new Error(
       data.message ||
-      data.error ||
-      `Request failed (${response.status})`
+        data.error ||
+        `Request failed (${response.status})`
     );
   }
 
@@ -211,19 +203,14 @@ const getPanelIcon = (panel) => {
   switch (panel) {
     case "presentation":
       return BookOpen;
-
     case "whiteboard":
       return Pen;
-
     case "chat":
       return MessageCircle;
-
     case "participants":
       return Users;
-
     case "resources":
       return FileText;
-
     default:
       return Video;
   }
@@ -274,9 +261,7 @@ const ResourcesPanel = ({ classroom }) => {
     classroom?.files ||
     [];
 
-  const resourceList = Array.isArray(resources)
-    ? resources
-    : [];
+  const resourceList = Array.isArray(resources) ? resources : [];
 
   const getResourceUrl = (resource) =>
     resource.url ||
@@ -294,24 +279,18 @@ const ResourcesPanel = ({ classroom }) => {
     `Class resource ${index + 1}`;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#071426] text-white">
+    <div className="flex h-full min-h-0 w-full flex-col bg-[#071426] text-white">
       <div className="border-b border-white/10 p-4">
-        <h3 className="text-sm font-bold">
-          Class resources
-        </h3>
-
+        <h3 className="text-sm font-bold">Class resources</h3>
         <p className="mt-1 text-xs text-slate-400">
           Learning materials and files for this classroom.
         </p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {resourceList.length === 0 ? (
-          <div className="flex min-h-[180px] h-full flex-col items-center justify-center rounded-xl border border-dashed border-white/10 p-5 text-center">
-            <BookOpen
-              size={28}
-              className="mb-3 text-slate-500"
-            />
+          <div className="flex h-full min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-white/10 p-5 text-center">
+            <BookOpen size={28} className="mb-3 text-slate-500" />
 
             <p className="text-sm font-semibold text-slate-300">
               No resources available
@@ -329,11 +308,7 @@ const ResourcesPanel = ({ classroom }) => {
 
               return (
                 <div
-                  key={
-                    resource.id ||
-                    resource.file_id ||
-                    index
-                  }
+                  key={resource.id || resource.file_id || index}
                   className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#0B1930] p-3"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-300">
@@ -408,8 +383,8 @@ const TutorLiveClassroom = () => {
   const [participants, setParticipants] = useState([]);
   const [messages, setMessages] = useState([]);
 
+  // Video is the default large workspace.
   const [activePanel, setActivePanel] = useState("video");
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
 
   const [screenSharing, setScreenSharing] = useState(false);
   const [presentation, setPresentation] = useState(null);
@@ -418,6 +393,8 @@ const TutorLiveClassroom = () => {
   const [connectedStudents, setConnectedStudents] = useState([]);
 
   const [notice, setNotice] = useState("");
+
+  const isToolPanel = activePanel !== "video";
 
   /* =======================================================
      REMOTE STREAMS
@@ -1151,50 +1128,42 @@ const TutorLiveClassroom = () => {
   /* =======================================================
      PANEL NAVIGATION
 
-     Video = wide main area.
-     Other tools = smaller right-side panel.
+     VIDEO:
+     Camera fills the main workspace.
+
+     OTHER PANELS:
+     Selected tool fills the main workspace.
+     Camera moves into the smaller right preview.
   ======================================================= */
 
-  const openRightPanel = useCallback((panel) => {
-    setActivePanel(panel);
-    setIsRightPanelOpen(true);
+  const handlePanelChange = useCallback((panel) => {
+    const aliases = {
+      people: "participants",
+      participants: "participants",
+      board: "whiteboard",
+      whiteboard: "whiteboard",
+      presentation: "presentation",
+      chat: "chat",
+      resources: "resources",
+      resource: "resources",
+      video: "video",
+    };
+
+    const selectedPanel = aliases[panel] || panel;
+
+    const validPanels = [
+      "video",
+      "presentation",
+      "whiteboard",
+      "chat",
+      "participants",
+      "resources",
+    ];
+
+    if (!validPanels.includes(selectedPanel)) return;
+
+    setActivePanel(selectedPanel);
   }, []);
-
-  const handlePanelChange = useCallback(
-    (panel) => {
-      const aliases = {
-        people: "participants",
-        participants: "participants",
-        board: "whiteboard",
-        whiteboard: "whiteboard",
-        presentation: "presentation",
-        chat: "chat",
-        resources: "resources",
-        resource: "resources",
-        video: "video",
-      };
-
-      const selectedPanel =
-        aliases[panel] || panel;
-
-      const rightPanelItems = [
-        "chat",
-        "participants",
-        "presentation",
-        "whiteboard",
-        "resources",
-      ];
-
-      setActivePanel(selectedPanel);
-
-      if (rightPanelItems.includes(selectedPanel)) {
-        setIsRightPanelOpen(true);
-      } else {
-        setIsRightPanelOpen(false);
-      }
-    },
-    []
-  );
 
   /* =======================================================
      START CLASS
@@ -1415,6 +1384,52 @@ const TutorLiveClassroom = () => {
   };
 
   /* =======================================================
+     VIDEO STAGE
+  ======================================================= */
+
+  const renderVideoStage = (compact = false) => (
+    <div
+      className={`relative h-full min-h-0 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#071426] ${
+        compact ? "min-h-[180px]" : "min-h-[300px]"
+      }`}
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0b1930] via-[#071426] to-[#020617]" />
+
+      <div className="relative z-10 flex h-full w-full items-center justify-center p-2 md:p-3">
+        <div className="h-full w-full">
+          <LiveVideo
+            liveClassId={classId}
+            tutorReference={tutorReference}
+            tutorName={tutorName}
+            isLive={isLive}
+            compact={compact}
+            onScreenShareChange={handleScreenShareChange}
+            onMediaStreamChange={handleMediaStreamChange}
+          />
+        </div>
+      </div>
+
+      {!compact && (
+        <>
+          {renderRemoteVideos()}
+
+          <div className="absolute right-3 top-3 z-30 flex flex-col gap-2">
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[10px] text-white backdrop-blur">
+              <Users size={13} />
+              {participants.length} participant(s)
+            </div>
+
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[10px] text-white backdrop-blur">
+              <Video size={13} />
+              {connectedStudents.length} video connection(s)
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  /* =======================================================
      PANEL CONTENT
   ======================================================= */
 
@@ -1432,39 +1447,45 @@ const TutorLiveClassroom = () => {
 
       case "chat":
         return (
-          <LiveChat
-            liveClassId={classId}
-            tutorReference={tutorReference}
-            tutorName={tutorName}
-            messages={messages}
-            onNewMessage={handleNewMessage}
-          />
+          <div className="h-full min-h-0 w-full overflow-hidden">
+            <LiveChat
+              liveClassId={classId}
+              tutorReference={tutorReference}
+              tutorName={tutorName}
+              messages={messages}
+              onNewMessage={handleNewMessage}
+            />
+          </div>
         );
 
       case "participants":
         return (
-          <ParticipantsPanel
-            liveClassId={classId}
-            participants={participants}
-            onParticipantUpdate={handleParticipantUpdate}
-          />
+          <div className="h-full min-h-0 w-full overflow-hidden">
+            <ParticipantsPanel
+              liveClassId={classId}
+              participants={participants}
+              onParticipantUpdate={handleParticipantUpdate}
+            />
+          </div>
         );
 
       case "presentation":
         return (
-          <PresentationViewer
-            liveClassId={classId}
-            tutorReference={tutorReference}
-            presentation={presentation}
-            onPresentationChange={handlePresentationChange}
-          />
+          <div className="h-full min-h-0 w-full overflow-hidden">
+            <PresentationViewer
+              liveClassId={classId}
+              tutorReference={tutorReference}
+              presentation={presentation}
+              onPresentationChange={handlePresentationChange}
+            />
+          </div>
         );
 
       case "resources":
         return (
-          <ResourcesPanel
-            classroom={classroom}
-          />
+          <div className="h-full min-h-0 w-full overflow-hidden">
+            <ResourcesPanel classroom={classroom} />
+          </div>
         );
 
       default:
@@ -1505,8 +1526,7 @@ const TutorLiveClassroom = () => {
           </h2>
 
           <p className="mt-2 text-sm text-slate-400">
-            {error ||
-              "This live classroom could not be loaded."}
+            {error || "This live classroom could not be loaded."}
           </p>
 
           <button
@@ -1552,9 +1572,7 @@ const TutorLiveClassroom = () => {
               {classroom.class_name ||
                 classroom.className ||
                 "Class"}{" "}
-              {classroom.subject
-                ? `• ${classroom.subject}`
-                : ""}
+              {classroom.subject ? `• ${classroom.subject}` : ""}
             </p>
           </div>
         </div>
@@ -1562,9 +1580,7 @@ const TutorLiveClassroom = () => {
         <div className="flex items-center gap-2">
           <span
             className={`h-2 w-2 rounded-full ${
-              socketConnected
-                ? "bg-emerald-400"
-                : "bg-amber-400"
+              socketConnected ? "bg-emerald-400" : "bg-amber-400"
             }`}
           />
 
@@ -1609,48 +1625,77 @@ const TutorLiveClassroom = () => {
         </div>
       )}
 
-      {/* CLASSROOM BODY */}
+      {/* =====================================================
+          WORKSPACE
 
-      <main className="flex min-h-0 flex-1 gap-3 overflow-hidden p-2 md:p-4">
+          VIDEO:
+          One large video column.
 
-        {/* LEFT MAIN VIDEO AREA */}
+          TOOL SELECTED:
+          Large tool column + small camera column.
+      ===================================================== */}
 
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+      <main
+        className={`grid min-h-0 flex-1 gap-3 overflow-hidden p-2 md:p-4 ${
+          isToolPanel
+            ? "grid-cols-1 grid-rows-[minmax(0,1fr)_210px] lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-1"
+            : "grid-cols-1 grid-rows-[minmax(0,1fr)]"
+        }`}
+      >
+        {/* =================================================
+            MAIN WORKSPACE
+        ================================================= */}
 
-          {/* WIDE VIDEO STAGE */}
+        <section className="flex min-h-0 min-w-0 flex-col gap-3">
 
-          <div className="relative min-h-[220px] flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#071426]">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#0b1930] via-[#071426] to-[#020617]" />
+          {/* MAIN STAGE */}
 
-            <div className="relative z-10 flex h-full w-full items-center justify-center p-2 md:p-4">
-              <div className="h-full w-full">
-                <LiveVideo
-                  liveClassId={classId}
-                  tutorReference={tutorReference}
-                  tutorName={tutorName}
-                  isLive={isLive}
-                  compact={false}
-                  onScreenShareChange={handleScreenShareChange}
-                  onMediaStreamChange={handleMediaStreamChange}
-                />
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#071426]">
+
+            {isToolPanel ? (
+              <div className="flex h-full min-h-0 w-full flex-col">
+
+                {/* TOOL HEADER */}
+
+                <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 bg-[#0B1930] px-4">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <ActivePanelIcon
+                      size={16}
+                      className="shrink-0 text-blue-300"
+                    />
+
+                    <span className="truncate text-xs font-bold text-white">
+                      {PANEL_TITLES[activePanel] || activePanel}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => setActivePanel("video")}
+                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition hover:bg-white/10 hover:text-white"
+                    title="Return to video"
+                  >
+                    <Video size={13} />
+                    <span>Back to video</span>
+                  </button>
+                </div>
+
+                {/* FULL-WIDTH TOOL CONTENT */}
+
+                <div
+                  className={`min-h-0 w-full flex-1 ${
+                    activePanel === "whiteboard"
+                      ? "overflow-hidden bg-white"
+                      : "overflow-hidden bg-[#071426]"
+                  }`}
+                >
+                  {renderPanelContent()}
+                </div>
               </div>
-            </div>
-
-            {renderRemoteVideos()}
-
-            {/* VIDEO STATUS */}
-
-            <div className="absolute right-3 top-3 z-30 flex flex-col gap-2">
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[10px] text-white backdrop-blur">
-                <Users size={13} />
-                {participants.length} participant(s)
+            ) : (
+              <div className="absolute inset-0">
+                {renderVideoStage(false)}
               </div>
-
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[10px] text-white backdrop-blur">
-                <Video size={13} />
-                {connectedStudents.length} video connection(s)
-              </div>
-            </div>
+            )}
           </div>
 
           {/* CLASS CONTROLS */}
@@ -1677,10 +1722,7 @@ const TutorLiveClassroom = () => {
                   className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
                 >
                   {startingClass ? (
-                    <Loader2
-                      size={15}
-                      className="animate-spin"
-                    />
+                    <Loader2 size={15} className="animate-spin" />
                   ) : (
                     <CheckCircle2 size={15} />
                   )}
@@ -1693,10 +1735,7 @@ const TutorLiveClassroom = () => {
                   className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-500 disabled:opacity-50"
                 >
                   {endingClass ? (
-                    <Loader2
-                      size={15}
-                      className="animate-spin"
-                    />
+                    <Loader2 size={15} className="animate-spin" />
                   ) : (
                     <X size={15} />
                   )}
@@ -1714,112 +1753,62 @@ const TutorLiveClassroom = () => {
               onPanelChange={handlePanelChange}
               isLive={isLive}
               screenSharing={screenSharing}
-              onScreenShareChange={handleScreenShareChange}
+              participantCount={participants.length}
             />
           </div>
         </section>
 
-        {/* DESKTOP RIGHT SIDE PANEL */}
+        {/* =================================================
+            CAMERA PREVIEW
 
-        {isRightPanelOpen && (
-          <aside className="hidden w-[300px] min-w-[280px] max-w-[32%] shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071426] lg:flex">
+            Only rendered when a tool is selected.
+            On desktop it is on the RIGHT.
+            On smaller screens it appears BELOW the tool.
+        ================================================= */}
 
-            {/* PANEL HEADER */}
+        {isToolPanel && (
+          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071426]">
 
-            <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
-              <div className="flex min-w-0 items-center gap-2">
-                <ActivePanelIcon
-                  size={15}
-                  className="shrink-0 text-blue-300"
+            {/* CAMERA HEADER */}
+
+            <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-[#0B1930] px-3">
+              <div className="flex items-center gap-2">
+                <Video
+                  size={14}
+                  className="text-blue-300"
                 />
 
-                <span className="truncate text-xs font-bold">
-                  {PANEL_TITLES[activePanel] || activePanel}
+                <span className="text-xs font-bold text-white">
+                  Tutor camera
                 </span>
               </div>
 
-              <button
-                onClick={() => {
-                  setIsRightPanelOpen(false);
-                  setActivePanel("video");
-                }}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10"
-                title="Close panel"
-              >
-                <X size={15} />
-              </button>
+              <span className="rounded-full bg-red-600/20 px-2 py-1 text-[9px] font-bold text-red-300">
+                {isLive ? "LIVE" : "PREVIEW"}
+              </span>
             </div>
 
-            {/* PANEL BODY */}
+            {/* SMALL CAMERA */}
 
-            <div
-              className={`min-h-0 flex-1 ${
-                activePanel === "whiteboard"
-                  ? "overflow-hidden bg-white"
-                  : "overflow-y-auto"
-              }`}
-            >
-              {renderPanelContent()}
+            <div className="relative min-h-0 flex-1 p-2">
+              {renderVideoStage(true)}
+            </div>
+
+            {/* CAMERA FOOTER */}
+
+            <div className="flex shrink-0 items-center justify-between border-t border-white/10 px-3 py-2">
+              <span className="truncate text-[10px] font-semibold text-slate-300">
+                {tutorName}
+              </span>
+
+              <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                <Users size={12} />
+                {participants.length}
+              </span>
             </div>
           </aside>
         )}
       </main>
-
-      {/* MOBILE RIGHT SIDE PANEL */}
-
-      {isRightPanelOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end bg-black/60 lg:hidden"
-          onClick={() => {
-            setIsRightPanelOpen(false);
-            setActivePanel("video");
-          }}
-        >
-          <div
-            className="flex h-[48vh] max-h-[480px] min-h-[280px] w-full flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#071426] shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-
-            {/* MOBILE PANEL HEADER */}
-
-            <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
-              <div className="flex min-w-0 items-center gap-2">
-                <ActivePanelIcon
-                  size={15}
-                  className="shrink-0 text-blue-300"
-                />
-
-                <span className="truncate text-xs font-bold">
-                  {PANEL_TITLES[activePanel] || activePanel}
-                </span>
-              </div>
-
-              <button
-                onClick={() => {
-                  setIsRightPanelOpen(false);
-                  setActivePanel("video");
-                }}
-                className="rounded-lg p-2 text-slate-400 hover:bg-white/10"
-                title="Close panel"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* MOBILE PANEL CONTENT */}
-
-            <div
-              className={`min-h-0 flex-1 ${
-                activePanel === "whiteboard"
-                  ? "overflow-hidden bg-white"
-                  : "overflow-y-auto"
-              }`}
-            >
-              {renderPanelContent()}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

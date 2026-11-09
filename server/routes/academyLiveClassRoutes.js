@@ -2,6 +2,10 @@ import express from "express";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import pool from "../lib/db.js";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import {
   resolveAuthenticatedStudent,
@@ -16,6 +20,29 @@ const router = express.Router();
    CONFIGURATION
 ========================================================= */
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const UPLOAD_DIRECTORY = path.resolve(
+  __dirname,
+  "../uploads/live-presentations"
+);
+
+const MAX_PRESENTATION_SIZE = 50 * 1024 * 1024;
+
+const ALLOWED_PRESENTATION_EXTENSIONS = [
+  ".pdf",
+  ".ppt",
+  ".pptx",
+];
+
+const ALLOWED_PRESENTATION_MIMES = [
+  "application/pdf",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/octet-stream",
+];
+
 const JWT_SECRET =
   process.env.JWT_SECRET?.trim() ||
   process.env.ACADEMY_JWT_SECRET?.trim() ||
@@ -26,10 +53,6 @@ const FRONTEND_URL = (
   process.env.FRONTEND_URL?.trim() ||
   "http://localhost:5173"
 ).replace(/\/+$/, "");
-
-/* =========================================================
-   GENERAL HELPERS
-========================================================= */
 
 const clean = (value) =>
   value === undefined || value === null
@@ -78,7 +101,6 @@ const getBearerToken = (req) => {
 
 const parseSubjects = (value) => {
   if (Array.isArray(value)) return value;
-
   if (!value) return [];
 
   if (typeof value === "string") {
@@ -118,83 +140,61 @@ const normaliseSession = (row) => {
 
   return {
     id: row.id,
-
     title: row.title || "Live Class",
     description: row.description || "",
-
     tutor_reference: row.tutor_reference || "",
     tutor_name:
       row.tutor_name ||
       row.tutor_reference ||
       "Assigned Tutor",
-
     grade: row.grade || "",
     class_id: row.class_id || "",
     class_name:
       row.class_name ||
       row.grade ||
       "",
-
     subject: row.subject || "",
-
     scheduled_at:
       row.scheduled_at ||
       row.scheduled_start ||
       null,
-
     scheduled_start:
       row.scheduled_start ||
       row.scheduled_at ||
       null,
-
     started_at:
       row.started_at ||
       row.actual_start ||
       null,
-
     actual_start:
       row.actual_start ||
       row.started_at ||
       null,
-
     ended_at:
       row.ended_at ||
       row.actual_end ||
       null,
-
     actual_end:
       row.actual_end ||
       row.ended_at ||
       null,
-
     status: row.status || "scheduled",
-
     room_id: roomCode,
     room_code: roomCode,
-
     join_url: joinUrl,
     meeting_url: joinUrl,
-
-    recording_status:
-      row.recording_status || "",
-
-    recording_url:
-      row.recording_url || "",
-
+    recording_status: row.recording_status || "",
+    recording_url: row.recording_url || "",
     recording_duration:
       row.recording_duration ??
       row.duration_seconds ??
       null,
-
     duration_seconds:
       row.duration_seconds ??
       row.recording_duration ??
       null,
-
     subjects: row.subjects || null,
-
     participants: Number(row.participants || 0),
-
     created_at: row.created_at || null,
     updated_at: row.updated_at || null,
   };
@@ -207,6 +207,181 @@ const sendError = (res, error, fallbackMessage) => {
     success: false,
     message: error.message || fallbackMessage,
   });
+};
+
+/* =========================================================
+   PRESENTATION UPLOAD CONFIGURATION
+========================================================= */
+
+const presentationStorage = multer.diskStorage({
+  destination: async (req, file, callback) => {
+    try {
+      await fs.promises.mkdir(UPLOAD_DIRECTORY, {
+        recursive: true,
+      });
+
+      callback(null, UPLOAD_DIRECTORY);
+    } catch (error) {
+      callback(error);
+    }
+  },
+
+  filename: (req, file, callback) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+
+    callback(
+      null,
+      `${crypto.randomUUID()}${extension}`
+    );
+  },
+});
+
+const presentationUpload = multer({
+  storage: presentationStorage,
+
+  limits: {
+    fileSize: MAX_PRESENTATION_SIZE,
+    files: 1,
+  },
+
+  fileFilter: (req, file, callback) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+
+    if (!ALLOWED_PRESENTATION_EXTENSIONS.includes(extension)) {
+      const error = new Error(
+        "Only PDF, PPT and PPTX presentations are allowed"
+      );
+
+      error.status = 400;
+      return callback(error);
+    }
+
+    if (!ALLOWED_PRESENTATION_MIMES.includes(file.mimetype)) {
+      const error = new Error(
+        "Unsupported presentation file type"
+      );
+
+      error.status = 400;
+      return callback(error);
+    }
+
+    callback(null, true);
+  },
+});
+
+const handlePresentationUpload = (req, res, next) => {
+  presentationUpload.single("file")(req, res, (error) => {
+    if (!error) return next();
+
+    if (error instanceof multer.MulterError) {
+      const message =
+        error.code === "LIMIT_FILE_SIZE"
+          ? "Presentation file must not exceed 50MB"
+          : error.message;
+
+      return res.status(400).json({
+        success: false,
+        message,
+      });
+    }
+
+    return res.status(error.status || 400).json({
+      success: false,
+      message: error.message || "Presentation upload failed",
+    });
+  });
+};
+
+const getPresentationPublicUrl = (filename) =>
+  `/uploads/live-presentations/${encodeURIComponent(filename)}`;
+
+const getPresentationFilenameFromUrl = (fileUrl) => {
+  const value = clean(fileUrl);
+
+  if (!value) return "";
+
+  try {
+    const pathname = value.startsWith("http://") ||
+      value.startsWith("https://")
+      ? new URL(value).pathname
+      : value;
+
+    const prefix = "/uploads/live-presentations/";
+
+    if (!pathname.startsWith(prefix)) return "";
+
+    const filename = path.basename(
+      decodeURIComponent(pathname.slice(prefix.length))
+    );
+
+    if (!filename || filename === "." || filename === "..") {
+      return "";
+    }
+
+    return filename;
+  } catch {
+    return "";
+  }
+};
+
+const removePresentationFile = async (fileUrl) => {
+  const filename = getPresentationFilenameFromUrl(fileUrl);
+
+  if (!filename) return;
+
+  const filePath = path.resolve(
+    UPLOAD_DIRECTORY,
+    filename
+  );
+
+  if (!filePath.startsWith(`${UPLOAD_DIRECTORY}${path.sep}`)) {
+    return;
+  }
+
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error("Could not remove presentation file:", error);
+    }
+  }
+};
+
+const normalisePresentation = (row) => {
+  if (!row) return null;
+
+  const fileUrl = clean(row.file_url);
+
+  const extension = path.extname(
+    row.original_filename || row.title || fileUrl
+  ).toLowerCase();
+
+  return {
+    id: row.id,
+    live_class_id: row.live_class_id,
+    name: row.title || "Presentation",
+    title: row.title || "Presentation",
+    file_name: row.original_filename || row.title || "Presentation",
+    original_filename:
+      row.original_filename ||
+      row.title ||
+      "Presentation",
+    url: fileUrl,
+    file_url: fileUrl,
+    fileUrl,
+    type:
+      extension === ".pdf"
+        ? "application/pdf"
+        : extension === ".ppt"
+          ? "application/vnd.ms-powerpoint"
+          : "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    size: Number(row.file_size || 0),
+    total_pages: Number(row.total_pages || 1),
+    current_page: Number(row.current_page || 1),
+    is_active: row.is_active !== false,
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null,
+  };
 };
 
 /* =========================================================
@@ -330,6 +505,14 @@ const ensureLiveClassTables = async () => {
   `);
 
   await pool.query(`
+    ALTER TABLE academy_live_resources
+      ADD COLUMN IF NOT EXISTS original_filename TEXT,
+      ADD COLUMN IF NOT EXISTS file_size BIGINT,
+      ADD COLUMN IF NOT EXISTS total_pages INTEGER DEFAULT 1,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS academy_live_whiteboard_events (
       id BIGSERIAL PRIMARY KEY,
       live_class_id BIGINT,
@@ -368,12 +551,18 @@ const ensureLiveClassTables = async () => {
     CREATE INDEX IF NOT EXISTS idx_live_chat_class
     ON academy_live_chat (live_class_id)
   `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_live_resources_presentation
+    ON academy_live_resources (
+      live_class_id,
+      resource_type,
+      is_active,
+      created_at DESC
+    )
+  `);
 };
 
-/*
- * Initialise the database once instead of running CREATE TABLE
- * statements on every incoming request.
- */
 let databaseSetupPromise = null;
 
 const initialiseLiveClassDatabase = async () => {
@@ -410,10 +599,7 @@ const authenticateLiveClassStudent = async (req) => {
   const token = getBearerToken(req);
 
   if (!token) {
-    const error = new Error(
-      "Student authentication is required"
-    );
-
+    const error = new Error("Student authentication is required");
     error.status = 401;
     throw error;
   }
@@ -423,10 +609,7 @@ const authenticateLiveClassStudent = async (req) => {
   try {
     decoded = jwt.verify(token, JWT_SECRET);
   } catch {
-    const error = new Error(
-      "Invalid or expired student session"
-    );
-
+    const error = new Error("Invalid or expired student session");
     error.status = 401;
     throw error;
   }
@@ -438,32 +621,24 @@ const authenticateLiveClassStudent = async (req) => {
       decoded.role
   ).toLowerCase();
 
-  const allowedStudentRoles = [
-    "student",
-    "academy_student",
-    "academystudent",
-  ];
-
-  if (!allowedStudentRoles.includes(userType)) {
-    const error = new Error(
-      "A valid student account is required"
-    );
-
+  if (
+    ![
+      "student",
+      "academy_student",
+      "academystudent",
+    ].includes(userType)
+  ) {
+    const error = new Error("A valid student account is required");
     error.status = 403;
     throw error;
   }
 
-  /*
-   * Reuse the existing Academy enrollment resolver.
-   * The request must contain the same valid token.
-   */
   const auth = await resolveAuthenticatedStudent(req);
 
   if (!auth || !auth.student || !auth.serialized) {
     const error = new Error(
       "Student enrollment could not be verified"
     );
-
     error.status = 401;
     throw error;
   }
@@ -500,9 +675,7 @@ const authenticateLiveClassStudent = async (req) => {
       serialized.student_enrollment_id
   );
 
-  const resolvedEmail = clean(
-    serialized.email
-  ).toLowerCase();
+  const resolvedEmail = clean(serialized.email).toLowerCase();
 
   const hasMatchingIdentity =
     Boolean(
@@ -525,7 +698,6 @@ const authenticateLiveClassStudent = async (req) => {
     const error = new Error(
       "Your student session does not match this enrollment"
     );
-
     error.status = 403;
     throw error;
   }
@@ -535,10 +707,7 @@ const authenticateLiveClassStudent = async (req) => {
     resolvedEnrollmentId &&
     tokenEnrollmentId !== resolvedEnrollmentId
   ) {
-    const error = new Error(
-      "Student enrollment mismatch"
-    );
-
+    const error = new Error("Student enrollment mismatch");
     error.status = 403;
     throw error;
   }
@@ -548,10 +717,7 @@ const authenticateLiveClassStudent = async (req) => {
     resolvedStudentId &&
     tokenStudentId !== resolvedStudentId
   ) {
-    const error = new Error(
-      "Student account mismatch"
-    );
-
+    const error = new Error("Student account mismatch");
     error.status = 403;
     throw error;
   }
@@ -564,34 +730,23 @@ const authenticateLiveClassStudent = async (req) => {
   return {
     ...auth,
     decoded,
-
-    studentId:
-      resolvedStudentId ||
-      tokenStudentId,
-
+    studentId: resolvedStudentId || tokenStudentId,
     enrollmentId:
       resolvedEnrollmentId ||
       tokenEnrollmentId ||
       resolvedStudentId ||
       tokenStudentId,
-
     studentName:
       clean(serialized.name) ||
       clean(serialized.fullName) ||
       clean(serialized.full_name) ||
       "Student",
-
     studentClass: clean(auth.studentClass),
-
     registeredSubjects: Array.isArray(registeredSubjects)
       ? registeredSubjects
       : [],
   };
 };
-
-/* =========================================================
-   CHECK STUDENT CLASS AND SUBJECT ACCESS
-========================================================= */
 
 const studentCanAccessSession = (student, session) => {
   const studentClass = clean(student.studentClass);
@@ -610,9 +765,7 @@ const studentCanAccessSession = (student, session) => {
 
   const studentSubjects = student.registeredSubjects || [];
 
-  if (!studentSubjects.length) {
-    return false;
-  }
+  if (!studentSubjects.length) return false;
 
   const sessionSubjects = [
     ...parseSubjects(session.subjects),
@@ -630,9 +783,386 @@ const studentCanAccessSession = (student, session) => {
 };
 
 /* =========================================================
-   GET STUDENT LIVE CLASSES
+   PRESENTATION ROUTES
+========================================================= */
 
-   GET /api/academy/student/live-classes
+/*
+ * Upload a presentation.
+ *
+ * POST /api/academy/live-classes/:id/presentation
+ *
+ * Multipart field: file
+ *
+ * Accepts PDF, PPT and PPTX up to 50MB.
+ */
+router.post(
+  "/live-classes/:id/presentation",
+  handlePresentationUpload,
+  async (req, res) => {
+    let uploadedFileUrl = "";
+
+    try {
+      const id = getSessionId(req);
+
+      if (!isValidBigIntId(id)) {
+        if (req.file) {
+          await fs.promises.unlink(req.file.path).catch(() => {});
+        }
+
+        return res.status(400).json({
+          success: false,
+          message: "Invalid live class ID",
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "Please select a presentation file",
+        });
+      }
+
+      const classResult = await pool.query(
+        `
+        SELECT id
+        FROM academy_live_classes
+        WHERE id = $1::bigint
+        LIMIT 1
+        `,
+        [id]
+      );
+
+      if (!classResult.rows.length) {
+        await fs.promises.unlink(req.file.path).catch(() => {});
+
+        return res.status(404).json({
+          success: false,
+          message: "Live class not found",
+        });
+      }
+
+      uploadedFileUrl = getPresentationPublicUrl(
+        req.file.filename
+      );
+
+      const client = await pool.connect();
+
+      let previousFiles = [];
+
+      try {
+        await client.query("BEGIN");
+
+        const oldResult = await client.query(
+          `
+          SELECT file_url
+          FROM academy_live_resources
+          WHERE live_class_id = $1::bigint
+            AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+            AND COALESCE(is_active, TRUE) = TRUE
+          FOR UPDATE
+          `,
+          [id]
+        );
+
+        previousFiles = oldResult.rows.map(
+          (row) => row.file_url
+        );
+
+        await client.query(
+          `
+          UPDATE academy_live_resources
+          SET
+            is_active = FALSE,
+            updated_at = NOW()
+          WHERE live_class_id = $1::bigint
+            AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+            AND COALESCE(is_active, TRUE) = TRUE
+          `,
+          [id]
+        );
+
+        const insertResult = await client.query(
+          `
+          INSERT INTO academy_live_resources (
+            live_class_id,
+            resource_type,
+            title,
+            file_url,
+            current_page,
+            is_active,
+            created_at,
+            updated_at,
+            original_filename,
+            file_size,
+            total_pages
+          )
+          VALUES (
+            $1::bigint,
+            'presentation',
+            $2,
+            $3,
+            1,
+            TRUE,
+            NOW(),
+            NOW(),
+            $4,
+            $5,
+            1
+          )
+          RETURNING *
+          `,
+          [
+            id,
+            req.file.originalname,
+            uploadedFileUrl,
+            req.file.originalname,
+            req.file.size,
+          ]
+        );
+
+        await client.query("COMMIT");
+
+        const presentation = normalisePresentation(
+          insertResult.rows[0]
+        );
+
+        /*
+         * Remove old uploaded files only after the new
+         * presentation has been saved successfully.
+         */
+        for (const oldUrl of previousFiles) {
+          if (oldUrl && oldUrl !== uploadedFileUrl) {
+            await removePresentationFile(oldUrl);
+          }
+        }
+
+        return res.status(201).json({
+          success: true,
+          message: "Presentation uploaded successfully",
+          presentation,
+          data: presentation,
+        });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      if (req.file?.path) {
+        await fs.promises.unlink(req.file.path).catch(() => {});
+      }
+
+      return sendError(
+        res,
+        error,
+        "Failed to upload presentation"
+      );
+    }
+  }
+);
+
+/*
+ * Retrieve the active presentation.
+ *
+ * GET /api/academy/live-classes/:id/presentation
+ */
+router.get(
+  "/live-classes/:id/presentation",
+  async (req, res) => {
+    try {
+      const id = getSessionId(req);
+
+      if (!isValidBigIntId(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid live class ID",
+        });
+      }
+
+      const result = await pool.query(
+        `
+        SELECT *
+        FROM academy_live_resources
+        WHERE live_class_id = $1::bigint
+          AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+          AND COALESCE(is_active, TRUE) = TRUE
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        `,
+        [id]
+      );
+
+      const presentation = normalisePresentation(
+        result.rows[0] || null
+      );
+
+      return res.json({
+        success: true,
+        presentation,
+        data: presentation,
+      });
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        "Failed to fetch presentation"
+      );
+    }
+  }
+);
+
+/*
+ * Save the current presentation page.
+ *
+ * PATCH /api/academy/live-classes/:id/presentation
+ *
+ * Body: { "currentPage": 3 }
+ */
+router.patch(
+  "/live-classes/:id/presentation",
+  async (req, res) => {
+    try {
+      const id = getSessionId(req);
+
+      if (!isValidBigIntId(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid live class ID",
+        });
+      }
+
+      const requestedPage = Number(
+        req.body?.currentPage ??
+          req.body?.current_page ??
+          req.body?.page
+      );
+
+      if (
+        !Number.isInteger(requestedPage) ||
+        requestedPage < 1
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "A valid presentation page is required",
+        });
+      }
+
+      const result = await pool.query(
+        `
+        UPDATE academy_live_resources
+        SET
+          current_page = LEAST(
+            GREATEST($1, 1),
+            GREATEST(COALESCE(total_pages, 1), 1)
+          ),
+          updated_at = NOW()
+        WHERE id = (
+          SELECT id
+          FROM academy_live_resources
+          WHERE live_class_id = $2::bigint
+            AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+            AND COALESCE(is_active, TRUE) = TRUE
+          ORDER BY created_at DESC, id DESC
+          LIMIT 1
+        )
+        RETURNING *
+        `,
+        [requestedPage, id]
+      );
+
+      if (!result.rows.length) {
+        return res.status(404).json({
+          success: false,
+          message: "No active presentation was found",
+        });
+      }
+
+      const presentation = normalisePresentation(
+        result.rows[0]
+      );
+
+      return res.json({
+        success: true,
+        message: "Presentation page updated",
+        presentation,
+        data: presentation,
+      });
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        "Failed to update presentation page"
+      );
+    }
+  }
+);
+
+/*
+ * Delete the active presentation and its uploaded file.
+ *
+ * DELETE /api/academy/live-classes/:id/presentation
+ */
+router.delete(
+  "/live-classes/:id/presentation",
+  async (req, res) => {
+    try {
+      const id = getSessionId(req);
+
+      if (!isValidBigIntId(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid live class ID",
+        });
+      }
+
+      const result = await pool.query(
+        `
+        UPDATE academy_live_resources
+        SET
+          is_active = FALSE,
+          updated_at = NOW()
+        WHERE id = (
+          SELECT id
+          FROM academy_live_resources
+          WHERE live_class_id = $1::bigint
+            AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+            AND COALESCE(is_active, TRUE) = TRUE
+          ORDER BY created_at DESC, id DESC
+          LIMIT 1
+        )
+        RETURNING *
+        `,
+        [id]
+      );
+
+      if (!result.rows.length) {
+        return res.status(404).json({
+          success: false,
+          message: "No active presentation was found",
+        });
+      }
+
+      await removePresentationFile(
+        result.rows[0].file_url
+      );
+
+      return res.json({
+        success: true,
+        message: "Presentation removed successfully",
+      });
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        "Failed to remove presentation"
+      );
+    }
+  }
+);
+
+/* =========================================================
+   GET STUDENT LIVE CLASSES
 ========================================================= */
 
 router.get("/student/live-classes", async (req, res) => {
@@ -676,16 +1206,13 @@ router.get("/student/live-classes", async (req, res) => {
 
         return {
           ...normalised,
-
           tutorName:
             normalised.tutor_name ||
             normalised.tutor_reference ||
             "Assigned Tutor",
-
           className:
             normalised.class_name ||
             normalised.grade,
-
           scheduledAt: normalised.scheduled_at,
           startedAt: normalised.started_at,
           endedAt: normalised.ended_at,
@@ -698,7 +1225,6 @@ router.get("/student/live-classes", async (req, res) => {
       success: true,
       sessions,
       data: sessions,
-
       student: {
         studentId: student.studentId,
         enrollmentId: student.enrollmentId,
@@ -716,9 +1242,7 @@ router.get("/student/live-classes", async (req, res) => {
 });
 
 /* =========================================================
-   GET ALL TUTOR LIVE CLASSES
-
-   GET /api/academy/tutor/live-classes
+   TUTOR LIVE CLASSES
 ========================================================= */
 
 router.get("/tutor/live-classes", async (req, res) => {
@@ -760,12 +1284,6 @@ router.get("/tutor/live-classes", async (req, res) => {
   }
 });
 
-/* =========================================================
-   CREATE LIVE CLASS
-
-   POST /api/academy/tutor/live-classes
-========================================================= */
-
 router.post("/tutor/live-classes", async (req, res) => {
   try {
     const body = req.body || {};
@@ -778,9 +1296,7 @@ router.post("/tutor/live-classes", async (req, res) => {
       });
     }
 
-    const finalTitle =
-      clean(body.title) || "Live Class";
-
+    const finalTitle = clean(body.title) || "Live Class";
     const description = clean(body.description);
 
     const classId = clean(
@@ -814,24 +1330,14 @@ router.post("/tutor/live-classes", async (req, res) => {
         className
     );
 
-    if (!grade) {
+    if (!grade || !classId || !subject) {
       return res.status(400).json({
         success: false,
-        message: "Grade/class is required",
-      });
-    }
-
-    if (!classId) {
-      return res.status(400).json({
-        success: false,
-        message: "Class is required",
-      });
-    }
-
-    if (!subject) {
-      return res.status(400).json({
-        success: false,
-        message: "Subject is required",
+        message: !grade
+          ? "Grade/class is required"
+          : !classId
+            ? "Class is required"
+            : "Subject is required",
       });
     }
 
@@ -876,23 +1382,9 @@ router.post("/tutor/live-classes", async (req, res) => {
         updated_at
       )
       VALUES (
-        $1,
-        $2,
-        $3::jsonb,
-        $4,
-        $5,
-        'scheduled',
-        $6,
-        $6,
-        $7,
-        $7,
-        $8,
-        $8,
-        $9,
-        $10,
-        $11,
-        NOW(),
-        NOW()
+        $1, $2, $3::jsonb, $4, $5,
+        'scheduled', $6, $6, $7, $7, $8, $8,
+        $9, $10, $11, NOW(), NOW()
       )
       RETURNING *
       `,
@@ -927,12 +1419,6 @@ router.post("/tutor/live-classes", async (req, res) => {
     );
   }
 });
-
-/* =========================================================
-   GET ONE TUTOR LIVE CLASS
-
-   GET /api/academy/tutor/live-classes/:id
-========================================================= */
 
 router.get("/tutor/live-classes/:id", async (req, res) => {
   try {
@@ -970,19 +1456,9 @@ router.get("/tutor/live-classes/:id", async (req, res) => {
       data: session,
     });
   } catch (error) {
-    return sendError(
-      res,
-      error,
-      "Failed to fetch live class"
-    );
+    return sendError(res, error, "Failed to fetch live class");
   }
 });
-
-/* =========================================================
-   START LIVE CLASS
-
-   POST /api/academy/tutor/live-classes/:id/start
-========================================================= */
 
 router.post(
   "/tutor/live-classes/:id/start",
@@ -1029,20 +1505,10 @@ router.post(
         data: session,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to start live class"
-      );
+      return sendError(res, error, "Failed to start live class");
     }
   }
 );
-
-/* =========================================================
-   END LIVE CLASS
-
-   POST /api/academy/tutor/live-classes/:id/end
-========================================================= */
 
 router.post(
   "/tutor/live-classes/:id/end",
@@ -1064,21 +1530,18 @@ router.post(
           status = 'ended',
           ended_at = COALESCE(ended_at, NOW()),
           actual_end = COALESCE(actual_end, NOW()),
-
-          duration_seconds =
-            CASE
-              WHEN COALESCE(started_at, actual_start) IS NOT NULL
-              THEN GREATEST(
-                0,
-                EXTRACT(
-                  EPOCH FROM (
-                    NOW() - COALESCE(started_at, actual_start)
-                  )
-                )::INTEGER
-              )
-              ELSE duration_seconds
-            END,
-
+          duration_seconds = CASE
+            WHEN COALESCE(started_at, actual_start) IS NOT NULL
+            THEN GREATEST(
+              0,
+              EXTRACT(
+                EPOCH FROM (
+                  NOW() - COALESCE(started_at, actual_start)
+                )
+              )::INTEGER
+            )
+            ELSE duration_seconds
+          END,
           updated_at = NOW()
         WHERE id = $1::bigint
         RETURNING *
@@ -1102,20 +1565,10 @@ router.post(
         data: session,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to end live class"
-      );
+      return sendError(res, error, "Failed to end live class");
     }
   }
 );
-
-/* =========================================================
-   DELETE LIVE CLASS
-
-   DELETE /api/academy/tutor/live-classes/:id
-========================================================= */
 
 router.delete(
   "/tutor/live-classes/:id",
@@ -1133,6 +1586,16 @@ router.delete(
 
     try {
       await client.query("BEGIN");
+
+      const presentationResult = await client.query(
+        `
+        SELECT file_url
+        FROM academy_live_resources
+        WHERE live_class_id = $1::bigint
+          AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+        `,
+        [id]
+      );
 
       const childTables = [
         "academy_live_chat",
@@ -1169,6 +1632,10 @@ router.delete(
 
       await client.query("COMMIT");
 
+      for (const row of presentationResult.rows) {
+        await removePresentationFile(row.file_url);
+      }
+
       return res.json({
         success: true,
         message: "Live class deleted successfully",
@@ -1189,8 +1656,6 @@ router.delete(
 
 /* =========================================================
    JOIN LIVE CLASS
-
-   POST /api/academy/live-classes/:id/join
 ========================================================= */
 
 router.post(
@@ -1260,9 +1725,6 @@ router.post(
         });
       }
 
-      /*
-       * Reuse an existing active attendance record.
-       */
       let participantResult = await pool.query(
         `
         UPDATE academy_live_participants
@@ -1293,15 +1755,7 @@ router.post(
             is_present,
             created_at
           )
-          VALUES (
-            $1::bigint,
-            $2,
-            $3,
-            'student',
-            NOW(),
-            TRUE,
-            NOW()
-          )
+          VALUES ($1::bigint, $2, $3, 'student', NOW(), TRUE, NOW())
           RETURNING *
           `,
           [
@@ -1322,19 +1776,13 @@ router.post(
         data: session,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to join live class"
-      );
+      return sendError(res, error, "Failed to join live class");
     }
   }
 );
 
 /* =========================================================
    LEAVE LIVE CLASS
-
-   POST /api/academy/live-classes/:id/leave
 ========================================================= */
 
 router.post(
@@ -1359,19 +1807,14 @@ router.post(
         SET
           is_present = FALSE,
           left_at = NOW(),
-
-          total_seconds =
-            CASE
-              WHEN joined_at IS NOT NULL
-              THEN GREATEST(
-                0,
-                EXTRACT(
-                  EPOCH FROM (NOW() - joined_at)
-                )::INTEGER
-              )
-              ELSE total_seconds
-            END
-
+          total_seconds = CASE
+            WHEN joined_at IS NOT NULL
+            THEN GREATEST(
+              0,
+              EXTRACT(EPOCH FROM (NOW() - joined_at))::INTEGER
+            )
+            ELSE total_seconds
+          END
         WHERE live_class_id = $1::bigint
           AND enrollment_id = $2
           AND is_present = TRUE
@@ -1393,19 +1836,13 @@ router.post(
         participant: result.rows[0],
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to leave live class"
-      );
+      return sendError(res, error, "Failed to leave live class");
     }
   }
 );
 
 /* =========================================================
-   GET PARTICIPANTS
-
-   GET /api/academy/live-classes/:id/participants
+   PARTICIPANTS
 ========================================================= */
 
 router.get(
@@ -1447,19 +1884,13 @@ router.get(
         data: result.rows,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to fetch participants"
-      );
+      return sendError(res, error, "Failed to fetch participants");
     }
   }
 );
 
 /* =========================================================
-   GET ATTENDANCE
-
-   GET /api/academy/live-classes/:id/attendance
+   ATTENDANCE
 ========================================================= */
 
 router.get(
@@ -1499,19 +1930,13 @@ router.get(
         data: result.rows,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to fetch attendance"
-      );
+      return sendError(res, error, "Failed to fetch attendance");
     }
   }
 );
 
 /* =========================================================
-   GET CHAT
-
-   GET /api/academy/live-classes/:id/chat
+   CHAT
 ========================================================= */
 
 router.get(
@@ -1551,20 +1976,10 @@ router.get(
         data: result.rows,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to fetch live chat"
-      );
+      return sendError(res, error, "Failed to fetch live chat");
     }
   }
 );
-
-/* =========================================================
-   SEND CHAT MESSAGE
-
-   POST /api/academy/live-classes/:id/chat
-========================================================= */
 
 router.post(
   "/live-classes/:id/chat",
@@ -1580,7 +1995,6 @@ router.post(
       }
 
       const body = req.body || {};
-
       const message = clean(body.message);
 
       if (!message) {
@@ -1647,19 +2061,13 @@ router.post(
         data: result.rows[0],
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to send chat message"
-      );
+      return sendError(res, error, "Failed to send chat message");
     }
   }
 );
 
 /* =========================================================
-   SAVE WHITEBOARD STATE
-
-   POST /api/academy/live-classes/:id/whiteboard
+   WHITEBOARD
 ========================================================= */
 
 router.post(
@@ -1707,20 +2115,10 @@ router.post(
         data: result.rows[0],
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to save whiteboard"
-      );
+      return sendError(res, error, "Failed to save whiteboard");
     }
   }
 );
-
-/* =========================================================
-   GET WHITEBOARD STATE
-
-   GET /api/academy/live-classes/:id/whiteboard
-========================================================= */
 
 router.get(
   "/live-classes/:id/whiteboard",
@@ -1755,19 +2153,13 @@ router.get(
         data: row ? row.payload : null,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to fetch whiteboard"
-      );
+      return sendError(res, error, "Failed to fetch whiteboard");
     }
   }
 );
 
 /* =========================================================
-   ADD RESOURCE
-
-   POST /api/academy/live-classes/:id/resources
+   RESOURCES
 ========================================================= */
 
 router.post(
@@ -1791,8 +2183,7 @@ router.post(
             body.resource_type
         ) || "file";
 
-      const title =
-        clean(body.title) || "Resource";
+      const title = clean(body.title) || "Resource";
 
       const fileUrl = clean(
         body.fileUrl ||
@@ -1816,9 +2207,10 @@ router.post(
           file_url,
           current_page,
           is_active,
-          created_at
+          created_at,
+          updated_at
         )
-        VALUES ($1::bigint, $2, $3, $4, $5, TRUE, NOW())
+        VALUES ($1::bigint, $2, $3, $4, $5, TRUE, NOW(), NOW())
         RETURNING *
         `,
         [
@@ -1837,20 +2229,10 @@ router.post(
         data: result.rows[0],
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to add resource"
-      );
+      return sendError(res, error, "Failed to add resource");
     }
   }
 );
-
-/* =========================================================
-   GET RESOURCES
-
-   GET /api/academy/live-classes/:id/resources
-========================================================= */
 
 router.get(
   "/live-classes/:id/resources",
@@ -1882,19 +2264,13 @@ router.get(
         data: result.rows,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to fetch resources"
-      );
+      return sendError(res, error, "Failed to fetch resources");
     }
   }
 );
 
 /* =========================================================
-   UPDATE RECORDING
-
-   POST /api/academy/live-classes/:id/recording
+   RECORDING
 ========================================================= */
 
 router.post(
@@ -1970,20 +2346,10 @@ router.post(
         data: session,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to update recording"
-      );
+      return sendError(res, error, "Failed to update recording");
     }
   }
 );
-
-/* =========================================================
-   GET TUTOR RECORDINGS
-
-   GET /api/academy/tutor/live-recordings
-========================================================= */
 
 router.get(
   "/tutor/live-recordings",
@@ -2018,24 +2384,13 @@ router.get(
         data: result.rows,
       });
     } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to fetch recordings"
-      );
+      return sendError(res, error, "Failed to fetch recordings");
     }
   }
 );
 
 /* =========================================================
    GET LIVE CLASS BY ROOM CODE
-
-   GET /api/academy/live-class/room/:roomCode
-
-   Also accepts:
-   - room_id
-   - numeric classroom ID
-   - the saved join URL
 ========================================================= */
 
 const getLiveClassByRoom = async (req, res) => {
@@ -2052,10 +2407,6 @@ const getLiveClassByRoom = async (req, res) => {
       });
     }
 
-    /*
-     * If the frontend sends the full join URL,
-     * extract the final path segment as the room code.
-     */
     let roomCode = suppliedRoomValue;
 
     try {
@@ -2085,7 +2436,6 @@ const getLiveClassByRoom = async (req, res) => {
     }
 
     const normalizedCode = roomCode.toUpperCase();
-
     const numericId = isValidBigIntId(roomCode);
 
     const result = await pool.query(
@@ -2094,18 +2444,13 @@ const getLiveClassByRoom = async (req, res) => {
       FROM academy_live_classes c
       WHERE
         UPPER(TRIM(COALESCE(c.room_code, ''))) = $1
-
         OR UPPER(TRIM(COALESCE(c.room_id, ''))) = $1
-
         OR (
           $2::boolean = TRUE
           AND c.id = $3::bigint
         )
-
         OR TRIM(COALESCE(c.join_url, '')) = $4
-
         OR TRIM(COALESCE(c.meeting_url, '')) = $4
-
       ORDER BY c.id DESC
       LIMIT 1
       `,
@@ -2130,16 +2475,12 @@ const getLiveClassByRoom = async (req, res) => {
     return res.json({
       success: true,
       message: "Live class room found",
-
       session,
       data: session,
       classroom: session,
     });
   } catch (error) {
-    console.error(
-      "GET room live class error:",
-      error
-    );
+    console.error("GET room live class error:", error);
 
     return res.status(500).json({
       success: false,
@@ -2149,17 +2490,11 @@ const getLiveClassByRoom = async (req, res) => {
   }
 };
 
-/*
- * Primary room lookup used by StudentLiveClassroom.jsx.
- */
 router.get(
   "/live-class/room/:roomCode",
   getLiveClassByRoom
 );
 
-/*
- * Backward-compatible plural route.
- */
 router.get(
   "/live-classes/room/:roomCode",
   getLiveClassByRoom

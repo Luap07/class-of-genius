@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useEffect,
@@ -38,6 +39,9 @@ const LiveVideo = ({
   const microphoneEnabledRef = useRef(false);
   const screenSharingRef = useRef(false);
 
+  const mediaCallbackRef = useRef(onMediaStreamChange);
+  const screenCallbackRef = useRef(onScreenShareChange);
+
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [microphoneEnabled, setMicrophoneEnabled] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
@@ -45,68 +49,87 @@ const LiveVideo = ({
   const [cameraError, setCameraError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    mediaCallbackRef.current = onMediaStreamChange;
+  }, [onMediaStreamChange]);
+
+  useEffect(() => {
+    screenCallbackRef.current = onScreenShareChange;
+  }, [onScreenShareChange]);
+
+  // Send BOTH streams to the parent classroom component.
   const notifyMediaStream = useCallback(() => {
-    onMediaStreamChange?.({
+    const cameraStream = cameraStreamRef.current;
+    const screenStream = screenStreamRef.current;
+
+    mediaCallbackRef.current?.({
       liveClassId,
       tutorReference,
-      cameraStream: cameraStreamRef.current,
-      screenStream: screenStreamRef.current,
-      outgoingStream:
-        screenStreamRef.current || cameraStreamRef.current,
+
+      cameraStream,
+      screenStream,
+
+      // Backward compatibility only.
+      // TutorLiveClassroom must use cameraStream and screenStream separately.
+      outgoingStream: screenStream || cameraStream || null,
+
       cameraEnabled: cameraEnabledRef.current,
       microphoneEnabled: microphoneEnabledRef.current,
       screenSharing: screenSharingRef.current,
     });
-  }, [
-    liveClassId,
-    tutorReference,
-    onMediaStreamChange,
-  ]);
+  }, [liveClassId, tutorReference]);
 
   const attachCameraPreview = useCallback(() => {
     const video = cameraVideoRef.current;
     const stream = cameraStreamRef.current;
 
-    if (!video || !stream) return;
+    if (!video) return;
 
-    video.srcObject = stream;
-    video.muted = true;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream || null;
+    }
 
-    video.play().catch(() => {});
+    if (stream) {
+      video.muted = true;
+      video.play().catch(() => {});
+    }
   }, []);
 
   const attachScreenPreview = useCallback(() => {
     const video = screenVideoRef.current;
     const stream = screenStreamRef.current;
 
-    if (!video || !stream) return;
+    if (!video) return;
 
-    video.srcObject = stream;
-    video.muted = true;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream || null;
+    }
 
-    video.play().catch(() => {});
+    if (stream) {
+      video.muted = true;
+      video.play().catch(() => {});
+    }
   }, []);
 
   const startCamera = useCallback(async () => {
-    if (busy) return;
+    if (cameraStreamRef.current || busy) return;
 
     setBusy(true);
     setCameraError("");
 
     try {
-      const stream =
-        await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 },
-          },
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
 
       cameraStreamRef.current = stream;
 
@@ -116,7 +139,15 @@ const LiveVideo = ({
       setCameraEnabled(true);
       setMicrophoneEnabled(true);
 
+      const videoTrack = stream.getVideoTracks()[0];
+      const audioTrack = stream.getAudioTracks()[0];
+
+      if (videoTrack) videoTrack.enabled = true;
+      if (audioTrack) audioTrack.enabled = true;
+
       attachCameraPreview();
+
+      // Notify parent only after refs contain the actual stream.
       notifyMediaStream();
     } catch (error) {
       console.error("CAMERA START ERROR:", error);
@@ -134,9 +165,14 @@ const LiveVideo = ({
   }, [busy, attachCameraPreview, notifyMediaStream]);
 
   const stopCamera = useCallback(() => {
-    cameraStreamRef.current?.getTracks().forEach((track) => {
-      track.stop();
-    });
+    const stream = cameraStreamRef.current;
+
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        track.onended = null;
+        track.stop();
+      });
+    }
 
     cameraStreamRef.current = null;
 
@@ -170,10 +206,8 @@ const LiveVideo = ({
 
     videoTrack.enabled = !videoTrack.enabled;
 
-    const enabled = videoTrack.enabled;
-
-    cameraEnabledRef.current = enabled;
-    setCameraEnabled(enabled);
+    cameraEnabledRef.current = videoTrack.enabled;
+    setCameraEnabled(videoTrack.enabled);
 
     notifyMediaStream();
   }, [startCamera, notifyMediaStream]);
@@ -186,7 +220,7 @@ const LiveVideo = ({
       return;
     }
 
-    const audioTrack = stream.getAudioTracks()[0];
+    let audioTrack = stream.getAudioTracks()[0];
 
     if (!audioTrack) {
       try {
@@ -199,11 +233,11 @@ const LiveVideo = ({
             },
           });
 
-        audioStream.getAudioTracks().forEach((track) => {
-          stream.addTrack(track);
-        });
+        audioTrack = audioStream.getAudioTracks()[0];
 
-        stream = cameraStreamRef.current;
+        if (audioTrack) {
+          stream.addTrack(audioTrack);
+        }
       } catch (error) {
         console.error("MICROPHONE ERROR:", error);
         setCameraError("Unable to access the microphone.");
@@ -211,24 +245,25 @@ const LiveVideo = ({
       }
     }
 
-    const currentAudioTrack = stream.getAudioTracks()[0];
+    if (!audioTrack) return;
 
-    if (!currentAudioTrack) return;
+    audioTrack.enabled = !audioTrack.enabled;
 
-    currentAudioTrack.enabled = !currentAudioTrack.enabled;
-
-    const enabled = currentAudioTrack.enabled;
-
-    microphoneEnabledRef.current = enabled;
-    setMicrophoneEnabled(enabled);
+    microphoneEnabledRef.current = audioTrack.enabled;
+    setMicrophoneEnabled(audioTrack.enabled);
 
     notifyMediaStream();
   }, [startCamera, notifyMediaStream]);
 
   const stopScreenShare = useCallback(() => {
-    screenStreamRef.current?.getTracks().forEach((track) => {
-      track.stop();
-    });
+    const stream = screenStreamRef.current;
+
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        track.onended = null;
+        track.stop();
+      });
+    }
 
     screenStreamRef.current = null;
 
@@ -239,9 +274,11 @@ const LiveVideo = ({
       screenVideoRef.current.srcObject = null;
     }
 
-    onScreenShareChange?.(false);
+    screenCallbackRef.current?.(false);
+
+    // Tell TutorLiveClassroom that the screen stream has disappeared.
     notifyMediaStream();
-  }, [onScreenShareChange, notifyMediaStream]);
+  }, [notifyMediaStream]);
 
   const startScreenShare = useCallback(async () => {
     if (!navigator.mediaDevices?.getDisplayMedia) {
@@ -251,11 +288,15 @@ const LiveVideo = ({
       return;
     }
 
+    if (screenStreamRef.current) return;
+
+    setCameraError("");
+
     try {
       const stream =
         await navigator.mediaDevices.getDisplayMedia({
           video: {
-            frameRate: { ideal: 30 },
+            frameRate: { ideal: 30, max: 60 },
           },
           audio: true,
         });
@@ -275,11 +316,18 @@ const LiveVideo = ({
 
       attachScreenPreview();
 
-      onScreenShareChange?.(true);
+      screenCallbackRef.current?.(true);
+
+      // Both cameraStream and screenStream are now available
+      // to TutorLiveClassroom through this callback.
       notifyMediaStream();
     } catch (error) {
-      if (error?.name !== "NotAllowedError") {
+      if (
+        error?.name !== "NotAllowedError" &&
+        error?.name !== "AbortError"
+      ) {
         console.error("SCREEN SHARE ERROR:", error);
+
         setCameraError(
           error?.message || "Unable to share your screen."
         );
@@ -288,7 +336,6 @@ const LiveVideo = ({
   }, [
     attachScreenPreview,
     notifyMediaStream,
-    onScreenShareChange,
     stopScreenShare,
   ]);
 
@@ -312,13 +359,20 @@ const LiveVideo = ({
     attachScreenPreview();
   }, [screenSharing, attachScreenPreview]);
 
+  // Publish the current media state when the classroom callback changes.
+  useEffect(() => {
+    notifyMediaStream();
+  }, [notifyMediaStream]);
+
   useEffect(() => {
     return () => {
       cameraStreamRef.current?.getTracks().forEach((track) => {
+        track.onended = null;
         track.stop();
       });
 
       screenStreamRef.current?.getTracks().forEach((track) => {
+        track.onended = null;
         track.stop();
       });
 
@@ -326,10 +380,6 @@ const LiveVideo = ({
       screenStreamRef.current = null;
     };
   }, []);
-
-  useEffect(() => {
-    notifyMediaStream();
-  }, [notifyMediaStream]);
 
   return (
     <div className="relative w-full h-full min-h-[180px] overflow-hidden rounded-2xl bg-[#020617] border border-white/10">
@@ -396,6 +446,7 @@ const LiveVideo = ({
               <p className="text-white text-xs font-semibold truncate">
                 {tutorName}
               </p>
+
               <p className="text-[10px] text-slate-300">
                 {screenSharing
                   ? "Presenting screen"
@@ -409,6 +460,7 @@ const LiveVideo = ({
               <button
                 type="button"
                 onClick={toggleCamera}
+                disabled={busy}
                 title={cameraEnabled ? "Turn camera off" : "Turn camera on"}
                 className={`p-2.5 rounded-xl ${
                   cameraEnabled
@@ -426,6 +478,7 @@ const LiveVideo = ({
               <button
                 type="button"
                 onClick={toggleMicrophone}
+                disabled={busy}
                 title={
                   microphoneEnabled
                     ? "Mute microphone"

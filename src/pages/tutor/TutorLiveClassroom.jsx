@@ -72,7 +72,12 @@ const getToken = () => {
 };
 
 const readTutor = () => {
-  const keys = ["tutor", "academyTutor", "scholiqen_user"];
+  const keys = [
+    "tutor",
+    "academyTutor",
+    "scholiqen_user",
+    "scholiqen_academy_user",
+  ];
 
   for (const key of keys) {
     try {
@@ -82,7 +87,7 @@ const readTutor = () => {
       const parsed = JSON.parse(raw);
 
       if (parsed && typeof parsed === "object") {
-        return parsed;
+        return parsed.user || parsed;
       }
     } catch {
       // Ignore invalid stored values.
@@ -102,6 +107,7 @@ const getTutorReference = () => {
     tutor.applicationReference ||
     tutor.application_reference ||
     localStorage.getItem("tutorReference") ||
+    localStorage.getItem("tutor_reference") ||
     ""
   );
 };
@@ -229,7 +235,9 @@ const RemoteVideoTile = ({ stream, socketId }) => {
     if (!video || !stream) return;
 
     video.srcObject = stream;
-    video.play().catch(() => {});
+    video.play().catch((error) => {
+      console.warn("REMOTE VIDEO AUTOPLAY:", error);
+    });
 
     return () => {
       if (videoRef.current) {
@@ -282,6 +290,7 @@ const ResourcesPanel = ({ classroom }) => {
     <div className="flex h-full min-h-0 w-full flex-col bg-[#071426] text-white">
       <div className="border-b border-white/10 p-4">
         <h3 className="text-sm font-bold">Class resources</h3>
+
         <p className="mt-1 text-xs text-slate-400">
           Learning materials and files for this classroom.
         </p>
@@ -366,9 +375,13 @@ const TutorLiveClassroom = () => {
 
   const socketRef = useRef(null);
   const peersRef = useRef(new Map());
+  const iceQueuesRef = useRef(new Map());
   const mediaRef = useRef(null);
   const mountedRef = useRef(true);
   const pollingRef = useRef(null);
+
+  // Prevent duplicate simultaneous offers for the same student.
+  const offerLocksRef = useRef(new Set());
 
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -383,7 +396,6 @@ const TutorLiveClassroom = () => {
   const [participants, setParticipants] = useState([]);
   const [messages, setMessages] = useState([]);
 
-  // Video is the default large workspace.
   const [activePanel, setActivePanel] = useState("video");
 
   const [screenSharing, setScreenSharing] = useState(false);
@@ -549,6 +561,9 @@ const TutorLiveClassroom = () => {
         peersRef.current.delete(socketId);
       }
 
+      iceQueuesRef.current.delete(socketId);
+      offerLocksRef.current.delete(socketId);
+
       removeRemoteStream(socketId);
     },
     [removeRemoteStream]
@@ -563,6 +578,8 @@ const TutorLiveClassroom = () => {
     });
 
     peersRef.current.clear();
+    iceQueuesRef.current.clear();
+    offerLocksRef.current.clear();
 
     setRemoteStreams({});
     setConnectedStudents([]);
@@ -599,50 +616,160 @@ const TutorLiveClassroom = () => {
 
   const syncPeerTracks = useCallback(
     async (peer, socketId) => {
-      if (!peer) return;
+      if (!peer || peer.connectionState === "closed") return;
 
       const tracks = getOutgoingTracks();
 
       const desired = {
-        audio:
-          tracks.find((track) => track.kind === "audio") ||
-          null,
-        video:
-          tracks.find((track) => track.kind === "video") ||
-          null,
+        audio: tracks.find((track) => track.kind === "audio") || null,
+        video: tracks.find((track) => track.kind === "video") || null,
       };
 
+      let addedNewTrack = false;
+
       for (const kind of ["audio", "video"]) {
-        const sender = peer
-          .getSenders()
-          .find((item) => item.track?.kind === kind);
+        const transceiver = peer
+          .getTransceivers()
+          .find((item) => item.receiver?.track?.kind === kind);
+
+        const sender =
+          transceiver?.sender ||
+          peer.getSenders().find(
+            (item) => item.track?.kind === kind
+          );
 
         if (sender) {
-          await sender.replaceTrack(desired[kind]);
+          if (sender.track !== desired[kind]) {
+            try {
+              await sender.replaceTrack(desired[kind]);
+            } catch (replaceError) {
+              console.error(
+                `REPLACE ${kind.toUpperCase()} TRACK ERROR:`,
+                socketId,
+                replaceError
+              );
+            }
+          }
         } else if (desired[kind]) {
           peer.addTrack(
             desired[kind],
             new MediaStream([desired[kind]])
           );
+
+          addedNewTrack = true;
         }
       }
 
       if (
+        addedNewTrack &&
         peer.signalingState === "stable" &&
         peer.connectionState !== "closed"
       ) {
-        const offer = await peer.createOffer();
+        try {
+          const offer = await peer.createOffer();
 
-        await peer.setLocalDescription(offer);
+          await peer.setLocalDescription(offer);
 
-        socketRef.current?.emit("webrtc:offer", {
-          liveClassId: classId,
-          to: socketId,
-          offer,
-        });
+          socketRef.current?.emit("webrtc:offer", {
+            liveClassId: classId,
+            targetSocketId: socketId,
+            offer: peer.localDescription,
+          });
+
+          console.log("UPDATED MEDIA OFFER SENT:", socketId);
+        } catch (offerError) {
+          console.error(
+            "UPDATED MEDIA OFFER ERROR:",
+            socketId,
+            offerError
+          );
+        }
       }
     },
     [classId, getOutgoingTracks]
+  );
+
+  /* =======================================================
+     ICE CANDIDATE QUEUE
+  ======================================================= */
+
+  const addRemoteIceCandidate = useCallback(
+    async (socketId, candidate) => {
+      if (!socketId || !candidate) return;
+
+      let iceCandidate;
+
+      try {
+        iceCandidate = new RTCIceCandidate(candidate);
+      } catch (candidateError) {
+        console.error(
+          "INVALID REMOTE ICE CANDIDATE:",
+          candidateError
+        );
+        return;
+      }
+
+      const peer = peersRef.current.get(socketId);
+
+      // Queue candidates if the peer is not created yet
+      // or if the remote description has not been applied.
+      if (!peer || !peer.remoteDescription) {
+        const queue = iceQueuesRef.current.get(socketId) || [];
+
+        queue.push(iceCandidate);
+        iceQueuesRef.current.set(socketId, queue);
+
+        console.log(
+          "ICE CANDIDATE QUEUED:",
+          socketId,
+          queue.length
+        );
+
+        return;
+      }
+
+      try {
+        await peer.addIceCandidate(iceCandidate);
+      } catch (candidateError) {
+        console.error(
+          "ADD ICE CANDIDATE ERROR:",
+          socketId,
+          candidateError
+        );
+      }
+    },
+    []
+  );
+
+  const flushIceCandidates = useCallback(
+    async (socketId) => {
+      const peer = peersRef.current.get(socketId);
+
+      if (!peer || !peer.remoteDescription) return;
+
+      const queue = iceQueuesRef.current.get(socketId) || [];
+
+      iceQueuesRef.current.delete(socketId);
+
+      for (const candidate of queue) {
+        try {
+          await peer.addIceCandidate(candidate);
+        } catch (candidateError) {
+          console.error(
+            "FLUSH ICE CANDIDATE ERROR:",
+            socketId,
+            candidateError
+          );
+        }
+      }
+
+      console.log(
+        "ICE CANDIDATES FLUSHED:",
+        socketId,
+        queue.length
+      );
+    },
+    []
   );
 
   /* =======================================================
@@ -651,13 +778,20 @@ const TutorLiveClassroom = () => {
 
   const createPeerForStudent = useCallback(
     async (socketId) => {
-      if (!socketId || peersRef.current.has(socketId)) {
+      if (!socketId) return null;
+
+      if (peersRef.current.has(socketId)) {
         return peersRef.current.get(socketId);
       }
 
       const peer = new RTCPeerConnection(ICE_SERVERS);
 
       peersRef.current.set(socketId, peer);
+
+      // Preserve candidates that arrived before this peer.
+      if (!iceQueuesRef.current.has(socketId)) {
+        iceQueuesRef.current.set(socketId, []);
+      }
 
       getOutgoingTracks().forEach((track) => {
         peer.addTrack(
@@ -671,12 +805,19 @@ const TutorLiveClassroom = () => {
 
         socketRef.current?.emit("webrtc:ice-candidate", {
           liveClassId: classId,
-          to: socketId,
+          targetSocketId: socketId,
           candidate: event.candidate,
         });
       };
 
       peer.ontrack = (event) => {
+        console.log(
+          "TUTOR RECEIVED STUDENT TRACK:",
+          socketId,
+          event.track.kind,
+          event.track.label
+        );
+
         const stream =
           event.streams?.[0] ||
           new MediaStream([event.track]);
@@ -685,6 +826,12 @@ const TutorLiveClassroom = () => {
       };
 
       peer.onconnectionstatechange = () => {
+        console.log(
+          "TUTOR PEER CONNECTION:",
+          socketId,
+          peer.connectionState
+        );
+
         if (peer.connectionState === "connected") {
           setConnectedStudents((previous) =>
             previous.includes(socketId)
@@ -702,24 +849,85 @@ const TutorLiveClassroom = () => {
         }
       };
 
-      const offer = await peer.createOffer();
+      try {
+        const offer = await peer.createOffer();
 
-      await peer.setLocalDescription(offer);
+        await peer.setLocalDescription(offer);
 
-      socketRef.current?.emit("webrtc:offer", {
-        liveClassId: classId,
-        to: socketId,
-        offer,
-      });
+        socketRef.current?.emit("webrtc:offer", {
+          liveClassId: classId,
+          targetSocketId: socketId,
+          offer: peer.localDescription,
+        });
 
-      return peer;
+        console.log("TUTOR OFFER SENT:", socketId);
+
+        return peer;
+      } catch (peerError) {
+        console.error(
+          "CREATE STUDENT OFFER ERROR:",
+          socketId,
+          peerError
+        );
+
+        closePeer(socketId);
+
+        throw peerError;
+      }
     },
     [
       classId,
       getOutgoingTracks,
       updateRemoteStream,
       removeRemoteStream,
+      closePeer,
     ]
+  );
+
+  /* =======================================================
+     PUBLISH TUTOR MEDIA STATE
+  ======================================================= */
+
+  const publishTutorMediaState = useCallback(
+    (mediaOverride = null) => {
+      const media = mediaOverride || mediaRef.current || {};
+
+      const mediaState = {
+        cameraEnabled: Boolean(
+          media.cameraEnabled ??
+          media.cameraOn ??
+          media.cameraStream?.getVideoTracks?.()?.some(
+            (track) => track.readyState === "live"
+          )
+        ),
+
+        microphoneEnabled: Boolean(
+          media.microphoneEnabled ??
+          media.micEnabled ??
+          media.audioEnabled ??
+          media.cameraStream?.getAudioTracks?.()?.some(
+            (track) => track.readyState === "live"
+          )
+        ),
+
+        screenSharing: Boolean(
+          media.screenSharing ??
+          media.isScreenSharing ??
+          media.sharingScreen ??
+          media.screenStream?.getVideoTracks?.()?.some(
+            (track) => track.readyState === "live"
+          )
+        ),
+      };
+
+      socketRef.current?.emit("live:media-state", {
+        liveClassId: classId,
+        mediaState,
+      });
+
+      return mediaState;
+    },
+    [classId]
   );
 
   /* =======================================================
@@ -735,6 +943,11 @@ const TutorLiveClassroom = () => {
 
     if (!tutorReference) {
       throw new Error("Tutor reference is missing.");
+    }
+
+    // Avoid opening duplicate sockets.
+    if (socketRef.current?.connected) {
+      return socketRef.current;
     }
 
     socketRef.current?.disconnect();
@@ -755,6 +968,8 @@ const TutorLiveClassroom = () => {
     socketRef.current = socket;
 
     socket.on("connect", () => {
+      console.log("TUTOR SOCKET CONNECTED:", socket.id);
+
       setSocketConnected(true);
 
       socket.emit("live:join", {
@@ -775,6 +990,7 @@ const TutorLiveClassroom = () => {
       }
 
       setSocketConnected(true);
+      publishTutorMediaState();
     });
 
     socket.on("connect_error", (socketError) => {
@@ -782,14 +998,20 @@ const TutorLiveClassroom = () => {
       setSocketConnected(false);
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
+      console.warn("TUTOR SOCKET DISCONNECTED:", reason);
       setSocketConnected(false);
     });
+
+    /* -----------------------------------------------
+       STUDENT JOINED
+    ----------------------------------------------- */
 
     socket.on("live:peer-joined", async (payload) => {
       const socketId =
         payload?.socketId ||
         payload?.socket_id ||
+        payload?.studentSocketId ||
         payload?.id;
 
       if (!socketId) return;
@@ -808,18 +1030,52 @@ const TutorLiveClassroom = () => {
       }
     });
 
+    socket.on("live:student-ready", async (payload) => {
+      const socketId =
+        payload?.socketId ||
+        payload?.socket_id ||
+        payload?.studentSocketId ||
+        payload?.id;
+
+      publishTutorMediaState();
+
+      if (socketId && !peersRef.current.has(socketId)) {
+        try {
+          await createPeerForStudent(socketId);
+        } catch (peerError) {
+          console.error(
+            "CREATE STUDENT PEER ERROR:",
+            peerError
+          );
+        }
+      }
+    });
+
+    /* -----------------------------------------------
+       STUDENT LEFT
+    ----------------------------------------------- */
+
     socket.on("live:peer-left", (payload) => {
       const socketId =
         payload?.socketId ||
         payload?.socket_id ||
+        payload?.studentSocketId ||
         payload?.id;
 
-      if (socketId) closePeer(socketId);
+      if (socketId) {
+        closePeer(socketId);
+      }
     });
+
+    /* -----------------------------------------------
+       RECEIVE STUDENT ANSWER
+    ----------------------------------------------- */
 
     socket.on("webrtc:answer", async (payload) => {
       try {
         const socketId =
+          payload?.fromSocketId ||
+          payload?.senderSocketId ||
           payload?.from ||
           payload?.socketId ||
           payload?.socket_id;
@@ -828,28 +1084,70 @@ const TutorLiveClassroom = () => {
 
         if (!peer || !payload?.answer) return;
 
+        if (peer.signalingState !== "have-local-offer") {
+          console.warn(
+            "Ignoring answer because peer is not waiting for an answer:",
+            socketId,
+            peer.signalingState
+          );
+
+          return;
+        }
+
         await peer.setRemoteDescription(
           new RTCSessionDescription(payload.answer)
         );
+
+        await flushIceCandidates(socketId);
+
+        console.log(
+          "STUDENT ANSWER RECEIVED:",
+          socketId
+        );
       } catch (peerError) {
-        console.error("TUTOR ANSWER ERROR:", peerError);
+        console.error(
+          "TUTOR ANSWER ERROR:",
+          peerError
+        );
       }
     });
 
+    /* -----------------------------------------------
+       RECEIVE STUDENT OFFER
+    ----------------------------------------------- */
+
     socket.on("webrtc:offer", async (payload) => {
+      const socketId =
+        payload?.fromSocketId ||
+        payload?.senderSocketId ||
+        payload?.from ||
+        payload?.socketId ||
+        payload?.socket_id;
+
+      if (!socketId || !payload?.offer) return;
+
+      // Prevent overlapping offer processing.
+      if (offerLocksRef.current.has(socketId)) {
+        console.warn(
+          "STUDENT OFFER ALREADY PROCESSING:",
+          socketId
+        );
+        return;
+      }
+
+      offerLocksRef.current.add(socketId);
+
       try {
-        const socketId =
-          payload?.from ||
-          payload?.socketId ||
-          payload?.socket_id;
-
-        if (!socketId || !payload?.offer) return;
-
         let peer = peersRef.current.get(socketId);
 
         if (!peer) {
           peer = new RTCPeerConnection(ICE_SERVERS);
+
           peersRef.current.set(socketId, peer);
+
+          if (!iceQueuesRef.current.has(socketId)) {
+            iceQueuesRef.current.set(socketId, []);
+          }
 
           getOutgoingTracks().forEach((track) => {
             peer.addTrack(
@@ -863,12 +1161,18 @@ const TutorLiveClassroom = () => {
 
             socket.emit("webrtc:ice-candidate", {
               liveClassId: classId,
-              to: socketId,
+              targetSocketId: socketId,
               candidate: event.candidate,
             });
           };
 
           peer.ontrack = (event) => {
+            console.log(
+              "TUTOR RECEIVED STUDENT TRACK:",
+              socketId,
+              event.track.kind
+            );
+
             updateRemoteStream(
               socketId,
               event.streams?.[0] ||
@@ -877,6 +1181,12 @@ const TutorLiveClassroom = () => {
           };
 
           peer.onconnectionstatechange = () => {
+            console.log(
+              "TUTOR PEER CONNECTION:",
+              socketId,
+              peer.connectionState
+            );
+
             if (peer.connectionState === "connected") {
               setConnectedStudents((previous) =>
                 previous.includes(socketId)
@@ -884,12 +1194,38 @@ const TutorLiveClassroom = () => {
                   : [...previous, socketId]
               );
             }
+
+            if (
+              peer.connectionState === "failed" ||
+              peer.connectionState === "disconnected" ||
+              peer.connectionState === "closed"
+            ) {
+              removeRemoteStream(socketId);
+            }
           };
+        }
+
+        // Handle simultaneous offers.
+        if (peer.signalingState === "have-local-offer") {
+          await peer.setLocalDescription({
+            type: "rollback",
+          });
+        } else if (peer.signalingState !== "stable") {
+          console.warn(
+            "Ignoring student offer in signaling state:",
+            socketId,
+            peer.signalingState
+          );
+
+          return;
         }
 
         await peer.setRemoteDescription(
           new RTCSessionDescription(payload.offer)
         );
+
+        // Apply queued ICE candidates after remote description.
+        await flushIceCandidates(socketId);
 
         const answer = await peer.createAnswer();
 
@@ -897,32 +1233,45 @@ const TutorLiveClassroom = () => {
 
         socket.emit("webrtc:answer", {
           liveClassId: classId,
-          to: socketId,
-          answer,
+          targetSocketId: socketId,
+          answer: peer.localDescription,
         });
+
+        console.log("TUTOR ANSWER SENT:", socketId);
       } catch (peerError) {
-        console.error("TUTOR OFFER ERROR:", peerError);
+        console.error(
+          "TUTOR OFFER ERROR:",
+          socketId,
+          peerError
+        );
+      } finally {
+        offerLocksRef.current.delete(socketId);
       }
     });
+
+    /* -----------------------------------------------
+       RECEIVE ICE CANDIDATES
+    ----------------------------------------------- */
 
     socket.on("webrtc:ice-candidate", async (payload) => {
-      try {
-        const socketId =
-          payload?.from ||
-          payload?.socketId ||
-          payload?.socket_id;
+      const socketId =
+        payload?.fromSocketId ||
+        payload?.senderSocketId ||
+        payload?.from ||
+        payload?.socketId ||
+        payload?.socket_id;
 
-        const peer = peersRef.current.get(socketId);
+      if (!socketId || !payload?.candidate) return;
 
-        if (!peer || !payload?.candidate) return;
-
-        await peer.addIceCandidate(
-          new RTCIceCandidate(payload.candidate)
-        );
-      } catch (peerError) {
-        console.error("TUTOR ICE ERROR:", peerError);
-      }
+      await addRemoteIceCandidate(
+        socketId,
+        payload.candidate
+      );
     });
+
+    /* -----------------------------------------------
+       CHAT
+    ----------------------------------------------- */
 
     socket.on("live:chat-message", (payload) => {
       const item =
@@ -952,6 +1301,10 @@ const TutorLiveClassroom = () => {
         return exists ? previous : [...previous, item];
       });
     });
+
+    /* -----------------------------------------------
+       PARTICIPANT UPDATE
+    ----------------------------------------------- */
 
     socket.on("live:participant-update", (payload) => {
       const participant = payload?.participant || payload;
@@ -998,6 +1351,10 @@ const TutorLiveClassroom = () => {
     closePeer,
     getOutgoingTracks,
     updateRemoteStream,
+    removeRemoteStream,
+    publishTutorMediaState,
+    addRemoteIceCandidate,
+    flushIceCandidates,
   ]);
 
   /* =======================================================
@@ -1006,9 +1363,13 @@ const TutorLiveClassroom = () => {
 
   const handleMediaStreamChange = useCallback(
     async (media) => {
-      mediaRef.current = media;
+      mediaRef.current = media || {};
 
-      setScreenSharing(Boolean(media?.screenSharing));
+      const mediaState = publishTutorMediaState(
+        mediaRef.current
+      );
+
+      setScreenSharing(mediaState.screenSharing);
 
       const peers = [...peersRef.current.entries()];
 
@@ -1018,17 +1379,45 @@ const TutorLiveClassroom = () => {
         } catch (mediaError) {
           console.error(
             "SYNC STUDENT MEDIA ERROR:",
+            socketId,
             mediaError
           );
         }
       }
     },
-    [syncPeerTracks]
+    [syncPeerTracks, publishTutorMediaState]
   );
 
-  const handleScreenShareChange = useCallback((enabled) => {
-    setScreenSharing(Boolean(enabled));
-  }, []);
+  const handleScreenShareChange = useCallback(
+    async (enabled) => {
+      const nextMedia = {
+        ...(mediaRef.current || {}),
+        screenSharing: Boolean(enabled),
+      };
+
+      mediaRef.current = nextMedia;
+
+      setScreenSharing(Boolean(enabled));
+
+      publishTutorMediaState(nextMedia);
+
+      // Synchronise the actual screen/camera tracks.
+      const peers = [...peersRef.current.entries()];
+
+      for (const [socketId, peer] of peers) {
+        try {
+          await syncPeerTracks(peer, socketId);
+        } catch (mediaError) {
+          console.error(
+            "SCREEN SHARE TRACK SYNC ERROR:",
+            socketId,
+            mediaError
+          );
+        }
+      }
+    },
+    [publishTutorMediaState, syncPeerTracks]
+  );
 
   /* =======================================================
      PRESENTATION
@@ -1127,13 +1516,6 @@ const TutorLiveClassroom = () => {
 
   /* =======================================================
      PANEL NAVIGATION
-
-     VIDEO:
-     Camera fills the main workspace.
-
-     OTHER PANELS:
-     Selected tool fills the main workspace.
-     Camera moves into the smaller right preview.
   ======================================================= */
 
   const handlePanelChange = useCallback((panel) => {
@@ -1326,6 +1708,7 @@ const TutorLiveClassroom = () => {
     return () => {
       if (pollingRef.current) {
         window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
       }
     };
   }, [classId, loadClassroomData]);
@@ -1336,8 +1719,11 @@ const TutorLiveClassroom = () => {
 
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
+
       if (pollingRef.current) {
         window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
       }
 
       socketRef.current?.disconnect();
@@ -1625,15 +2011,7 @@ const TutorLiveClassroom = () => {
         </div>
       )}
 
-      {/* =====================================================
-          WORKSPACE
-
-          VIDEO:
-          One large video column.
-
-          TOOL SELECTED:
-          Large tool column + small camera column.
-      ===================================================== */}
+      {/* WORKSPACE */}
 
       <main
         className={`grid min-h-0 flex-1 gap-3 overflow-hidden p-2 md:p-4 ${
@@ -1642,9 +2020,7 @@ const TutorLiveClassroom = () => {
             : "grid-cols-1 grid-rows-[minmax(0,1fr)]"
         }`}
       >
-        {/* =================================================
-            MAIN WORKSPACE
-        ================================================= */}
+        {/* MAIN WORKSPACE */}
 
         <section className="flex min-h-0 min-w-0 flex-col gap-3">
 
@@ -1654,8 +2030,6 @@ const TutorLiveClassroom = () => {
 
             {isToolPanel ? (
               <div className="flex h-full min-h-0 w-full flex-col">
-
-                {/* TOOL HEADER */}
 
                 <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 bg-[#0B1930] px-4">
                   <div className="flex min-w-0 items-center gap-2">
@@ -1678,8 +2052,6 @@ const TutorLiveClassroom = () => {
                     <span>Back to video</span>
                   </button>
                 </div>
-
-                {/* FULL-WIDTH TOOL CONTENT */}
 
                 <div
                   className={`min-h-0 w-full flex-1 ${
@@ -1758,18 +2130,10 @@ const TutorLiveClassroom = () => {
           </div>
         </section>
 
-        {/* =================================================
-            CAMERA PREVIEW
-
-            Only rendered when a tool is selected.
-            On desktop it is on the RIGHT.
-            On smaller screens it appears BELOW the tool.
-        ================================================= */}
+        {/* CAMERA PREVIEW */}
 
         {isToolPanel && (
           <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071426]">
-
-            {/* CAMERA HEADER */}
 
             <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-[#0B1930] px-3">
               <div className="flex items-center gap-2">
@@ -1788,13 +2152,9 @@ const TutorLiveClassroom = () => {
               </span>
             </div>
 
-            {/* SMALL CAMERA */}
-
             <div className="relative min-h-0 flex-1 p-2">
               {renderVideoStage(true)}
             </div>
-
-            {/* CAMERA FOOTER */}
 
             <div className="flex shrink-0 items-center justify-between border-t border-white/10 px-3 py-2">
               <span className="truncate text-[10px] font-semibold text-slate-300">

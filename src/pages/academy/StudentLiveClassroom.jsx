@@ -27,6 +27,7 @@ import {
   Video,
   Wifi,
   WifiOff,
+  Volume2,
 } from "lucide-react";
 
 /* ============================================================
@@ -335,6 +336,18 @@ const mergeUnique = (previous, incoming, getId) => {
 };
 
 /* ============================================================
+   WEBRTC SIGNALING HELPERS
+============================================================ */
+
+const getSocketSenderId = (payload) =>
+  payload?.fromSocketId ||
+  payload?.senderSocketId ||
+  payload?.from ||
+  payload?.socketId ||
+  payload?.socket_id ||
+  null;
+
+/* ============================================================
    COMPONENT
 ============================================================ */
 
@@ -356,18 +369,30 @@ const StudentLiveClassroom = () => {
   const socketRef = useRef(null);
   const peerRef = useRef(null);
 
+  const tutorSocketIdRef = useRef(null);
+  const pendingIceCandidatesRef = useRef([]);
+
   const screenStreamRef = useRef(null);
   const cameraStreamRef = useRef(null);
   const fallbackStreamRef = useRef(null);
 
+  const screenSharingRef = useRef(false);
+
+  const receivedVideoTracksRef = useRef(new Map());
+
+  const tutorAudioStreamRef = useRef(new MediaStream());
+
   const screenVideoRef = useRef(null);
   const cameraVideoRef = useRef(null);
+  const tutorAudioRef = useRef(null);
   const chatEndRef = useRef(null);
 
   const pollingRef = useRef(null);
   const mountedRef = useRef(true);
   const joiningRef = useRef(false);
   const joinedRef = useRef(false);
+
+  const refreshVideoTracksRef = useRef(null);
 
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -396,6 +421,7 @@ const StudentLiveClassroom = () => {
   const [screenAvailable, setScreenAvailable] = useState(false);
   const [cameraAvailable, setCameraAvailable] = useState(false);
   const [sharingScreen, setSharingScreen] = useState(false);
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
   const [tutorMediaState, setTutorMediaState] = useState({
     cameraEnabled: false,
@@ -453,7 +479,7 @@ const StudentLiveClassroom = () => {
     presentationUrl.toLowerCase().includes(".pdf");
 
   /* ============================================================
-     VIDEO ELEMENT ATTACHMENT
+     VIDEO AND AUDIO ATTACHMENT
   ============================================================ */
 
   const attachVideo = useCallback((element, stream) => {
@@ -464,9 +490,39 @@ const StudentLiveClassroom = () => {
     }
 
     if (stream) {
-      element.play().catch(() => {});
+      element.play().catch((playError) => {
+        console.warn("VIDEO PLAY ERROR:", playError);
+      });
     }
   }, []);
+
+  const attachTutorAudio = useCallback(() => {
+    const audio = tutorAudioRef.current;
+    const stream = tutorAudioStreamRef.current;
+
+    if (!audio || !stream) return;
+
+    if (audio.srcObject !== stream) {
+      audio.srcObject = stream;
+    }
+
+    audio.play()
+      .then(() => {
+        setAudioBlocked(false);
+      })
+      .catch((playError) => {
+        console.warn(
+          "TUTOR AUDIO AUTOPLAY BLOCKED:",
+          playError
+        );
+
+        setAudioBlocked(true);
+      });
+  }, []);
+
+  const enableTutorAudio = useCallback(() => {
+    attachTutorAudio();
+  }, [attachTutorAudio]);
 
   useEffect(() => {
     attachVideo(
@@ -481,6 +537,10 @@ const StudentLiveClassroom = () => {
       cameraStreamRef.current
     );
   }, [cameraAvailable, attachVideo]);
+
+  useEffect(() => {
+    attachTutorAudio();
+  }, [joinedClass, attachTutorAudio]);
 
   /* ============================================================
      CHAT
@@ -592,18 +652,49 @@ const StudentLiveClassroom = () => {
       {};
 
     if (Object.keys(media).length) {
+      const normalizedMedia = {
+        ...media,
+        cameraEnabled:
+          media.cameraEnabled ??
+          media.camera_enabled ??
+          media.isCameraEnabled ??
+          media.is_camera_enabled ??
+          false,
+        microphoneEnabled:
+          media.microphoneEnabled ??
+          media.microphone_enabled ??
+          media.isMicrophoneEnabled ??
+          media.is_microphone_enabled ??
+          false,
+        screenSharing:
+          media.screenSharing ??
+          media.screen_sharing ??
+          media.isScreenSharing ??
+          media.is_screen_sharing ??
+          media.sharingScreen ??
+          false,
+      };
+
       setTutorMediaState((previous) => ({
         ...previous,
-        ...media,
+        ...normalizedMedia,
       }));
 
-      setSharingScreen(
-        Boolean(
-          media.screenSharing ??
-            media.isScreenSharing ??
-            media.sharingScreen
-        )
+      const screenIsActive = Boolean(
+        normalizedMedia.screenSharing
       );
+
+      screenSharingRef.current = screenIsActive;
+      setSharingScreen(screenIsActive);
+
+      if (!screenIsActive) {
+        screenStreamRef.current = null;
+        setScreenAvailable(false);
+
+        if (screenVideoRef.current) {
+          screenVideoRef.current.srcObject = null;
+        }
+      }
     }
 
     if (Array.isArray(data.resources)) {
@@ -790,18 +881,41 @@ const StudentLiveClassroom = () => {
   ============================================================ */
 
   const closePeer = useCallback(() => {
-    if (peerRef.current) {
-      peerRef.current.ontrack = null;
-      peerRef.current.onicecandidate = null;
-      peerRef.current.onconnectionstatechange = null;
+    const peer = peerRef.current;
 
-      peerRef.current.close();
+    if (peer) {
+      peer.ontrack = null;
+      peer.onicecandidate = null;
+      peer.onconnectionstatechange = null;
+      peer.oniceconnectionstatechange = null;
+
+      peer.close();
       peerRef.current = null;
     }
+
+    tutorSocketIdRef.current = null;
+    pendingIceCandidatesRef.current = [];
 
     screenStreamRef.current = null;
     cameraStreamRef.current = null;
     fallbackStreamRef.current = null;
+    screenSharingRef.current = false;
+
+    receivedVideoTracksRef.current.clear();
+    refreshVideoTracksRef.current = null;
+
+    const audioStream = tutorAudioStreamRef.current;
+
+    audioStream?.getTracks().forEach((track) => {
+      audioStream.removeTrack(track);
+    });
+
+    if (tutorAudioRef.current) {
+      tutorAudioRef.current.srcObject = null;
+    }
+
+    setSharingScreen(false);
+    setAudioBlocked(false);
 
     if (screenVideoRef.current) {
       screenVideoRef.current.srcObject = null;
@@ -819,160 +933,282 @@ const StudentLiveClassroom = () => {
   /* ============================================================
      WEBRTC RECEIVER
 
-     The student never adds local tracks.
-     Tutor is the only media sender.
+     The student receives the tutor's media.
+     The tutor creates the offer and sends it to this student.
+
+     IMPORTANT:
+     Do not add recvonly transceivers here before receiving
+     the tutor's offer. The offer already contains the media
+     transceivers that the student must answer.
   ============================================================ */
 
   const getOrCreatePeer = useCallback(
     (roomId) => {
-      if (peerRef.current) return peerRef.current;
+      if (peerRef.current) {
+        return peerRef.current;
+      }
 
       const peer = new RTCPeerConnection(ICE_SERVERS);
 
-      peer.addTransceiver("video", {
-        direction: "recvonly",
-      });
+      /* -----------------------------
+         VIDEO TRACK HANDLING
+      ----------------------------- */
 
-      peer.addTransceiver("audio", {
-        direction: "recvonly",
-      });
+      const attachReceivedVideoTracks = () => {
+        const tracks = [
+          ...receivedVideoTracksRef.current.values(),
+        ].filter(
+          (item) => item.track.readyState !== "ended"
+        );
 
-      peer.ontrack = (event) => {
-        const stream =
-          event.streams?.[0] || null;
+        if (!tracks.length) {
+          cameraStreamRef.current = null;
+          screenStreamRef.current = null;
 
-        if (!stream) {
-          if (!fallbackStreamRef.current) {
-            fallbackStreamRef.current =
-              new MediaStream();
+          setCameraAvailable(false);
+          setScreenAvailable(false);
+
+          if (cameraVideoRef.current) {
+            cameraVideoRef.current.srcObject = null;
           }
 
-          const fallback =
-            fallbackStreamRef.current;
+          if (screenVideoRef.current) {
+            screenVideoRef.current.srcObject = null;
+          }
 
-          const exists = fallback
-            .getTracks()
-            .some(
-              (track) => track.id === event.track.id
+          return;
+        }
+
+        const explicitlyScreen = tracks.find(
+          (item) => item.isScreen
+        );
+
+        const explicitlyCamera = tracks.find(
+          (item) => item.isCamera
+        );
+
+        let cameraItem = explicitlyCamera || null;
+        let screenItem = explicitlyScreen || null;
+
+        const unclassified = tracks.filter(
+          (item) =>
+            item !== cameraItem &&
+            item !== screenItem
+        );
+
+        if (unclassified.length === 1) {
+          if (
+            screenSharingRef.current &&
+            !screenItem
+          ) {
+            screenItem = unclassified[0];
+          } else if (!cameraItem) {
+            cameraItem = unclassified[0];
+          } else if (!screenItem) {
+            screenItem = unclassified[0];
+          }
+        } else if (unclassified.length >= 2) {
+          if (!cameraItem) {
+            cameraItem = unclassified[0];
+          }
+
+          if (!screenItem) {
+            screenItem = unclassified.find(
+              (item) => item !== cameraItem
             );
-
-          if (!exists) {
-            fallback.addTrack(event.track);
           }
         }
 
-        const receivedStream =
-          stream || fallbackStreamRef.current;
-
-        if (!receivedStream) return;
-
-        const streamId = clean(
-          receivedStream.id
-        ).toLowerCase();
-
-        const trackLabel = clean(
-          event.track.label
-        ).toLowerCase();
-
-        const looksLikeCamera =
-          streamId.includes("camera") ||
-          trackLabel.includes("camera") ||
-          streamId.includes("webcam");
-
-        const looksLikeScreen =
-          streamId.includes("screen") ||
-          streamId.includes("display") ||
-          trackLabel.includes("screen") ||
-          trackLabel.includes("display");
-
-        if (looksLikeCamera) {
-          cameraStreamRef.current =
-            receivedStream;
-
+        if (cameraItem) {
+          cameraStreamRef.current = cameraItem.stream;
           setCameraAvailable(true);
 
           attachVideo(
             cameraVideoRef.current,
-            receivedStream
-          );
-        } else if (looksLikeScreen) {
-          screenStreamRef.current =
-            receivedStream;
-
-          setScreenAvailable(true);
-
-          attachVideo(
-            screenVideoRef.current,
-            receivedStream
-          );
-        } else if (
-          sharingScreen ||
-          tutorMediaState.screenSharing
-        ) {
-          screenStreamRef.current =
-            receivedStream;
-
-          setScreenAvailable(true);
-
-          attachVideo(
-            screenVideoRef.current,
-            receivedStream
+            cameraItem.stream
           );
         } else {
-          cameraStreamRef.current =
-            receivedStream;
+          cameraStreamRef.current = null;
+          setCameraAvailable(false);
 
-          setCameraAvailable(true);
+          if (cameraVideoRef.current) {
+            cameraVideoRef.current.srcObject = null;
+          }
+        }
+
+        if (screenItem) {
+          screenStreamRef.current = screenItem.stream;
+          setScreenAvailable(true);
 
           attachVideo(
-            cameraVideoRef.current,
-            receivedStream
+            screenVideoRef.current,
+            screenItem.stream
           );
+        } else {
+          screenStreamRef.current = null;
+          setScreenAvailable(false);
+
+          if (screenVideoRef.current) {
+            screenVideoRef.current.srcObject = null;
+          }
         }
 
         setMediaConnected(true);
+      };
 
-        event.track.onended = () => {
-          if (event.track.kind === "video") {
-            setScreenAvailable(false);
-            setCameraAvailable(false);
+      refreshVideoTracksRef.current =
+        attachReceivedVideoTracks;
+
+      /* -----------------------------
+         INCOMING MEDIA TRACKS
+      ----------------------------- */
+
+      peer.ontrack = (event) => {
+        const track = event.track;
+
+        console.log("STUDENT RECEIVED WEBRTC TRACK:", {
+          kind: track.kind,
+          id: track.id,
+          label: track.label,
+          mid: event.transceiver?.mid,
+          streams: event.streams?.map(
+            (stream) => stream.id
+          ),
+        });
+
+        if (track.kind === "audio") {
+          const audioStream = tutorAudioStreamRef.current;
+
+          const alreadyAdded = audioStream
+            .getTracks()
+            .some((existing) => existing.id === track.id);
+
+          if (!alreadyAdded) {
+            audioStream.addTrack(track);
           }
+
+          setMediaConnected(true);
+
+          // Attach the tutor's microphone stream to the audio element.
+          attachTutorAudio();
+
+          track.onended = () => {
+            const currentStream = tutorAudioStreamRef.current;
+
+            const existingTrack = currentStream
+              .getTracks()
+              .find((item) => item.id === track.id);
+
+            if (existingTrack) {
+              currentStream.removeTrack(existingTrack);
+            }
+          };
+
+          return;
+        }
+
+        if (track.kind !== "video") return;
+
+        const stream = new MediaStream([track]);
+
+        const label = clean(track.label).toLowerCase();
+
+        const isScreen =
+          /screen|display|monitor|window|desktop/.test(label);
+
+        const isCamera =
+          /camera|webcam|front|back/.test(label);
+
+        const mid =
+          event.transceiver?.mid ??
+          track.id;
+
+        receivedVideoTracksRef.current.set(
+          String(mid),
+          {
+            track,
+            stream,
+            isScreen,
+            isCamera,
+          }
+        );
+
+        attachReceivedVideoTracks();
+
+        track.onended = () => {
+          receivedVideoTracksRef.current.delete(
+            String(mid)
+          );
+
+          attachReceivedVideoTracks();
         };
       };
 
+      /* -----------------------------
+         OUTGOING ICE CANDIDATES
+      ----------------------------- */
+
       peer.onicecandidate = (event) => {
         if (!event.candidate) return;
+
+        const tutorSocketId =
+          tutorSocketIdRef.current;
+
+        if (!tutorSocketId) {
+          console.warn(
+            "Cannot send ICE candidate: tutor socket ID is missing."
+          );
+
+          return;
+        }
 
         socketRef.current?.emit(
           "webrtc:ice-candidate",
           {
             liveClassId: roomId,
+            targetSocketId: tutorSocketId,
             candidate: event.candidate,
           }
         );
       };
 
-      peer.onconnectionstatechange = () => {
-        const state = peer.connectionState;
+      /* -----------------------------
+         CONNECTION STATE
+      ----------------------------- */
 
-        if (state === "connected") {
+      peer.onconnectionstatechange = () => {
+        console.log(
+          "STUDENT PEER CONNECTION:",
+          peer.connectionState
+        );
+
+        if (peer.connectionState === "connected") {
           setMediaConnected(true);
         }
 
         if (
-          state === "failed" ||
-          state === "disconnected" ||
-          state === "closed"
+          [
+            "failed",
+            "disconnected",
+            "closed",
+          ].includes(peer.connectionState)
         ) {
           setMediaConnected(false);
         }
+      };
+
+      peer.oniceconnectionstatechange = () => {
+        console.log(
+          "STUDENT ICE CONNECTION:",
+          peer.iceConnectionState
+        );
       };
 
       peerRef.current = peer;
 
       return peer;
     },
-    [attachVideo, sharingScreen, tutorMediaState.screenSharing]
+    [attachVideo, attachTutorAudio]
   );
 
   /* ============================================================
@@ -1008,6 +1244,11 @@ const StudentLiveClassroom = () => {
       socketRef.current = socket;
 
       socket.on("connect", () => {
+        console.log(
+          "STUDENT SOCKET CONNECTED:",
+          socket.id
+        );
+
         setSocketConnected(true);
 
         socket.emit("live:join", {
@@ -1054,15 +1295,35 @@ const StudentLiveClassroom = () => {
       });
 
       socket.on("disconnect", () => {
+        console.warn("STUDENT SOCKET DISCONNECTED");
+
         setSocketConnected(false);
         setMediaConnected(false);
       });
 
-      socket.on("live:peer-joined", () => {
-        // The tutor initiates the media connection.
+      socket.on("live:peer-joined", (payload) => {
+        console.log(
+          "STUDENT PEER JOINED:",
+          payload
+        );
       });
 
-      socket.on("live:peer-left", () => {
+      socket.on("live:peer-left", (payload) => {
+        console.log(
+          "STUDENT PEER LEFT:",
+          payload
+        );
+
+        const senderSocketId = getSocketSenderId(payload);
+
+        if (
+          senderSocketId &&
+          tutorSocketIdRef.current &&
+          senderSocketId !== tutorSocketIdRef.current
+        ) {
+          return;
+        }
+
         closePeer();
       });
 
@@ -1079,19 +1340,48 @@ const StudentLiveClassroom = () => {
       socket.on("live:activity-update", handleState);
 
       /* -----------------------------
-         WEBRTC OFFER
+         WEBRTC OFFER FROM TUTOR
       ----------------------------- */
 
       socket.on("webrtc:offer", async (payload) => {
         try {
-          if (!payload?.offer) return;
+          if (!payload?.offer) {
+            console.warn(
+              "STUDENT RECEIVED EMPTY WEBRTC OFFER:",
+              payload
+            );
+
+            return;
+          }
+
+          const tutorSocketId =
+            getSocketSenderId(payload);
+
+          if (!tutorSocketId) {
+            console.error(
+              "Tutor socket ID missing from WebRTC offer. Check the server offer relay:",
+              payload
+            );
+
+            return;
+          }
+
+          tutorSocketIdRef.current = tutorSocketId;
 
           const peer = getOrCreatePeer(roomId);
 
-          if (
-            peer.signalingState !== "stable" &&
-            peer.signalingState !== "have-remote-offer"
-          ) {
+          /*
+           * This student is the receiver.
+           * Only process a new tutor offer when the peer
+           * is stable. Do not set the same remote offer twice.
+           */
+
+          if (peer.signalingState !== "stable") {
+            console.warn(
+              "Student ignored duplicate or overlapping offer:",
+              peer.signalingState
+            );
+
             return;
           }
 
@@ -1099,14 +1389,44 @@ const StudentLiveClassroom = () => {
             new RTCSessionDescription(payload.offer)
           );
 
+          /*
+           * ICE candidates may arrive before the offer.
+           * Flush queued candidates after remoteDescription
+           * has been successfully installed.
+           */
+
+          const pendingCandidates =
+            pendingIceCandidatesRef.current;
+
+          pendingIceCandidatesRef.current = [];
+
+          for (const candidate of pendingCandidates) {
+            try {
+              await peer.addIceCandidate(
+                new RTCIceCandidate(candidate)
+              );
+            } catch (iceError) {
+              console.error(
+                "STUDENT QUEUED ICE ERROR:",
+                iceError
+              );
+            }
+          }
+
           const answer = await peer.createAnswer();
 
           await peer.setLocalDescription(answer);
 
           socket.emit("webrtc:answer", {
             liveClassId: roomId,
-            answer,
+            targetSocketId: tutorSocketId,
+            answer: peer.localDescription,
           });
+
+          console.log(
+            "STUDENT WEBRTC ANSWER SENT TO TUTOR:",
+            tutorSocketId
+          );
         } catch (peerError) {
           console.error(
             "STUDENT WEBRTC OFFER ERROR:",
@@ -1116,7 +1436,7 @@ const StudentLiveClassroom = () => {
       });
 
       /* -----------------------------
-         WEBRTC ICE CANDIDATE
+         WEBRTC ICE CANDIDATES
       ----------------------------- */
 
       socket.on(
@@ -1125,9 +1445,39 @@ const StudentLiveClassroom = () => {
           try {
             if (!payload?.candidate) return;
 
+            const senderSocketId =
+              getSocketSenderId(payload);
+
+            /*
+             * Remember the tutor socket ID if an ICE
+             * candidate arrives before the offer.
+             */
+            if (
+              senderSocketId &&
+              !tutorSocketIdRef.current
+            ) {
+              tutorSocketIdRef.current = senderSocketId;
+            }
+
+            /*
+             * Ignore ICE candidates from other students
+             * or unrelated peers.
+             */
+            if (
+              senderSocketId &&
+              tutorSocketIdRef.current &&
+              senderSocketId !== tutorSocketIdRef.current
+            ) {
+              return;
+            }
+
             const peer = peerRef.current;
 
             if (!peer || !peer.remoteDescription) {
+              pendingIceCandidatesRef.current.push(
+                payload.candidate
+              );
+
               return;
             }
 
@@ -1150,29 +1500,54 @@ const StudentLiveClassroom = () => {
       socket.on("live:media-state", (payload) => {
         const state =
           payload?.mediaState ||
+          payload?.media_state ||
           payload?.state ||
           payload ||
           {};
 
+        const normalizedState = {
+          ...state,
+          cameraEnabled:
+            state.cameraEnabled ??
+            state.camera_enabled ??
+            state.isCameraEnabled ??
+            state.is_camera_enabled,
+          microphoneEnabled:
+            state.microphoneEnabled ??
+            state.microphone_enabled ??
+            state.isMicrophoneEnabled ??
+            state.is_microphone_enabled,
+          screenSharing:
+            state.screenSharing ??
+            state.screen_sharing ??
+            state.isScreenSharing ??
+            state.is_screen_sharing ??
+            state.sharingScreen,
+        };
+
         setTutorMediaState((previous) => ({
           ...previous,
-          ...state,
+          ...normalizedState,
         }));
 
         const screenIsActive = Boolean(
-          state.screenSharing ??
-            state.isScreenSharing ??
-            state.sharingScreen
+          normalizedState.screenSharing
         );
 
+        screenSharingRef.current = screenIsActive;
         setSharingScreen(screenIsActive);
 
+        refreshVideoTracksRef.current?.();
+
         if (!screenIsActive) {
+          screenStreamRef.current = null;
           setScreenAvailable(false);
 
           if (screenVideoRef.current) {
             screenVideoRef.current.srcObject = null;
           }
+        } else {
+          setActiveStage("screen");
         }
       });
 
@@ -1184,17 +1559,24 @@ const StudentLiveClassroom = () => {
         const active = Boolean(
           payload?.active ??
             payload?.sharing ??
-            payload?.screenSharing
+            payload?.screenSharing ??
+            payload?.screen_sharing
         );
 
+        screenSharingRef.current = active;
         setSharingScreen(active);
 
+        refreshVideoTracksRef.current?.();
+
         if (!active) {
+          screenStreamRef.current = null;
           setScreenAvailable(false);
 
           if (screenVideoRef.current) {
             screenVideoRef.current.srcObject = null;
           }
+        } else {
+          setActiveStage("screen");
         }
       });
 
@@ -1427,7 +1809,10 @@ const StudentLiveClassroom = () => {
       const handleClassEnded = () => {
         setError("The tutor has ended this live class.");
         setActiveStage("waiting");
+
+        screenSharingRef.current = false;
         setSharingScreen(false);
+
         closePeer();
       };
 
@@ -1697,9 +2082,6 @@ const StudentLiveClassroom = () => {
 
   /* ============================================================
      CLASSROOM POLLING
-
-     This is a fallback for persisted state.
-     Socket events provide the live updates.
   ============================================================ */
 
   useEffect(() => {
@@ -1747,13 +2129,32 @@ const StudentLiveClassroom = () => {
       socketRef.current = null;
 
       if (peerRef.current) {
+        peerRef.current.ontrack = null;
+        peerRef.current.onicecandidate = null;
         peerRef.current.close();
         peerRef.current = null;
       }
 
+      tutorSocketIdRef.current = null;
+      pendingIceCandidatesRef.current = [];
+
       screenStreamRef.current = null;
       cameraStreamRef.current = null;
       fallbackStreamRef.current = null;
+      screenSharingRef.current = false;
+
+      receivedVideoTracksRef.current.clear();
+      refreshVideoTracksRef.current = null;
+
+      tutorAudioStreamRef.current
+        ?.getTracks()
+        .forEach((track) => {
+          tutorAudioStreamRef.current.removeTrack(track);
+        });
+
+      if (tutorAudioRef.current) {
+        tutorAudioRef.current.srcObject = null;
+      }
     };
   }, []);
 
@@ -1762,11 +2163,17 @@ const StudentLiveClassroom = () => {
   ============================================================ */
 
   const stageMode = useMemo(() => {
-    if (activeStage === "screen") {
+    if (
+      activeStage === "screen" &&
+      (screenAvailable || sharingScreen)
+    ) {
       return "screen";
     }
 
-    if (activeStage === "presentation" && presentationUrl) {
+    if (
+      activeStage === "presentation" &&
+      presentationUrl
+    ) {
       return "presentation";
     }
 
@@ -1778,11 +2185,17 @@ const StudentLiveClassroom = () => {
       return "screen";
     }
 
-    if (presentationUrl && activeStage === "waiting") {
+    if (
+      presentationUrl &&
+      activeStage === "waiting"
+    ) {
       return "presentation";
     }
 
-    if (whiteboardImage && activeStage === "waiting") {
+    if (
+      whiteboardImage &&
+      activeStage === "waiting"
+    ) {
       return "whiteboard";
     }
 
@@ -1804,7 +2217,7 @@ const StudentLiveClassroom = () => {
     tutorMediaState.cameraEnabled !== false;
 
   /* ============================================================
-     RENDER
+     LOADING SCREEN
   ============================================================ */
 
   if (loading) {
@@ -1815,6 +2228,7 @@ const StudentLiveClassroom = () => {
             size={35}
             className="animate-spin mx-auto text-blue-400"
           />
+
           <p className="text-sm text-slate-400 mt-4">
             Loading classroom...
           </p>
@@ -1822,6 +2236,10 @@ const StudentLiveClassroom = () => {
       </div>
     );
   }
+
+  /* ============================================================
+     CLASSROOM NOT FOUND
+  ============================================================ */
 
   if (!classroom) {
     return (
@@ -1851,11 +2269,22 @@ const StudentLiveClassroom = () => {
     );
   }
 
+  /* ============================================================
+     RENDER
+  ============================================================ */
+
   return (
     <div className="min-h-screen h-screen overflow-hidden bg-[#020617] text-white flex flex-col">
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
+
+      {/* Hidden tutor audio receiver */}
+      <audio
+        ref={tutorAudioRef}
+        autoPlay
+        playsInline
+        className="hidden"
+      />
+
+      {/* HEADER */}
 
       <header className="h-[68px] shrink-0 border-b border-white/10 bg-[#071426] px-4 md:px-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
@@ -1909,9 +2338,7 @@ const StudentLiveClassroom = () => {
         </div>
       </header>
 
-      {/* ======================================================
-          ERROR MESSAGE
-      ====================================================== */}
+      {/* ERROR MESSAGE */}
 
       {error && (
         <div className="mx-3 mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 flex items-start gap-3">
@@ -1933,9 +2360,7 @@ const StudentLiveClassroom = () => {
         </div>
       )}
 
-      {/* ======================================================
-          JOIN SCREEN
-      ====================================================== */}
+      {/* JOIN SCREEN */}
 
       {!joinedClass ? (
         <main className="flex-1 flex items-center justify-center p-5 overflow-y-auto">
@@ -2028,17 +2453,13 @@ const StudentLiveClassroom = () => {
           </div>
         </main>
       ) : (
-        /* ====================================================
-           CLASSROOM WORKSPACE
-        ==================================================== */
-
         <main className="flex-1 min-h-0 p-3 md:p-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_350px] gap-4">
-          {/* ==================================================
-              MAIN LESSON STAGE
-          ================================================== */}
+
+          {/* MAIN LESSON STAGE */}
 
           <section className="min-w-0 min-h-[420px] flex flex-col">
             <div className="relative flex-1 min-h-[420px] rounded-2xl border border-white/10 bg-[#071426] overflow-hidden">
+
               {/* STAGE HEADER */}
 
               <div className="absolute z-30 top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
@@ -2221,11 +2642,13 @@ const StudentLiveClassroom = () => {
                   </p>
 
                   <div className="mt-5 flex items-center gap-2 text-[10px] text-slate-500">
-                    <span className={`w-2 h-2 rounded-full ${
-                      socketConnected
-                        ? "bg-emerald-400"
-                        : "bg-amber-400"
-                    }`} />
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        socketConnected
+                          ? "bg-emerald-400"
+                          : "bg-amber-400"
+                      }`}
+                    />
 
                     {socketConnected
                       ? "Connected to classroom"
@@ -2296,15 +2719,25 @@ const StudentLiveClassroom = () => {
                 </p>
               </div>
 
-              <span className="text-[9px] text-slate-500 shrink-0">
-                View only
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                {audioBlocked && (
+                  <button
+                    onClick={enableTutorAudio}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold"
+                  >
+                    <Volume2 size={13} />
+                    Enable tutor audio
+                  </button>
+                )}
+
+                <span className="text-[9px] text-slate-500">
+                  View only
+                </span>
+              </div>
             </div>
           </section>
 
-          {/* ==================================================
-              RIGHT SIDEBAR
-          ================================================== */}
+          {/* RIGHT SIDEBAR */}
 
           <aside className="min-h-[400px] lg:min-h-0 rounded-2xl border border-white/10 bg-[#071426] flex flex-col overflow-hidden">
             <div className="grid grid-cols-3 border-b border-white/10 shrink-0">
@@ -2367,6 +2800,7 @@ const StudentLiveClassroom = () => {
                   ) : (
                     messages.map((item, index) => {
                       const sender = getSenderName(item);
+
                       const senderRole = clean(
                         item.sender_role ||
                           item.senderRole ||

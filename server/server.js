@@ -49,6 +49,7 @@ import schoolExamsRoutes from "./routes/schoolExamsRoutes.js";
 import academyCbtRoutes from "./routes/academyCbtRoutes.js";
 import schoolStudentExamRoutes from "./routes/schoolStudentExamRoutes.js";
 import academyTutorMaterialsRoutes from "./routes/academyTutorMaterials.js";
+import academyLiveClassChatRoutes from "./routes/academyLiveClassChatRoutes.js";
 
 // ============================================================
 // PATHS AND ENVIRONMENT
@@ -205,7 +206,6 @@ const allowedOrigins = new Set([
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Preserve the existing permissive CORS behavior.
     return callback(null, true);
   },
   credentials: true,
@@ -308,10 +308,6 @@ const getTutorReference = (payload) => {
   );
 };
 
-/*
- * The student enrollment reference must come from the verified JWT.
- * A client-supplied enrollment ID is never accepted as proof of identity.
- */
 const getEnrollmentReference = (payload) => {
   return clean(
     payload?.enrollmentId ||
@@ -332,6 +328,21 @@ const getSocketError = (message, code = "LIVE_CLASS_ERROR") => ({
   code,
   message,
 });
+
+// ============================================================
+// WEBRTC TARGET HELPER
+// ACCEPTS ALL CLIENT TARGET FIELD VARIATIONS
+// ============================================================
+
+const getWebRTCTargetId = (payload = {}) => {
+  return clean(
+    payload.targetSocketId ||
+    payload.target_socket_id ||
+    payload.to ||
+    payload.socketId ||
+    payload.socket_id
+  );
+};
 
 // ============================================================
 // SOCKET AUTHENTICATION
@@ -580,7 +591,6 @@ io.on("connection", (socket) => {
 
       const room = getLiveRoomName(classId);
 
-      // Leave an old room if this socket changes classrooms.
       if (socket.data.liveClass?.room) {
         socket.leave(socket.data.liveClass.room);
       }
@@ -612,14 +622,13 @@ io.on("connection", (socket) => {
         callback(response);
       }
 
-      // Notify the other participants.
       socket.to(room).emit("live:peer-joined", {
         socketId: socket.id,
         role: socket.data.identity.role,
         classId: String(classId),
       });
 
-      // If the tutor joins, notify students already waiting.
+      // Tutor joins: notify students already waiting.
       if (socket.data.identity.role === "tutor") {
         socket.to(room).emit("live:tutor-available", {
           tutorSocketId: socket.id,
@@ -627,12 +636,38 @@ io.on("connection", (socket) => {
         });
       }
 
-      // If a student joins, notify the tutor.
+      // Student joins: notify tutor and send existing media state.
       if (socket.data.identity.role === "student") {
         socket.to(room).emit("live:student-ready", {
           studentSocketId: socket.id,
           classId: String(classId),
         });
+
+        const tutorSocket = [
+          ...io.sockets.sockets.values(),
+        ].find((connectedSocket) => {
+          const connectedClass = connectedSocket.data.liveClass;
+
+          return (
+            connectedClass &&
+            connectedClass.role === "tutor" &&
+            String(connectedClass.classId) === String(classId)
+          );
+        });
+
+        if (tutorSocket?.data?.mediaState) {
+          socket.emit("live:media-state", {
+            socketId: tutorSocket.id,
+            role: "tutor",
+            classId: String(classId),
+            ...tutorSocket.data.mediaState,
+          });
+
+          console.log(
+            "SENT EXISTING TUTOR MEDIA STATE TO STUDENT:",
+            socket.id
+          );
+        }
       }
 
       console.log(
@@ -683,9 +718,13 @@ io.on("connection", (socket) => {
         throw new Error("Only the classroom tutor can send offers.");
       }
 
+      if (!payload.offer) {
+        throw new Error("WebRTC offer data is missing.");
+      }
+
       const target = await getAuthorizedTarget(
         socket,
-        payload.targetSocketId
+        getWebRTCTargetId(payload)
       );
 
       if (target.data.liveClass.role !== "student") {
@@ -698,8 +737,17 @@ io.on("connection", (socket) => {
         classId: liveClass.classId,
       });
 
+      console.log("WEBRTC OFFER RELAYED:", {
+        from: socket.id,
+        to: target.id,
+        classId: liveClass.classId,
+      });
+
       if (typeof callback === "function") {
-        callback({ success: true });
+        callback({
+          success: true,
+          targetSocketId: target.id,
+        });
       }
     } catch (error) {
       console.error("WEBRTC OFFER ERROR:", error?.message);
@@ -722,9 +770,13 @@ io.on("connection", (socket) => {
         throw new Error("Only students can answer classroom offers.");
       }
 
+      if (!payload.answer) {
+        throw new Error("WebRTC answer data is missing.");
+      }
+
       const target = await getAuthorizedTarget(
         socket,
-        payload.targetSocketId
+        getWebRTCTargetId(payload)
       );
 
       if (target.data.liveClass.role !== "tutor") {
@@ -737,8 +789,17 @@ io.on("connection", (socket) => {
         classId: liveClass.classId,
       });
 
+      console.log("WEBRTC ANSWER RELAYED:", {
+        from: socket.id,
+        to: target.id,
+        classId: liveClass.classId,
+      });
+
       if (typeof callback === "function") {
-        callback({ success: true });
+        callback({
+          success: true,
+          targetSocketId: target.id,
+        });
       }
     } catch (error) {
       console.error("WEBRTC ANSWER ERROR:", error?.message);
@@ -751,6 +812,7 @@ io.on("connection", (socket) => {
 
   // ----------------------------------------------------------
   // ICE CANDIDATE RELAY
+  // TUTOR <-> STUDENT
   // ----------------------------------------------------------
 
   socket.on(
@@ -760,12 +822,18 @@ io.on("connection", (socket) => {
         const liveClass = socket.data.liveClass;
 
         if (!liveClass) {
-          throw new Error("Join the classroom before sending ICE candidates.");
+          throw new Error(
+            "Join the classroom before sending ICE candidates."
+          );
+        }
+
+        if (!payload.candidate) {
+          throw new Error("ICE candidate data is missing.");
         }
 
         const target = await getAuthorizedTarget(
           socket,
-          payload.targetSocketId
+          getWebRTCTargetId(payload)
         );
 
         target.emit("webrtc:ice-candidate", {
@@ -774,8 +842,18 @@ io.on("connection", (socket) => {
           classId: liveClass.classId,
         });
 
+        console.log("ICE CANDIDATE RELAYED:", {
+          from: socket.id,
+          to: target.id,
+          role: liveClass.role,
+          classId: liveClass.classId,
+        });
+
         if (typeof callback === "function") {
-          callback({ success: true });
+          callback({
+            success: true,
+            targetSocketId: target.id,
+          });
         }
       } catch (error) {
         console.error("ICE CANDIDATE ERROR:", error?.message);
@@ -793,18 +871,63 @@ io.on("connection", (socket) => {
   // MEDIA STATE
   // ----------------------------------------------------------
 
-  socket.on("live:media-state", (payload = {}) => {
-    const liveClass = socket.data.liveClass;
+  socket.on("live:media-state", (payload = {}, callback) => {
+    try {
+      const liveClass = socket.data.liveClass;
 
-    if (!liveClass) return;
+      if (!liveClass) {
+        throw new Error(
+          "Join the classroom before publishing media state."
+        );
+      }
 
-    socket.to(liveClass.room).emit("live:media-state", {
-      socketId: socket.id,
-      role: liveClass.role,
-      cameraEnabled: Boolean(payload.cameraEnabled),
-      microphoneEnabled: Boolean(payload.microphoneEnabled),
-      screenSharing: Boolean(payload.screenSharing),
-    });
+      // Supports both nested and flat payload structures.
+      const media = payload.mediaState || payload;
+
+      const mediaState = {
+        cameraEnabled: Boolean(media.cameraEnabled),
+        microphoneEnabled: Boolean(media.microphoneEnabled),
+        screenSharing: Boolean(media.screenSharing),
+      };
+
+      // Save the latest state on this socket.
+      socket.data.mediaState = mediaState;
+
+      const outgoingPayload = {
+        socketId: socket.id,
+        role: liveClass.role,
+        classId: liveClass.classId,
+        ...mediaState,
+      };
+
+      // Send media state to the other classroom participants.
+      socket.to(liveClass.room).emit(
+        "live:media-state",
+        outgoingPayload
+      );
+
+      console.log("LIVE MEDIA STATE:", {
+        role: liveClass.role,
+        classId: liveClass.classId,
+        socketId: socket.id,
+        ...mediaState,
+      });
+
+      if (typeof callback === "function") {
+        callback({
+          success: true,
+          mediaState,
+        });
+      }
+    } catch (error) {
+      console.error("LIVE MEDIA STATE ERROR:", error.message);
+
+      if (typeof callback === "function") {
+        callback(
+          getSocketError(error.message, "MEDIA_STATE_FAILED")
+        );
+      }
+    }
   });
 
   // ----------------------------------------------------------
@@ -823,7 +946,16 @@ io.on("connection", (socket) => {
     });
 
     socket.leave(liveClass.room);
+
     socket.data.liveClass = null;
+    socket.data.mediaState = null;
+    socket.data.participant = null;
+
+    console.log("LIVE LEAVE:", {
+      socketId: socket.id,
+      role: liveClass.role,
+      classId: liveClass.classId,
+    });
   });
 
   // ----------------------------------------------------------
@@ -1020,6 +1152,7 @@ app.get("/", (req, res) => {
       liveOfferEvent: "webrtc:offer",
       liveAnswerEvent: "webrtc:answer",
       liveIceEvent: "webrtc:ice-candidate",
+      liveMediaStateEvent: "live:media-state",
     },
 
     database: {
@@ -1122,6 +1255,7 @@ app.get("/api/health", async (req, res) => {
       socketIO: true,
       authentication: jwtConfigured,
       signalingHandlers: true,
+      mediaStateRelay: true,
       transport: "WebRTC signaling",
     },
 
@@ -1329,6 +1463,11 @@ app.use(
   academyTutorAnnouncements
 );
 
+app.use(
+  "/api/academy/tutor",
+  academyLiveClassChatRoutes
+);
+
 // ============================================================
 // LEGACY ASSIGNMENT FILE URL COMPATIBILITY
 // ============================================================
@@ -1530,6 +1669,8 @@ server.listen(PORT, () => {
   console.log("   Classroom authorization: ENABLED");
   console.log("   WebRTC signaling: ENABLED");
   console.log("   Offer / Answer / ICE relay: ENABLED");
+  console.log("   Target socket aliases: ENABLED");
+  console.log("   Media state relay: ENABLED");
 
   console.log("");
   console.log("HEALTH:");

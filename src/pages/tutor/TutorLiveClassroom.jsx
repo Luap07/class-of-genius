@@ -125,6 +125,21 @@ const getTutorName = () => {
   );
 };
 
+const getTutorProfileImage = () => {
+  const tutor = readTutor();
+
+  return (
+    tutor.profile_image_url ||
+    tutor.profileImageUrl ||
+    tutor.profileImage ||
+    tutor.profile_picture_url ||
+    tutor.profile_picture ||
+    tutor.avatar_url ||
+    tutor.avatar ||
+    ""
+  );
+};
+
 const getHeaders = () => {
   const token = getToken();
   const reference = getTutorReference();
@@ -931,6 +946,80 @@ const TutorLiveClassroom = () => {
   );
 
   /* =======================================================
+     PUBLISH ACTIVE TUTOR CLASSROOM STAGE TO STUDENTS
+  ======================================================= */
+
+  const publishTutorStage = useCallback(
+    (panelOverride = null) => {
+      const panel = panelOverride || activePanel;
+
+      // Chat, participants and resources are tutor-only panels.
+      // They must not replace the lesson content being shown to students.
+      const stageByPanel = {
+        video: "waiting",
+        whiteboard: "whiteboard",
+        presentation: "presentation",
+      };
+
+      const stage = stageByPanel[panel];
+      if (!stage || !classId) return null;
+
+      const payload = {
+        liveClassId: classId,
+        live_class_id: classId,
+        stage,
+        activeStage: stage,
+        active_stage: stage,
+        tool: stage,
+        tutorName,
+        tutorProfileImage: getTutorProfileImage(),
+        tutor_profile_image_url: getTutorProfileImage(),
+      };
+
+      // Persist the selected lesson stage. Students also poll /state, so
+      // switching tools still works if a socket event is missed.
+      apiRequest(
+        `/api/academy/live-classes/${encodeURIComponent(classId)}/stage`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            stage,
+            activeStage: stage,
+            active_stage: stage,
+            stage_state: {
+              stage,
+              activeStage: stage,
+              presentation: panel === "presentation" ? presentation : undefined,
+            },
+            stageState: {
+              stage,
+              activeStage: stage,
+              presentation: panel === "presentation" ? presentation : undefined,
+            },
+            tutorReference,
+            tutor_reference: tutorReference,
+          }),
+        }
+      ).catch((error) => {
+        console.warn("Unable to persist live classroom stage:", error.message);
+      });
+
+      socketRef.current?.emit("live:stage-update", payload);
+      socketRef.current?.emit("live:classroom-state", {
+        ...payload,
+        classroomState: {
+          stage,
+          activeStage: stage,
+          presentation: panel === "presentation" ? presentation : null,
+        },
+      });
+
+      return stage;
+    },
+    [activePanel, classId, presentation, tutorName, tutorReference]
+  );
+
+  /* =======================================================
      SOCKET CONNECTION
   ======================================================= */
 
@@ -991,6 +1080,7 @@ const TutorLiveClassroom = () => {
 
       setSocketConnected(true);
       publishTutorMediaState();
+      publishTutorStage();
     });
 
     socket.on("connect_error", (socketError) => {
@@ -1038,6 +1128,7 @@ const TutorLiveClassroom = () => {
         payload?.id;
 
       publishTutorMediaState();
+      publishTutorStage();
 
       if (socketId && !peersRef.current.has(socketId)) {
         try {
@@ -1353,6 +1444,7 @@ const TutorLiveClassroom = () => {
     updateRemoteStream,
     removeRemoteStream,
     publishTutorMediaState,
+    publishTutorStage,
     addRemoteIceCandidate,
     flushIceCandidates,
   ]);
@@ -1427,15 +1519,18 @@ const TutorLiveClassroom = () => {
     (nextPresentation) => {
       setPresentation(nextPresentation);
 
-      socketRef.current?.emit(
-        "live:presentation-update",
-        {
-          liveClassId: classId,
-          presentation: nextPresentation,
-        }
-      );
+      const payload = {
+        liveClassId: classId,
+        live_class_id: classId,
+        presentation: nextPresentation,
+        stage: "presentation",
+        activeStage: "presentation",
+      };
+
+      socketRef.current?.emit("live:presentation-update", payload);
+      publishTutorStage("presentation");
     },
-    [classId]
+    [classId, publishTutorStage]
   );
 
   /* =======================================================
@@ -1545,7 +1640,8 @@ const TutorLiveClassroom = () => {
     if (!validPanels.includes(selectedPanel)) return;
 
     setActivePanel(selectedPanel);
-  }, []);
+    publishTutorStage(selectedPanel);
+  }, [publishTutorStage]);
 
   /* =======================================================
      START CLASS
@@ -2044,7 +2140,7 @@ const TutorLiveClassroom = () => {
                   </div>
 
                   <button
-                    onClick={() => setActivePanel("video")}
+                    onClick={() => handlePanelChange("video")}
                     className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition hover:bg-white/10 hover:text-white"
                     title="Return to video"
                   >

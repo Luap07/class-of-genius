@@ -26,6 +26,7 @@ export default function PresentationViewer({
   tutorReference,
   presentation,
   onPresentationChange,
+  isTutor = true,
 }) {
   const fileInputRef = useRef(null);
   const isMountedRef = useRef(true);
@@ -61,7 +62,6 @@ export default function PresentationViewer({
 
   const getHeaders = useCallback(() => {
     const token = getToken();
-
     const headers = {};
 
     if (token) {
@@ -109,8 +109,9 @@ export default function PresentationViewer({
     };
   }, []);
 
-  // Keep the viewer synchronized when the tutor or server
-  // sends a presentation update.
+  // Receive presentation updates from the parent classroom.
+  // The parent is responsible for synchronising these updates
+  // between the tutor and students using Socket.IO.
   useEffect(() => {
     if (!presentation) {
       setPage(1);
@@ -126,16 +127,27 @@ export default function PresentationViewer({
     setTotalPages(
       Math.max(1, Number(presentation.total_pages) || 1)
     );
+
+    setZoom(
+      Math.max(
+        50,
+        Math.min(
+          200,
+          Number(presentation.current_zoom) || 100
+        )
+      )
+    );
   }, [
     presentation?.url,
     presentation?.current_page,
     presentation?.total_pages,
+    presentation?.current_zoom,
   ]);
 
   const handleFileSelect = async (event) => {
-    const selectedFile = event.target.files?.[0];
+    if (!isTutor) return;
 
-    // Allow selecting the same file again later.
+    const selectedFile = event.target.files?.[0];
     event.target.value = "";
 
     if (!selectedFile) return;
@@ -147,22 +159,20 @@ export default function PresentationViewer({
       return;
     }
 
-    const fileNameLower = selectedFile.name.toLowerCase();
+    const lowerName = selectedFile.name.toLowerCase();
 
     const allowed =
       selectedFile.type === "application/pdf" ||
-      fileNameLower.endsWith(".pdf") ||
-      fileNameLower.endsWith(".ppt") ||
-      fileNameLower.endsWith(".pptx");
+      lowerName.endsWith(".pdf") ||
+      lowerName.endsWith(".ppt") ||
+      lowerName.endsWith(".pptx");
 
     if (!allowed) {
       setError("Please select a PDF, PPT or PPTX file.");
       return;
     }
 
-    const maxSize = 50 * 1024 * 1024;
-
-    if (selectedFile.size > maxSize) {
+    if (selectedFile.size > 50 * 1024 * 1024) {
       setError("The presentation must be 50MB or smaller.");
       return;
     }
@@ -187,55 +197,47 @@ export default function PresentationViewer({
       if (!response.ok || result.success === false) {
         throw new Error(
           result.message ||
-            "The presentation could not be uploaded. Please check the server upload route."
+            "The presentation could not be uploaded."
         );
       }
 
-      // Accept common response shapes, but require a permanent URL.
-      const uploadedPresentation =
+      const uploaded =
         result.presentation ||
         result.data?.presentation ||
         result.data ||
         result;
 
       const uploadedUrl =
-        uploadedPresentation.url ||
-        uploadedPresentation.file_url ||
-        uploadedPresentation.fileUrl;
+        uploaded.url ||
+        uploaded.file_url ||
+        uploaded.fileUrl;
 
       if (!uploadedUrl) {
         throw new Error(
-          "The server did not return a presentation URL. The upload cannot be shared with students."
+          "The server did not return a presentation URL."
         );
       }
 
       const presentationData = {
         name:
-          uploadedPresentation.name ||
-          uploadedPresentation.file_name ||
+          uploaded.name ||
+          uploaded.file_name ||
           selectedFile.name,
 
         file_name:
-          uploadedPresentation.file_name ||
-          uploadedPresentation.name ||
+          uploaded.file_name ||
+          uploaded.name ||
           selectedFile.name,
 
-        type:
-          uploadedPresentation.type ||
-          selectedFile.type,
-
-        size:
-          uploadedPresentation.size ||
-          selectedFile.size,
-
+        type: uploaded.type || selectedFile.type,
+        size: uploaded.size || selectedFile.size,
         url: uploadedUrl,
-
         current_page: 1,
-
         total_pages: Math.max(
           1,
-          Number(uploadedPresentation.total_pages) || 1
+          Number(uploaded.total_pages) || 1
         ),
+        current_zoom: 100,
       };
 
       if (!isMountedRef.current) return;
@@ -244,7 +246,7 @@ export default function PresentationViewer({
       setTotalPages(presentationData.total_pages);
       setZoom(100);
 
-      // Parent broadcasts the permanent URL to the classroom.
+      // The parent classroom broadcasts this update.
       onPresentationChange?.(presentationData);
     } catch (err) {
       if (isMountedRef.current) {
@@ -260,45 +262,76 @@ export default function PresentationViewer({
     }
   };
 
-  const updatePage = (nextPage) => {
-    const safePage = Math.max(
-      1,
-      Math.min(totalPages, nextPage)
-    );
+  const updatePage = useCallback(
+    (nextPage) => {
+      if (!isTutor || !presentation) return;
 
-    setPage(safePage);
+      const safePage = Math.max(
+        1,
+        Math.min(totalPages, nextPage)
+      );
 
-    if (presentation) {
+      setPage(safePage);
+
       onPresentationChange?.({
         ...presentation,
         current_page: safePage,
         total_pages: totalPages,
+        current_zoom: zoom,
       });
-    }
-  };
+    },
+    [
+      isTutor,
+      presentation,
+      totalPages,
+      zoom,
+      onPresentationChange,
+    ]
+  );
 
-  const previousPage = () => {
-    updatePage(page - 1);
-  };
+  const updateZoom = useCallback(
+    (nextZoom) => {
+      if (!isTutor || !presentation) return;
 
-  const nextPage = () => {
-    updatePage(page + 1);
-  };
+      const safeZoom = Math.max(
+        50,
+        Math.min(200, nextZoom)
+      );
 
-  const zoomIn = () => {
-    setZoom((current) => Math.min(200, current + 10));
-  };
+      setZoom(safeZoom);
 
-  const zoomOut = () => {
-    setZoom((current) => Math.max(50, current - 10));
-  };
+      onPresentationChange?.({
+        ...presentation,
+        current_page: page,
+        total_pages: totalPages,
+        current_zoom: safeZoom,
+      });
+    },
+    [
+      isTutor,
+      presentation,
+      page,
+      totalPages,
+      onPresentationChange,
+    ]
+  );
+
+  const previousPage = () => updatePage(page - 1);
+  const nextPage = () => updatePage(page + 1);
+
+  const zoomIn = () => updateZoom(zoom + 10);
+  const zoomOut = () => updateZoom(zoom - 10);
 
   const toggleFullscreen = () => {
     setFullscreen((current) => !current);
   };
 
   const clearPresentation = async () => {
-    if (!window.confirm("Remove this presentation from the classroom?")) {
+    if (!isTutor || !liveClassId) return;
+
+    if (!window.confirm(
+      "Remove this presentation from the classroom?"
+    )) {
       return;
     }
 
@@ -325,6 +358,7 @@ export default function PresentationViewer({
       setTotalPages(1);
       setZoom(100);
 
+      // Parent must broadcast the removal to students.
       onPresentationChange?.(null);
     } catch (err) {
       setError(
@@ -336,9 +370,7 @@ export default function PresentationViewer({
   return (
     <div
       className={`w-full h-full min-h-0 bg-slate-950 text-white flex flex-col ${
-        fullscreen
-          ? "fixed inset-0 z-[9999]"
-          : "relative"
+        fullscreen ? "fixed inset-0 z-[9999]" : "relative"
       }`}
     >
       {/* TOP BAR */}
@@ -353,42 +385,48 @@ export default function PresentationViewer({
               {presentation ? fileName : "Presentation"}
             </p>
 
-            {presentation && (
-              <p className="text-[11px] text-white/40">
-                {isPdf
-                  ? "PDF presentation"
-                  : isPowerPoint
-                  ? "PowerPoint presentation"
-                  : "Classroom presentation"}
-              </p>
-            )}
+            <p className="text-[11px] text-white/40">
+              {!presentation
+                ? isTutor
+                  ? "Ready for your lesson"
+                  : "Waiting for tutor presentation"
+                : isPdf
+                ? "PDF presentation"
+                : isPowerPoint
+                ? "PowerPoint presentation"
+                : "Classroom presentation"}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={zoomOut}
-            disabled={!presentation}
-            className="w-9 h-9 rounded-lg hover:bg-white/10 disabled:opacity-30 flex items-center justify-center"
-            title="Zoom out"
-          >
-            <ZoomOut size={17} />
-          </button>
+          {presentation && (
+            <>
+              <button
+                type="button"
+                onClick={zoomOut}
+                disabled={!isTutor || zoom <= 50}
+                className="w-9 h-9 rounded-lg hover:bg-white/10 disabled:opacity-30 flex items-center justify-center"
+                title="Zoom out"
+              >
+                <ZoomOut size={17} />
+              </button>
 
-          <span className="text-xs text-white/60 w-12 text-center">
-            {zoom}%
-          </span>
+              <span className="text-xs text-white/60 w-12 text-center">
+                {zoom}%
+              </span>
 
-          <button
-            type="button"
-            onClick={zoomIn}
-            disabled={!presentation}
-            className="w-9 h-9 rounded-lg hover:bg-white/10 disabled:opacity-30 flex items-center justify-center"
-            title="Zoom in"
-          >
-            <ZoomIn size={17} />
-          </button>
+              <button
+                type="button"
+                onClick={zoomIn}
+                disabled={!isTutor || zoom >= 200}
+                className="w-9 h-9 rounded-lg hover:bg-white/10 disabled:opacity-30 flex items-center justify-center"
+                title="Zoom in"
+              >
+                <ZoomIn size={17} />
+              </button>
+            </>
+          )}
 
           <button
             type="button"
@@ -410,39 +448,43 @@ export default function PresentationViewer({
         {!presentation ? (
           <div className="text-center max-w-md px-4">
             <div className="w-20 h-20 mx-auto rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
-              <FileText
-                size={38}
-                className="text-white/30"
-              />
+              <FileText size={38} className="text-white/30" />
             </div>
 
             <h2 className="text-xl font-bold mb-2">
-              Share a presentation
+              {isTutor
+                ? "Share a presentation"
+                : "Waiting for the tutor"}
             </h2>
 
             <p className="text-sm text-white/50 mb-6">
-              Upload a PDF or PowerPoint presentation
-              for your students to follow during the lesson.
+              {isTutor
+                ? "Upload a PDF or PowerPoint presentation for your students to follow."
+                : "The tutor's presentation will appear here automatically when opened."}
             </p>
 
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-slate-900 font-semibold hover:bg-white/90 disabled:opacity-50"
-            >
-              {uploading ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Upload size={18} />
-              )}
+            {isTutor && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-slate-900 font-semibold hover:bg-white/90 disabled:opacity-50"
+                >
+                  {uploading ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Upload size={18} />
+                  )}
 
-              {uploading ? "Uploading..." : "Upload PDF / PowerPoint"}
-            </button>
+                  {uploading ? "Uploading..." : "Upload PDF / PowerPoint"}
+                </button>
 
-            <p className="mt-4 text-xs text-white/30">
-              PDF, PPT and PPTX • Maximum 50MB
-            </p>
+                <p className="mt-4 text-xs text-white/30">
+                  PDF, PPT and PPTX • Maximum 50MB
+                </p>
+              </>
+            )}
           </div>
         ) : !presentationUrl ? (
           <div className="text-center max-w-md p-6">
@@ -450,9 +492,11 @@ export default function PresentationViewer({
               size={36}
               className="mx-auto mb-3 text-amber-400"
             />
+
             <p className="font-semibold">
               Presentation URL unavailable
             </p>
+
             <p className="text-sm text-white/50 mt-2">
               This presentation does not have a permanent
               file URL that students can access.
@@ -489,10 +533,9 @@ export default function PresentationViewer({
             </h3>
 
             <p className="text-sm text-slate-500 max-w-md">
-              The PowerPoint file has been uploaded and
-              shared. To display its slides inside this
-              classroom, the backend must convert the
-              PowerPoint document into viewable slide pages.
+              The PowerPoint file has been uploaded. To display
+              its slides directly inside the classroom, the
+              backend must convert it into viewable slide pages.
             </p>
 
             <p className="mt-4 text-xs text-slate-400 break-all">
@@ -516,16 +559,18 @@ export default function PresentationViewer({
       </div>
 
       {/* UPLOAD PROGRESS */}
-      {uploading && (
+      {uploading && isTutor && (
         <div className="absolute inset-0 z-40 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center">
           <div className="text-center">
             <Loader2
               size={38}
               className="animate-spin mx-auto mb-4 text-white"
             />
+
             <p className="font-semibold">
               Uploading presentation
             </p>
+
             <p className="text-xs text-white/50 mt-1">
               Please wait while the file is uploaded.
             </p>
@@ -558,7 +603,7 @@ export default function PresentationViewer({
             <button
               type="button"
               onClick={previousPage}
-              disabled={page <= 1}
+              disabled={!isTutor || page <= 1}
               className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/15 disabled:opacity-30 flex items-center justify-center"
               title="Previous page"
             >
@@ -577,7 +622,7 @@ export default function PresentationViewer({
             <button
               type="button"
               onClick={nextPage}
-              disabled={page >= totalPages}
+              disabled={!isTutor || page >= totalPages}
               className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/15 disabled:opacity-30 flex items-center justify-center"
               title="Next page"
             >
@@ -585,37 +630,47 @@ export default function PresentationViewer({
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-sm flex items-center gap-2 disabled:opacity-40"
-            >
-              <Upload size={16} />
-              Change file
-            </button>
+          {isTutor && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-sm flex items-center gap-2 disabled:opacity-40"
+              >
+                <Upload size={16} />
+                Change file
+              </button>
 
-            <button
-              type="button"
-              onClick={clearPresentation}
-              disabled={uploading}
-              className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 text-sm disabled:opacity-40"
-            >
-              Remove
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={clearPresentation}
+                disabled={uploading}
+                className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 text-sm disabled:opacity-40"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+
+          {!isTutor && (
+            <span className="text-xs text-white/40">
+              Following tutor's presentation
+            </span>
+          )}
         </div>
       )}
 
-      {/* FILE INPUT */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
+      {/* TUTOR-ONLY FILE INPUT */}
+      {isTutor && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+      )}
     </div>
   );
 }

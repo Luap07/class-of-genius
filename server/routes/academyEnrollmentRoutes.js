@@ -1,3 +1,4 @@
+
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -90,11 +91,8 @@ const SUBJECT_ALIASES = {
   math: "Mathematics",
 
   "basic science": "Basic Science",
-
   "basic technology": "Basic Technology",
-
   "social studies": "Social Studies",
-
   "civic education": "Civic Education",
 
   "computer studies": "Computer Studies",
@@ -107,7 +105,6 @@ const SUBJECT_ALIASES = {
   irs: "Islamic Religious Studies",
 
   "home economics": "Home Economics",
-
   "agricultural science": "Agricultural Science",
 
   "physical health education": "Physical and Health Education",
@@ -117,9 +114,7 @@ const SUBJECT_ALIASES = {
   cca: "Cultural and Creative Arts",
 
   "business studies": "Business Studies",
-
   "literature in english": "Literature in English",
-
   "further mathematics": "Further Mathematics",
 
   economics: "Economics",
@@ -141,8 +136,7 @@ const normalizeSubject = (value) => {
     return "";
   }
 
-  const alias =
-    SUBJECT_ALIASES[subject.toLowerCase()];
+  const alias = SUBJECT_ALIASES[subject.toLowerCase()];
 
   return alias || subject;
 };
@@ -155,10 +149,7 @@ const subjectsMatch = (a, b) => {
     return false;
   }
 
-  return (
-    first.toLowerCase() ===
-    second.toLowerCase()
-  );
+  return first.toLowerCase() === second.toLowerCase();
 };
 
 /* ============================================================
@@ -198,20 +189,16 @@ const getJwtSecret = () => {
 };
 
 const getBearerToken = (req) => {
-  const authorization =
-    req.headers.authorization;
+  const authorization = req.headers.authorization;
 
   if (
     authorization &&
     authorization.startsWith("Bearer ")
   ) {
-    return clean(
-      authorization.substring(7)
-    );
+    return clean(authorization.substring(7));
   }
 
-  const academyToken =
-    req.headers["x-academy-token"];
+  const academyToken = req.headers["x-academy-token"];
 
   return clean(academyToken);
 };
@@ -229,24 +216,19 @@ const POSSIBLE_ENROLLMENT_TABLES = [
 
 const findEnrollmentTable = async () => {
   for (const table of POSSIBLE_ENROLLMENT_TABLES) {
-    const [schema, tableName] =
-      table.split(".");
+    const [schema, tableName] = table.split(".");
 
-    const result =
-      await pool.query(
-        `
-        SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = $1
-            AND table_name = $2
-        ) AS exists
-        `,
-        [
-          schema,
-          tableName,
-        ]
-      );
+    const result = await pool.query(
+      `
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = $1
+          AND table_name = $2
+      ) AS exists
+      `,
+      [schema, tableName]
+    );
 
     if (result.rows[0]?.exists) {
       return table;
@@ -265,37 +247,27 @@ const getTableColumns = async (table) => {
     return [];
   }
 
-  const [schema, tableName] =
-    table.split(".");
+  const [schema, tableName] = table.split(".");
 
-  const result =
-    await pool.query(
-      `
-      SELECT
-        column_name
-      FROM information_schema.columns
-      WHERE table_schema = $1
-        AND table_name = $2
-      ORDER BY ordinal_position
-      `,
-      [
-        schema,
-        tableName,
-      ]
-    );
-
-  return result.rows.map(
-    (row) => row.column_name
+  const result = await pool.query(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = $1
+      AND table_name = $2
+    ORDER BY ordinal_position
+    `,
+    [schema, tableName]
   );
+
+  return result.rows.map((row) => row.column_name);
 };
 
 /* ============================================================
    ENSURE PASSWORD COLUMNS
 ============================================================ */
 
-const ensurePasswordColumns = async (
-  table
-) => {
+const ensurePasswordColumns = async (table) => {
   if (!table) {
     return;
   }
@@ -319,9 +291,7 @@ const ensurePasswordColumns = async (
    STUDENT IDENTIFIER COLUMNS
 ============================================================ */
 
-const getStudentIdentifierColumns = (
-  columns
-) => {
+const getStudentIdentifierColumns = (columns) => {
   const possible = [
     "student_id",
     "studentId",
@@ -334,10 +304,7 @@ const getStudentIdentifierColumns = (
     "id",
   ];
 
-  return possible.filter(
-    (column) =>
-      columns.includes(column)
-  );
+  return possible.filter((column) => columns.includes(column));
 };
 
 /* ============================================================
@@ -355,20 +322,13 @@ const findStudentEnrollment = async ({
     return null;
   }
 
-  const identifiers =
-    uniqueStrings([
-      studentId,
-      enrollmentId,
-    ]);
+  const identifiers = uniqueStrings([
+    studentId,
+    enrollmentId,
+  ]);
 
   const identifierColumns =
-    getStudentIdentifierColumns(
-      columns
-    );
-
-  /* ----------------------------------------------------------
-     IDENTIFIER SEARCH
-  ---------------------------------------------------------- */
+    getStudentIdentifierColumns(columns);
 
   if (
     identifiers.length &&
@@ -376,18 +336,15 @@ const findStudentEnrollment = async ({
   ) {
     for (const identifier of identifiers) {
       for (const column of identifierColumns) {
-        const result =
-          await pool.query(
-            `
-            SELECT *
-            FROM ${table}
-            WHERE CAST("${column}" AS TEXT) = $1
-            LIMIT 1
-            `,
-            [
-              identifier,
-            ]
-          );
+        const result = await pool.query(
+          `
+          SELECT *
+          FROM ${table}
+          WHERE CAST("${column}" AS TEXT) = $1
+          LIMIT 1
+          `,
+          [identifier]
+        );
 
         if (result.rows.length) {
           return result.rows[0];
@@ -396,39 +353,25 @@ const findStudentEnrollment = async ({
     }
   }
 
-  /* ----------------------------------------------------------
-     EMAIL SEARCH
-  ---------------------------------------------------------- */
-
   const emailColumns = [
     "email",
     "student_email",
     "studentEmail",
-  ].filter(
-    (column) =>
-      columns.includes(column)
-  );
+  ].filter((column) => columns.includes(column));
 
-  const normalizedEmail =
-    clean(email).toLowerCase();
+  const normalizedEmail = clean(email).toLowerCase();
 
-  if (
-    normalizedEmail &&
-    emailColumns.length
-  ) {
+  if (normalizedEmail && emailColumns.length) {
     for (const column of emailColumns) {
-      const result =
-        await pool.query(
-          `
-          SELECT *
-          FROM ${table}
-          WHERE LOWER(TRIM(CAST("${column}" AS TEXT))) = $1
-          LIMIT 1
-          `,
-          [
-            normalizedEmail,
-          ]
-        );
+      const result = await pool.query(
+        `
+        SELECT *
+        FROM ${table}
+        WHERE LOWER(TRIM(CAST("${column}" AS TEXT))) = $1
+        LIMIT 1
+        `,
+        [normalizedEmail]
+      );
 
       if (result.rows.length) {
         return result.rows[0];
@@ -443,10 +386,7 @@ const findStudentEnrollment = async ({
    STUDENT SUBJECT EXTRACTION
 ============================================================ */
 
-const getSubjectsFromEnrollment = (
-  student,
-  columns
-) => {
+const getSubjectsFromEnrollment = (student, columns) => {
   const possibleColumns = [
     "subjects",
     "subject",
@@ -465,8 +405,7 @@ const getSubjectsFromEnrollment = (
       continue;
     }
 
-    const raw =
-      student[column];
+    const raw = student[column];
 
     if (
       raw === undefined ||
@@ -480,65 +419,47 @@ const getSubjectsFromEnrollment = (
 
     if (Array.isArray(raw)) {
       values = raw;
-    } else if (
-      typeof raw === "object"
-    ) {
+    } else if (typeof raw === "object") {
       values = Object.values(raw);
     } else {
-      const parsed =
-        parseJsonValue(
-          raw,
-          null
-        );
+      const parsed = parseJsonValue(raw, null);
 
       if (Array.isArray(parsed)) {
         values = parsed;
       } else {
         values = String(raw)
           .split(",")
-          .map(
-            (item) =>
-              item.trim()
-          );
+          .map((item) => item.trim());
       }
     }
 
-    const subjects =
-      values
-        .map((item) => {
-          if (
-            typeof item ===
-            "string"
-          ) {
-            return normalizeSubject(
-              item
-            );
-          }
+    const subjects = values
+      .map((item) => {
+        if (typeof item === "string") {
+          return normalizeSubject(item);
+        }
 
-          if (
-            item &&
-            typeof item ===
-              "object"
-          ) {
-            return normalizeSubject(
-              firstValue(
-                item.subject,
-                item.subject_name,
-                item.subjectName,
-                item.name,
-                item.title
-              )
-            );
-          }
+        if (
+          item &&
+          typeof item === "object"
+        ) {
+          return normalizeSubject(
+            firstValue(
+              item.subject,
+              item.subject_name,
+              item.subjectName,
+              item.name,
+              item.title
+            )
+          );
+        }
 
-          return "";
-        })
-        .filter(Boolean);
+        return "";
+      })
+      .filter(Boolean);
 
     if (subjects.length) {
-      return uniqueStrings(
-        subjects
-      );
+      return uniqueStrings(subjects);
     }
   }
 
@@ -549,10 +470,7 @@ const getSubjectsFromEnrollment = (
    STUDENT CLASS
 ============================================================ */
 
-const getStudentClass = (
-  student,
-  columns
-) => {
+const getStudentClass = (student, columns) => {
   const possibleColumns = [
     "grade",
     "class",
@@ -574,10 +492,7 @@ const getStudentClass = (
       continue;
     }
 
-    const value =
-      normalizeClass(
-        student[column]
-      );
+    const value = normalizeClass(student[column]);
 
     if (value) {
       return value;
@@ -591,10 +506,7 @@ const getStudentClass = (
    STUDENT SCHOOL LEVEL
 ============================================================ */
 
-const getStudentSchoolLevel = (
-  student,
-  columns
-) => {
+const getStudentSchoolLevel = (student, columns) => {
   const possibleColumns = [
     "school_level",
     "schoolLevel",
@@ -610,8 +522,7 @@ const getStudentSchoolLevel = (
       continue;
     }
 
-    const value =
-      clean(student[column]);
+    const value = clean(student[column]);
 
     if (value) {
       return value;
@@ -625,111 +536,86 @@ const getStudentSchoolLevel = (
    TUTOR ASSIGNMENT SUBJECTS
 ============================================================ */
 
-const getSubjectsFromTutorAssignments =
-  async (
-    studentClass
-  ) => {
-    if (!studentClass) {
-      return [];
-    }
+const getSubjectsFromTutorAssignments = async (studentClass) => {
+  if (!studentClass) {
+    return [];
+  }
 
-    try {
-      const result =
-        await pool.query(
-          `
-          SELECT
-            assignments
-          FROM academy_tutor_applications
-          WHERE
-            application_status = 'verified'
-            OR account_status = 'verified'
-          `
-        );
+  try {
+    const result = await pool.query(
+      `
+      SELECT assignments
+      FROM academy_tutor_applications
+      WHERE
+        application_status = 'verified'
+        OR account_status = 'verified'
+      `
+    );
 
-      const subjects = [];
+    const subjects = [];
 
-      for (const row of result.rows) {
-        const assignments =
-          parseJsonValue(
-            row.assignments,
-            []
-          );
+    for (const row of result.rows) {
+      const assignments = parseJsonValue(
+        row.assignments,
+        []
+      );
 
+      if (!Array.isArray(assignments)) {
+        continue;
+      }
+
+      for (const assignment of assignments) {
         if (
-          !Array.isArray(
-            assignments
-          )
+          !assignment ||
+          typeof assignment !== "object"
         ) {
           continue;
         }
 
-        for (const assignment of assignments) {
-          if (
-            !assignment ||
-            typeof assignment !==
-              "object"
-          ) {
-            continue;
-          }
+        const assignedClass = firstValue(
+          assignment.class,
+          assignment.class_name,
+          assignment.className,
+          assignment.grade,
+          assignment.level
+        );
 
-          const assignedClass =
-            firstValue(
-              assignment.class,
-              assignment.class_name,
-              assignment.className,
-              assignment.grade,
-              assignment.level
-            );
+        const assignedSubject = firstValue(
+          assignment.subject,
+          assignment.subject_name,
+          assignment.subjectName,
+          assignment.subject_title,
+          assignment.subjectTitle
+        );
 
-          const assignedSubject =
-            firstValue(
-              assignment.subject,
-              assignment.subject_name,
-              assignment.subjectName,
-              assignment.subject_title,
-              assignment.subjectTitle
-            );
-
-          if (
-            classesMatch(
-              assignedClass,
-              studentClass
-            ) &&
-            assignedSubject
-          ) {
-            subjects.push(
-              normalizeSubject(
-                assignedSubject
-              )
-            );
-          }
+        if (
+          classesMatch(assignedClass, studentClass) &&
+          assignedSubject
+        ) {
+          subjects.push(
+            normalizeSubject(assignedSubject)
+          );
         }
       }
-
-      return uniqueStrings(
-        subjects
-      );
-    } catch (error) {
-      console.error(
-        "TUTOR ASSIGNMENT SUBJECT ERROR:",
-        error
-      );
-
-      return [];
     }
-  };
+
+    return uniqueStrings(subjects);
+  } catch (error) {
+    console.error(
+      "TUTOR ASSIGNMENT SUBJECT ERROR:",
+      error
+    );
+
+    return [];
+  }
+};
 
 /* ============================================================
    BUILD STUDENT SUBJECTS
 ============================================================ */
 
-const buildStudentSubjects = (
-  subjects,
-  studentClass
-) => {
-  return uniqueStrings(
-    subjects
-  ).map(
+const buildStudentSubjects = (subjects, studentClass) => {
+  return uniqueStrings(subjects).map(
     (subject, index) => ({
       id: `student-subject-${index + 1}`,
       subject,
@@ -751,86 +637,76 @@ const buildStudentSubjects = (
    SERIALIZE ENROLLMENT
 ============================================================ */
 
-const serializeEnrollment = (
-  row
-) => {
+const serializeEnrollment = (row) => {
   if (!row) {
     return null;
   }
 
-  const firstName =
-    firstValue(
-      row.first_name,
-      row.firstName,
-      row.firstname
-    );
+  const firstName = firstValue(
+    row.first_name,
+    row.firstName,
+    row.firstname
+  );
 
-  const lastName =
-    firstValue(
-      row.last_name,
-      row.lastName,
-      row.lastname
-    );
+  const lastName = firstValue(
+    row.last_name,
+    row.lastName,
+    row.lastname
+  );
 
-  const fullName =
-    firstValue(
-      row.full_name,
-      row.fullName,
-      `${firstName} ${lastName}`.trim(),
-      row.name
-    );
+  const fullName = firstValue(
+    row.full_name,
+    row.fullName,
+    `${firstName} ${lastName}`.trim(),
+    row.name
+  );
 
-  const email =
-    firstValue(
-      row.email,
-      row.student_email,
-      row.studentEmail
-    );
+  const email = firstValue(
+    row.email,
+    row.student_email,
+    row.studentEmail
+  );
 
-  const studentId =
-    firstValue(
-      row.student_id,
-      row.studentId,
-      row.enrollment_id,
-      row.enrollmentId,
-      row.enrollment_reference,
-      row.enrollmentReference,
-      row.reference,
-      row.id
-    );
+  const studentId = firstValue(
+    row.student_id,
+    row.studentId,
+    row.enrollment_id,
+    row.enrollmentId,
+    row.enrollment_reference,
+    row.enrollmentReference,
+    row.reference,
+    row.id
+  );
 
-  const enrollmentId =
-    firstValue(
-      row.enrollment_id,
-      row.enrollmentId,
-      row.enrollment_reference,
-      row.enrollmentReference,
-      row.reference,
-      row.id
-    );
+  const enrollmentId = firstValue(
+    row.enrollment_id,
+    row.enrollmentId,
+    row.enrollment_reference,
+    row.enrollmentReference,
+    row.reference,
+    row.id
+  );
 
-  const grade =
-    firstValue(
-      row.grade,
-      row.class,
-      row.current_class,
-      row.currentClass,
-      row.student_class,
-      row.studentClass,
-      row.school_class,
-      row.schoolClass,
-      row.level
-    );
+  const grade = firstValue(
+    row.grade,
+    row.class,
+    row.current_class,
+    row.currentClass,
+    row.student_class,
+    row.studentClass,
+    row.school_class,
+    row.schoolClass,
+    row.level
+  );
 
-  const schoolLevel =
-    firstValue(
-      row.school_level,
-      row.schoolLevel,
-      row.education_level,
-      row.educationLevel,
-      row.programme_level,
-      row.programmeLevel
-    );
+  const schoolLevel = firstValue(
+    row.school_level,
+    row.schoolLevel,
+    row.education_level,
+    row.educationLevel,
+    row.programme_level,
+    row.programmeLevel
+  );
 
   return {
     ...row,
@@ -868,186 +744,142 @@ const serializeEnrollment = (
    RESOLVE AUTHENTICATED STUDENT
 ============================================================ */
 
-const resolveAuthenticatedStudent =
-  async (req) => {
-    const table =
-      await findEnrollmentTable();
+const resolveAuthenticatedStudent = async (req) => {
+  const table = await findEnrollmentTable();
 
-    if (!table) {
-      throw new Error(
-        "Student enrollment table could not be found."
-      );
-    }
-
-    let columns =
-      await getTableColumns(
-        table
-      );
-
-    await ensurePasswordColumns(
-      table
+  if (!table) {
+    throw new Error(
+      "Student enrollment table could not be found."
     );
+  }
 
-    columns =
-      await getTableColumns(
-        table
+  let columns = await getTableColumns(table);
+
+  await ensurePasswordColumns(table);
+
+  columns = await getTableColumns(table);
+
+  const studentId = firstValue(
+    req.query.studentId,
+    req.query.student_id,
+    req.body?.studentId,
+    req.body?.student_id
+  );
+
+  const enrollmentId = firstValue(
+    req.query.enrollmentId,
+    req.query.enrollment_id,
+    req.query.enrollmentReference,
+    req.query.enrollment_reference,
+    req.body?.enrollmentId,
+    req.body?.enrollment_id
+  );
+
+  const email = firstValue(
+    req.query.email,
+    req.body?.email
+  );
+
+  let student = await findStudentEnrollment({
+    table,
+    columns,
+    studentId,
+    enrollmentId,
+    email,
+  });
+
+  let decoded = null;
+
+  if (!student) {
+    const token = getBearerToken(req);
+
+    if (!token) {
+      const error = new Error(
+        "Student authentication required."
       );
 
-    const studentId =
-      firstValue(
-        req.query.studentId,
-        req.query.student_id,
-        req.body?.studentId,
-        req.body?.student_id
-      );
-
-    const enrollmentId =
-      firstValue(
-        req.query.enrollmentId,
-        req.query.enrollment_id,
-        req.query.enrollmentReference,
-        req.query.enrollment_reference,
-        req.body?.enrollmentId,
-        req.body?.enrollment_id
-      );
-
-    const email =
-      firstValue(
-        req.query.email,
-        req.body?.email
-      );
-
-    let student =
-      await findStudentEnrollment({
-        table,
-        columns,
-        studentId,
-        enrollmentId,
-        email,
-      });
-
-    let decoded = null;
-
-    /* ----------------------------------------------------------
-       JWT FALLBACK
-    ---------------------------------------------------------- */
-
-    if (!student) {
-      const token =
-        getBearerToken(req);
-
-      if (!token) {
-        const error =
-          new Error(
-            "Student authentication required."
-          );
-
-        error.status = 401;
-
-        throw error;
-      }
-
-      try {
-        decoded =
-          jwt.verify(
-            token,
-            getJwtSecret()
-          );
-      } catch {
-        const error =
-          new Error(
-            "Invalid or expired student authentication token."
-          );
-
-        error.status = 401;
-
-        throw error;
-      }
-
-      if (
-        decoded?.userType !==
-        "student"
-      ) {
-        const error =
-          new Error(
-            "Student access required."
-          );
-
-        error.status = 403;
-
-        throw error;
-      }
-
-      student =
-        await findStudentEnrollment({
-          table,
-          columns,
-
-          studentId:
-            firstValue(
-              decoded.studentId,
-              decoded.student_id
-            ),
-
-          enrollmentId:
-            firstValue(
-              decoded.enrollmentId,
-              decoded.enrollment_id
-            ),
-
-          email:
-            firstValue(
-              decoded.email
-            ),
-        });
-    }
-
-    if (!student) {
-      const error =
-        new Error(
-          "Student enrollment could not be found."
-        );
-
-      error.status = 404;
-
+      error.status = 401;
       throw error;
     }
 
-    const serialized =
-      serializeEnrollment(
-        student
+    try {
+      decoded = jwt.verify(
+        token,
+        getJwtSecret()
+      );
+    } catch {
+      const error = new Error(
+        "Invalid or expired student authentication token."
       );
 
-    const studentClass =
-      getStudentClass(
-        student,
-        columns
+      error.status = 401;
+      throw error;
+    }
+
+    if (decoded?.userType !== "student") {
+      const error = new Error(
+        "Student access required."
       );
 
-    const schoolLevel =
-      getStudentSchoolLevel(
-        student,
-        columns
-      );
+      error.status = 403;
+      throw error;
+    }
 
-    return {
+    student = await findStudentEnrollment({
       table,
       columns,
-      student,
-      serialized,
-      studentClass,
-      schoolLevel,
-      decoded,
-    };
+
+      studentId: firstValue(
+        decoded.studentId,
+        decoded.student_id
+      ),
+
+      enrollmentId: firstValue(
+        decoded.enrollmentId,
+        decoded.enrollment_id
+      ),
+
+      email: firstValue(decoded.email),
+    });
+  }
+
+  if (!student) {
+    const error = new Error(
+      "Student enrollment could not be found."
+    );
+
+    error.status = 404;
+    throw error;
+  }
+
+  const serialized = serializeEnrollment(student);
+
+  const studentClass = getStudentClass(
+    student,
+    columns
+  );
+
+  const schoolLevel = getStudentSchoolLevel(
+    student,
+    columns
+  );
+
+  return {
+    table,
+    columns,
+    student,
+    serialized,
+    studentClass,
+    schoolLevel,
+    decoded,
   };
+};
 
 /* ============================================================
    RESOURCE FORMATTER
 ============================================================ */
 
-const formatStudentResource = (
-  resource
-) => {
+const formatStudentResource = (resource) => {
   if (!resource) {
     return null;
   }
@@ -1055,71 +887,162 @@ const formatStudentResource = (
   return {
     id: resource.id,
 
-    title:
-      clean(resource.title),
+    title: clean(resource.title),
 
-    description:
-      clean(resource.description),
+    description: clean(resource.description),
 
-    resource_type:
-      clean(
-        resource.resource_type
-      ),
+    resource_type: clean(resource.resource_type),
 
-    file_url:
-      clean(resource.file_url),
+    file_url: clean(resource.file_url),
 
-    videoUrl:
-      clean(resource.file_url),
+    videoUrl: clean(resource.file_url),
 
-    video_url:
-      clean(resource.file_url),
+    video_url: clean(resource.file_url),
 
-    topic_id:
-      resource.topic_id,
+    topic_id: resource.topic_id,
 
-    topic_title:
-      clean(resource.topic_title),
+    topic_title: clean(resource.topic_title),
 
-    class_name:
-      normalizeClass(
-        resource.class_name
-      ),
+    class_name: normalizeClass(resource.class_name),
 
-    class:
-      normalizeClass(
-        resource.class_name
-      ),
+    class: normalizeClass(resource.class_name),
 
-    grade:
-      normalizeClass(
-        resource.class_name
-      ),
+    grade: normalizeClass(resource.class_name),
 
-    className:
-      normalizeClass(
-        resource.class_name
-      ),
+    className: normalizeClass(resource.class_name),
 
-    subject:
-      normalizeSubject(
-        resource.subject
-      ),
+    subject: normalizeSubject(resource.subject),
 
-    subject_name:
-      normalizeSubject(
-        resource.subject
-      ),
+    subject_name: normalizeSubject(resource.subject),
 
-    subject_title:
-      normalizeSubject(
-        resource.subject
-      ),
+    subject_title: normalizeSubject(resource.subject),
 
-    created_at:
-      resource.created_at,
+    created_at: resource.created_at,
   };
 };
+
+/* ============================================================
+   TUTOR PROFILE
+===============================================================
+   GET /api/academy/tutor-application/:tutorReference
+
+   Database table: academy_tutor_applications
+
+   Actual database columns:
+   - reference
+   - first_name
+   - middle_name
+   - last_name
+   - profile_image_url
+
+   This endpoint is used by the student live classroom
+   to display the tutor's uploaded profile photograph.
+============================================================ */
+
+router.get(
+  "/tutor-application/:tutorReference",
+  async (req, res) => {
+    try {
+      const tutorReference = clean(
+        req.params.tutorReference
+      );
+
+      if (!tutorReference) {
+        return res.status(400).json({
+          success: false,
+          message: "Tutor reference is required.",
+        });
+      }
+
+      const result = await pool.query(
+        `
+        SELECT
+          reference,
+          first_name,
+          middle_name,
+          last_name,
+          profile_image_url,
+          application_status,
+          account_status
+        FROM academy_tutor_applications
+        WHERE UPPER(TRIM(reference)) = UPPER(TRIM($1))
+        LIMIT 1
+        `,
+        [tutorReference]
+      );
+
+      if (!result.rows.length) {
+        return res.status(404).json({
+          success: false,
+          message: "Tutor profile not found.",
+        });
+      }
+
+      const row = result.rows[0];
+
+      const firstName = clean(row.first_name);
+      const middleName = clean(row.middle_name);
+      const lastName = clean(row.last_name);
+
+      const fullName = [
+        firstName,
+        middleName,
+        lastName,
+      ].filter(Boolean).join(" ");
+
+      const profileImageUrl = clean(
+        row.profile_image_url
+      );
+
+      const tutor = {
+        reference: row.reference,
+        tutor_reference: row.reference,
+        tutorReference: row.reference,
+
+        first_name: firstName,
+        firstName,
+
+        middle_name: middleName,
+        middleName,
+
+        last_name: lastName,
+        lastName,
+
+        full_name: fullName,
+        fullName,
+        name: fullName,
+
+        profile_image_url: profileImageUrl,
+        profileImageUrl,
+        profileImage: profileImageUrl,
+        profile_picture_url: profileImageUrl,
+        profile_picture: profileImageUrl,
+        avatar_url: profileImageUrl,
+        avatar: profileImageUrl,
+
+        application_status: row.application_status,
+        account_status: row.account_status,
+      };
+
+      return res.json({
+        success: true,
+        tutor,
+        profile: tutor,
+        data: tutor,
+      });
+    } catch (error) {
+      console.error(
+        "GET TUTOR PROFILE ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message: "Unable to fetch tutor profile.",
+      });
+    }
+  }
+);
 
 /* ============================================================
    ADMIN ENROLLMENT HEALTH
@@ -1129,21 +1052,16 @@ router.get(
   "/admin/enrollments/health",
   async (req, res) => {
     try {
-      const table =
-        await findEnrollmentTable();
+      const table = await findEnrollmentTable();
 
       if (!table) {
         return res.status(500).json({
           success: false,
-          message:
-            "Student enrollment table not found.",
+          message: "Student enrollment table not found.",
         });
       }
 
-      const columns =
-        await getTableColumns(
-          table
-        );
+      const columns = await getTableColumns(table);
 
       return res.json({
         success: true,
@@ -1158,8 +1076,7 @@ router.get(
 
       return res.status(500).json({
         success: false,
-        message:
-          "Unable to inspect student enrollment table.",
+        message: "Unable to inspect student enrollment table.",
       });
     }
   }
@@ -1173,32 +1090,26 @@ router.get(
   "/admin/enrollments",
   async (req, res) => {
     try {
-      const table =
-        await findEnrollmentTable();
+      const table = await findEnrollmentTable();
 
       if (!table) {
         return res.status(500).json({
           success: false,
-          message:
-            "Student enrollment table not found.",
+          message: "Student enrollment table not found.",
         });
       }
 
-      const result =
-        await pool.query(
-          `
-          SELECT *
-          FROM ${table}
-          ORDER BY
-            created_at DESC NULLS LAST,
-            id DESC
-          `
-        );
+      const result = await pool.query(
+        `
+        SELECT *
+        FROM ${table}
+        ORDER BY
+          created_at DESC NULLS LAST,
+          id DESC
+        `
+      );
 
-      const data =
-        result.rows.map(
-          serializeEnrollment
-        );
+      const data = result.rows.map(serializeEnrollment);
 
       return res.json({
         success: true,
@@ -1219,8 +1130,7 @@ router.get(
         data: [],
         results: [],
         count: 0,
-        message:
-          "Unable to fetch student enrollments.",
+        message: "Unable to fetch student enrollments.",
       });
     }
   }
@@ -1234,38 +1144,27 @@ router.get(
   "/admin/enrollments/:id",
   async (req, res) => {
     try {
-      const table =
-        await findEnrollmentTable();
+      const table = await findEnrollmentTable();
 
-      const columns =
-        await getTableColumns(
-          table
-        );
+      const columns = await getTableColumns(table);
 
-      const student =
-        await findStudentEnrollment({
-          table,
-          columns,
-          studentId:
-            req.params.id,
-          enrollmentId:
-            req.params.id,
-        });
+      const student = await findStudentEnrollment({
+        table,
+        columns,
+        studentId: req.params.id,
+        enrollmentId: req.params.id,
+      });
 
       if (!student) {
         return res.status(404).json({
           success: false,
-          message:
-            "Student enrollment not found.",
+          message: "Student enrollment not found.",
         });
       }
 
       return res.json({
         success: true,
-        enrollment:
-          serializeEnrollment(
-            student
-          ),
+        enrollment: serializeEnrollment(student),
       });
     } catch (error) {
       console.error(
@@ -1275,8 +1174,7 @@ router.get(
 
       return res.status(500).json({
         success: false,
-        message:
-          "Unable to fetch student enrollment.",
+        message: "Unable to fetch student enrollment.",
       });
     }
   }
@@ -1290,108 +1188,78 @@ router.patch(
   "/admin/enrollments/:id/status",
   async (req, res) => {
     try {
-      const table =
-        await findEnrollmentTable();
+      const table = await findEnrollmentTable();
 
-      const columns =
-        await getTableColumns(
-          table
-        );
+      const columns = await getTableColumns(table);
 
-      const student =
-        await findStudentEnrollment({
-          table,
-          columns,
-          studentId:
-            req.params.id,
-          enrollmentId:
-            req.params.id,
-        });
+      const student = await findStudentEnrollment({
+        table,
+        columns,
+        studentId: req.params.id,
+        enrollmentId: req.params.id,
+      });
 
       if (!student) {
         return res.status(404).json({
           success: false,
-          message:
-            "Student enrollment not found.",
+          message: "Student enrollment not found.",
         });
       }
 
-      const status =
-        firstValue(
-          req.body.status,
-          req.body.enrollment_status
-        );
+      const status = firstValue(
+        req.body.status,
+        req.body.enrollment_status
+      );
 
       if (!status) {
         return res.status(400).json({
           success: false,
-          message:
-            "Enrollment status is required.",
+          message: "Enrollment status is required.",
         });
       }
 
       const identifierColumns =
-        getStudentIdentifierColumns(
-          columns
-        );
+        getStudentIdentifierColumns(columns);
 
       const identifierColumn =
         identifierColumns.find(
           (column) =>
-            clean(
-              student[column]
-            ) ===
-            clean(req.params.id)
-        ) ||
-        identifierColumns[0];
+            clean(student[column]) === clean(req.params.id)
+        ) || identifierColumns[0];
 
       if (!identifierColumn) {
         return res.status(500).json({
           success: false,
-          message:
-            "No enrollment identifier column is available.",
+          message: "No enrollment identifier column is available.",
         });
       }
 
-      let statusColumn =
-        columns.includes(
-          "enrollment_status"
-        )
-          ? "enrollment_status"
-          : columns.includes(
-              "status"
-            )
+      const statusColumn = columns.includes("enrollment_status")
+        ? "enrollment_status"
+        : columns.includes("status")
           ? "status"
           : null;
 
       if (!statusColumn) {
         return res.status(500).json({
           success: false,
-          message:
-            "Enrollment status column not found.",
+          message: "Enrollment status column not found.",
         });
       }
 
-      const result =
-        await pool.query(
-          `
-          UPDATE ${table}
-          SET "${statusColumn}" = $1
-          WHERE "${identifierColumn}"::text = $2
-          RETURNING *
-          `,
-          [
-            status,
-            req.params.id,
-          ]
-        );
+      const result = await pool.query(
+        `
+        UPDATE ${table}
+        SET "${statusColumn}" = $1
+        WHERE "${identifierColumn}"::text = $2
+        RETURNING *
+        `,
+        [status, req.params.id]
+      );
 
       return res.json({
         success: true,
-        enrollment:
-          serializeEnrollment(
-            result.rows[0]
-          ),
+        enrollment: serializeEnrollment(result.rows[0]),
       });
     } catch (error) {
       console.error(
@@ -1401,8 +1269,7 @@ router.patch(
 
       return res.status(500).json({
         success: false,
-        message:
-          "Unable to update enrollment status.",
+        message: "Unable to update enrollment status.",
       });
     }
   }
@@ -1416,143 +1283,102 @@ router.post(
   "/admin/student-password",
   async (req, res) => {
     try {
-      const table =
-        await findEnrollmentTable();
+      const table = await findEnrollmentTable();
 
       if (!table) {
         return res.status(500).json({
           success: false,
-          message:
-            "Student enrollment table not found.",
+          message: "Student enrollment table not found.",
         });
       }
 
-      await ensurePasswordColumns(
-        table
+      await ensurePasswordColumns(table);
+
+      const columns = await getTableColumns(table);
+
+      const identifier = firstValue(
+        req.body.studentId,
+        req.body.student_id,
+        req.body.enrollmentId,
+        req.body.enrollment_id,
+        req.body.enrollmentReference,
+        req.body.enrollment_reference,
+        req.body.id
       );
 
-      const columns =
-        await getTableColumns(
-          table
-        );
-
-      const identifier =
-        firstValue(
-          req.body.studentId,
-          req.body.student_id,
-          req.body.enrollmentId,
-          req.body.enrollment_id,
-          req.body.enrollmentReference,
-          req.body.enrollment_reference,
-          req.body.id
-        );
-
-      const password =
-        clean(
-          req.body.password
-        );
+      const password = clean(req.body.password);
 
       if (!identifier) {
         return res.status(400).json({
           success: false,
-          message:
-            "No enrollment identifier received.",
+          message: "No enrollment identifier received.",
         });
       }
 
       if (!password) {
         return res.status(400).json({
           success: false,
-          message:
-            "Student password is required.",
+          message: "Student password is required.",
         });
       }
 
-      const student =
-        await findStudentEnrollment({
-          table,
-          columns,
-          studentId:
-            identifier,
-          enrollmentId:
-            identifier,
-        });
+      const student = await findStudentEnrollment({
+        table,
+        columns,
+        studentId: identifier,
+        enrollmentId: identifier,
+      });
 
       if (!student) {
         return res.status(404).json({
           success: false,
-          message:
-            "Student enrollment not found.",
+          message: "Student enrollment not found.",
         });
       }
 
       const identifierColumns =
-        getStudentIdentifierColumns(
-          columns
-        );
+        getStudentIdentifierColumns(columns);
 
-      let identifierColumn =
-        identifierColumns.find(
-          (column) =>
-            clean(
-              student[column]
-            ) === identifier
-        );
+      let identifierColumn = identifierColumns.find(
+        (column) => clean(student[column]) === identifier
+      );
 
       if (!identifierColumn) {
-        identifierColumn =
-          identifierColumns[0];
+        identifierColumn = identifierColumns[0];
       }
 
       if (!identifierColumn) {
         return res.status(500).json({
           success: false,
-          message:
-            "No enrollment identifier column is available.",
+          message: "No enrollment identifier column is available.",
         });
       }
 
-      const passwordHash =
-        await bcrypt.hash(
-          password,
-          12
-        );
+      const passwordHash = await bcrypt.hash(password, 12);
 
-      const result =
-        await pool.query(
-          `
-          UPDATE ${table}
-          SET
-            password_hash = $1,
-            password_updated_at = NOW()
-          WHERE "${identifierColumn}"::text = $2
-          RETURNING *
-          `,
-          [
-            passwordHash,
-            identifier,
-          ]
-        );
+      const result = await pool.query(
+        `
+        UPDATE ${table}
+        SET
+          password_hash = $1,
+          password_updated_at = NOW()
+        WHERE "${identifierColumn}"::text = $2
+        RETURNING *
+        `,
+        [passwordHash, identifier]
+      );
 
-      if (
-        result.rows.length ===
-        0
-      ) {
+      if (result.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message:
-            "Student password could not be updated.",
+          message: "Student password could not be updated.",
         });
       }
 
       return res.json({
         success: true,
-        message:
-          "Student password updated successfully.",
-        student:
-          serializeEnrollment(
-            result.rows[0]
-          ),
+        message: "Student password updated successfully.",
+        student: serializeEnrollment(result.rows[0]),
       });
     } catch (error) {
       console.error(
@@ -1578,242 +1404,182 @@ router.post(
   "/student-login",
   async (req, res) => {
     try {
-      const table =
-        await findEnrollmentTable();
+      const table = await findEnrollmentTable();
 
       if (!table) {
         return res.status(500).json({
           success: false,
-          message:
-            "Student enrollment table not found.",
+          message: "Student enrollment table not found.",
         });
       }
 
-      await ensurePasswordColumns(
-        table
-      );
+      await ensurePasswordColumns(table);
 
-      const columns =
-        await getTableColumns(
-          table
-        );
+      const columns = await getTableColumns(table);
 
-      const email =
-        clean(
-          req.body.email
-        ).toLowerCase();
-
-      const password =
-        clean(
-          req.body.password
-        );
+      const email = clean(req.body.email).toLowerCase();
+      const password = clean(req.body.password);
 
       if (!email) {
         return res.status(400).json({
           success: false,
-          message:
-            "Email is required.",
+          message: "Email is required.",
         });
       }
 
       if (!password) {
         return res.status(400).json({
           success: false,
-          message:
-            "Password is required.",
+          message: "Password is required.",
         });
       }
 
-      const student =
-        await findStudentEnrollment({
-          table,
-          columns,
-          email,
-        });
+      const student = await findStudentEnrollment({
+        table,
+        columns,
+        email,
+      });
 
       if (!student) {
         return res.status(401).json({
           success: false,
-          message:
-            "Invalid student email or password.",
+          message: "Invalid student email or password.",
         });
       }
 
-      const storedHash =
-        firstValue(
-          student.password_hash
-        );
+      const storedHash = firstValue(student.password_hash);
 
       if (!storedHash) {
         return res.status(401).json({
           success: false,
-          message:
-            "Student password has not been created yet.",
+          message: "Student password has not been created yet.",
         });
       }
 
-      const passwordMatches =
-        await bcrypt.compare(
-          password,
-          storedHash
-        );
+      const passwordMatches = await bcrypt.compare(
+        password,
+        storedHash
+      );
 
       if (!passwordMatches) {
         return res.status(401).json({
           success: false,
-          message:
-            "Invalid student email or password.",
+          message: "Invalid student email or password.",
         });
       }
 
-      const serialized =
-        serializeEnrollment(
-          student
-        );
+      const serialized = serializeEnrollment(student);
 
-      const studentIdentifier =
-        firstValue(
-          student.student_id,
-          student.studentId,
-          student.enrollment_id,
-          student.enrollmentId,
-          student.enrollment_reference,
-          student.enrollmentReference,
-          student.reference,
-          student.id
-        );
+      const studentIdentifier = firstValue(
+        student.student_id,
+        student.studentId,
+        student.enrollment_id,
+        student.enrollmentId,
+        student.enrollment_reference,
+        student.enrollmentReference,
+        student.reference,
+        student.id
+      );
 
-      const enrollmentIdentifier =
-        firstValue(
-          student.enrollment_id,
-          student.enrollmentId,
-          student.enrollment_reference,
-          student.enrollmentReference,
-          student.reference,
-          student.id
-        );
+      const enrollmentIdentifier = firstValue(
+        student.enrollment_id,
+        student.enrollmentId,
+        student.enrollment_reference,
+        student.enrollmentReference,
+        student.reference,
+        student.id
+      );
 
-      const jwtSecret =
-        getJwtSecret();
+      const token = jwt.sign(
+        {
+          studentId: studentIdentifier,
+          enrollmentId: enrollmentIdentifier,
+          email,
+          userType: "student",
+        },
+        getJwtSecret(),
+        {
+          expiresIn: "7d",
+        }
+      );
 
-      const token =
-        jwt.sign(
-          {
-            studentId:
-              studentIdentifier,
+      const grade = firstValue(
+        student.grade,
+        student.class,
+        student.current_class,
+        student.currentClass,
+        student.level
+      );
 
-            enrollmentId:
-              enrollmentIdentifier,
-
-            email,
-
-            userType:
-              "student",
-          },
-          jwtSecret,
-          {
-            expiresIn:
-              "7d",
-          }
-        );
-
-      const grade =
-        firstValue(
-          student.grade,
-          student.class,
-          student.current_class,
-          student.currentClass,
-          student.level
-        );
-
-      const schoolLevel =
-        firstValue(
-          student.school_level,
-          student.schoolLevel,
-          student.education_level,
-          student.educationLevel,
-          student.programme_level,
-          student.programmeLevel
-        );
+      const schoolLevel = firstValue(
+        student.school_level,
+        student.schoolLevel,
+        student.education_level,
+        student.educationLevel,
+        student.programme_level,
+        student.programmeLevel
+      );
 
       return res.json({
         success: true,
 
-        message:
-          "Student login successful.",
+        message: "Student login successful.",
 
         token,
 
         user: {
           ...serialized,
 
-          userType:
-            "student",
+          userType: "student",
 
-          studentId:
-            studentIdentifier,
+          studentId: studentIdentifier,
+          student_id: studentIdentifier,
 
-          student_id:
-            studentIdentifier,
+          enrollmentId: enrollmentIdentifier,
+          enrollment_id: enrollmentIdentifier,
 
-          enrollmentId:
-            enrollmentIdentifier,
+          first_name: firstValue(
+            student.first_name,
+            student.firstName
+          ),
 
-          enrollment_id:
-            enrollmentIdentifier,
-
-          first_name:
-            firstValue(
-              student.first_name,
-              student.firstName
-            ),
-
-          last_name:
-            firstValue(
-              student.last_name,
-              student.lastName
-            ),
+          last_name: firstValue(
+            student.last_name,
+            student.lastName
+          ),
 
           email,
 
-          fullName:
-            firstValue(
-              student.full_name,
-              student.fullName,
-              `${firstValue(
-                student.first_name,
-                student.firstName
-              )} ${firstValue(
-                student.last_name,
-                student.lastName
-              )}`.trim()
-            ),
+          fullName: firstValue(
+            student.full_name,
+            student.fullName,
+            `${firstValue(
+              student.first_name,
+              student.firstName
+            )} ${firstValue(
+              student.last_name,
+              student.lastName
+            )}`.trim()
+          ),
 
           grade,
 
-          class:
-            grade,
+          class: grade,
+          className: grade,
 
-          className:
-            grade,
-
-          school_level:
-            schoolLevel,
-
+          school_level: schoolLevel,
           schoolLevel,
 
-          academic_session:
-            firstValue(
-              student.academic_session,
-              student.academicSession
-            ),
+          academic_session: firstValue(
+            student.academic_session,
+            student.academicSession
+          ),
 
-          enrollment_date:
-            firstValue(
-              student.enrollment_date,
-              student.enrollmentDate,
-              student.created_at
-            ),
+          enrollment_date: firstValue(
+            student.enrollment_date,
+            student.enrollmentDate,
+            student.created_at
+          ),
         },
       });
     } catch (error) {
@@ -1840,10 +1606,7 @@ router.get(
   "/student/subjects",
   async (req, res) => {
     try {
-      const resolved =
-        await resolveAuthenticatedStudent(
-          req
-        );
+      const resolved = await resolveAuthenticatedStudent(req);
 
       const {
         student,
@@ -1852,55 +1615,40 @@ router.get(
         schoolLevel,
       } = resolved;
 
-      let subjects =
-        getSubjectsFromEnrollment(
-          student,
-          resolved.columns
-        );
+      let subjects = getSubjectsFromEnrollment(
+        student,
+        resolved.columns
+      );
 
       if (!subjects.length) {
-        subjects =
-          await getSubjectsFromTutorAssignments(
-            studentClass
-          );
-      }
-
-      const subjectData =
-        buildStudentSubjects(
-          subjects,
+        subjects = await getSubjectsFromTutorAssignments(
           studentClass
         );
+      }
+
+      const subjectData = buildStudentSubjects(
+        subjects,
+        studentClass
+      );
 
       return res.json({
         success: true,
 
         student: serialized,
 
-        studentId:
-          serialized.studentId,
+        studentId: serialized.studentId,
+        enrollmentId: serialized.enrollmentId,
 
-        enrollmentId:
-          serialized.enrollmentId,
-
-        class:
-          studentClass,
-
-        grade:
-          studentClass,
-
-        className:
-          studentClass,
+        class: studentClass,
+        grade: studentClass,
+        className: studentClass,
 
         schoolLevel,
 
-        subjects:
-          subjectData,
+        subjects: subjectData,
+        data: subjectData,
 
-        data:
-          subjectData,
-
-        count:
-          subjectData.length,
+        count: subjectData.length,
       });
     } catch (error) {
       console.error(
@@ -1908,15 +1656,11 @@ router.get(
         error
       );
 
-      return res.status(
-        error.status || 500
-      ).json({
+      return res.status(error.status || 500).json({
         success: false,
 
         subjects: [],
-
         data: [],
-
         count: 0,
 
         message:
@@ -1929,25 +1673,13 @@ router.get(
 
 /* ============================================================
    STUDENT VIDEO LESSONS
-===============================================================
-   GET /api/academy/student/resources
-
-   This endpoint is intentionally separate from
-   /api/resources because /api/resources is admin-only.
-
-   Students receive only:
-   - video resources
-   - belonging to their enrolled class
-=============================================================== */
+============================================================ */
 
 router.get(
   "/student/resources",
   async (req, res) => {
     try {
-      const resolved =
-        await resolveAuthenticatedStudent(
-          req
-        );
+      const resolved = await resolveAuthenticatedStudent(req);
 
       const {
         serialized,
@@ -1959,129 +1691,93 @@ router.get(
         return res.json({
           success: true,
 
-          student:
-            serialized,
+          student: serialized,
 
-          studentId:
-            serialized.studentId,
-
-          enrollmentId:
-            serialized.enrollmentId,
+          studentId: serialized.studentId,
+          enrollmentId: serialized.enrollmentId,
 
           class: "",
-
           grade: "",
-
           className: "",
 
           schoolLevel,
 
           resources: [],
-
           data: [],
-
           count: 0,
         });
       }
 
-      /*
-       * We use LOWER(TRIM(...)) for class matching.
-       *
-       * Admin uploads are already normalized through
-       * resourceRoutes.js, but this also protects against
-       * accidental spacing/case differences.
-       */
-      const result =
-        await pool.query(
-          `
-          SELECT
-            r.id,
-            r.title,
-            r.description,
-            r.resource_type,
-            r.file_url,
-            r.topic_id,
-            r.class_name,
-            r.subject,
-            r.created_at,
+      const result = await pool.query(
+        `
+        SELECT
+          r.id,
+          r.title,
+          r.description,
+          r.resource_type,
+          r.file_url,
+          r.topic_id,
+          r.class_name,
+          r.subject,
+          r.created_at,
 
-            t.title AS topic_title
+          t.title AS topic_title
 
-          FROM resources r
+        FROM resources r
 
-          LEFT JOIN course_topics t
-            ON t.id = r.topic_id
+        LEFT JOIN course_topics t
+          ON t.id = r.topic_id
 
-          WHERE
-            r.resource_type = 'video'
+        WHERE
+          r.resource_type = 'video'
 
-            AND LOWER(
-              REGEXP_REPLACE(
-                TRIM(
-                  COALESCE(
-                    r.class_name,
-                    ''
-                  )
-                ),
-                '\\s+',
-                ' ',
-                'g'
-              )
+          AND LOWER(
+            REGEXP_REPLACE(
+              TRIM(COALESCE(r.class_name, '')),
+              '\\s+',
+              ' ',
+              'g'
             )
-            =
-            LOWER(
-              REGEXP_REPLACE(
-                TRIM($1),
-                '\\s+',
-                ' ',
-                'g'
-              )
+          )
+          =
+          LOWER(
+            REGEXP_REPLACE(
+              TRIM($1),
+              '\\s+',
+              ' ',
+              'g'
             )
+          )
 
-          ORDER BY
-            r.created_at DESC NULLS LAST,
-            r.id DESC
-          `,
-          [
-            studentClass,
-          ]
-        );
+        ORDER BY
+          r.created_at DESC NULLS LAST,
+          r.id DESC
+        `,
+        [studentClass]
+      );
 
-      const resources =
-        result.rows.map(
-          formatStudentResource
-        );
+      const resources = result.rows.map(
+        formatStudentResource
+      );
 
       return res.json({
         success: true,
 
-        student:
-          serialized,
+        student: serialized,
 
-        studentId:
-          serialized.studentId,
+        studentId: serialized.studentId,
+        enrollmentId: serialized.enrollmentId,
 
-        enrollmentId:
-          serialized.enrollmentId,
-
-        class:
-          studentClass,
-
-        grade:
-          studentClass,
-
-        className:
-          studentClass,
+        class: studentClass,
+        grade: studentClass,
+        className: studentClass,
 
         schoolLevel,
 
         resources,
+        data: resources,
 
-        data:
-          resources,
-
-        count:
-          resources.length,
+        count: resources.length,
       });
     } catch (error) {
       console.error(
@@ -2089,15 +1785,11 @@ router.get(
         error
       );
 
-      return res.status(
-        error.status || 500
-      ).json({
+      return res.status(error.status || 500).json({
         success: false,
 
         resources: [],
-
         data: [],
-
         count: 0,
 
         message:
@@ -2110,21 +1802,13 @@ router.get(
 
 /* ============================================================
    STUDENT SINGLE VIDEO LESSON
-===============================================================
-   GET /api/academy/student/resources/:id
-
-   The student can only open a video if it belongs to
-   the student's enrolled class.
-=============================================================== */
+============================================================ */
 
 router.get(
   "/student/resources/:id",
   async (req, res) => {
     try {
-      const resolved =
-        await resolveAuthenticatedStudent(
-          req
-        );
+      const resolved = await resolveAuthenticatedStudent(req);
 
       const {
         serialized,
@@ -2132,115 +1816,86 @@ router.get(
         schoolLevel,
       } = resolved;
 
-      const resourceId =
-        clean(
-          req.params.id
-        );
+      const resourceId = clean(req.params.id);
 
       if (!resourceId) {
         return res.status(400).json({
           success: false,
-
-          message:
-            "Video resource ID is required.",
+          message: "Video resource ID is required.",
         });
       }
 
-      const result =
-        await pool.query(
-          `
-          SELECT
-            r.id,
-            r.title,
-            r.description,
-            r.resource_type,
-            r.file_url,
-            r.topic_id,
-            r.class_name,
-            r.subject,
-            r.created_at,
+      const result = await pool.query(
+        `
+        SELECT
+          r.id,
+          r.title,
+          r.description,
+          r.resource_type,
+          r.file_url,
+          r.topic_id,
+          r.class_name,
+          r.subject,
+          r.created_at,
 
-            t.title AS topic_title
+          t.title AS topic_title
 
-          FROM resources r
+        FROM resources r
 
-          LEFT JOIN course_topics t
-            ON t.id = r.topic_id
+        LEFT JOIN course_topics t
+          ON t.id = r.topic_id
 
-          WHERE
-            r.id = $1
+        WHERE
+          r.id = $1
 
-            AND r.resource_type =
-              'video'
+          AND r.resource_type = 'video'
 
-            AND LOWER(
-              REGEXP_REPLACE(
-                TRIM(
-                  COALESCE(
-                    r.class_name,
-                    ''
-                  )
-                ),
-                '\\s+',
-                ' ',
-                'g'
-              )
+          AND LOWER(
+            REGEXP_REPLACE(
+              TRIM(COALESCE(r.class_name, '')),
+              '\\s+',
+              ' ',
+              'g'
             )
-            =
-            LOWER(
-              REGEXP_REPLACE(
-                TRIM($2),
-                '\\s+',
-                ' ',
-                'g'
-              )
+          )
+          =
+          LOWER(
+            REGEXP_REPLACE(
+              TRIM($2),
+              '\\s+',
+              ' ',
+              'g'
             )
+          )
 
-          LIMIT 1
-          `,
-          [
-            resourceId,
-            studentClass,
-          ]
-        );
+        LIMIT 1
+        `,
+        [resourceId, studentClass]
+      );
 
-      if (
-        result.rows.length ===
-        0
-      ) {
+      if (result.rows.length === 0) {
         return res.status(404).json({
           success: false,
-
           message:
             "Video lesson not found or it is not available for your class.",
         });
       }
 
-      const resource =
-        formatStudentResource(
-          result.rows[0]
-        );
+      const resource = formatStudentResource(
+        result.rows[0]
+      );
 
       return res.json({
         success: true,
 
-        student:
-          serialized,
+        student: serialized,
 
-        studentId:
-          serialized.studentId,
+        studentId: serialized.studentId,
+        enrollmentId: serialized.enrollmentId,
 
-        enrollmentId:
-          serialized.enrollmentId,
-
-        class:
-          studentClass,
-
-        grade:
-          studentClass,
-
-        className:
-          studentClass,
+        class: studentClass,
+        grade: studentClass,
+        className: studentClass,
 
         schoolLevel,
 
@@ -2252,9 +1907,7 @@ router.get(
         error
       );
 
-      return res.status(
-        error.status || 500
-      ).json({
+      return res.status(error.status || 500).json({
         success: false,
 
         message:
@@ -2267,43 +1920,27 @@ router.get(
 
 /* ============================================================
    STUDENT PROFILE
-===============================================================
-   Useful for the StudentProfile page and keeps all student
-   authentication in one place.
-=============================================================== */
+============================================================ */
 
 router.get(
   "/student/profile",
   async (req, res) => {
     try {
-      const resolved =
-        await resolveAuthenticatedStudent(
-          req
-        );
+      const resolved = await resolveAuthenticatedStudent(req);
 
       return res.json({
         success: true,
 
-        student:
-          resolved.serialized,
+        student: resolved.serialized,
 
-        studentId:
-          resolved.serialized.studentId,
+        studentId: resolved.serialized.studentId,
+        enrollmentId: resolved.serialized.enrollmentId,
 
-        enrollmentId:
-          resolved.serialized.enrollmentId,
+        class: resolved.studentClass,
+        grade: resolved.studentClass,
+        className: resolved.studentClass,
 
-        class:
-          resolved.studentClass,
-
-        grade:
-          resolved.studentClass,
-
-        className:
-          resolved.studentClass,
-
-        schoolLevel:
-          resolved.schoolLevel,
+        schoolLevel: resolved.schoolLevel,
       });
     } catch (error) {
       console.error(
@@ -2311,9 +1948,7 @@ router.get(
         error
       );
 
-      return res.status(
-        error.status || 500
-      ).json({
+      return res.status(error.status || 500).json({
         success: false,
 
         message:

@@ -117,6 +117,8 @@ export default function Whiteboard({
   const [historyIndex, setHistoryIndex] = useState(-1);
 
   const [textMode, setTextMode] = useState(false);
+  const [syncError, setSyncError] = useState("");
+
   const [syncStatus, setSyncStatus] = useState(
     liveClassId ? "loading" : "local"
   );
@@ -173,12 +175,14 @@ export default function Whiteboard({
 
     imageObject.onload = () => {
       const currentCanvas = canvasRef.current;
+
       if (!currentCanvas) {
         callback?.(false);
         return;
       }
 
       const context = currentCanvas.getContext("2d");
+
       if (!context) {
         callback?.(false);
         return;
@@ -188,6 +192,7 @@ export default function Whiteboard({
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.globalCompositeOperation = "source-over";
       context.fillStyle = "#ffffff";
+
       context.fillRect(
         0,
         0,
@@ -204,6 +209,7 @@ export default function Whiteboard({
       );
 
       context.restore();
+
       callback?.(true);
     };
 
@@ -240,6 +246,7 @@ export default function Whiteboard({
     }
 
     const previous = document.createElement("canvas");
+
     previous.width = canvas.width || newWidth;
     previous.height = canvas.height || newHeight;
 
@@ -318,46 +325,92 @@ export default function Whiteboard({
     };
   }, [resizeCanvas]);
 
+  // ============================================================
+  // SAVE WHITEBOARD
+  // ============================================================
+
   const saveRemoteBoard = useCallback(
     async (image) => {
       if (!liveClassId || !image) return;
 
       try {
         setSyncStatus("saving");
+        setSyncError("");
 
-        const response = await fetch(
-          `${API_URL}/api/academy/live-classes/${encodeURIComponent(
-            liveClassId
-          )}/whiteboard`,
-          {
-            method: "POST",
-            headers: getHeaders(tutorReference),
-            credentials: "include",
-            body: JSON.stringify({
-              eventType: "state",
-              payload: { image },
-            }),
-          }
-        );
+        const endpoint =
+          `${API_URL}/api/academy/live-classes/` +
+          `${encodeURIComponent(liveClassId)}/whiteboard`;
 
-        const data = await response.json().catch(() => ({}));
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: getHeaders(tutorReference),
+          credentials: "include",
+          body: JSON.stringify({
+            eventType: "state",
+            payload: {
+              image,
+            },
+          }),
+        });
+
+        // Read the response as text first.
+        // This also captures HTML error pages and plain-text errors.
+        const responseText = await response.text();
+
+        let data = {};
+
+        try {
+          data = responseText ? JSON.parse(responseText) : {};
+        } catch {
+          data = {
+            message: responseText,
+          };
+        }
 
         if (!response.ok || data.success === false) {
-          throw new Error(
-            data.message || "Could not save whiteboard"
-          );
+          const backendMessage =
+            data.message ||
+            data.error ||
+            data.details ||
+            responseText ||
+            response.statusText ||
+            "Unknown backend error";
+
+          const errorMessage =
+            `HTTP ${response.status}: ${backendMessage}`;
+
+          console.error("WHITEBOARD SAVE FAILED", {
+            endpoint,
+            status: response.status,
+            statusText: response.statusText,
+            response: data,
+            responseBody: responseText,
+            imageLength: image.length,
+            liveClassId,
+          });
+
+          throw new Error(errorMessage);
         }
 
         lastRemoteImageRef.current = image;
 
         if (mountedRef.current) {
           setSyncStatus("synced");
+          setSyncError("");
         }
+
+        console.info("Whiteboard saved successfully", {
+          liveClassId,
+          status: response.status,
+        });
       } catch (error) {
         console.error("Whiteboard save error:", error);
 
         if (mountedRef.current) {
           setSyncStatus("offline");
+          setSyncError(
+            error?.message || "Unable to save whiteboard."
+          );
         }
       } finally {
         pendingSaveRef.current = false;
@@ -383,6 +436,10 @@ export default function Whiteboard({
     [liveClassId, saveRemoteBoard]
   );
 
+  // ============================================================
+  // EXTRACT REMOTE IMAGE
+  // ============================================================
+
   const extractRemoteImage = useCallback((data) => {
     const payload =
       data?.whiteboard ??
@@ -406,6 +463,10 @@ export default function Whiteboard({
     );
   }, []);
 
+  // ============================================================
+  // LOAD WHITEBOARD
+  // ============================================================
+
   const loadRemoteBoard = useCallback(
     async (initial = false) => {
       if (!liveClassId) {
@@ -414,22 +475,36 @@ export default function Whiteboard({
       }
 
       try {
-        const response = await fetch(
-          `${API_URL}/api/academy/live-classes/${encodeURIComponent(
-            liveClassId
-          )}/whiteboard`,
-          {
-            method: "GET",
-            headers: getHeaders(tutorReference),
-            credentials: "include",
-          }
-        );
+        const endpoint =
+          `${API_URL}/api/academy/live-classes/` +
+          `${encodeURIComponent(liveClassId)}/whiteboard`;
 
-        const data = await response.json().catch(() => ({}));
+        const response = await fetch(endpoint, {
+          method: "GET",
+          headers: getHeaders(tutorReference),
+          credentials: "include",
+        });
+
+        const responseText = await response.text();
+
+        let data = {};
+
+        try {
+          data = responseText ? JSON.parse(responseText) : {};
+        } catch {
+          data = {
+            message: responseText,
+          };
+        }
 
         if (!response.ok || data.success === false) {
           throw new Error(
-            data.message || "Could not load whiteboard"
+            `HTTP ${response.status}: ${
+              data.message ||
+              data.error ||
+              responseText ||
+              "Could not load whiteboard"
+            }`
           );
         }
 
@@ -449,6 +524,7 @@ export default function Whiteboard({
 
           if (mountedRef.current) {
             setSyncStatus("synced");
+            setSyncError("");
           }
 
           return;
@@ -479,6 +555,7 @@ export default function Whiteboard({
 
           if (mountedRef.current) {
             setSyncStatus("synced");
+            setSyncError("");
           }
         });
       } catch (error) {
@@ -497,6 +574,7 @@ export default function Whiteboard({
 
         if (mountedRef.current) {
           setSyncStatus("offline");
+          setSyncError(error?.message || "Could not load whiteboard.");
         }
       }
     },
@@ -523,10 +601,13 @@ export default function Whiteboard({
       if (image) updateHistory([image], 0);
 
       setSyncStatus("local");
+      setSyncError("");
+
       return;
     }
 
     setSyncStatus("loading");
+    setSyncError("");
 
     const timer = setTimeout(() => {
       resizeCanvas();
@@ -564,9 +645,16 @@ export default function Whiteboard({
     };
   }, [liveClassId, loadRemoteBoard]);
 
+  // ============================================================
+  // POINTER POSITION
+  // ============================================================
+
   const getPoint = useCallback((event) => {
     const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
+
+    if (!canvas) {
+      return { x: 0, y: 0 };
+    }
 
     const rect = canvas.getBoundingClientRect();
 
@@ -574,19 +662,32 @@ export default function Whiteboard({
       return { x: 0, y: 0 };
     }
 
+    const pixelRatio = Math.min(
+      window.devicePixelRatio || 1,
+      2
+    );
+
     return {
-      x: ((event.clientX - rect.left) / rect.width) *
-        (canvas.width / Math.min(window.devicePixelRatio || 1, 2)),
-      y: ((event.clientY - rect.top) / rect.height) *
-        (canvas.height / Math.min(window.devicePixelRatio || 1, 2)),
+      x:
+        ((event.clientX - rect.left) / rect.width) *
+        (canvas.width / pixelRatio),
+
+      y:
+        ((event.clientY - rect.top) / rect.height) *
+        (canvas.height / pixelRatio),
     };
   }, []);
+
+  // ============================================================
+  // TEXT TOOL
+  // ============================================================
 
   const addText = useCallback(
     (event) => {
       event.preventDefault();
 
       const text = window.prompt("Enter text for the board:");
+
       if (!text?.trim()) return;
 
       const canvas = canvasRef.current;
@@ -616,6 +717,7 @@ export default function Whiteboard({
       context.restore();
 
       const image = commitHistory();
+
       queueRemoteSave(image);
 
       setTextMode(false);
@@ -629,6 +731,10 @@ export default function Whiteboard({
       queueRemoteSave,
     ]
   );
+
+  // ============================================================
+  // START DRAWING
+  // ============================================================
 
   const startDrawing = useCallback(
     (event) => {
@@ -660,6 +766,7 @@ export default function Whiteboard({
       }
 
       const point = getPoint(event);
+
       lastPointRef.current = point;
 
       context.save();
@@ -674,9 +781,11 @@ export default function Whiteboard({
         context.fillStyle = color;
       }
 
-      const radius = tool === "eraser" ? size * 2 : size / 2;
+      const radius =
+        tool === "eraser" ? size * 2 : size / 2;
 
       context.beginPath();
+
       context.arc(
         point.x,
         point.y,
@@ -684,11 +793,16 @@ export default function Whiteboard({
         0,
         Math.PI * 2
       );
+
       context.fill();
       context.restore();
     },
     [tool, size, color, getPoint, addText]
   );
+
+  // ============================================================
+  // DRAW
+  // ============================================================
 
   const draw = useCallback(
     (event) => {
@@ -741,6 +855,10 @@ export default function Whiteboard({
     [tool, size, color, getPoint]
   );
 
+  // ============================================================
+  // STOP DRAWING AND SAVE
+  // ============================================================
+
   const stopDrawing = useCallback(
     (event) => {
       if (!drawingRef.current) return;
@@ -772,10 +890,15 @@ export default function Whiteboard({
       }
 
       const image = commitHistory();
+
       queueRemoteSave(image);
     },
     [commitHistory, queueRemoteSave]
   );
+
+  // ============================================================
+  // UNDO
+  // ============================================================
 
   const undo = useCallback(() => {
     const currentIndex = historyIndexRef.current;
@@ -791,9 +914,14 @@ export default function Whiteboard({
 
       historyIndexRef.current = nextIndex;
       setHistoryIndex(nextIndex);
+
       queueRemoteSave(image);
     });
   }, [restoreImage, queueRemoteSave]);
+
+  // ============================================================
+  // REDO
+  // ============================================================
 
   const redo = useCallback(() => {
     const currentIndex = historyIndexRef.current;
@@ -809,17 +937,24 @@ export default function Whiteboard({
 
       historyIndexRef.current = nextIndex;
       setHistoryIndex(nextIndex);
+
       queueRemoteSave(image);
     });
   }, [restoreImage, queueRemoteSave]);
 
+  // ============================================================
+  // CLEAR BOARD
+  // ============================================================
+
   const clearBoard = useCallback(() => {
     const canvas = canvasRef.current;
+
     if (!canvas) return;
 
     createBlankCanvas(canvas);
 
     const image = commitHistory();
+
     queueRemoteSave(image);
   }, [commitHistory, queueRemoteSave]);
 
@@ -827,6 +962,10 @@ export default function Whiteboard({
     setTool(nextTool);
     setTextMode(nextTool === "text");
   };
+
+  // ============================================================
+  // KEYBOARD SHORTCUTS
+  // ============================================================
 
   useEffect(() => {
     const handleKeyboard = (event) => {
@@ -840,12 +979,18 @@ export default function Whiteboard({
         return;
       }
 
-      if (event.ctrlKey && event.key.toLowerCase() === "z") {
+      if (
+        event.ctrlKey &&
+        event.key.toLowerCase() === "z"
+      ) {
         event.preventDefault();
         undo();
       }
 
-      if (event.ctrlKey && event.key.toLowerCase() === "y") {
+      if (
+        event.ctrlKey &&
+        event.key.toLowerCase() === "y"
+      ) {
         event.preventDefault();
         redo();
       }
@@ -857,6 +1002,10 @@ export default function Whiteboard({
       window.removeEventListener("keydown", handleKeyboard);
     };
   }, [undo, redo]);
+
+  // ============================================================
+  // SYNC STATUS
+  // ============================================================
 
   const syncLabel = {
     loading: "Loading board",
@@ -875,12 +1024,16 @@ export default function Whiteboard({
         width: "100%",
       }}
     >
+      {/* TOOLBAR */}
+
       <div className="z-20 flex min-h-14 shrink-0 items-center gap-2 overflow-x-auto border-b border-white/10 bg-slate-900 px-3 py-2 text-white">
         <button
           type="button"
           onClick={() => selectTool("pen")}
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
-            tool === "pen" ? "bg-blue-600" : "bg-white/10 hover:bg-white/15"
+            tool === "pen"
+              ? "bg-blue-600"
+              : "bg-white/10 hover:bg-white/15"
           }`}
           title="Marker"
         >
@@ -891,7 +1044,9 @@ export default function Whiteboard({
           type="button"
           onClick={() => selectTool("eraser")}
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
-            tool === "eraser" ? "bg-blue-600" : "bg-white/10 hover:bg-white/15"
+            tool === "eraser"
+              ? "bg-blue-600"
+              : "bg-white/10 hover:bg-white/15"
           }`}
           title="Eraser"
         >
@@ -902,7 +1057,9 @@ export default function Whiteboard({
           type="button"
           onClick={() => selectTool("text")}
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
-            tool === "text" ? "bg-blue-600" : "bg-white/10 hover:bg-white/15"
+            tool === "text"
+              ? "bg-blue-600"
+              : "bg-white/10 hover:bg-white/15"
           }`}
           title="Text"
         >
@@ -942,7 +1099,9 @@ export default function Whiteboard({
               type="button"
               onClick={() => setSize(item)}
               className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
-                size === item ? "bg-white/20" : "hover:bg-white/10"
+                size === item
+                  ? "bg-white/20"
+                  : "hover:bg-white/10"
               }`}
               title={`Marker size ${item}`}
             >
@@ -989,6 +1148,8 @@ export default function Whiteboard({
         </button>
       </div>
 
+      {/* WHITEBOARD */}
+
       <div
         ref={containerRef}
         className="relative block min-h-0 flex-1 overflow-hidden bg-white"
@@ -1005,7 +1166,9 @@ export default function Whiteboard({
           onPointerUp={stopDrawing}
           onPointerCancel={stopDrawing}
           onLostPointerCapture={() => {
-            if (drawingRef.current) stopDrawing();
+            if (drawingRef.current) {
+              stopDrawing();
+            }
           }}
           className={`absolute left-0 top-0 block h-full w-full ${
             tool === "text"
@@ -1023,6 +1186,8 @@ export default function Whiteboard({
           }}
         />
 
+        {/* TOOL INSTRUCTION */}
+
         <div className="pointer-events-none absolute bottom-3 left-3 z-10">
           <div className="rounded-lg bg-slate-900/85 px-3 py-1.5 text-xs text-white shadow-lg">
             {textMode
@@ -1033,10 +1198,15 @@ export default function Whiteboard({
           </div>
         </div>
 
+        {/* SYNC STATUS */}
+
         <div className="pointer-events-none absolute right-3 top-3 z-10">
-          <div className="flex items-center gap-2 rounded-lg bg-slate-900/85 px-3 py-1.5 text-[10px] text-white/80 shadow-lg">
+          <div
+            title={syncError || syncLabel}
+            className="flex max-w-xs items-center gap-2 rounded-lg bg-slate-900/85 px-3 py-1.5 text-[10px] text-white/80 shadow-lg"
+          >
             <span
-              className={`h-2 w-2 rounded-full ${
+              className={`h-2 w-2 shrink-0 rounded-full ${
                 syncStatus === "synced"
                   ? "bg-emerald-400"
                   : syncStatus === "saving"
@@ -1046,9 +1216,14 @@ export default function Whiteboard({
                       : "bg-slate-400"
               }`}
             />
-            {syncLabel}
+
+            <span className="truncate">
+              {syncLabel}
+            </span>
           </div>
         </div>
+
+        {/* BOARD ID */}
 
         {liveClassId && (
           <div className="pointer-events-none absolute bottom-3 right-3 z-10">

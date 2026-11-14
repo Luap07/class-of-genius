@@ -1,3 +1,4 @@
+
 import express from "express";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
@@ -29,12 +30,9 @@ const UPLOAD_DIRECTORY = path.resolve(
 );
 
 const MAX_PRESENTATION_SIZE = 50 * 1024 * 1024;
+const MAX_WHITEBOARD_SIZE = 20 * 1024 * 1024;
 
-const ALLOWED_PRESENTATION_EXTENSIONS = [
-  ".pdf",
-  ".ppt",
-  ".pptx",
-];
+const ALLOWED_PRESENTATION_EXTENSIONS = [".pdf", ".ppt", ".pptx"];
 
 const ALLOWED_PRESENTATION_MIMES = [
   "application/pdf",
@@ -42,6 +40,50 @@ const ALLOWED_PRESENTATION_MIMES = [
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "application/octet-stream",
 ];
+
+const VALID_CLASSROOM_STAGES = [
+  "video",
+  "whiteboard",
+  "presentation",
+  "material",
+];
+
+const VALID_RESOURCE_TYPES = [
+  "document",
+  "link",
+  "image",
+  "video",
+  "presentation",
+  "file",
+  "pdf",
+  "audio",
+];
+
+const RESOURCE_TYPE_ALIASES = {
+  doc: "document",
+  docx: "document",
+  worksheet: "document",
+  notes: "document",
+  word: "document",
+  ppt: "presentation",
+  pptx: "presentation",
+  powerpoint: "presentation",
+  slides: "presentation",
+  mp4: "video",
+  webm: "video",
+  mov: "video",
+  mp3: "audio",
+  wav: "audio",
+  m4a: "audio",
+  url: "link",
+  website: "link",
+  webpage: "link",
+  jpg: "image",
+  jpeg: "image",
+  png: "image",
+  gif: "image",
+  webp: "image",
+};
 
 const JWT_SECRET =
   process.env.JWT_SECRET?.trim() ||
@@ -58,6 +100,19 @@ const clean = (value) =>
   value === undefined || value === null
     ? ""
     : String(value).trim();
+
+const normaliseResourceType = (value) => {
+  const suppliedType = clean(value).toLowerCase();
+
+  if (!suppliedType) return "file";
+
+  const normalisedType =
+    RESOURCE_TYPE_ALIASES[suppliedType] || suppliedType;
+
+  return VALID_RESOURCE_TYPES.includes(normalisedType)
+    ? normalisedType
+    : null;
+};
 
 const getTutorReference = (req, body = {}) =>
   clean(
@@ -127,16 +182,40 @@ const parseSubjects = (value) => {
   return [];
 };
 
+const parseJsonObject = (value, fallback = {}) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "object") return value;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+
+      return parsed && typeof parsed === "object"
+        ? parsed
+        : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
+};
+
+const normaliseStage = (value) => {
+  const stage = clean(value).toLowerCase();
+
+  return VALID_CLASSROOM_STAGES.includes(stage)
+    ? stage
+    : "video";
+};
+
 const normaliseSession = (row) => {
   if (!row) return null;
 
-  const roomCode =
-    clean(row.room_code) ||
-    clean(row.room_id);
-
-  const joinUrl =
-    clean(row.join_url) ||
-    clean(row.meeting_url);
+  const roomCode = clean(row.room_code) || clean(row.room_id);
+  const joinUrl = clean(row.join_url) || clean(row.meeting_url);
+  const stage = normaliseStage(row.stage);
+  const stageState = parseJsonObject(row.stage_state, {});
 
   return {
     id: row.id,
@@ -144,40 +223,17 @@ const normaliseSession = (row) => {
     description: row.description || "",
     tutor_reference: row.tutor_reference || "",
     tutor_name:
-      row.tutor_name ||
-      row.tutor_reference ||
-      "Assigned Tutor",
+      row.tutor_name || row.tutor_reference || "Assigned Tutor",
     grade: row.grade || "",
     class_id: row.class_id || "",
-    class_name:
-      row.class_name ||
-      row.grade ||
-      "",
+    class_name: row.class_name || row.grade || "",
     subject: row.subject || "",
-    scheduled_at:
-      row.scheduled_at ||
-      row.scheduled_start ||
-      null,
-    scheduled_start:
-      row.scheduled_start ||
-      row.scheduled_at ||
-      null,
-    started_at:
-      row.started_at ||
-      row.actual_start ||
-      null,
-    actual_start:
-      row.actual_start ||
-      row.started_at ||
-      null,
-    ended_at:
-      row.ended_at ||
-      row.actual_end ||
-      null,
-    actual_end:
-      row.actual_end ||
-      row.ended_at ||
-      null,
+    scheduled_at: row.scheduled_at || row.scheduled_start || null,
+    scheduled_start: row.scheduled_start || row.scheduled_at || null,
+    started_at: row.started_at || row.actual_start || null,
+    actual_start: row.actual_start || row.started_at || null,
+    ended_at: row.ended_at || row.actual_end || null,
+    actual_end: row.actual_end || row.ended_at || null,
     status: row.status || "scheduled",
     room_id: roomCode,
     room_code: roomCode,
@@ -186,27 +242,49 @@ const normaliseSession = (row) => {
     recording_status: row.recording_status || "",
     recording_url: row.recording_url || "",
     recording_duration:
-      row.recording_duration ??
-      row.duration_seconds ??
-      null,
+      row.recording_duration ?? row.duration_seconds ?? null,
     duration_seconds:
-      row.duration_seconds ??
-      row.recording_duration ??
-      null,
+      row.duration_seconds ?? row.recording_duration ?? null,
     subjects: row.subjects || null,
     participants: Number(row.participants || 0),
+    stage,
+    stageMode: stage,
+    activeStage: stage,
+    active_stage: stage,
+    stage_state: stageState,
+    stageState,
     created_at: row.created_at || null,
     updated_at: row.updated_at || null,
   };
 };
 
 const sendError = (res, error, fallbackMessage) => {
-  console.error(fallbackMessage, error);
+  console.error(`\n${fallbackMessage}`);
 
-  return res.status(error.status || 500).json({
-    success: false,
-    message: error.message || fallbackMessage,
+  console.error({
+    message: error?.message,
+    code: error?.code,
+    detail: error?.detail,
+    table: error?.table,
+    column: error?.column,
+    constraint: error?.constraint,
+    stack: error?.stack,
   });
+
+  const response = {
+    success: false,
+    message: error?.message || fallbackMessage,
+  };
+
+  if (process.env.NODE_ENV !== "production") {
+    response.code = error?.code || null;
+    response.detail = error?.detail || null;
+    response.table = error?.table || null;
+    response.column = error?.column || null;
+    response.constraint = error?.constraint || null;
+  }
+
+  return res.status(error?.status || 500).json(response);
 };
 
 /* =========================================================
@@ -229,21 +307,16 @@ const presentationStorage = multer.diskStorage({
   filename: (req, file, callback) => {
     const extension = path.extname(file.originalname).toLowerCase();
 
-    callback(
-      null,
-      `${crypto.randomUUID()}${extension}`
-    );
+    callback(null, `${crypto.randomUUID()}${extension}`);
   },
 });
 
 const presentationUpload = multer({
   storage: presentationStorage,
-
   limits: {
     fileSize: MAX_PRESENTATION_SIZE,
     files: 1,
   },
-
   fileFilter: (req, file, callback) => {
     const extension = path.extname(file.originalname).toLowerCase();
 
@@ -257,9 +330,7 @@ const presentationUpload = multer({
     }
 
     if (!ALLOWED_PRESENTATION_MIMES.includes(file.mimetype)) {
-      const error = new Error(
-        "Unsupported presentation file type"
-      );
+      const error = new Error("Unsupported presentation file type");
 
       error.status = 400;
       return callback(error);
@@ -274,14 +345,12 @@ const handlePresentationUpload = (req, res, next) => {
     if (!error) return next();
 
     if (error instanceof multer.MulterError) {
-      const message =
-        error.code === "LIMIT_FILE_SIZE"
-          ? "Presentation file must not exceed 50MB"
-          : error.message;
-
       return res.status(400).json({
         success: false,
-        message,
+        message:
+          error.code === "LIMIT_FILE_SIZE"
+            ? "Presentation file must not exceed 50MB"
+            : error.message,
       });
     }
 
@@ -301,10 +370,10 @@ const getPresentationFilenameFromUrl = (fileUrl) => {
   if (!value) return "";
 
   try {
-    const pathname = value.startsWith("http://") ||
-      value.startsWith("https://")
-      ? new URL(value).pathname
-      : value;
+    const pathname =
+      value.startsWith("http://") || value.startsWith("https://")
+        ? new URL(value).pathname
+        : value;
 
     const prefix = "/uploads/live-presentations/";
 
@@ -314,11 +383,9 @@ const getPresentationFilenameFromUrl = (fileUrl) => {
       decodeURIComponent(pathname.slice(prefix.length))
     );
 
-    if (!filename || filename === "." || filename === "..") {
-      return "";
-    }
-
-    return filename;
+    return !filename || filename === "." || filename === ".."
+      ? ""
+      : filename;
   } catch {
     return "";
   }
@@ -329,14 +396,9 @@ const removePresentationFile = async (fileUrl) => {
 
   if (!filename) return;
 
-  const filePath = path.resolve(
-    UPLOAD_DIRECTORY,
-    filename
-  );
+  const filePath = path.resolve(UPLOAD_DIRECTORY, filename);
 
-  if (!filePath.startsWith(`${UPLOAD_DIRECTORY}${path.sep}`)) {
-    return;
-  }
+  if (!filePath.startsWith(`${UPLOAD_DIRECTORY}${path.sep}`)) return;
 
   try {
     await fs.promises.unlink(filePath);
@@ -362,10 +424,7 @@ const normalisePresentation = (row) => {
     name: row.title || "Presentation",
     title: row.title || "Presentation",
     file_name: row.original_filename || row.title || "Presentation",
-    original_filename:
-      row.original_filename ||
-      row.title ||
-      "Presentation",
+    original_filename: row.original_filename || row.title || "Presentation",
     url: fileUrl,
     file_url: fileUrl,
     fileUrl,
@@ -416,7 +475,9 @@ const ensureLiveClassTables = async () => {
       room_code TEXT,
       join_url TEXT,
       meeting_url TEXT,
-      recording_duration INTEGER
+      recording_duration INTEGER,
+      stage TEXT DEFAULT 'video',
+      stage_state JSONB DEFAULT '{}'::jsonb
     )
   `);
 
@@ -446,7 +507,17 @@ const ensureLiveClassTables = async () => {
       ADD COLUMN IF NOT EXISTS meeting_url TEXT,
       ADD COLUMN IF NOT EXISTS recording_duration INTEGER,
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS stage TEXT DEFAULT 'video',
+      ADD COLUMN IF NOT EXISTS stage_state JSONB DEFAULT '{}'::jsonb
+  `);
+
+  await pool.query(`
+    UPDATE academy_live_classes
+    SET
+      stage = COALESCE(NULLIF(stage, ''), 'video'),
+      stage_state = COALESCE(stage_state, '{}'::jsonb)
+    WHERE stage IS NULL OR stage = '' OR stage_state IS NULL
   `);
 
   await pool.query(`
@@ -516,10 +587,28 @@ const ensureLiveClassTables = async () => {
     CREATE TABLE IF NOT EXISTS academy_live_whiteboard_events (
       id BIGSERIAL PRIMARY KEY,
       live_class_id BIGINT,
-      event_type TEXT,
+      event_type TEXT DEFAULT 'state',
       payload JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE academy_live_whiteboard_events
+      ADD COLUMN IF NOT EXISTS live_class_id BIGINT,
+      ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'state',
+      ADD COLUMN IF NOT EXISTS payload JSONB,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()
+  `);
+
+  await pool.query(`
+    UPDATE academy_live_whiteboard_events
+    SET
+      event_type = COALESCE(NULLIF(event_type, ''), 'state'),
+      created_at = COALESCE(created_at, NOW())
+    WHERE event_type IS NULL
+       OR event_type = ''
+       OR created_at IS NULL
   `);
 
   await pool.query(`
@@ -561,6 +650,15 @@ const ensureLiveClassTables = async () => {
       created_at DESC
     )
   `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_live_whiteboard_class
+    ON academy_live_whiteboard_events (
+      live_class_id,
+      created_at DESC,
+      id DESC
+    )
+  `);
 };
 
 let databaseSetupPromise = null;
@@ -579,14 +677,21 @@ const initialiseLiveClassDatabase = async () => {
 router.use(async (req, res, next) => {
   try {
     await initialiseLiveClassDatabase();
-    return next();
+    next();
   } catch (error) {
     console.error("Live class database setup error:", error);
 
     return res.status(500).json({
       success: false,
       message: "Live class database is not ready",
-      error: error.message,
+      error:
+        process.env.NODE_ENV === "production"
+          ? undefined
+          : error.message,
+      code:
+        process.env.NODE_ENV === "production"
+          ? undefined
+          : error.code,
     });
   }
 });
@@ -622,11 +727,7 @@ const authenticateLiveClassStudent = async (req) => {
   ).toLowerCase();
 
   if (
-    ![
-      "student",
-      "academy_student",
-      "academystudent",
-    ].includes(userType)
+    !["student", "academy_student", "academystudent"].includes(userType)
   ) {
     const error = new Error("A valid student account is required");
     error.status = 403;
@@ -636,9 +737,7 @@ const authenticateLiveClassStudent = async (req) => {
   const auth = await resolveAuthenticatedStudent(req);
 
   if (!auth || !auth.student || !auth.serialized) {
-    const error = new Error(
-      "Student enrollment could not be verified"
-    );
+    const error = new Error("Student enrollment could not be verified");
     error.status = 401;
     throw error;
   }
@@ -646,9 +745,7 @@ const authenticateLiveClassStudent = async (req) => {
   const serialized = auth.serialized;
 
   const tokenStudentId = clean(
-    decoded.studentId ||
-      decoded.student_id ||
-      decoded.id
+    decoded.studentId || decoded.student_id || decoded.id
   );
 
   const tokenEnrollmentId = clean(
@@ -680,24 +777,23 @@ const authenticateLiveClassStudent = async (req) => {
   const hasMatchingIdentity =
     Boolean(
       tokenStudentId &&
-      resolvedStudentId &&
-      tokenStudentId === resolvedStudentId
+        resolvedStudentId &&
+        tokenStudentId === resolvedStudentId
     ) ||
     Boolean(
       tokenEnrollmentId &&
-      resolvedEnrollmentId &&
-      tokenEnrollmentId === resolvedEnrollmentId
+        resolvedEnrollmentId &&
+        tokenEnrollmentId === resolvedEnrollmentId
     ) ||
     Boolean(
-      tokenEmail &&
-      resolvedEmail &&
-      tokenEmail === resolvedEmail
+      tokenEmail && resolvedEmail && tokenEmail === resolvedEmail
     );
 
   if (!hasMatchingIdentity) {
     const error = new Error(
       "Your student session does not match this enrollment"
     );
+
     error.status = 403;
     throw error;
   }
@@ -750,10 +846,7 @@ const authenticateLiveClassStudent = async (req) => {
 
 const studentCanAccessSession = (student, session) => {
   const studentClass = clean(student.studentClass);
-
-  const sessionClass =
-    clean(session.class_name) ||
-    clean(session.grade);
+  const sessionClass = clean(session.class_name) || clean(session.grade);
 
   if (
     !studentClass ||
@@ -774,33 +867,275 @@ const studentCanAccessSession = (student, session) => {
 
   return sessionSubjects.some((sessionSubject) =>
     studentSubjects.some((studentSubject) =>
-      subjectsMatch(
-        clean(studentSubject),
-        clean(sessionSubject)
-      )
+      subjectsMatch(clean(studentSubject), clean(sessionSubject))
     )
   );
 };
 
 /* =========================================================
+   CLASSROOM STATE
+========================================================= */
+
+router.get("/live-classes/:id/state", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const classResult = await pool.query(
+      `
+      SELECT
+        c.*,
+        COALESCE(
+          (
+            SELECT COUNT(*)
+            FROM academy_live_participants p
+            WHERE p.live_class_id = c.id
+              AND p.is_present = TRUE
+          ),
+          0
+        )::INTEGER AS participants
+      FROM academy_live_classes c
+      WHERE c.id = $1::bigint
+      LIMIT 1
+      `,
+      [id]
+    );
+
+    if (!classResult.rows.length) {
+      return res.status(404).json({
+        success: false,
+        code: "LIVE_CLASS_NOT_FOUND",
+        message: "Live class not found",
+      });
+    }
+
+    const [whiteboardResult, presentationResult, resourcesResult] =
+      await Promise.all([
+        pool.query(
+          `
+          SELECT *
+          FROM academy_live_whiteboard_events
+          WHERE live_class_id = $1::bigint
+          ORDER BY created_at DESC NULLS LAST, id DESC
+          LIMIT 1
+          `,
+          [id]
+        ),
+        pool.query(
+          `
+          SELECT *
+          FROM academy_live_resources
+          WHERE live_class_id = $1::bigint
+            AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+            AND COALESCE(is_active, TRUE) = TRUE
+          ORDER BY created_at DESC, id DESC
+          LIMIT 1
+          `,
+          [id]
+        ),
+        pool.query(
+          `
+          SELECT *
+          FROM academy_live_resources
+          WHERE live_class_id = $1::bigint
+            AND COALESCE(is_active, TRUE) = TRUE
+          ORDER BY created_at ASC, id ASC
+          `,
+          [id]
+        ),
+      ]);
+
+    const session = normaliseSession(classResult.rows[0]);
+    const whiteboardRow = whiteboardResult.rows[0] || null;
+    const whiteboard = whiteboardRow?.payload ?? null;
+
+    const presentation = normalisePresentation(
+      presentationResult.rows[0] || null
+    );
+
+    const resources = resourcesResult.rows.map((resource) => {
+      if (
+        clean(resource.resource_type).toLowerCase() === "presentation"
+      ) {
+        return {
+          ...resource,
+          ...normalisePresentation(resource),
+          resource_type: "presentation",
+        };
+      }
+
+      return resource;
+    });
+
+    const activeMaterial =
+      resources
+        .filter((resource) => {
+          const type = clean(resource.resource_type).toLowerCase();
+
+          return (
+            resource.is_active !== false &&
+            type !== "presentation"
+          );
+        })
+        .slice(-1)[0] || null;
+
+    const stage = session.stage;
+    const stageState = session.stage_state || {};
+
+    const state = {
+      id: session.id,
+      session,
+      classroom: session,
+      class: session,
+      stage,
+      stageMode: stage,
+      activeStage: stage,
+      active_stage: stage,
+      stageState,
+      stage_state: stageState,
+      whiteboard,
+      whiteboardState: whiteboard,
+      whiteboard_state: whiteboard,
+      whiteboardEvent: whiteboardRow,
+      whiteboard_event: whiteboardRow,
+      presentation,
+      activePresentation: presentation,
+      active_presentation: presentation,
+      activeMaterial,
+      active_material: activeMaterial,
+      resources,
+    };
+
+    return res.json({
+      success: true,
+      state,
+      classroom: session,
+      session,
+      data: state,
+      stage,
+      stageMode: stage,
+      activeStage: stage,
+      active_stage: stage,
+      stageState,
+      stage_state: stageState,
+      whiteboard,
+      presentation,
+      resources,
+      activeMaterial,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to fetch live classroom state");
+  }
+});
+
+router.patch("/live-classes/:id/stage", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const body = req.body || {};
+
+    const requestedStage =
+      body.stage ??
+      body.stageMode ??
+      body.stage_mode ??
+      body.activeStage ??
+      body.active_stage;
+
+    if (!clean(requestedStage)) {
+      return res.status(400).json({
+        success: false,
+        message: "Classroom stage is required",
+        allowedStages: VALID_CLASSROOM_STAGES,
+      });
+    }
+
+    const stage = clean(requestedStage).toLowerCase();
+
+    if (!VALID_CLASSROOM_STAGES.includes(stage)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid classroom stage",
+        allowedStages: VALID_CLASSROOM_STAGES,
+      });
+    }
+
+    const suppliedStageState =
+      body.stageState ?? body.stage_state ?? body.state;
+
+    const stageState =
+      suppliedStageState === undefined
+        ? null
+        : parseJsonObject(suppliedStageState, {});
+
+    const result = await pool.query(
+      `
+      UPDATE academy_live_classes
+      SET
+        stage = $1,
+        stage_state = CASE
+          WHEN $2::jsonb IS NULL THEN
+            COALESCE(stage_state, '{}'::jsonb)
+          ELSE $2::jsonb
+        END,
+        updated_at = NOW()
+      WHERE id = $3::bigint
+      RETURNING *
+      `,
+      [
+        stage,
+        stageState === null ? null : JSON.stringify(stageState),
+        id,
+      ]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Live class not found",
+      });
+    }
+
+    const session = normaliseSession(result.rows[0]);
+
+    return res.json({
+      success: true,
+      message: "Classroom stage updated",
+      stage: session.stage,
+      stageMode: session.stage,
+      activeStage: session.stage,
+      active_stage: session.stage,
+      stageState: session.stage_state,
+      stage_state: session.stage_state,
+      session,
+      classroom: session,
+      data: session,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to update classroom stage");
+  }
+});
+
+/* =========================================================
    PRESENTATION ROUTES
 ========================================================= */
 
-/*
- * Upload a presentation.
- *
- * POST /api/academy/live-classes/:id/presentation
- *
- * Multipart field: file
- *
- * Accepts PDF, PPT and PPTX up to 50MB.
- */
 router.post(
   "/live-classes/:id/presentation",
   handlePresentationUpload,
   async (req, res) => {
-    let uploadedFileUrl = "";
-
     try {
       const id = getSessionId(req);
 
@@ -841,12 +1176,11 @@ router.post(
         });
       }
 
-      uploadedFileUrl = getPresentationPublicUrl(
+      const uploadedFileUrl = getPresentationPublicUrl(
         req.file.filename
       );
 
       const client = await pool.connect();
-
       let previousFiles = [];
 
       try {
@@ -864,16 +1198,12 @@ router.post(
           [id]
         );
 
-        previousFiles = oldResult.rows.map(
-          (row) => row.file_url
-        );
+        previousFiles = oldResult.rows.map((row) => row.file_url);
 
         await client.query(
           `
           UPDATE academy_live_resources
-          SET
-            is_active = FALSE,
-            updated_at = NOW()
+          SET is_active = FALSE, updated_at = NOW()
           WHERE live_class_id = $1::bigint
             AND LOWER(COALESCE(resource_type, '')) = 'presentation'
             AND COALESCE(is_active, TRUE) = TRUE
@@ -896,19 +1226,7 @@ router.post(
             file_size,
             total_pages
           )
-          VALUES (
-            $1::bigint,
-            'presentation',
-            $2,
-            $3,
-            1,
-            TRUE,
-            NOW(),
-            NOW(),
-            $4,
-            $5,
-            1
-          )
+          VALUES ($1::bigint, 'presentation', $2, $3, 1, TRUE, NOW(), NOW(), $4, $5, 1)
           RETURNING *
           `,
           [
@@ -920,16 +1238,21 @@ router.post(
           ]
         );
 
+        await client.query(
+          `
+          UPDATE academy_live_classes
+          SET stage = 'presentation', updated_at = NOW()
+          WHERE id = $1::bigint
+          `,
+          [id]
+        );
+
         await client.query("COMMIT");
 
         const presentation = normalisePresentation(
           insertResult.rows[0]
         );
 
-        /*
-         * Remove old uploaded files only after the new
-         * presentation has been saved successfully.
-         */
         for (const oldUrl of previousFiles) {
           if (oldUrl && oldUrl !== uploadedFileUrl) {
             await removePresentationFile(oldUrl);
@@ -953,213 +1276,160 @@ router.post(
         await fs.promises.unlink(req.file.path).catch(() => {});
       }
 
-      return sendError(
-        res,
-        error,
-        "Failed to upload presentation"
-      );
+      return sendError(res, error, "Failed to upload presentation");
     }
   }
 );
 
-/*
- * Retrieve the active presentation.
- *
- * GET /api/academy/live-classes/:id/presentation
- */
-router.get(
-  "/live-classes/:id/presentation",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+router.get("/live-classes/:id/presentation", async (req, res) => {
+  try {
+    const id = getSessionId(req);
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
 
-      const result = await pool.query(
-        `
-        SELECT *
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM academy_live_resources
+      WHERE live_class_id = $1::bigint
+        AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+        AND COALESCE(is_active, TRUE) = TRUE
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [id]
+    );
+
+    const presentation = normalisePresentation(result.rows[0] || null);
+
+    return res.json({
+      success: true,
+      presentation,
+      data: presentation,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to fetch presentation");
+  }
+});
+
+router.patch("/live-classes/:id/presentation", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const requestedPage = Number(
+      req.body?.currentPage ??
+        req.body?.current_page ??
+        req.body?.page
+    );
+
+    if (!Number.isInteger(requestedPage) || requestedPage < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid presentation page is required",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE academy_live_resources
+      SET
+        current_page = LEAST(
+          GREATEST($1, 1),
+          GREATEST(COALESCE(total_pages, 1), 1)
+        ),
+        updated_at = NOW()
+      WHERE id = (
+        SELECT id
+        FROM academy_live_resources
+        WHERE live_class_id = $2::bigint
+          AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+          AND COALESCE(is_active, TRUE) = TRUE
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+      )
+      RETURNING *
+      `,
+      [requestedPage, id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No active presentation was found",
+      });
+    }
+
+    const presentation = normalisePresentation(result.rows[0]);
+
+    return res.json({
+      success: true,
+      message: "Presentation page updated",
+      presentation,
+      data: presentation,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to update presentation page");
+  }
+});
+
+router.delete("/live-classes/:id/presentation", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE academy_live_resources
+      SET is_active = FALSE, updated_at = NOW()
+      WHERE id = (
+        SELECT id
         FROM academy_live_resources
         WHERE live_class_id = $1::bigint
           AND LOWER(COALESCE(resource_type, '')) = 'presentation'
           AND COALESCE(is_active, TRUE) = TRUE
         ORDER BY created_at DESC, id DESC
         LIMIT 1
-        `,
-        [id]
-      );
+      )
+      RETURNING *
+      `,
+      [id]
+    );
 
-      const presentation = normalisePresentation(
-        result.rows[0] || null
-      );
-
-      return res.json({
-        success: true,
-        presentation,
-        data: presentation,
+    if (!result.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No active presentation was found",
       });
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to fetch presentation"
-      );
     }
+
+    await removePresentationFile(result.rows[0].file_url);
+
+    return res.json({
+      success: true,
+      message: "Presentation removed successfully",
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to remove presentation");
   }
-);
-
-/*
- * Save the current presentation page.
- *
- * PATCH /api/academy/live-classes/:id/presentation
- *
- * Body: { "currentPage": 3 }
- */
-router.patch(
-  "/live-classes/:id/presentation",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
-
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const requestedPage = Number(
-        req.body?.currentPage ??
-          req.body?.current_page ??
-          req.body?.page
-      );
-
-      if (
-        !Number.isInteger(requestedPage) ||
-        requestedPage < 1
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: "A valid presentation page is required",
-        });
-      }
-
-      const result = await pool.query(
-        `
-        UPDATE academy_live_resources
-        SET
-          current_page = LEAST(
-            GREATEST($1, 1),
-            GREATEST(COALESCE(total_pages, 1), 1)
-          ),
-          updated_at = NOW()
-        WHERE id = (
-          SELECT id
-          FROM academy_live_resources
-          WHERE live_class_id = $2::bigint
-            AND LOWER(COALESCE(resource_type, '')) = 'presentation'
-            AND COALESCE(is_active, TRUE) = TRUE
-          ORDER BY created_at DESC, id DESC
-          LIMIT 1
-        )
-        RETURNING *
-        `,
-        [requestedPage, id]
-      );
-
-      if (!result.rows.length) {
-        return res.status(404).json({
-          success: false,
-          message: "No active presentation was found",
-        });
-      }
-
-      const presentation = normalisePresentation(
-        result.rows[0]
-      );
-
-      return res.json({
-        success: true,
-        message: "Presentation page updated",
-        presentation,
-        data: presentation,
-      });
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to update presentation page"
-      );
-    }
-  }
-);
-
-/*
- * Delete the active presentation and its uploaded file.
- *
- * DELETE /api/academy/live-classes/:id/presentation
- */
-router.delete(
-  "/live-classes/:id/presentation",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
-
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const result = await pool.query(
-        `
-        UPDATE academy_live_resources
-        SET
-          is_active = FALSE,
-          updated_at = NOW()
-        WHERE id = (
-          SELECT id
-          FROM academy_live_resources
-          WHERE live_class_id = $1::bigint
-            AND LOWER(COALESCE(resource_type, '')) = 'presentation'
-            AND COALESCE(is_active, TRUE) = TRUE
-          ORDER BY created_at DESC, id DESC
-          LIMIT 1
-        )
-        RETURNING *
-        `,
-        [id]
-      );
-
-      if (!result.rows.length) {
-        return res.status(404).json({
-          success: false,
-          message: "No active presentation was found",
-        });
-      }
-
-      await removePresentationFile(
-        result.rows[0].file_url
-      );
-
-      return res.json({
-        success: true,
-        message: "Presentation removed successfully",
-      });
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        "Failed to remove presentation"
-      );
-    }
-  }
-);
+});
 
 /* =========================================================
    GET STUDENT LIVE CLASSES
@@ -1167,8 +1437,7 @@ router.delete(
 
 router.get("/student/live-classes", async (req, res) => {
   try {
-    const student =
-      await authenticateLiveClassStudent(req);
+    const student = await authenticateLiveClassStudent(req);
 
     const result = await pool.query(`
       SELECT
@@ -1184,23 +1453,12 @@ router.get("/student/live-classes", async (req, res) => {
         )::INTEGER AS participants
       FROM academy_live_classes c
       WHERE LOWER(COALESCE(c.status, 'scheduled'))
-        IN (
-          'scheduled',
-          'upcoming',
-          'live',
-          'active',
-          'ended',
-          'completed'
-        )
-      ORDER BY
-        COALESCE(c.scheduled_at, c.scheduled_start) DESC,
-        c.id DESC
+        IN ('scheduled', 'upcoming', 'live', 'active', 'ended', 'completed')
+      ORDER BY COALESCE(c.scheduled_at, c.scheduled_start) DESC, c.id DESC
     `);
 
     const sessions = result.rows
-      .filter((session) =>
-        studentCanAccessSession(student, session)
-      )
+      .filter((session) => studentCanAccessSession(student, session))
       .map((session) => {
         const normalised = normaliseSession(session);
 
@@ -1210,9 +1468,7 @@ router.get("/student/live-classes", async (req, res) => {
             normalised.tutor_name ||
             normalised.tutor_reference ||
             "Assigned Tutor",
-          className:
-            normalised.class_name ||
-            normalised.grade,
+          className: normalised.class_name || normalised.grade,
           scheduledAt: normalised.scheduled_at,
           startedAt: normalised.started_at,
           endedAt: normalised.ended_at,
@@ -1233,11 +1489,7 @@ router.get("/student/live-classes", async (req, res) => {
       },
     });
   } catch (error) {
-    return sendError(
-      res,
-      error,
-      "Failed to fetch student live classes"
-    );
+    return sendError(res, error, "Failed to fetch student live classes");
   }
 });
 
@@ -1261,9 +1513,7 @@ router.get("/tutor/live-classes", async (req, res) => {
       SELECT *
       FROM academy_live_classes
       WHERE tutor_reference = $1
-      ORDER BY
-        COALESCE(scheduled_at, scheduled_start) DESC,
-        id DESC
+      ORDER BY COALESCE(scheduled_at, scheduled_start) DESC, id DESC
       `,
       [tutorReference]
     );
@@ -1276,11 +1526,7 @@ router.get("/tutor/live-classes", async (req, res) => {
       data: sessions,
     });
   } catch (error) {
-    return sendError(
-      res,
-      error,
-      "Failed to fetch tutor live classes"
-    );
+    return sendError(res, error, "Failed to fetch tutor live classes");
   }
 });
 
@@ -1341,10 +1587,7 @@ router.post("/tutor/live-classes", async (req, res) => {
       });
     }
 
-    const scheduledValue =
-      body.scheduledAt ||
-      body.scheduled_at ||
-      null;
+    const scheduledValue = body.scheduledAt || body.scheduled_at || null;
 
     const scheduledDate = scheduledValue
       ? new Date(scheduledValue)
@@ -1378,13 +1621,15 @@ router.post("/tutor/live-classes", async (req, res) => {
         class_id,
         class_name,
         subject,
+        stage,
+        stage_state,
         created_at,
         updated_at
       )
       VALUES (
         $1, $2, $3::jsonb, $4, $5,
         'scheduled', $6, $6, $7, $7, $8, $8,
-        $9, $10, $11, NOW(), NOW()
+        $9, $10, $11, 'video', '{}'::jsonb, NOW(), NOW()
       )
       RETURNING *
       `,
@@ -1412,11 +1657,7 @@ router.post("/tutor/live-classes", async (req, res) => {
       data: session,
     });
   } catch (error) {
-    return sendError(
-      res,
-      error,
-      "Failed to create live class"
-    );
+    return sendError(res, error, "Failed to create live class");
   }
 });
 
@@ -1432,12 +1673,7 @@ router.get("/tutor/live-classes/:id", async (req, res) => {
     }
 
     const result = await pool.query(
-      `
-      SELECT *
-      FROM academy_live_classes
-      WHERE id = $1::bigint
-      LIMIT 1
-      `,
+      `SELECT * FROM academy_live_classes WHERE id = $1::bigint LIMIT 1`,
       [id]
     );
 
@@ -1460,119 +1696,8 @@ router.get("/tutor/live-classes/:id", async (req, res) => {
   }
 });
 
-router.post(
-  "/tutor/live-classes/:id/start",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
-
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const result = await pool.query(
-        `
-        UPDATE academy_live_classes
-        SET
-          status = 'live',
-          started_at = COALESCE(started_at, NOW()),
-          actual_start = COALESCE(actual_start, NOW()),
-          updated_at = NOW()
-        WHERE id = $1::bigint
-          AND LOWER(COALESCE(status, 'scheduled'))
-            NOT IN ('ended', 'completed', 'cancelled')
-        RETURNING *
-        `,
-        [id]
-      );
-
-      if (!result.rows.length) {
-        return res.status(404).json({
-          success: false,
-          message: "Live class not found or has already ended",
-        });
-      }
-
-      const session = normaliseSession(result.rows[0]);
-
-      return res.json({
-        success: true,
-        message: "Live class started",
-        session,
-        data: session,
-      });
-    } catch (error) {
-      return sendError(res, error, "Failed to start live class");
-    }
-  }
-);
-
-router.post(
-  "/tutor/live-classes/:id/end",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
-
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const result = await pool.query(
-        `
-        UPDATE academy_live_classes
-        SET
-          status = 'ended',
-          ended_at = COALESCE(ended_at, NOW()),
-          actual_end = COALESCE(actual_end, NOW()),
-          duration_seconds = CASE
-            WHEN COALESCE(started_at, actual_start) IS NOT NULL
-            THEN GREATEST(
-              0,
-              EXTRACT(
-                EPOCH FROM (
-                  NOW() - COALESCE(started_at, actual_start)
-                )
-              )::INTEGER
-            )
-            ELSE duration_seconds
-          END,
-          updated_at = NOW()
-        WHERE id = $1::bigint
-        RETURNING *
-        `,
-        [id]
-      );
-
-      if (!result.rows.length) {
-        return res.status(404).json({
-          success: false,
-          message: "Live class not found",
-        });
-      }
-
-      const session = normaliseSession(result.rows[0]);
-
-      return res.json({
-        success: true,
-        message: "Live class ended",
-        session,
-        data: session,
-      });
-    } catch (error) {
-      return sendError(res, error, "Failed to end live class");
-    }
-  }
-);
-
-router.delete(
-  "/tutor/live-classes/:id",
-  async (req, res) => {
+router.post("/tutor/live-classes/:id/start", async (req, res) => {
+  try {
     const id = getSessionId(req);
 
     if (!isValidBigIntId(id)) {
@@ -1582,812 +1707,1065 @@ router.delete(
       });
     }
 
-    const client = await pool.connect();
+    const result = await pool.query(
+      `
+      UPDATE academy_live_classes
+      SET
+        status = 'live',
+        started_at = COALESCE(started_at, NOW()),
+        actual_start = COALESCE(actual_start, NOW()),
+        updated_at = NOW()
+      WHERE id = $1::bigint
+        AND LOWER(COALESCE(status, 'scheduled'))
+          NOT IN ('ended', 'completed', 'cancelled')
+      RETURNING *
+      `,
+      [id]
+    );
 
-    try {
-      await client.query("BEGIN");
-
-      const presentationResult = await client.query(
-        `
-        SELECT file_url
-        FROM academy_live_resources
-        WHERE live_class_id = $1::bigint
-          AND LOWER(COALESCE(resource_type, '')) = 'presentation'
-        `,
-        [id]
-      );
-
-      const childTables = [
-        "academy_live_chat",
-        "academy_live_participants",
-        "academy_live_recordings",
-        "academy_live_resources",
-        "academy_live_whiteboard_events",
-      ];
-
-      for (const table of childTables) {
-        await client.query(
-          `DELETE FROM ${table} WHERE live_class_id = $1::bigint`,
-          [id]
-        );
-      }
-
-      const result = await client.query(
-        `
-        DELETE FROM academy_live_classes
-        WHERE id = $1::bigint
-        RETURNING *
-        `,
-        [id]
-      );
-
-      if (!result.rows.length) {
-        await client.query("ROLLBACK");
-
-        return res.status(404).json({
-          success: false,
-          message: "Live class not found",
-        });
-      }
-
-      await client.query("COMMIT");
-
-      for (const row of presentationResult.rows) {
-        await removePresentationFile(row.file_url);
-      }
-
-      return res.json({
-        success: true,
-        message: "Live class deleted successfully",
+    if (!result.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Live class not found or has already ended",
       });
-    } catch (error) {
+    }
+
+    const session = normaliseSession(result.rows[0]);
+
+    return res.json({
+      success: true,
+      message: "Live class started",
+      session,
+      data: session,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to start live class");
+  }
+});
+
+router.post("/tutor/live-classes/:id/end", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE academy_live_classes
+      SET
+        status = 'ended',
+        ended_at = COALESCE(ended_at, NOW()),
+        actual_end = COALESCE(actual_end, NOW()),
+        duration_seconds = CASE
+          WHEN COALESCE(started_at, actual_start) IS NOT NULL
+          THEN GREATEST(
+            0,
+            EXTRACT(EPOCH FROM (
+              NOW() - COALESCE(started_at, actual_start)
+            ))::INTEGER
+          )
+          ELSE duration_seconds
+        END,
+        updated_at = NOW()
+      WHERE id = $1::bigint
+      RETURNING *
+      `,
+      [id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Live class not found",
+      });
+    }
+
+    const session = normaliseSession(result.rows[0]);
+
+    return res.json({
+      success: true,
+      message: "Live class ended",
+      session,
+      data: session,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to end live class");
+  }
+});
+
+router.delete("/tutor/live-classes/:id", async (req, res) => {
+  const id = getSessionId(req);
+
+  if (!isValidBigIntId(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid live class ID",
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const presentationResult = await client.query(
+      `
+      SELECT file_url
+      FROM academy_live_resources
+      WHERE live_class_id = $1::bigint
+        AND LOWER(COALESCE(resource_type, '')) = 'presentation'
+      `,
+      [id]
+    );
+
+    const childTables = [
+      "academy_live_chat",
+      "academy_live_participants",
+      "academy_live_recordings",
+      "academy_live_resources",
+      "academy_live_whiteboard_events",
+    ];
+
+    for (const table of childTables) {
+      await client.query(
+        `DELETE FROM ${table} WHERE live_class_id = $1::bigint`,
+        [id]
+      );
+    }
+
+    const result = await client.query(
+      `
+      DELETE FROM academy_live_classes
+      WHERE id = $1::bigint
+      RETURNING *
+      `,
+      [id]
+    );
+
+    if (!result.rows.length) {
       await client.query("ROLLBACK");
 
-      return sendError(
-        res,
-        error,
-        "Failed to delete live class"
-      );
-    } finally {
-      client.release();
+      return res.status(404).json({
+        success: false,
+        message: "Live class not found",
+      });
     }
+
+    await client.query("COMMIT");
+
+    for (const row of presentationResult.rows) {
+      await removePresentationFile(row.file_url);
+    }
+
+    return res.json({
+      success: true,
+      message: "Live class deleted successfully",
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    return sendError(res, error, "Failed to delete live class");
+  } finally {
+    client.release();
   }
-);
+});
 
 /* =========================================================
    JOIN LIVE CLASS
 ========================================================= */
 
-router.post(
-  "/live-classes/:id/join",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+router.post("/live-classes/:id/join", async (req, res) => {
+  try {
+    const id = getSessionId(req);
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const student =
-        await authenticateLiveClassStudent(req);
-
-      const classResult = await pool.query(
-        `
-        SELECT *
-        FROM academy_live_classes
-        WHERE id = $1::bigint
-        LIMIT 1
-        `,
-        [id]
-      );
-
-      if (!classResult.rows.length) {
-        return res.status(404).json({
-          success: false,
-          message: "Live class not found",
-        });
-      }
-
-      const liveClass = classResult.rows[0];
-
-      if (
-        !["live", "active"].includes(
-          clean(liveClass.status).toLowerCase()
-        )
-      ) {
-        return res.status(409).json({
-          success: false,
-          code: "CLASS_NOT_LIVE",
-          message:
-            clean(liveClass.status).toLowerCase() === "ended"
-              ? "This live class has already ended"
-              : "The tutor has not started this class yet",
-        });
-      }
-
-      if (!studentCanAccessSession(student, liveClass)) {
-        return res.status(403).json({
-          success: false,
-          message:
-            "You are not registered for this class or subject",
-        });
-      }
-
-      const enrollmentId = student.enrollmentId;
-
-      if (!enrollmentId) {
-        return res.status(400).json({
-          success: false,
-          message: "Your enrollment ID could not be verified",
-        });
-      }
-
-      let participantResult = await pool.query(
-        `
-        UPDATE academy_live_participants
-        SET
-          student_name = $1,
-          role = 'student'
-        WHERE live_class_id = $2::bigint
-          AND enrollment_id = $3
-          AND is_present = TRUE
-        RETURNING *
-        `,
-        [
-          student.studentName,
-          id,
-          enrollmentId,
-        ]
-      );
-
-      if (!participantResult.rows.length) {
-        participantResult = await pool.query(
-          `
-          INSERT INTO academy_live_participants (
-            live_class_id,
-            enrollment_id,
-            student_name,
-            role,
-            joined_at,
-            is_present,
-            created_at
-          )
-          VALUES ($1::bigint, $2, $3, 'student', NOW(), TRUE, NOW())
-          RETURNING *
-          `,
-          [
-            id,
-            enrollmentId,
-            student.studentName,
-          ]
-        );
-      }
-
-      const session = normaliseSession(liveClass);
-
-      return res.status(200).json({
-        success: true,
-        message: "Joined live class",
-        participant: participantResult.rows[0],
-        session,
-        data: session,
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
       });
-    } catch (error) {
-      return sendError(res, error, "Failed to join live class");
     }
-  }
-);
 
-/* =========================================================
-   LEAVE LIVE CLASS
-========================================================= */
+    const student = await authenticateLiveClassStudent(req);
 
-router.post(
-  "/live-classes/:id/leave",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+    const classResult = await pool.query(
+      `SELECT * FROM academy_live_classes WHERE id = $1::bigint LIMIT 1`,
+      [id]
+    );
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const student =
-        await authenticateLiveClassStudent(req);
-
-      const result = await pool.query(
-        `
-        UPDATE academy_live_participants
-        SET
-          is_present = FALSE,
-          left_at = NOW(),
-          total_seconds = CASE
-            WHEN joined_at IS NOT NULL
-            THEN GREATEST(
-              0,
-              EXTRACT(EPOCH FROM (NOW() - joined_at))::INTEGER
-            )
-            ELSE total_seconds
-          END
-        WHERE live_class_id = $1::bigint
-          AND enrollment_id = $2
-          AND is_present = TRUE
-        RETURNING *
-        `,
-        [id, student.enrollmentId]
-      );
-
-      if (!result.rows.length) {
-        return res.status(404).json({
-          success: false,
-          message: "Active participant record not found",
-        });
-      }
-
-      return res.json({
-        success: true,
-        message: "Left live class",
-        participant: result.rows[0],
+    if (!classResult.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Live class not found",
       });
-    } catch (error) {
-      return sendError(res, error, "Failed to leave live class");
     }
-  }
-);
 
-/* =========================================================
-   PARTICIPANTS
-========================================================= */
+    const liveClass = classResult.rows[0];
 
-router.get(
-  "/live-classes/:id/participants",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+    if (
+      !["live", "active"].includes(
+        clean(liveClass.status).toLowerCase()
+      )
+    ) {
+      return res.status(409).json({
+        success: false,
+        code: "CLASS_NOT_LIVE",
+        message:
+          clean(liveClass.status).toLowerCase() === "ended"
+            ? "This live class has already ended"
+            : "The tutor has not started this class yet",
+      });
+    }
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
+    if (!studentCanAccessSession(student, liveClass)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not registered for this class or subject",
+      });
+    }
 
-      const result = await pool.query(
+    const enrollmentId = student.enrollmentId;
+
+    if (!enrollmentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Your enrollment ID could not be verified",
+      });
+    }
+
+    let participantResult = await pool.query(
+      `
+      UPDATE academy_live_participants
+      SET student_name = $1, role = 'student'
+      WHERE live_class_id = $2::bigint
+        AND enrollment_id = $3
+        AND is_present = TRUE
+      RETURNING *
+      `,
+      [student.studentName, id, enrollmentId]
+    );
+
+    if (!participantResult.rows.length) {
+      participantResult = await pool.query(
         `
-        SELECT
-          id,
+        INSERT INTO academy_live_participants (
           live_class_id,
           enrollment_id,
           student_name,
           role,
           joined_at,
-          left_at,
           is_present,
-          total_seconds,
           created_at
-        FROM academy_live_participants
-        WHERE live_class_id = $1::bigint
-        ORDER BY joined_at ASC, id ASC
+        )
+        VALUES ($1::bigint, $2, $3, 'student', NOW(), TRUE, NOW())
+        RETURNING *
         `,
-        [id]
+        [id, enrollmentId, student.studentName]
       );
-
-      return res.json({
-        success: true,
-        participants: result.rows,
-        data: result.rows,
-      });
-    } catch (error) {
-      return sendError(res, error, "Failed to fetch participants");
     }
+
+    const session = normaliseSession(liveClass);
+
+    return res.status(200).json({
+      success: true,
+      message: "Joined live class",
+      participant: participantResult.rows[0],
+      session,
+      data: session,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to join live class");
   }
-);
+});
+
+/* =========================================================
+   LEAVE LIVE CLASS
+========================================================= */
+
+router.post("/live-classes/:id/leave", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const student = await authenticateLiveClassStudent(req);
+
+    const result = await pool.query(
+      `
+      UPDATE academy_live_participants
+      SET
+        is_present = FALSE,
+        left_at = NOW(),
+        total_seconds = CASE
+          WHEN joined_at IS NOT NULL
+          THEN GREATEST(
+            0,
+            EXTRACT(EPOCH FROM (NOW() - joined_at))::INTEGER
+          )
+          ELSE total_seconds
+        END
+      WHERE live_class_id = $1::bigint
+        AND enrollment_id = $2
+        AND is_present = TRUE
+      RETURNING *
+      `,
+      [id, student.enrollmentId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Active participant record not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Left live class",
+      participant: result.rows[0],
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to leave live class");
+  }
+});
+
+/* =========================================================
+   PARTICIPANTS
+========================================================= */
+
+router.get("/live-classes/:id/participants", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        live_class_id,
+        enrollment_id,
+        student_name,
+        role,
+        joined_at,
+        left_at,
+        is_present,
+        total_seconds,
+        created_at
+      FROM academy_live_participants
+      WHERE live_class_id = $1::bigint
+      ORDER BY joined_at ASC, id ASC
+      `,
+      [id]
+    );
+
+    return res.json({
+      success: true,
+      participants: result.rows,
+      data: result.rows,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to fetch participants");
+  }
+});
 
 /* =========================================================
    ATTENDANCE
 ========================================================= */
 
-router.get(
-  "/live-classes/:id/attendance",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+router.get("/live-classes/:id/attendance", async (req, res) => {
+  try {
+    const id = getSessionId(req);
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const result = await pool.query(
-        `
-        SELECT
-          enrollment_id,
-          student_name,
-          role,
-          MIN(joined_at) AS first_joined_at,
-          MAX(left_at) AS last_left_at,
-          SUM(COALESCE(total_seconds, 0))::INTEGER AS total_seconds,
-          BOOL_OR(COALESCE(is_present, FALSE)) AS is_present
-        FROM academy_live_participants
-        WHERE live_class_id = $1::bigint
-        GROUP BY enrollment_id, student_name, role
-        ORDER BY student_name ASC
-        `,
-        [id]
-      );
-
-      return res.json({
-        success: true,
-        attendance: result.rows,
-        data: result.rows,
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
       });
-    } catch (error) {
-      return sendError(res, error, "Failed to fetch attendance");
     }
+
+    const result = await pool.query(
+      `
+      SELECT
+        enrollment_id,
+        student_name,
+        role,
+        MIN(joined_at) AS first_joined_at,
+        MAX(left_at) AS last_left_at,
+        SUM(COALESCE(total_seconds, 0))::INTEGER AS total_seconds,
+        BOOL_OR(COALESCE(is_present, FALSE)) AS is_present
+      FROM academy_live_participants
+      WHERE live_class_id = $1::bigint
+      GROUP BY enrollment_id, student_name, role
+      ORDER BY student_name ASC
+      `,
+      [id]
+    );
+
+    return res.json({
+      success: true,
+      attendance: result.rows,
+      data: result.rows,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to fetch attendance");
   }
-);
+});
 
 /* =========================================================
    CHAT
 ========================================================= */
 
-router.get(
-  "/live-classes/:id/chat",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+router.get("/live-classes/:id/chat", async (req, res) => {
+  try {
+    const id = getSessionId(req);
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const result = await pool.query(
-        `
-        SELECT
-          id,
-          live_class_id,
-          sender_id,
-          sender_name,
-          sender_role,
-          message,
-          created_at
-        FROM academy_live_chat
-        WHERE live_class_id = $1::bigint
-        ORDER BY created_at ASC, id ASC
-        `,
-        [id]
-      );
-
-      return res.json({
-        success: true,
-        messages: result.rows,
-        chat: result.rows,
-        data: result.rows,
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
       });
-    } catch (error) {
-      return sendError(res, error, "Failed to fetch live chat");
     }
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        live_class_id,
+        sender_id,
+        sender_name,
+        sender_role,
+        message,
+        created_at
+      FROM academy_live_chat
+      WHERE live_class_id = $1::bigint
+      ORDER BY created_at ASC, id ASC
+      `,
+      [id]
+    );
+
+    return res.json({
+      success: true,
+      messages: result.rows,
+      chat: result.rows,
+      data: result.rows,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to fetch live chat");
   }
-);
+});
 
-router.post(
-  "/live-classes/:id/chat",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+router.post("/live-classes/:id/chat", async (req, res) => {
+  try {
+    const id = getSessionId(req);
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const body = req.body || {};
-      const message = clean(body.message);
-
-      if (!message) {
-        return res.status(400).json({
-          success: false,
-          message: "Message is required",
-        });
-      }
-
-      if (message.length > 5000) {
-        return res.status(400).json({
-          success: false,
-          message: "Message is too long",
-        });
-      }
-
-      const senderId = clean(
-        body.senderId ||
-          body.sender_id ||
-          body.userId ||
-          body.user_id
-      );
-
-      const senderName =
-        clean(
-          body.senderName ||
-            body.sender_name ||
-            body.name
-        ) || "User";
-
-      const senderRole =
-        clean(
-          body.senderRole ||
-            body.sender_role ||
-            body.role
-        ) || "student";
-
-      const result = await pool.query(
-        `
-        INSERT INTO academy_live_chat (
-          live_class_id,
-          sender_id,
-          sender_name,
-          sender_role,
-          message,
-          created_at
-        )
-        VALUES ($1::bigint, $2, $3, $4, $5, NOW())
-        RETURNING *
-        `,
-        [
-          id,
-          senderId,
-          senderName,
-          senderRole,
-          message,
-        ]
-      );
-
-      return res.status(201).json({
-        success: true,
-        message: "Message sent",
-        chat: result.rows[0],
-        data: result.rows[0],
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
       });
-    } catch (error) {
-      return sendError(res, error, "Failed to send chat message");
     }
+
+    const body = req.body || {};
+    const message = clean(body.message);
+
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        message: "Message is required",
+      });
+    }
+
+    if (message.length > 5000) {
+      return res.status(400).json({
+        success: false,
+        message: "Message is too long",
+      });
+    }
+
+    const senderId = clean(
+      body.senderId ||
+        body.sender_id ||
+        body.userId ||
+        body.user_id
+    );
+
+    const senderName =
+      clean(body.senderName || body.sender_name || body.name) || "User";
+
+    const senderRole =
+      clean(body.senderRole || body.sender_role || body.role) || "student";
+
+    const result = await pool.query(
+      `
+      INSERT INTO academy_live_chat (
+        live_class_id,
+        sender_id,
+        sender_name,
+        sender_role,
+        message,
+        created_at
+      )
+      VALUES ($1::bigint, $2, $3, $4, $5, NOW())
+      RETURNING *
+      `,
+      [id, senderId, senderName, senderRole, message]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Message sent",
+      chat: result.rows[0],
+      data: result.rows[0],
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to send chat message");
   }
-);
+});
 
 /* =========================================================
-   WHITEBOARD
+   WHITEBOARD - SAVE, BROADCAST AND LOAD
 ========================================================= */
 
-router.post(
-  "/live-classes/:id/whiteboard",
-  async (req, res) => {
+router.post("/live-classes/:id/whiteboard", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const body = req.body || {};
+
+    let payload =
+      body.payload ??
+      body.content ??
+      body.state ??
+      null;
+
+    if (payload === null && body.image) {
+      payload = { image: body.image };
+    }
+
+    if (
+      payload === null &&
+      Object.keys(body).length > 0
+    ) {
+      payload = body;
+    }
+
+    if (payload === null || payload === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "Whiteboard payload is required",
+      });
+    }
+
+    if (
+      typeof payload !== "object" &&
+      typeof payload !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid whiteboard payload",
+      });
+    }
+
+    let serializedPayload;
+
     try {
-      const id = getSessionId(req);
+      serializedPayload = JSON.stringify(payload);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: "Whiteboard payload could not be serialized",
+      });
+    }
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
+    if (!serializedPayload) {
+      return res.status(400).json({
+        success: false,
+        message: "Whiteboard payload is empty",
+      });
+    }
 
-      const body = req.body || {};
+    const payloadSize = Buffer.byteLength(
+      serializedPayload,
+      "utf8"
+    );
 
-      const payload =
-        body.payload ??
-        body.content ??
-        body.state ??
-        body;
+    if (payloadSize > MAX_WHITEBOARD_SIZE) {
+      return res.status(413).json({
+        success: false,
+        message:
+          "Whiteboard image is too large. Maximum size is 20MB.",
+      });
+    }
 
-      const result = await pool.query(
-        `
-        INSERT INTO academy_live_whiteboard_events (
-          live_class_id,
-          event_type,
-          payload,
-          created_at
-        )
-        VALUES ($1::bigint, 'state', $2::jsonb, NOW())
-        RETURNING *
-        `,
-        [
-          id,
-          JSON.stringify(payload),
-        ]
+    const eventType =
+      clean(body.eventType || body.event_type) || "state";
+
+    // Confirm that the classroom exists.
+    const classResult = await pool.query(
+      `
+      SELECT id
+      FROM academy_live_classes
+      WHERE id = $1::bigint
+      LIMIT 1
+      `,
+      [id]
+    );
+
+    if (!classResult.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Live class not found",
+      });
+    }
+
+    // Save the whiteboard image/state in Neon.
+    const result = await pool.query(
+      `
+      INSERT INTO academy_live_whiteboard_events (
+        live_class_id,
+        event_type,
+        payload,
+        created_at
+      )
+      VALUES ($1::bigint, $2, $3::jsonb, NOW())
+      RETURNING
+        id,
+        live_class_id,
+        event_type,
+        payload,
+        created_at
+      `,
+      [id, eventType, serializedPayload]
+    );
+
+    const savedEvent = result.rows[0];
+    const savedWhiteboard = savedEvent.payload;
+
+    // Get the existing Socket.IO server instance.
+    const io = req.app.get("io");
+
+    // Must match the room name used by live:join.
+    const room = `scholiqen-live-${String(id)}`;
+
+    const broadcastData = {
+      success: true,
+
+      classId: String(id),
+      liveClassId: String(id),
+      live_class_id: String(id),
+
+      eventType,
+      event_type: eventType,
+
+      event: savedEvent,
+
+      whiteboard: savedWhiteboard,
+      payload: savedWhiteboard,
+      drawing: savedWhiteboard,
+      state: savedWhiteboard,
+
+      updatedAt: savedEvent.created_at,
+      created_at: savedEvent.created_at,
+    };
+
+    if (io) {
+      // Send the complete saved board to connected students.
+      io.to(room).emit(
+        "live:whiteboard-update",
+        broadcastData
       );
 
-      return res.status(201).json({
-        success: true,
-        message: "Whiteboard state saved",
-        event: result.rows[0],
-        data: result.rows[0],
-      });
-    } catch (error) {
-      return sendError(res, error, "Failed to save whiteboard");
-    }
-  }
-);
-
-router.get(
-  "/live-classes/:id/whiteboard",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
-
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const result = await pool.query(
-        `
-        SELECT *
-        FROM academy_live_whiteboard_events
-        WHERE live_class_id = $1::bigint
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1
-        `,
-        [id]
+      // Notify any classroom stage listeners.
+      io.to(room).emit(
+        "live:stage-update",
+        {
+          classId: String(id),
+          liveClassId: String(id),
+          stage: "whiteboard",
+          activeStage: "whiteboard",
+          whiteboard: savedWhiteboard,
+          payload: savedWhiteboard,
+        }
       );
 
-      const row = result.rows[0] || null;
-
-      return res.json({
-        success: true,
-        whiteboard: row ? row.payload : null,
-        event: row,
-        data: row ? row.payload : null,
-      });
-    } catch (error) {
-      return sendError(res, error, "Failed to fetch whiteboard");
+      console.log(
+        `Whiteboard broadcast sent to ${room}`
+      );
+    } else {
+      console.warn(
+        "Socket.IO instance was not found on Express app. Whiteboard was saved but not broadcast."
+      );
     }
+
+    return res.status(201).json({
+      success: true,
+      message: "Whiteboard saved and broadcast successfully",
+
+      event: savedEvent,
+
+      whiteboard: savedWhiteboard,
+      payload: savedWhiteboard,
+      drawing: savedWhiteboard,
+
+      data: savedEvent,
+    });
+  } catch (error) {
+    console.error("WHITEBOARD SAVE DATABASE ERROR", {
+      message: error?.message,
+      code: error?.code,
+      detail: error?.detail,
+      table: error?.table,
+      column: error?.column,
+      constraint: error?.constraint,
+      stack: error?.stack,
+    });
+
+    return sendError(
+      res,
+      error,
+      "Unable to save whiteboard event"
+    );
   }
-);
+});
+
+router.get("/live-classes/:id/whiteboard", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        live_class_id,
+        event_type,
+        payload,
+        created_at
+      FROM academy_live_whiteboard_events
+      WHERE live_class_id = $1::bigint
+      ORDER BY
+        created_at DESC NULLS LAST,
+        id DESC
+      LIMIT 1
+      `,
+      [id]
+    );
+
+    const row = result.rows[0] || null;
+    const whiteboard = row?.payload ?? null;
+
+    return res.json({
+      success: true,
+
+      whiteboard,
+      payload: whiteboard,
+      drawing: whiteboard,
+
+      event: row,
+      data: whiteboard,
+    });
+  } catch (error) {
+    console.error("WHITEBOARD FETCH DATABASE ERROR", {
+      message: error?.message,
+      code: error?.code,
+      detail: error?.detail,
+      table: error?.table,
+      column: error?.column,
+      stack: error?.stack,
+    });
+
+    return sendError(
+      res,
+      error,
+      "Failed to fetch whiteboard"
+    );
+  }
+});
 
 /* =========================================================
-   RESOURCES
+   RESOURCES - FIXED RESOURCE TYPE VALIDATION
 ========================================================= */
 
-router.post(
-  "/live-classes/:id/resources",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+router.post("/live-classes/:id/resources", async (req, res) => {
+  try {
+    const id = getSessionId(req);
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const body = req.body || {};
-
-      const resourceType =
-        clean(
-          body.resourceType ||
-            body.resource_type
-        ) || "file";
-
-      const title = clean(body.title) || "Resource";
-
-      const fileUrl = clean(
-        body.fileUrl ||
-          body.file_url ||
-          body.url
-      );
-
-      const currentPage =
-        Number(
-          body.currentPage ??
-            body.current_page ??
-            1
-        ) || 1;
-
-      const result = await pool.query(
-        `
-        INSERT INTO academy_live_resources (
-          live_class_id,
-          resource_type,
-          title,
-          file_url,
-          current_page,
-          is_active,
-          created_at,
-          updated_at
-        )
-        VALUES ($1::bigint, $2, $3, $4, $5, TRUE, NOW(), NOW())
-        RETURNING *
-        `,
-        [
-          id,
-          resourceType,
-          title,
-          fileUrl,
-          currentPage,
-        ]
-      );
-
-      return res.status(201).json({
-        success: true,
-        message: "Resource added",
-        resource: result.rows[0],
-        data: result.rows[0],
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
       });
-    } catch (error) {
-      return sendError(res, error, "Failed to add resource");
     }
-  }
-);
 
-router.get(
-  "/live-classes/:id/resources",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+    const body = req.body || {};
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
+    const suppliedType =
+      body.resourceType ||
+      body.resource_type ||
+      body.type ||
+      "file";
 
-      const result = await pool.query(
-        `
-        SELECT *
-        FROM academy_live_resources
-        WHERE live_class_id = $1::bigint
-          AND COALESCE(is_active, TRUE) = TRUE
-        ORDER BY created_at ASC, id ASC
-        `,
-        [id]
-      );
+    const resourceType = normaliseResourceType(suppliedType);
 
-      return res.json({
-        success: true,
-        resources: result.rows,
-        data: result.rows,
+    if (!resourceType) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid resource type: ${clean(suppliedType)}`,
+        allowedTypes: VALID_RESOURCE_TYPES,
       });
-    } catch (error) {
-      return sendError(res, error, "Failed to fetch resources");
     }
+
+    const title = clean(body.title) || "Resource";
+
+    const fileUrl = clean(
+      body.fileUrl ||
+        body.file_url ||
+        body.url ||
+        body.link
+    );
+
+    if (!fileUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Resource URL or file path is required",
+      });
+    }
+
+    const currentPage = Math.max(
+      1,
+      Number(body.currentPage ?? body.current_page ?? 1) || 1
+    );
+
+    const classResult = await pool.query(
+      `
+      SELECT id
+      FROM academy_live_classes
+      WHERE id = $1::bigint
+      LIMIT 1
+      `,
+      [id]
+    );
+
+    if (!classResult.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Live class not found",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO academy_live_resources (
+        live_class_id,
+        resource_type,
+        title,
+        file_url,
+        current_page,
+        is_active,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        $1::bigint,
+        $2,
+        $3,
+        $4,
+        $5,
+        TRUE,
+        NOW(),
+        NOW()
+      )
+      RETURNING *
+      `,
+      [
+        id,
+        resourceType,
+        title,
+        fileUrl,
+        currentPage,
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Resource added successfully",
+      resource: result.rows[0],
+      data: result.rows[0],
+    });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Failed to add live class resource"
+    );
   }
-);
+});
+
+router.get("/live-classes/:id/resources", async (req, res) => {
+  try {
+    const id = getSessionId(req);
+
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM academy_live_resources
+      WHERE live_class_id = $1::bigint
+        AND COALESCE(is_active, TRUE) = TRUE
+      ORDER BY created_at ASC, id ASC
+      `,
+      [id]
+    );
+
+    return res.json({
+      success: true,
+      resources: result.rows,
+      data: result.rows,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to fetch resources");
+  }
+});
 
 /* =========================================================
    RECORDING
 ========================================================= */
 
-router.post(
-  "/live-classes/:id/recording",
-  async (req, res) => {
-    try {
-      const id = getSessionId(req);
+router.post("/live-classes/:id/recording", async (req, res) => {
+  try {
+    const id = getSessionId(req);
 
-      if (!isValidBigIntId(id)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid live class ID",
-        });
-      }
-
-      const body = req.body || {};
-
-      const recordingUrl = clean(
-        body.recordingUrl ||
-          body.recording_url
-      );
-
-      const recordingStatus =
-        clean(
-          body.status ||
-            body.recordingStatus ||
-            body.recording_status
-        ) ||
-        (recordingUrl ? "completed" : "processing");
-
-      const duration =
-        Number(
-          body.durationSeconds ??
-            body.duration_seconds ??
-            body.recordingDuration ??
-            body.recording_duration ??
-            0
-        ) || 0;
-
-      const result = await pool.query(
-        `
-        UPDATE academy_live_classes
-        SET
-          recording_url = $1,
-          recording_status = $2,
-          recording_duration = $3,
-          duration_seconds = $3,
-          updated_at = NOW()
-        WHERE id = $4::bigint
-        RETURNING *
-        `,
-        [
-          recordingUrl,
-          recordingStatus,
-          duration,
-          id,
-        ]
-      );
-
-      if (!result.rows.length) {
-        return res.status(404).json({
-          success: false,
-          message: "Live class not found",
-        });
-      }
-
-      const session = normaliseSession(result.rows[0]);
-
-      return res.json({
-        success: true,
-        message: "Recording information updated",
-        session,
-        data: session,
+    if (!isValidBigIntId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid live class ID",
       });
-    } catch (error) {
-      return sendError(res, error, "Failed to update recording");
     }
-  }
-);
 
-router.get(
-  "/tutor/live-recordings",
-  async (req, res) => {
-    try {
-      const tutorReference = getTutorReference(req);
+    const body = req.body || {};
 
-      if (!tutorReference) {
-        return res.status(400).json({
-          success: false,
-          message: "Tutor reference is required",
-        });
-      }
+    const recordingUrl = clean(
+      body.recordingUrl || body.recording_url
+    );
 
-      const result = await pool.query(
-        `
-        SELECT
-          r.*,
-          c.title AS live_class_title
-        FROM academy_live_recordings r
-        LEFT JOIN academy_live_classes c
-          ON c.id = r.live_class_id
-        WHERE r.tutor_reference = $1
-        ORDER BY r.created_at DESC, r.id DESC
-        `,
-        [tutorReference]
-      );
+    const recordingStatus =
+      clean(
+        body.status ||
+          body.recordingStatus ||
+          body.recording_status
+      ) || (recordingUrl ? "completed" : "processing");
 
-      return res.json({
-        success: true,
-        recordings: result.rows,
-        data: result.rows,
+    const duration =
+      Number(
+        body.durationSeconds ??
+          body.duration_seconds ??
+          body.recordingDuration ??
+          body.recording_duration ??
+          0
+      ) || 0;
+
+    const result = await pool.query(
+      `
+      UPDATE academy_live_classes
+      SET
+        recording_url = $1,
+        recording_status = $2,
+        recording_duration = $3,
+        duration_seconds = $3,
+        updated_at = NOW()
+      WHERE id = $4::bigint
+      RETURNING *
+      `,
+      [recordingUrl, recordingStatus, duration, id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Live class not found",
       });
-    } catch (error) {
-      return sendError(res, error, "Failed to fetch recordings");
     }
+
+    const session = normaliseSession(result.rows[0]);
+
+    return res.json({
+      success: true,
+      message: "Recording information updated",
+      session,
+      data: session,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to update recording");
   }
-);
+});
+
+router.get("/tutor/live-recordings", async (req, res) => {
+  try {
+    const tutorReference = getTutorReference(req);
+
+    if (!tutorReference) {
+      return res.status(400).json({
+        success: false,
+        message: "Tutor reference is required",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        r.*,
+        c.title AS live_class_title
+      FROM academy_live_recordings r
+      LEFT JOIN academy_live_classes c
+        ON c.id = r.live_class_id
+      WHERE r.tutor_reference = $1
+      ORDER BY r.created_at DESC, r.id DESC
+      `,
+      [tutorReference]
+    );
+
+    return res.json({
+      success: true,
+      recordings: result.rows,
+      data: result.rows,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to fetch recordings");
+  }
+});
 
 /* =========================================================
    GET LIVE CLASS BY ROOM CODE
@@ -2396,8 +2774,7 @@ router.get(
 const getLiveClassByRoom = async (req, res) => {
   try {
     const suppliedRoomValue = clean(
-      req.params.roomCode ||
-        req.params.roomId
+      req.params.roomCode || req.params.roomId
     );
 
     if (!suppliedRoomValue) {
@@ -2445,10 +2822,7 @@ const getLiveClassByRoom = async (req, res) => {
       WHERE
         UPPER(TRIM(COALESCE(c.room_code, ''))) = $1
         OR UPPER(TRIM(COALESCE(c.room_id, ''))) = $1
-        OR (
-          $2::boolean = TRUE
-          AND c.id = $3::bigint
-        )
+        OR ($2::boolean = TRUE AND c.id = $3::bigint)
         OR TRIM(COALESCE(c.join_url, '')) = $4
         OR TRIM(COALESCE(c.meeting_url, '')) = $4
       ORDER BY c.id DESC
@@ -2485,20 +2859,16 @@ const getLiveClassByRoom = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch live class room",
-      error: error.message,
+      error:
+        process.env.NODE_ENV === "production"
+          ? undefined
+          : error.message,
     });
   }
 };
 
-router.get(
-  "/live-class/room/:roomCode",
-  getLiveClassByRoom
-);
-
-router.get(
-  "/live-classes/room/:roomCode",
-  getLiveClassByRoom
-);
+router.get("/live-class/room/:roomCode", getLiveClassByRoom);
+router.get("/live-classes/room/:roomCode", getLiveClassByRoom);
 
 /* =========================================================
    EXPORT

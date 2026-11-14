@@ -1,4 +1,3 @@
-
 import React, {
   useCallback,
   useEffect,
@@ -6,21 +5,16 @@ import React, {
   useRef,
   useState,
 } from "react";
-
 import { io } from "socket.io-client";
 import { useNavigate, useParams } from "react-router-dom";
-
 import {
   AlertCircle,
   ArrowLeft,
   BookOpen,
-  CheckCircle2,
   FileText,
   Link as LinkIcon,
   Loader2,
   MessageCircle,
-  Monitor,
-  Paperclip,
   Presentation,
   Send,
   Users,
@@ -28,19 +22,12 @@ import {
   Wifi,
   WifiOff,
   Volume2,
+  VolumeX,
+  Monitor,
+  Pen,
 } from "lucide-react";
 
-/* ============================================================
-   CONFIGURATION
-============================================================ */
-
-const API_URL = (
-  import.meta.env.VITE_API_URL || "http://localhost:5000"
-).replace(/\/$/, "");
-
-const SOCKET_URL = API_URL;
-const POLL_INTERVAL = 5000;
-
+const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -56,7 +43,6 @@ const TOKEN_KEYS = [
   "access_token",
   "token",
 ];
-
 const STUDENT_KEYS = [
   "scholiqen_academy_user",
   "scholiqen_student",
@@ -65,47 +51,34 @@ const STUDENT_KEYS = [
   "scholiqen_user",
 ];
 
-/* ============================================================
-   HELPERS
-============================================================ */
-
-const clean = (value) =>
-  value === undefined || value === null
-    ? ""
-    : String(value).trim();
+const clean = (value) => (value == null ? "" : String(value).trim());
 
 const getToken = () => {
   for (const key of TOKEN_KEYS) {
     const value = localStorage.getItem(key);
     if (value) return value;
   }
-
   return "";
 };
 
 const readStoredStudent = () => {
   for (const key of STUDENT_KEYS) {
     const raw = localStorage.getItem(key);
-
     if (!raw) continue;
-
     try {
-      const parsed = JSON.parse(raw);
-
-      if (parsed && typeof parsed === "object") {
-        return parsed;
+      const value = JSON.parse(raw);
+      if (value && typeof value === "object") {
+        return value.user || value.student || value;
       }
     } catch {
-      // Ignore invalid stored values.
+      // Ignore malformed local-storage entries.
     }
   }
-
   return {};
 };
 
 const getStudentIdentity = () => {
   const student = readStoredStudent();
-
   return {
     enrollmentId:
       student.enrollmentId ||
@@ -114,7 +87,6 @@ const getStudentIdentity = () => {
       student.student_enrollment_id ||
       student.reference ||
       "",
-
     studentId:
       student.studentId ||
       student.student_id ||
@@ -122,7 +94,6 @@ const getStudentIdentity = () => {
       student.userId ||
       student.user_id ||
       "",
-
     studentName:
       student.fullName ||
       student.full_name ||
@@ -131,7 +102,6 @@ const getStudentIdentity = () => {
       student.name ||
       student.username ||
       "Student",
-
     className:
       student.className ||
       student.class_name ||
@@ -144,7 +114,6 @@ const getStudentIdentity = () => {
 
 const getHeaders = () => {
   const token = getToken();
-
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -162,32 +131,20 @@ const apiRequest = async (endpoint, options = {}) => {
   });
 
   const data = await response.json().catch(() => ({}));
-
   if (!response.ok) {
     throw new Error(
-      data.message ||
-        data.error ||
-        `Request failed (${response.status})`
+      data.message || data.error || `Request failed (${response.status})`
     );
   }
-
   return data;
 };
 
 const getList = (data, keys = []) => {
   if (Array.isArray(data)) return data;
-
   for (const key of keys) {
-    if (Array.isArray(data?.[key])) {
-      return data[key];
-    }
+    if (Array.isArray(data?.[key])) return data[key];
   }
-
-  if (Array.isArray(data?.data)) {
-    return data.data;
-  }
-
-  return [];
+  return Array.isArray(data?.data) ? data.data : [];
 };
 
 const getResourceUrl = (resource) =>
@@ -196,6 +153,7 @@ const getResourceUrl = (resource) =>
   resource?.url ||
   resource?.resource_url ||
   resource?.link ||
+  resource?.path ||
   "";
 
 const getResourceName = (resource) =>
@@ -213,6 +171,33 @@ const getPresentationUrl = (presentation) =>
   presentation?.link ||
   "";
 
+const getTutorProfileImageValue = (source = {}) =>
+  source?.tutor_profile_image_url ||
+  source?.tutorProfileImageUrl ||
+  source?.profile_image_url ||
+  source?.profileImageUrl ||
+  source?.profileImage ||
+  source?.profile_picture_url ||
+  source?.profile_picture ||
+  source?.avatar_url ||
+  source?.avatar ||
+  source?.tutor?.profile_image_url ||
+  source?.tutor?.profileImageUrl ||
+  source?.tutor?.profile_picture ||
+  source?.tutor?.avatar_url ||
+  "";
+
+const toPublicAssetUrl = (value) => {
+  const url = clean(value);
+  if (!url) return "";
+  if (/^(data:image|https?:\/\/)/i.test(url)) return url;
+  try {
+    return new URL(url, `${API_URL}/`).toString();
+  } catch {
+    return "";
+  }
+};
+
 const getPresentationPage = (presentation) =>
   Math.max(
     1,
@@ -224,27 +209,48 @@ const getPresentationPage = (presentation) =>
     )
   );
 
-const isPresentationResource = (resource) => {
-  const type = clean(
-    resource?.resource_type ||
-      resource?.type ||
-      resource?.category
-  ).toLowerCase();
-
-  const name = clean(
-    resource?.title ||
-      resource?.file_name ||
-      resource?.name
-  ).toLowerCase();
-
-  return (
-    type.includes("presentation") ||
-    type.includes("slide") ||
-    type.includes("pdf") ||
-    name.endsWith(".pdf") ||
-    name.endsWith(".ppt") ||
-    name.endsWith(".pptx")
+const getMessageId = (message) =>
+  String(
+    message?.id ||
+      message?.message_id ||
+      message?._id ||
+      message?.created_at ||
+      `${message?.sender_name || message?.senderName}-${message?.message || message?.content}`
   );
+
+const getParticipantId = (person) =>
+  String(
+    person?.id ||
+      person?.student_id ||
+      person?.enrollment_id ||
+      person?.enrollmentId ||
+      person?.studentId ||
+      person?.reference ||
+      ""
+  );
+
+const getSenderName = (message) =>
+  message?.sender_name ||
+  message?.senderName ||
+  message?.name ||
+  "Participant";
+
+const getMessageText = (message) =>
+  message?.message || message?.content || message?.text || "";
+
+const mergeUnique = (oldItems, newItems, getId) => {
+  const result = [...oldItems];
+  const ids = new Set(result.map(getId));
+
+  newItems.forEach((item) => {
+    const id = getId(item);
+    if (!ids.has(id)) {
+      ids.add(id);
+      result.push(item);
+    }
+  });
+
+  return result;
 };
 
 const getWhiteboardImage = (response) => {
@@ -257,12 +263,8 @@ const getWhiteboardImage = (response) => {
     response;
 
   if (!payload) return "";
-
   if (typeof payload === "string") {
-    return payload.startsWith("data:image") ||
-      payload.startsWith("http")
-      ? payload
-      : "";
+    return /^(data:image|https?:\/\/)/i.test(payload) ? payload : "";
   }
 
   return (
@@ -276,279 +278,121 @@ const getWhiteboardImage = (response) => {
   );
 };
 
-const getMessageId = (item) =>
-  String(
-    item?.id ||
-      item?.message_id ||
-      item?.created_at ||
-      `${item?.sender_name || item?.senderName}-${item?.message}`
+const isClearEvent = (payload = {}) =>
+  Boolean(
+    payload.cleared ||
+      payload.whiteboardCleared ||
+      payload.action === "clear" ||
+      payload.type === "clear" ||
+      payload.type === "cleared"
   );
 
-const getParticipantId = (item) =>
-  String(
-    item?.id ||
-      item?.student_id ||
-      item?.enrollment_id ||
-      item?.enrollmentId ||
-      item?.studentId ||
-      ""
-  );
-
-const formatTime = (value) => {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const resourceKind = (resource) => {
+  const type = `${resource?.mime_type || resource?.resource_type || resource?.type || ""} ${getResourceUrl(resource)}`.toLowerCase();
+  if (type.includes("pdf") || /\.pdf([?#]|$)/.test(type)) return "pdf";
+  if (type.includes("image") || /\.(png|jpe?g|gif|webp)([?#]|$)/.test(type)) return "image";
+  if (type.includes("video") || /\.(mp4|webm|mov)([?#]|$)/.test(type)) return "video";
+  return "file";
 };
 
-const getSenderName = (item) =>
-  item?.sender_name ||
-  item?.senderName ||
-  item?.name ||
-  "Participant";
-
-const getMessageText = (item) =>
-  item?.message ||
-  item?.content ||
-  item?.text ||
-  "";
-
-const mergeUnique = (previous, incoming, getId) => {
-  const result = [...previous];
-  const known = new Set(result.map(getId));
-
-  incoming.forEach((item) => {
-    const id = getId(item);
-
-    if (!known.has(id)) {
-      known.add(id);
-      result.push(item);
-    }
-  });
-
-  return result;
-};
-
-/* ============================================================
-   WEBRTC SIGNALING HELPERS
-============================================================ */
-
-const getSocketSenderId = (payload) =>
-  payload?.fromSocketId ||
-  payload?.senderSocketId ||
-  payload?.from ||
-  payload?.socketId ||
-  payload?.socket_id ||
-  null;
-
-/* ============================================================
-   COMPONENT
-============================================================ */
-
-const StudentLiveClassroom = () => {
+function StudentLiveClassroom() {
   const navigate = useNavigate();
   const params = useParams();
-
-  const roomCode =
-    params.roomCode ||
-    params.code ||
-    params.id ||
-    "";
-
-  const identity = useMemo(
-    () => getStudentIdentity(),
-    []
-  );
+  const roomCode = params.roomCode || params.code || params.id || "";
+  const identity = useMemo(() => getStudentIdentity(), []);
 
   const socketRef = useRef(null);
   const peerRef = useRef(null);
-
   const tutorSocketIdRef = useRef(null);
   const pendingIceCandidatesRef = useRef([]);
-
-  const screenStreamRef = useRef(null);
   const cameraStreamRef = useRef(null);
-  const fallbackStreamRef = useRef(null);
-
-  const screenSharingRef = useRef(false);
-
-  const receivedVideoTracksRef = useRef(new Map());
-
-  const tutorAudioStreamRef = useRef(new MediaStream());
-
-  const screenVideoRef = useRef(null);
+  const audioStreamRef = useRef(new MediaStream());
   const cameraVideoRef = useRef(null);
-  const tutorAudioRef = useRef(null);
+  const audioRef = useRef(null);
+  const canvasRef = useRef(null);
   const chatEndRef = useRef(null);
-
-  const pollingRef = useRef(null);
   const mountedRef = useRef(true);
   const joiningRef = useRef(false);
   const joinedRef = useRef(false);
-
-  const refreshVideoTracksRef = useRef(null);
+  const whiteboardImageRef = useRef("");
 
   const [classroom, setClassroom] = useState(null);
+  const [tutorProfileImage, setTutorProfileImage] = useState("");
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [joinedClass, setJoinedClass] = useState(false);
   const [error, setError] = useState("");
-
   const [participants, setParticipants] = useState([]);
   const [messages, setMessages] = useState([]);
   const [resources, setResources] = useState([]);
-
   const [whiteboardImage, setWhiteboardImage] = useState("");
   const [presentation, setPresentation] = useState(null);
   const [presentationPage, setPresentationPage] = useState(1);
-  const [presentationTotalPages, setPresentationTotalPages] =
-    useState(1);
-
+  const [presentationTotalPages, setPresentationTotalPages] = useState(1);
+  const [activeMaterial, setActiveMaterial] = useState(null);
   const [activeStage, setActiveStage] = useState("waiting");
   const [activeTab, setActiveTab] = useState("chat");
-
-  const [message, setMessage] = useState("");
+  const [messageInput, setMessageInput] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
-
   const [socketConnected, setSocketConnected] = useState(false);
   const [mediaConnected, setMediaConnected] = useState(false);
-  const [screenAvailable, setScreenAvailable] = useState(false);
   const [cameraAvailable, setCameraAvailable] = useState(false);
-  const [sharingScreen, setSharingScreen] = useState(false);
-  const [audioBlocked, setAudioBlocked] = useState(false);
-
-  const [tutorMediaState, setTutorMediaState] = useState({
-    cameraEnabled: false,
-    microphoneEnabled: false,
-    screenSharing: false,
-  });
+  const [audioAvailable, setAudioAvailable] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(false);
 
   const classId =
     classroom?.id ||
     classroom?.live_class_id ||
     classroom?.liveClassId ||
     "";
-
-  const studentReference =
-    identity.enrollmentId ||
-    identity.studentId ||
-    "";
-
+  const studentReference = identity.enrollmentId || identity.studentId || "";
   const studentName = identity.studentName;
-
-  const title =
+  const classTitle =
     classroom?.title ||
     classroom?.subject ||
-    "Live Classroom";
-
-  const classLabel =
-    classroom?.class_name ||
     classroom?.className ||
-    identity.className ||
-    "Classroom";
-
+    classroom?.name ||
+    "Live Classroom";
   const tutorName =
     classroom?.tutor_name ||
     classroom?.tutorName ||
-    "Tutor";
-
+    classroom?.tutor?.name ||
+    "Your tutor";
   const tutorInitial = tutorName.charAt(0).toUpperCase();
-
+  const materialUrl = getResourceUrl(activeMaterial);
   const presentationUrl = getPresentationUrl(presentation);
+  const materialName = getResourceName(activeMaterial || {});
+  const stageMode = activeStage;
 
-  const presentationName =
-    presentation?.name ||
-    presentation?.file_name ||
-    presentation?.title ||
-    "Class presentation";
-
-  const presentationType = clean(
-    presentation?.type ||
-      presentation?.resource_type ||
-      presentation?.mime_type
-  ).toLowerCase();
-
-  const isPdf =
-    presentationType.includes("pdf") ||
-    presentationUrl.toLowerCase().includes(".pdf");
-
-  /* ============================================================
-     VIDEO AND AUDIO ATTACHMENT
-  ============================================================ */
-
-  const attachVideo = useCallback((element, stream) => {
-    if (!element) return;
-
-    if (element.srcObject !== stream) {
-      element.srcObject = stream || null;
-    }
-
-    if (stream) {
-      element.play().catch((playError) => {
-        console.warn("VIDEO PLAY ERROR:", playError);
-      });
-    }
+  const attachCamera = useCallback((stream) => {
+    const video = cameraVideoRef.current;
+    if (!video) return;
+    if (video.srcObject !== stream) video.srcObject = stream || null;
+    if (stream) video.play?.().catch(() => {});
   }, []);
 
-  const attachTutorAudio = useCallback(() => {
-    const audio = tutorAudioRef.current;
-    const stream = tutorAudioStreamRef.current;
+  useEffect(() => {
+    attachCamera(cameraAvailable ? cameraStreamRef.current : null);
+  }, [cameraAvailable, attachCamera]);
 
-    if (!audio || !stream) return;
-
-    if (audio.srcObject !== stream) {
-      audio.srcObject = stream;
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.srcObject = audioStreamRef.current;
+    if (audioEnabled && audioAvailable) {
+      audio.play().catch(() => setAudioEnabled(false));
     }
+  }, [audioEnabled, audioAvailable]);
 
-    audio.play()
-      .then(() => {
-        setAudioBlocked(false);
-      })
-      .catch((playError) => {
-        console.warn(
-          "TUTOR AUDIO AUTOPLAY BLOCKED:",
-          playError
-        );
-
-        setAudioBlocked(true);
-      });
+  const clearWhiteboardCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    context?.clearRect(0, 0, canvas.width, canvas.height);
   }, []);
-
-  const enableTutorAudio = useCallback(() => {
-    attachTutorAudio();
-  }, [attachTutorAudio]);
-
-  useEffect(() => {
-    attachVideo(
-      screenVideoRef.current,
-      screenStreamRef.current
-    );
-  }, [screenAvailable, attachVideo]);
-
-  useEffect(() => {
-    attachVideo(
-      cameraVideoRef.current,
-      cameraStreamRef.current
-    );
-  }, [cameraAvailable, attachVideo]);
-
-  useEffect(() => {
-    attachTutorAudio();
-  }, [joinedClass, attachTutorAudio]);
-
-  /* ============================================================
-     CHAT
-  ============================================================ */
 
   const addMessage = useCallback((incoming) => {
     if (!incoming) return;
-
     const item =
       incoming.chat ||
       incoming.messageData ||
@@ -558,165 +402,153 @@ const StudentLiveClassroom = () => {
       incoming;
 
     if (!item || typeof item !== "object") return;
-
     setMessages((previous) =>
       mergeUnique(previous, [item], getMessageId)
     );
   }, []);
 
-  /* ============================================================
-     APPLY TUTOR CLASSROOM STATE
-  ============================================================ */
+  const applyClassroomState = useCallback(
+    (state = {}) => {
+      const data =
+        state.classroomState ||
+        state.classroom_state ||
+        state.state ||
+        state.data ||
+        state;
 
-  const applyClassroomState = useCallback((state = {}) => {
-    const data =
-      state.classroomState ||
-      state.classroom_state ||
-      state.state ||
-      state.data ||
-      state;
+      if (!data || typeof data !== "object") return;
 
-    if (!data || typeof data !== "object") return;
+      const rawStage = clean(
+        data.activeStage ||
+          data.active_stage ||
+          data.stage ||
+          data.currentTool
+      ).toLowerCase();
 
-    const stage =
-      data.activeStage ||
-      data.active_stage ||
-      data.stage ||
-      data.currentTool;
+      const aliases = {
+        camera: "video",
+        tutor: "video",
+        board: "whiteboard",
+        slides: "presentation",
+        resource: "material",
+        materials: "material",
+        idle: "waiting",
+      };
+      const normalizedStage = aliases[rawStage] || rawStage;
 
-    if (stage) {
-      const normalized = clean(stage).toLowerCase();
-
-      const allowedStages = [
-        "whiteboard",
-        "presentation",
-        "screen",
-        "waiting",
-      ];
-
-      if (allowedStages.includes(normalized)) {
-        setActiveStage(normalized);
-      }
-    }
-
-    const board =
-      getWhiteboardImage(data.whiteboard || data);
-
-    if (board) {
-      setWhiteboardImage(board);
-    }
-
-    if (
-      data.whiteboard?.cleared ||
-      data.whiteboard?.action === "clear" ||
-      data.whiteboardCleared
-    ) {
-      setWhiteboardImage("");
-    }
-
-    const nextPresentation =
-      data.presentation ||
-      data.activePresentation ||
-      data.active_presentation;
-
-    if (nextPresentation) {
       if (
-        nextPresentation.cleared ||
-        nextPresentation.action === "clear"
+        ["video", "whiteboard", "presentation", "material", "waiting"].includes(
+          normalizedStage
+        )
       ) {
-        setPresentation(null);
-        setPresentationPage(1);
-      } else {
-        setPresentation(nextPresentation);
-        setPresentationPage(
-          getPresentationPage(nextPresentation)
-        );
+        setActiveStage(normalizedStage);
+      }
 
-        setPresentationTotalPages(
-          Math.max(
-            1,
-            Number(
-              nextPresentation.total_pages ||
-                nextPresentation.totalPages ||
-                1
+      const boardPayload = data.whiteboard || data;
+      const boardImage = getWhiteboardImage(boardPayload);
+
+      if (boardImage) {
+        whiteboardImageRef.current = boardImage;
+        setWhiteboardImage(boardImage);
+      }
+
+      if (isClearEvent(boardPayload)) {
+        whiteboardImageRef.current = "";
+        setWhiteboardImage("");
+        clearWhiteboardCanvas();
+      }
+
+      const nextPresentation =
+        data.presentation ??
+        data.activePresentation ??
+        data.active_presentation;
+
+      if (nextPresentation !== undefined) {
+        if (!nextPresentation || isClearEvent(nextPresentation)) {
+          setPresentation(null);
+          setPresentationPage(1);
+          setPresentationTotalPages(1);
+        } else {
+          setPresentation(nextPresentation);
+          setPresentationPage(getPresentationPage(nextPresentation));
+          setPresentationTotalPages(
+            Math.max(
+              1,
+              Number(
+                nextPresentation.total_pages ||
+                  nextPresentation.totalPages ||
+                  1
+              )
             )
+          );
+        }
+      }
+
+      const nextMaterial =
+        data.activeMaterial ?? data.active_material;
+      if (nextMaterial !== undefined) {
+        setActiveMaterial(
+          !nextMaterial || isClearEvent(nextMaterial)
+            ? null
+            : nextMaterial
+        );
+      }
+
+      if (Array.isArray(data.resources)) {
+        setResources((previous) =>
+          mergeUnique(
+            previous,
+            data.resources,
+            (resource) =>
+              String(
+                resource.id ||
+                  getResourceUrl(resource) ||
+                  resource.title
+              )
           )
         );
       }
-    }
+    },
+    [clearWhiteboardCanvas]
+  );
 
-    const media =
-      data.mediaState ||
-      data.media_state ||
-      data.tutorMediaState ||
-      {};
+  const loadTutorProfileImage = useCallback(async (room) => {
+    const directImage = toPublicAssetUrl(getTutorProfileImageValue(room));
+    if (directImage) setTutorProfileImage(directImage);
 
-    if (Object.keys(media).length) {
-      const normalizedMedia = {
-        ...media,
-        cameraEnabled:
-          media.cameraEnabled ??
-          media.camera_enabled ??
-          media.isCameraEnabled ??
-          media.is_camera_enabled ??
-          false,
-        microphoneEnabled:
-          media.microphoneEnabled ??
-          media.microphone_enabled ??
-          media.isMicrophoneEnabled ??
-          media.is_microphone_enabled ??
-          false,
-        screenSharing:
-          media.screenSharing ??
-          media.screen_sharing ??
-          media.isScreenSharing ??
-          media.is_screen_sharing ??
-          media.sharingScreen ??
-          false,
-      };
+    const tutorReference =
+      room?.tutor_reference ||
+      room?.tutorReference ||
+      room?.tutor?.reference ||
+      room?.tutor?.tutor_reference ||
+      "";
 
-      setTutorMediaState((previous) => ({
-        ...previous,
-        ...normalizedMedia,
-      }));
+    if (!tutorReference) return directImage;
 
-      const screenIsActive = Boolean(
-        normalizedMedia.screenSharing
+    try {
+      const response = await apiRequest(
+        `/api/academy/tutor-application/${encodeURIComponent(tutorReference)}`
+      );
+      const profile =
+        response?.tutor ||
+        response?.profile ||
+        response?.application ||
+        response?.data?.tutor ||
+        response?.data?.profile ||
+        response?.data ||
+        response;
+      const image = toPublicAssetUrl(
+        getTutorProfileImageValue(profile) ||
+        getTutorProfileImageValue(response)
       );
 
-      screenSharingRef.current = screenIsActive;
-      setSharingScreen(screenIsActive);
-
-      if (!screenIsActive) {
-        screenStreamRef.current = null;
-        setScreenAvailable(false);
-
-        if (screenVideoRef.current) {
-          screenVideoRef.current.srcObject = null;
-        }
-      }
-    }
-
-    if (Array.isArray(data.resources)) {
-      setResources((previous) =>
-        mergeUnique(
-          previous,
-          data.resources,
-          (item) =>
-            String(
-              item.id ||
-                item.file_url ||
-                item.url ||
-                item.title
-            )
-        )
-      );
+      if (image && mountedRef.current) setTutorProfileImage(image);
+      return image || directImage;
+    } catch (error) {
+      console.warn("Unable to load tutor profile picture:", error.message);
+      return directImage;
     }
   }, []);
-
-  /* ============================================================
-     CLASSROOM LOOKUP
-  ============================================================ */
 
   const loadClassroom = useCallback(async () => {
     if (!roomCode) {
@@ -724,11 +556,8 @@ const StudentLiveClassroom = () => {
     }
 
     const result = await apiRequest(
-      `/api/academy/live-class/room/${encodeURIComponent(
-        roomCode
-      )}`
+      `/api/academy/live-class/room/${encodeURIComponent(roomCode)}`
     );
-
     const room =
       result.classroom ||
       result.session ||
@@ -737,488 +566,325 @@ const StudentLiveClassroom = () => {
       result.data ||
       result;
 
-    if (!room?.id && !room?.live_class_id) {
+    if (!room?.id && !room?.live_class_id && !room?.liveClassId) {
       throw new Error("The classroom could not be found.");
     }
 
-    if (mountedRef.current) {
-      setClassroom(room);
-    }
-
+    if (mountedRef.current) setClassroom(room);
+    loadTutorProfileImage(room);
     return room;
-  }, [roomCode]);
+  }, [roomCode, loadTutorProfileImage]);
 
-  /* ============================================================
-     LOAD CLASSROOM DATA
-  ============================================================ */
+  const loadClassroomData = useCallback(
+    async (id) => {
+      if (!id) return;
 
-  const loadClassroomData = useCallback(async (id) => {
-    if (!id) return;
+      const endpoints = [
+        ["participants", `/api/academy/live-classes/${id}/participants`],
+        ["chat", `/api/academy/live-classes/${id}/chat`],
+        ["whiteboard", `/api/academy/live-classes/${id}/whiteboard`],
+        ["resources", `/api/academy/live-classes/${id}/resources`],
+        ["state", `/api/academy/live-classes/${id}/state`],
+      ];
 
-    const endpoints = [
-      {
-        key: "participants",
-        url: `/api/academy/live-classes/${id}/participants`,
-      },
-      {
-        key: "chat",
-        url: `/api/academy/live-classes/${id}/chat`,
-      },
-      {
-        key: "whiteboard",
-        url: `/api/academy/live-classes/${id}/whiteboard`,
-      },
-      {
-        key: "resources",
-        url: `/api/academy/live-classes/${id}/resources`,
-      },
-    ];
+      const results = await Promise.allSettled(
+        endpoints.map(([, endpoint]) => apiRequest(endpoint))
+      );
 
-    const results = await Promise.allSettled(
-      endpoints.map((item) => apiRequest(item.url))
-    );
+      if (!mountedRef.current) return;
 
-    if (!mountedRef.current) return;
+      results.forEach((result, index) => {
+        if (result.status !== "fulfilled") return;
+        const [key] = endpoints[index];
+        const value = result.value;
 
-    results.forEach((result, index) => {
-      if (result.status !== "fulfilled") return;
+        if (key === "participants") {
+          setParticipants(getList(value, ["participants", "items"]));
+        }
 
-      const value = result.value;
-
-      switch (endpoints[index].key) {
-        case "participants": {
-          setParticipants(
-            getList(value, ["participants", "items"])
+        if (key === "chat") {
+          const list = getList(value, ["messages", "chat", "items"]);
+          setMessages((previous) =>
+            mergeUnique(previous, list, getMessageId).sort(
+              (a, b) =>
+                new Date(a.created_at || a.createdAt || 0) -
+                new Date(b.created_at || b.createdAt || 0)
+            )
           );
-          break;
         }
 
-        case "chat": {
-          const list = getList(value, [
-            "messages",
-            "chat",
-            "items",
-          ]);
-
-          setMessages((previous) => {
-            const combined = mergeUnique(
-              previous,
-              list,
-              getMessageId
-            );
-
-            return combined.sort((a, b) => {
-              const first = new Date(
-                a.created_at || a.createdAt || 0
-              ).getTime();
-
-              const second = new Date(
-                b.created_at || b.createdAt || 0
-              ).getTime();
-
-              return first - second;
-            });
-          });
-
-          break;
-        }
-
-        case "whiteboard": {
+        if (key === "whiteboard") {
           const image = getWhiteboardImage(value);
-
           if (image) {
+            whiteboardImageRef.current = image;
             setWhiteboardImage(image);
           }
-
-          break;
-        }
-
-        case "resources": {
-          const list = getList(value, [
-            "resources",
-            "items",
-          ]);
-
-          setResources(list);
-
-          const activePresentation = [...list]
-            .reverse()
-            .find(isPresentationResource);
-
-          if (activePresentation) {
-            setPresentation((previous) => {
-              const previousUrl =
-                getPresentationUrl(previous);
-
-              const nextUrl =
-                getResourceUrl(activePresentation);
-
-              if (
-                previousUrl &&
-                previousUrl === nextUrl
-              ) {
-                return previous;
-              }
-
-              return {
-                ...activePresentation,
-                url: nextUrl,
-              };
-            });
+          if (isClearEvent(value)) {
+            whiteboardImageRef.current = "";
+            setWhiteboardImage("");
+            clearWhiteboardCanvas();
           }
-
-          break;
         }
 
-        default:
-          break;
-      }
-    });
-  }, []);
+        if (key === "resources") {
+          setResources(getList(value, ["resources", "items"]));
+        }
 
-  /* ============================================================
-     WEBRTC CLEANUP
-  ============================================================ */
+        if (key === "state") {
+          applyClassroomState(value.classroomState || value.state || value);
+        }
+      });
+    },
+    [applyClassroomState, clearWhiteboardCanvas]
+  );
+
+  const drawWhiteboardEvent = useCallback(
+    (payload = {}) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      const action = clean(
+        payload.action || payload.type || payload.event
+      ).toLowerCase();
+
+      if (
+        ["clear", "cleared", "reset"].includes(action) ||
+        isClearEvent(payload)
+      ) {
+        clearWhiteboardCanvas();
+        whiteboardImageRef.current = "";
+        setWhiteboardImage("");
+        return;
+      }
+
+      if (["undo", "erase-all"].includes(action)) return;
+
+      const stroke =
+        payload.stroke ||
+        payload.data ||
+        payload.drawing ||
+        payload;
+      const points =
+        stroke.points ||
+        stroke.path ||
+        stroke.coordinates ||
+        [];
+
+      if (!Array.isArray(points) || points.length === 0) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const point = (item) => {
+        const x = Number(item.x ?? item.clientX ?? item[0] ?? 0);
+        const y = Number(item.y ?? item.clientY ?? item[1] ?? 0);
+        const normalized = Boolean(item.normalized || item.relative);
+        return {
+          x: normalized ? x * rect.width : x,
+          y: normalized ? y * rect.height : y,
+        };
+      };
+
+      const first = point(points[0]);
+      context.save();
+      context.strokeStyle =
+        stroke.color ||
+        stroke.strokeStyle ||
+        payload.color ||
+        "#111827";
+      context.lineWidth = Number(
+        stroke.lineWidth || stroke.width || payload.lineWidth || 3
+      );
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.globalCompositeOperation =
+        action === "erase" || stroke.tool === "eraser"
+          ? "destination-out"
+          : "source-over";
+      context.beginPath();
+      context.moveTo(first.x, first.y);
+
+      points.slice(1).forEach((item) => {
+        const next = point(item);
+        context.lineTo(next.x, next.y);
+      });
+
+      if (points.length === 1) {
+        context.lineTo(first.x + 0.1, first.y + 0.1);
+      }
+
+      context.stroke();
+      context.restore();
+    },
+    [clearWhiteboardCanvas]
+  );
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || stageMode !== "whiteboard") return;
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      const previous = document.createElement("canvas");
+      previous.width = canvas.width;
+      previous.height = canvas.height;
+      previous.getContext("2d")?.drawImage(canvas, 0, 0);
+
+      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+      canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+
+      const context = canvas.getContext("2d");
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+      if (previous.width && previous.height) {
+        context.drawImage(
+          previous,
+          0,
+          0,
+          previous.width,
+          previous.height,
+          0,
+          0,
+          rect.width,
+          rect.height
+        );
+      }
+    };
+
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [joinedClass, stageMode]);
+
+  useEffect(() => {
+    if (!canvasRef.current || !whiteboardImage) return;
+    const canvas = canvasRef.current;
+    const image = new Image();
+
+    image.onload = () => {
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      const rect = canvas.getBoundingClientRect();
+      context.clearRect(0, 0, rect.width, rect.height);
+      context.drawImage(image, 0, 0, rect.width, rect.height);
+    };
+
+    image.src = whiteboardImage;
+  }, [whiteboardImage, stageMode]);
 
   const closePeer = useCallback(() => {
-    const peer = peerRef.current;
-
-    if (peer) {
-      peer.ontrack = null;
-      peer.onicecandidate = null;
-      peer.onconnectionstatechange = null;
-      peer.oniceconnectionstatechange = null;
-
-      peer.close();
+    if (peerRef.current) {
+      peerRef.current.ontrack = null;
+      peerRef.current.close();
       peerRef.current = null;
     }
 
     tutorSocketIdRef.current = null;
     pendingIceCandidatesRef.current = [];
-
-    screenStreamRef.current = null;
     cameraStreamRef.current = null;
-    fallbackStreamRef.current = null;
-    screenSharingRef.current = false;
 
-    receivedVideoTracksRef.current.clear();
-    refreshVideoTracksRef.current = null;
-
-    const audioStream = tutorAudioStreamRef.current;
-
-    audioStream?.getTracks().forEach((track) => {
-      audioStream.removeTrack(track);
+    audioStreamRef.current.getTracks().forEach((track) => {
+      audioStreamRef.current.removeTrack(track);
     });
 
-    if (tutorAudioRef.current) {
-      tutorAudioRef.current.srcObject = null;
-    }
-
-    setSharingScreen(false);
-    setAudioBlocked(false);
-
-    if (screenVideoRef.current) {
-      screenVideoRef.current.srcObject = null;
-    }
-
-    if (cameraVideoRef.current) {
-      cameraVideoRef.current.srcObject = null;
-    }
+    if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
+    if (audioRef.current) audioRef.current.srcObject = null;
 
     setMediaConnected(false);
-    setScreenAvailable(false);
     setCameraAvailable(false);
+    setAudioAvailable(false);
   }, []);
-
-  /* ============================================================
-     WEBRTC RECEIVER
-
-     The student receives the tutor's media.
-     The tutor creates the offer and sends it to this student.
-
-     IMPORTANT:
-     Do not add recvonly transceivers here before receiving
-     the tutor's offer. The offer already contains the media
-     transceivers that the student must answer.
-  ============================================================ */
 
   const getOrCreatePeer = useCallback(
     (roomId) => {
-      if (peerRef.current) {
-        return peerRef.current;
-      }
+      if (peerRef.current) return peerRef.current;
 
       const peer = new RTCPeerConnection(ICE_SERVERS);
-
-      /* -----------------------------
-         VIDEO TRACK HANDLING
-      ----------------------------- */
-
-      const attachReceivedVideoTracks = () => {
-        const tracks = [
-          ...receivedVideoTracksRef.current.values(),
-        ].filter(
-          (item) => item.track.readyState !== "ended"
-        );
-
-        if (!tracks.length) {
-          cameraStreamRef.current = null;
-          screenStreamRef.current = null;
-
-          setCameraAvailable(false);
-          setScreenAvailable(false);
-
-          if (cameraVideoRef.current) {
-            cameraVideoRef.current.srcObject = null;
-          }
-
-          if (screenVideoRef.current) {
-            screenVideoRef.current.srcObject = null;
-          }
-
-          return;
-        }
-
-        const explicitlyScreen = tracks.find(
-          (item) => item.isScreen
-        );
-
-        const explicitlyCamera = tracks.find(
-          (item) => item.isCamera
-        );
-
-        let cameraItem = explicitlyCamera || null;
-        let screenItem = explicitlyScreen || null;
-
-        const unclassified = tracks.filter(
-          (item) =>
-            item !== cameraItem &&
-            item !== screenItem
-        );
-
-        if (unclassified.length === 1) {
-          if (
-            screenSharingRef.current &&
-            !screenItem
-          ) {
-            screenItem = unclassified[0];
-          } else if (!cameraItem) {
-            cameraItem = unclassified[0];
-          } else if (!screenItem) {
-            screenItem = unclassified[0];
-          }
-        } else if (unclassified.length >= 2) {
-          if (!cameraItem) {
-            cameraItem = unclassified[0];
-          }
-
-          if (!screenItem) {
-            screenItem = unclassified.find(
-              (item) => item !== cameraItem
-            );
-          }
-        }
-
-        if (cameraItem) {
-          cameraStreamRef.current = cameraItem.stream;
-          setCameraAvailable(true);
-
-          attachVideo(
-            cameraVideoRef.current,
-            cameraItem.stream
-          );
-        } else {
-          cameraStreamRef.current = null;
-          setCameraAvailable(false);
-
-          if (cameraVideoRef.current) {
-            cameraVideoRef.current.srcObject = null;
-          }
-        }
-
-        if (screenItem) {
-          screenStreamRef.current = screenItem.stream;
-          setScreenAvailable(true);
-
-          attachVideo(
-            screenVideoRef.current,
-            screenItem.stream
-          );
-        } else {
-          screenStreamRef.current = null;
-          setScreenAvailable(false);
-
-          if (screenVideoRef.current) {
-            screenVideoRef.current.srcObject = null;
-          }
-        }
-
-        setMediaConnected(true);
-      };
-
-      refreshVideoTracksRef.current =
-        attachReceivedVideoTracks;
-
-      /* -----------------------------
-         INCOMING MEDIA TRACKS
-      ----------------------------- */
+      peer.addTransceiver("video", { direction: "recvonly" });
+      peer.addTransceiver("audio", { direction: "recvonly" });
 
       peer.ontrack = (event) => {
         const track = event.track;
 
-        console.log("STUDENT RECEIVED WEBRTC TRACK:", {
-          kind: track.kind,
-          id: track.id,
-          label: track.label,
-          mid: event.transceiver?.mid,
-          streams: event.streams?.map(
-            (stream) => stream.id
-          ),
-        });
-
-        if (track.kind === "audio") {
-          const audioStream = tutorAudioStreamRef.current;
-
-          const alreadyAdded = audioStream
-            .getTracks()
-            .some((existing) => existing.id === track.id);
-
-          if (!alreadyAdded) {
-            audioStream.addTrack(track);
-          }
-
+        if (track.kind === "video") {
+          const stream =
+            event.streams?.[0] || new MediaStream([track]);
+          cameraStreamRef.current = stream;
+          attachCamera(stream);
+          setCameraAvailable(true);
           setMediaConnected(true);
-
-          // Attach the tutor's microphone stream to the audio element.
-          attachTutorAudio();
 
           track.onended = () => {
-            const currentStream = tutorAudioStreamRef.current;
-
-            const existingTrack = currentStream
-              .getTracks()
-              .find((item) => item.id === track.id);
-
-            if (existingTrack) {
-              currentStream.removeTrack(existingTrack);
+            cameraStreamRef.current = null;
+            if (cameraVideoRef.current) {
+              cameraVideoRef.current.srcObject = null;
             }
+            setCameraAvailable(false);
           };
-
           return;
         }
 
-        if (track.kind !== "video") return;
-
-        const stream = new MediaStream([track]);
-
-        const label = clean(track.label).toLowerCase();
-
-        const isScreen =
-          /screen|display|monitor|window|desktop/.test(label);
-
-        const isCamera =
-          /camera|webcam|front|back/.test(label);
-
-        const mid =
-          event.transceiver?.mid ??
-          track.id;
-
-        receivedVideoTracksRef.current.set(
-          String(mid),
-          {
-            track,
-            stream,
-            isScreen,
-            isCamera,
+        if (track.kind === "audio") {
+          if (
+            !audioStreamRef.current
+              .getAudioTracks()
+              .some((item) => item.id === track.id)
+          ) {
+            audioStreamRef.current.addTrack(track);
           }
-        );
 
-        attachReceivedVideoTracks();
+          setAudioAvailable(true);
+          setMediaConnected(true);
 
-        track.onended = () => {
-          receivedVideoTracksRef.current.delete(
-            String(mid)
-          );
+          if (audioRef.current) {
+            audioRef.current.srcObject = audioStreamRef.current;
+            audioRef.current.play().catch(() => {
+              setAudioEnabled(false);
+            });
+          }
 
-          attachReceivedVideoTracks();
-        };
+          track.onended = () => {
+            audioStreamRef.current.removeTrack(track);
+            setAudioAvailable(
+              audioStreamRef.current.getAudioTracks().length > 0
+            );
+          };
+        }
       };
-
-      /* -----------------------------
-         OUTGOING ICE CANDIDATES
-      ----------------------------- */
 
       peer.onicecandidate = (event) => {
-        if (!event.candidate) return;
+        if (!event.candidate || !tutorSocketIdRef.current) return;
 
-        const tutorSocketId =
-          tutorSocketIdRef.current;
-
-        if (!tutorSocketId) {
-          console.warn(
-            "Cannot send ICE candidate: tutor socket ID is missing."
-          );
-
-          return;
-        }
-
-        socketRef.current?.emit(
-          "webrtc:ice-candidate",
-          {
-            liveClassId: roomId,
-            targetSocketId: tutorSocketId,
-            candidate: event.candidate,
-          }
-        );
+        socketRef.current?.emit("webrtc:ice-candidate", {
+          liveClassId: roomId,
+          targetSocketId: tutorSocketIdRef.current,
+          candidate: event.candidate,
+        });
       };
 
-      /* -----------------------------
-         CONNECTION STATE
-      ----------------------------- */
-
       peer.onconnectionstatechange = () => {
-        console.log(
-          "STUDENT PEER CONNECTION:",
-          peer.connectionState
-        );
-
-        if (peer.connectionState === "connected") {
-          setMediaConnected(true);
-        }
-
+        setMediaConnected(peer.connectionState === "connected");
         if (
-          [
-            "failed",
-            "disconnected",
-            "closed",
-          ].includes(peer.connectionState)
+          ["failed", "closed", "disconnected"].includes(
+            peer.connectionState
+          )
         ) {
           setMediaConnected(false);
         }
       };
 
-      peer.oniceconnectionstatechange = () => {
-        console.log(
-          "STUDENT ICE CONNECTION:",
-          peer.iceConnectionState
-        );
-      };
-
       peerRef.current = peer;
-
       return peer;
     },
-    [attachVideo, attachTutorAudio]
+    [attachCamera]
   );
-
-  /* ============================================================
-     SOCKET CONNECTION
-  ============================================================ */
 
   const connectSocket = useCallback(
     (roomId) => {
       const token = getToken();
-
       if (!token) {
         throw new Error(
           "Your student login session has expired. Please sign in again."
@@ -1227,15 +893,13 @@ const StudentLiveClassroom = () => {
 
       socketRef.current?.disconnect();
 
-      const socket = io(SOCKET_URL, {
+      const socket = io(API_URL, {
         transports: ["websocket", "polling"],
-
         auth: {
           token,
           liveClassId: roomId,
           role: "student",
         },
-
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 1000,
@@ -1244,13 +908,7 @@ const StudentLiveClassroom = () => {
       socketRef.current = socket;
 
       socket.on("connect", () => {
-        console.log(
-          "STUDENT SOCKET CONNECTED:",
-          socket.id
-        );
-
         setSocketConnected(true);
-
         socket.emit("live:join", {
           liveClassId: roomId,
           role: "student",
@@ -1263,20 +921,13 @@ const StudentLiveClassroom = () => {
 
       socket.on("live:joined", (data) => {
         if (data?.success === false) {
-          setError(
-            data.message ||
-              "Unable to join the live classroom connection."
-          );
-
+          setError(data.message || "Unable to join classroom connection.");
           return;
         }
 
         setSocketConnected(true);
-
         applyClassroomState(
-          data?.classroomState ||
-            data?.state ||
-            data
+          data?.classroomState || data?.state || data
         );
 
         socket.emit("live:student-ready", {
@@ -1286,102 +937,48 @@ const StudentLiveClassroom = () => {
       });
 
       socket.on("connect_error", (socketError) => {
-        console.error(
-          "STUDENT SOCKET ERROR:",
-          socketError
-        );
-
+        console.error("STUDENT SOCKET ERROR:", socketError);
         setSocketConnected(false);
       });
 
       socket.on("disconnect", () => {
-        console.warn("STUDENT SOCKET DISCONNECTED");
-
         setSocketConnected(false);
         setMediaConnected(false);
       });
 
-      socket.on("live:peer-joined", (payload) => {
-        console.log(
-          "STUDENT PEER JOINED:",
-          payload
-        );
+      socket.on("live:peer-left", closePeer);
+
+      const handleState = (payload) => applyClassroomState(payload);
+
+      [
+        "live:classroom-state",
+        "live:state-sync",
+        "live:activity-update",
+      ].forEach((eventName) => {
+        socket.on(eventName, handleState);
       });
-
-      socket.on("live:peer-left", (payload) => {
-        console.log(
-          "STUDENT PEER LEFT:",
-          payload
-        );
-
-        const senderSocketId = getSocketSenderId(payload);
-
-        if (
-          senderSocketId &&
-          tutorSocketIdRef.current &&
-          senderSocketId !== tutorSocketIdRef.current
-        ) {
-          return;
-        }
-
-        closePeer();
-      });
-
-      /* -----------------------------
-         CLASSROOM STATE
-      ----------------------------- */
-
-      const handleState = (payload) => {
-        applyClassroomState(payload);
-      };
-
-      socket.on("live:classroom-state", handleState);
-      socket.on("live:state-sync", handleState);
-      socket.on("live:activity-update", handleState);
-
-      /* -----------------------------
-         WEBRTC OFFER FROM TUTOR
-      ----------------------------- */
 
       socket.on("webrtc:offer", async (payload) => {
         try {
-          if (!payload?.offer) {
-            console.warn(
-              "STUDENT RECEIVED EMPTY WEBRTC OFFER:",
-              payload
-            );
+          if (!payload?.offer) return;
 
+          const tutorId =
+            payload.fromSocketId ||
+            payload.senderSocketId ||
+            payload.socketId;
+
+          if (!tutorId) {
+            console.error("Tutor socket ID missing from offer", payload);
             return;
           }
 
-          const tutorSocketId =
-            getSocketSenderId(payload);
-
-          if (!tutorSocketId) {
-            console.error(
-              "Tutor socket ID missing from WebRTC offer. Check the server offer relay:",
-              payload
-            );
-
-            return;
-          }
-
-          tutorSocketIdRef.current = tutorSocketId;
-
+          tutorSocketIdRef.current = tutorId;
           const peer = getOrCreatePeer(roomId);
 
-          /*
-           * This student is the receiver.
-           * Only process a new tutor offer when the peer
-           * is stable. Do not set the same remote offer twice.
-           */
-
-          if (peer.signalingState !== "stable") {
-            console.warn(
-              "Student ignored duplicate or overlapping offer:",
-              peer.signalingState
-            );
-
+          if (
+            peer.signalingState !== "stable" &&
+            peer.signalingState !== "have-remote-offer"
+          ) {
             return;
           }
 
@@ -1389,435 +986,241 @@ const StudentLiveClassroom = () => {
             new RTCSessionDescription(payload.offer)
           );
 
-          /*
-           * ICE candidates may arrive before the offer.
-           * Flush queued candidates after remoteDescription
-           * has been successfully installed.
-           */
-
-          const pendingCandidates =
-            pendingIceCandidatesRef.current;
-
-          pendingIceCandidatesRef.current = [];
-
-          for (const candidate of pendingCandidates) {
+          for (const candidate of pendingIceCandidatesRef.current) {
             try {
               await peer.addIceCandidate(
                 new RTCIceCandidate(candidate)
               );
-            } catch (iceError) {
-              console.error(
-                "STUDENT QUEUED ICE ERROR:",
-                iceError
-              );
+            } catch (candidateError) {
+              console.warn("Queued ICE candidate:", candidateError);
             }
           }
 
-          const answer = await peer.createAnswer();
+          pendingIceCandidatesRef.current = [];
 
+          const answer = await peer.createAnswer();
           await peer.setLocalDescription(answer);
 
           socket.emit("webrtc:answer", {
             liveClassId: roomId,
-            targetSocketId: tutorSocketId,
-            answer: peer.localDescription,
+            targetSocketId: tutorId,
+            answer,
           });
-
-          console.log(
-            "STUDENT WEBRTC ANSWER SENT TO TUTOR:",
-            tutorSocketId
-          );
-        } catch (peerError) {
-          console.error(
-            "STUDENT WEBRTC OFFER ERROR:",
-            peerError
-          );
+        } catch (offerError) {
+          console.error("STUDENT WEBRTC OFFER ERROR:", offerError);
         }
       });
 
-      /* -----------------------------
-         WEBRTC ICE CANDIDATES
-      ----------------------------- */
+      socket.on("webrtc:ice-candidate", async (payload) => {
+        if (!payload?.candidate) return;
 
-      socket.on(
-        "webrtc:ice-candidate",
-        async (payload) => {
-          try {
-            if (!payload?.candidate) return;
-
-            const senderSocketId =
-              getSocketSenderId(payload);
-
-            /*
-             * Remember the tutor socket ID if an ICE
-             * candidate arrives before the offer.
-             */
-            if (
-              senderSocketId &&
-              !tutorSocketIdRef.current
-            ) {
-              tutorSocketIdRef.current = senderSocketId;
-            }
-
-            /*
-             * Ignore ICE candidates from other students
-             * or unrelated peers.
-             */
-            if (
-              senderSocketId &&
-              tutorSocketIdRef.current &&
-              senderSocketId !== tutorSocketIdRef.current
-            ) {
-              return;
-            }
-
-            const peer = peerRef.current;
-
-            if (!peer || !peer.remoteDescription) {
-              pendingIceCandidatesRef.current.push(
-                payload.candidate
-              );
-
-              return;
-            }
-
-            await peer.addIceCandidate(
-              new RTCIceCandidate(payload.candidate)
-            );
-          } catch (peerError) {
-            console.error(
-              "STUDENT ICE ERROR:",
-              peerError
-            );
-          }
+        const peer = peerRef.current;
+        if (!peer?.remoteDescription) {
+          pendingIceCandidatesRef.current.push(payload.candidate);
+          return;
         }
-      );
 
-      /* -----------------------------
-         TUTOR MEDIA STATE
-      ----------------------------- */
+        try {
+          await peer.addIceCandidate(
+            new RTCIceCandidate(payload.candidate)
+          );
+        } catch (candidateError) {
+          console.warn("Student ICE candidate:", candidateError);
+        }
+      });
 
-      socket.on("live:media-state", (payload) => {
-        const state =
-          payload?.mediaState ||
-          payload?.media_state ||
-          payload?.state ||
-          payload ||
-          {};
+      socket.on("live:presentation-update", (payload) => {
+        const next =
+          payload?.presentation ||
+          payload?.resource ||
+          payload?.data ||
+          payload;
 
-        const normalizedState = {
-          ...state,
-          cameraEnabled:
-            state.cameraEnabled ??
-            state.camera_enabled ??
-            state.isCameraEnabled ??
-            state.is_camera_enabled,
-          microphoneEnabled:
-            state.microphoneEnabled ??
-            state.microphone_enabled ??
-            state.isMicrophoneEnabled ??
-            state.is_microphone_enabled,
-          screenSharing:
-            state.screenSharing ??
-            state.screen_sharing ??
-            state.isScreenSharing ??
-            state.is_screen_sharing ??
-            state.sharingScreen,
-        };
+        if (!next || typeof next !== "object") return;
 
-        setTutorMediaState((previous) => ({
-          ...previous,
-          ...normalizedState,
-        }));
+        if (isClearEvent(next)) {
+          setPresentation(null);
+          setPresentationPage(1);
+          setPresentationTotalPages(1);
+          setActiveStage("waiting");
+          return;
+        }
 
-        const screenIsActive = Boolean(
-          normalizedState.screenSharing
+        setPresentation(next);
+        setPresentationPage(getPresentationPage(next));
+        setPresentationTotalPages(
+          Math.max(
+            1,
+            Number(next.total_pages || next.totalPages || 1)
+          )
         );
-
-        screenSharingRef.current = screenIsActive;
-        setSharingScreen(screenIsActive);
-
-        refreshVideoTracksRef.current?.();
-
-        if (!screenIsActive) {
-          screenStreamRef.current = null;
-          setScreenAvailable(false);
-
-          if (screenVideoRef.current) {
-            screenVideoRef.current.srcObject = null;
-          }
-        } else {
-          setActiveStage("screen");
-        }
+        setActiveStage("presentation");
       });
 
-      /* -----------------------------
-         SCREEN SHARE STATE
-      ----------------------------- */
-
-      socket.on("live:screen-share-state", (payload) => {
-        const active = Boolean(
-          payload?.active ??
-            payload?.sharing ??
-            payload?.screenSharing ??
-            payload?.screen_sharing
-        );
-
-        screenSharingRef.current = active;
-        setSharingScreen(active);
-
-        refreshVideoTracksRef.current?.();
-
-        if (!active) {
-          screenStreamRef.current = null;
-          setScreenAvailable(false);
-
-          if (screenVideoRef.current) {
-            screenVideoRef.current.srcObject = null;
-          }
-        } else {
-          setActiveStage("screen");
-        }
-      });
-
-      /* -----------------------------
-         PRESENTATION UPDATES
-      ----------------------------- */
-
-      socket.on(
-        "live:presentation-update",
-        (payload) => {
-          const next =
-            payload?.presentation ||
-            payload?.resource ||
-            payload?.data ||
-            payload;
-
-          if (!next || typeof next !== "object") {
-            return;
-          }
-
-          if (
-            next.cleared ||
-            next.action === "clear" ||
-            next.type === "cleared"
-          ) {
-            setPresentation(null);
-            setPresentationPage(1);
-            setActiveStage("waiting");
-            return;
-          }
-
-          setPresentation(next);
-
-          setPresentationPage(
-            getPresentationPage(next)
-          );
-
-          setPresentationTotalPages(
-            Math.max(
-              1,
-              Number(
-                next.total_pages ||
-                  next.totalPages ||
-                  1
-              )
-            )
-          );
-
-          setActiveStage("presentation");
-        }
-      );
-
-      /* -----------------------------
-         PRESENTATION PAGE CHANGES
-      ----------------------------- */
-
-      socket.on(
-        "live:presentation-page",
-        (payload) => {
-          const page = Number(
+      socket.on("live:presentation-page", (payload) => {
+        const page = Math.max(
+          1,
+          Number(
             payload?.page ||
               payload?.currentPage ||
               payload?.current_page ||
               1
-          );
+          )
+        );
 
-          setPresentationPage(
-            Math.max(1, page)
-          );
+        setPresentationPage(page);
+        setPresentation((previous) =>
+          previous
+            ? { ...previous, current_page: page, currentPage: page }
+            : previous
+        );
+      });
+
+      socket.on("live:whiteboard-update", (payload = {}) => {
+        if (
+          isClearEvent(payload) ||
+          isClearEvent(payload.whiteboard || {})
+        ) {
+          whiteboardImageRef.current = "";
+          setWhiteboardImage("");
+          clearWhiteboardCanvas();
+          setActiveStage("whiteboard");
+          return;
         }
-      );
 
-      /* -----------------------------
-         WHITEBOARD UPDATES
-      ----------------------------- */
+        const image = getWhiteboardImage(
+          payload.whiteboard ??
+            payload.payload ??
+            payload.event?.payload ??
+            payload
+        );
 
-      socket.on(
-        "live:whiteboard-update",
-        (payload) => {
-          const image = getWhiteboardImage({
-            whiteboard:
-              payload?.whiteboard ??
-              payload?.payload ??
-              payload?.event?.payload ??
-              payload,
-          });
-
-          if (image) {
-            setWhiteboardImage(image);
-            setActiveStage("whiteboard");
-          }
-
-          if (
-            payload?.cleared ||
-            payload?.action === "clear" ||
-            payload?.type === "clear"
-          ) {
-            setWhiteboardImage("");
-            setActiveStage("whiteboard");
-          }
+        if (image) {
+          whiteboardImageRef.current = image;
+          setWhiteboardImage(image);
         }
-      );
 
-      /* -----------------------------
-         ACTIVE STAGE CHANGES
-      ----------------------------- */
+        setActiveStage("whiteboard");
+      });
+
+      [
+        "live:whiteboard-draw",
+        "live:whiteboard-stroke",
+        "whiteboard:draw",
+      ].forEach((eventName) => {
+        socket.on(eventName, (payload) => {
+          drawWhiteboardEvent(payload);
+          setActiveStage("whiteboard");
+        });
+      });
 
       socket.on("live:stage-update", (payload) => {
-        const stage = clean(
+        const profileImage = toPublicAssetUrl(
+          getTutorProfileImageValue(payload || {})
+        );
+        if (profileImage) setTutorProfileImage(profileImage);
+
+        const raw = clean(
           payload?.stage ||
             payload?.activeStage ||
             payload?.active_stage ||
             payload?.tool
         ).toLowerCase();
 
+        const aliases = {
+          camera: "video",
+          tutor: "video",
+          board: "whiteboard",
+          slides: "presentation",
+          resource: "material",
+          materials: "material",
+          idle: "waiting",
+        };
+        const stage = aliases[raw] || raw;
+
         if (
-          [
-            "whiteboard",
-            "presentation",
-            "screen",
-            "waiting",
-          ].includes(stage)
+          ["video", "whiteboard", "presentation", "material", "waiting"].includes(
+            stage
+          )
         ) {
           setActiveStage(stage);
         }
       });
 
-      /* -----------------------------
-         CHAT UPDATES
-      ----------------------------- */
+      socket.on("live:material-update", (payload) => {
+        const material =
+          payload?.material ||
+          payload?.activeMaterial ||
+          payload?.resource ||
+          payload?.data ||
+          payload;
+
+        if (!material || isClearEvent(material)) {
+          setActiveMaterial(null);
+          setActiveStage("waiting");
+          return;
+        }
+
+        setActiveMaterial(material);
+        setActiveStage("material");
+      });
 
       socket.on("live:chat-message", addMessage);
 
-      /* -----------------------------
-         PARTICIPANT UPDATES
-      ----------------------------- */
+      socket.on("live:participant-update", (payload) => {
+        const person =
+          payload?.participant || payload?.data || payload;
+        if (!person) return;
 
-      socket.on(
-        "live:participant-update",
-        (payload) => {
-          const participant =
-            payload?.participant ||
-            payload?.data ||
-            payload;
-
-          if (!participant) return;
-
-          const id = getParticipantId(participant);
-
-          if (
-            payload?.action === "left" ||
-            participant.is_present === false
-          ) {
-            setParticipants((previous) =>
-              previous.filter(
-                (item) =>
-                  getParticipantId(item) !== id
-              )
-            );
-
-            return;
-          }
-
-          setParticipants((previous) => {
-            const exists = previous.some(
-              (item) =>
-                getParticipantId(item) === id
-            );
-
-            if (exists) {
-              return previous.map((item) =>
-                getParticipantId(item) === id
-                  ? { ...item, ...participant }
-                  : item
-              );
-            }
-
-            return [...previous, participant];
-          });
-        }
-      );
-
-      /* -----------------------------
-         RESOURCE UPDATES
-      ----------------------------- */
-
-      socket.on(
-        "live:resource-added",
-        (payload) => {
-          const resource =
-            payload?.resource ||
-            payload?.data ||
-            payload;
-
-          if (!resource) return;
-
-          setResources((previous) =>
-            mergeUnique(
-              previous,
-              [resource],
-              (item) =>
-                String(
-                  item.id ||
-                    item.file_url ||
-                    item.url ||
-                    item.title
-                )
-            )
+        const id = getParticipantId(person);
+        if (
+          payload?.action === "left" ||
+          person.is_present === false
+        ) {
+          setParticipants((previous) =>
+            previous.filter((item) => getParticipantId(item) !== id)
           );
-
-          if (isPresentationResource(resource)) {
-            setPresentation({
-              ...resource,
-              url: getResourceUrl(resource),
-            });
-
-            setPresentationPage(
-              getPresentationPage(resource)
-            );
-
-            setActiveStage("presentation");
-          }
+          return;
         }
-      );
 
-      /* -----------------------------
-         CLASS END
-      ----------------------------- */
+        setParticipants((previous) =>
+          previous.some((item) => getParticipantId(item) === id)
+            ? previous.map((item) =>
+                getParticipantId(item) === id
+                  ? { ...item, ...person }
+                  : item
+              )
+            : [...previous, person]
+        );
+      });
 
-      const handleClassEnded = () => {
+      socket.on("live:resource-added", (payload) => {
+        const resource =
+          payload?.resource || payload?.data || payload;
+        if (!resource) return;
+
+        setResources((previous) =>
+          mergeUnique(
+            previous,
+            [resource],
+            (item) =>
+              String(
+                item.id ||
+                  getResourceUrl(item) ||
+                  item.title
+              )
+          )
+        );
+      });
+
+      const handleEnded = () => {
         setError("The tutor has ended this live class.");
         setActiveStage("waiting");
-
-        screenSharingRef.current = false;
-        setSharingScreen(false);
-
         closePeer();
       };
 
-      socket.on("live:ended", handleClassEnded);
-      socket.on("live:class-ended", handleClassEnded);
+      socket.on("live:ended", handleEnded);
+      socket.on("live:class-ended", handleEnded);
 
       return socket;
     },
@@ -1828,14 +1231,12 @@ const StudentLiveClassroom = () => {
       identity.studentName,
       addMessage,
       applyClassroomState,
+      clearWhiteboardCanvas,
       closePeer,
+      drawWhiteboardEvent,
       getOrCreatePeer,
     ]
   );
-
-  /* ============================================================
-     JOIN CLASSROOM
-  ============================================================ */
 
   const joinClassroom = useCallback(async () => {
     if (joiningRef.current || joinedRef.current) return;
@@ -1845,18 +1246,11 @@ const StudentLiveClassroom = () => {
     setError("");
 
     try {
-      const room = classroom || await loadClassroom();
-
+      const room = classroom || (await loadClassroom());
       const id =
-        room.id ||
-        room.live_class_id ||
-        room.liveClassId;
+        room.id || room.live_class_id || room.liveClassId;
 
-      if (!id) {
-        throw new Error(
-          "Invalid classroom identifier."
-        );
-      }
+      if (!id) throw new Error("Invalid classroom identifier.");
 
       if (!studentReference) {
         throw new Error(
@@ -1864,43 +1258,28 @@ const StudentLiveClassroom = () => {
         );
       }
 
-      await apiRequest(
-        `/api/academy/live-classes/${id}/join`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            enrollmentId: identity.enrollmentId,
-            studentId: identity.studentId,
-            studentName: identity.studentName,
-            className: identity.className,
-          }),
-        }
-      );
+      await apiRequest(`/api/academy/live-classes/${id}/join`, {
+        method: "POST",
+        body: JSON.stringify({
+          enrollmentId: identity.enrollmentId,
+          studentId: identity.studentId,
+          studentName: identity.studentName,
+          className: identity.className,
+        }),
+      });
 
       if (!mountedRef.current) return;
 
       joinedRef.current = true;
       setJoinedClass(true);
-
       await loadClassroomData(id);
-
       connectSocket(id);
     } catch (joinError) {
-      console.error(
-        "STUDENT JOIN ERROR:",
-        joinError
-      );
-
-      setError(
-        joinError.message ||
-          "Unable to join classroom."
-      );
+      console.error("STUDENT JOIN ERROR:", joinError);
+      setError(joinError.message || "Unable to join classroom.");
     } finally {
       joiningRef.current = false;
-
-      if (mountedRef.current) {
-        setJoining(false);
-      }
+      if (mountedRef.current) setJoining(false);
     }
   }, [
     classroom,
@@ -1914,22 +1293,14 @@ const StudentLiveClassroom = () => {
     connectSocket,
   ]);
 
-  /* ============================================================
-     SEND CHAT
-  ============================================================ */
-
   const sendMessage = useCallback(
     async (event) => {
       event?.preventDefault();
+      const text = messageInput.trim();
 
-      const text = message.trim();
-
-      if (!text || !classId || sendingMessage) {
-        return;
-      }
+      if (!text || !classId || sendingMessage) return;
 
       setSendingMessage(true);
-
       try {
         const result = await apiRequest(
           `/api/academy/live-classes/${classId}/chat`,
@@ -1942,1116 +1313,734 @@ const StudentLiveClassroom = () => {
               senderRole: "student",
               sender_role: "student",
               role: "student",
-              senderId:
-                identity.enrollmentId ||
-                identity.studentId,
-              sender_id:
-                identity.enrollmentId ||
-                identity.studentId,
+              senderId: studentReference,
+              sender_id: studentReference,
               enrollmentId: identity.enrollmentId,
               studentId: identity.studentId,
             }),
           }
         );
 
-        const savedMessage =
+        const saved =
           result.chat ||
           result.messageData ||
           result.data?.chat ||
           result.data ||
           result.message;
 
-        if (
-          savedMessage &&
-          typeof savedMessage === "object"
-        ) {
-          addMessage(savedMessage);
-        } else {
-          addMessage({
-            id: `student-${Date.now()}`,
-            sender_name: studentName,
-            sender_role: "student",
-            sender_id:
-              identity.enrollmentId ||
-              identity.studentId,
-            message: text,
-            created_at: new Date().toISOString(),
-          });
-        }
-
-        setMessage("");
-      } catch (sendError) {
-        setError(
-          sendError.message ||
-            "Unable to send message."
+        addMessage(
+          saved && typeof saved === "object"
+            ? saved
+            : {
+                id: `student-${Date.now()}`,
+                sender_name: studentName,
+                sender_role: "student",
+                sender_id: studentReference,
+                message: text,
+                created_at: new Date().toISOString(),
+              }
         );
+
+        setMessageInput("");
+      } catch (sendError) {
+        setError(sendError.message || "Unable to send message.");
       } finally {
         setSendingMessage(false);
       }
     },
     [
-      message,
+      messageInput,
       classId,
       sendingMessage,
       studentName,
+      studentReference,
       identity.enrollmentId,
       identity.studentId,
       addMessage,
     ]
   );
 
-  /* ============================================================
-     LEAVE CLASSROOM
-  ============================================================ */
-
   const leaveClassroom = useCallback(async () => {
     const id = classId;
 
-    socketRef.current?.emit("live:leave", {
-      liveClassId: id,
-      role: "student",
-      enrollmentId: identity.enrollmentId,
-      studentId: identity.studentId,
-    });
+    try {
+      socketRef.current?.emit("live:leave", {
+        liveClassId: id,
+        role: "student",
+        enrollmentId: identity.enrollmentId,
+        studentId: identity.studentId,
+      });
 
-    socketRef.current?.disconnect();
-    socketRef.current = null;
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+      closePeer();
 
-    closePeer();
-
-    joinedRef.current = false;
-    setJoinedClass(false);
-
-    if (id) {
-      try {
-        await apiRequest(
-          `/api/academy/live-classes/${id}/leave`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              enrollmentId: identity.enrollmentId,
-              studentId: identity.studentId,
-            }),
-          }
-        );
-      } catch (leaveError) {
-        console.warn(
-          "STUDENT LEAVE ERROR:",
-          leaveError
-        );
+      if (id) {
+        await apiRequest(`/api/academy/live-classes/${id}/leave`, {
+          method: "POST",
+          body: JSON.stringify({
+            enrollmentId: identity.enrollmentId,
+            studentId: identity.studentId,
+            studentReference,
+          }),
+        }).catch(() => {});
       }
+    } catch (leaveError) {
+      console.error("Leave classroom error:", leaveError);
+    } finally {
+      joinedRef.current = false;
+      joiningRef.current = false;
+      setJoinedClass(false);
+      setSocketConnected(false);
+      setMessages([]);
+      setParticipants([]);
+      setResources([]);
+      navigate("/academy/student");
     }
-
-    navigate("/academy/student");
   }, [
     classId,
     identity.enrollmentId,
     identity.studentId,
+    studentReference,
     closePeer,
     navigate,
   ]);
 
-  /* ============================================================
-     INITIAL ROOM LOAD
-  ============================================================ */
-
   useEffect(() => {
     mountedRef.current = true;
 
+    if (!roomCode) {
+      setLoading(false);
+      setError("Classroom room code is missing.");
+      return () => {
+        mountedRef.current = false;
+      };
+    }
+
+    let active = true;
+
     const initialize = async () => {
       try {
+        setLoading(true);
+        setError("");
         await loadClassroom();
       } catch (loadError) {
-        setError(
-          loadError.message ||
-            "Unable to load classroom."
-        );
-      } finally {
-        if (mountedRef.current) {
-          setLoading(false);
+        console.error("Classroom initialization error:", loadError);
+        if (active) {
+          setError(loadError.message || "Unable to load this classroom.");
         }
+      } finally {
+        if (active) setLoading(false);
       }
     };
 
     initialize();
 
     return () => {
+      active = false;
       mountedRef.current = false;
     };
-  }, [loadClassroom]);
-
-  /* ============================================================
-     CLASSROOM POLLING
-  ============================================================ */
+  }, [roomCode, loadClassroom]);
 
   useEffect(() => {
-    if (!joinedClass || !classId) return;
+    if (!joinedClass || !classId) return undefined;
 
-    pollingRef.current = window.setInterval(() => {
-      loadClassroomData(classId);
-    }, POLL_INTERVAL);
-
-    return () => {
-      if (pollingRef.current) {
-        window.clearInterval(pollingRef.current);
-        pollingRef.current = null;
+    const refresh = async () => {
+      try {
+        await loadClassroomData(classId);
+      } catch (refreshError) {
+        console.warn("Classroom refresh failed:", refreshError);
       }
     };
-  }, [
-    joinedClass,
-    classId,
-    loadClassroomData,
-  ]);
 
-  /* ============================================================
-     CHAT SCROLL
-  ============================================================ */
+    const interval = window.setInterval(refresh, 10000);
+    return () => window.clearInterval(interval);
+  }, [joinedClass, classId, loadClassroomData]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
+    const container = chatEndRef.current;
+    container?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  /* ============================================================
-     CLEANUP
-  ============================================================ */
-
   useEffect(() => {
     return () => {
-      mountedRef.current = false;
-
-      if (pollingRef.current) {
-        window.clearInterval(pollingRef.current);
-      }
-
       socketRef.current?.disconnect();
       socketRef.current = null;
+      peerRef.current?.close();
+      peerRef.current = null;
 
-      if (peerRef.current) {
-        peerRef.current.ontrack = null;
-        peerRef.current.onicecandidate = null;
-        peerRef.current.close();
-        peerRef.current = null;
-      }
-
-      tutorSocketIdRef.current = null;
-      pendingIceCandidatesRef.current = [];
-
-      screenStreamRef.current = null;
-      cameraStreamRef.current = null;
-      fallbackStreamRef.current = null;
-      screenSharingRef.current = false;
-
-      receivedVideoTracksRef.current.clear();
-      refreshVideoTracksRef.current = null;
-
-      tutorAudioStreamRef.current
-        ?.getTracks()
-        .forEach((track) => {
-          tutorAudioStreamRef.current.removeTrack(track);
-        });
-
-      if (tutorAudioRef.current) {
-        tutorAudioRef.current.srcObject = null;
-      }
+      cameraStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+      audioStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
     };
   }, []);
 
-  /* ============================================================
-     STAGE DISPLAY
-  ============================================================ */
+  const enableAudio = useCallback(() => {
+    audioStreamRef.current.getAudioTracks().forEach((track) => {
+      track.enabled = true;
+    });
+    setAudioEnabled(true);
+    audioRef.current?.play().catch(() => {});
+  }, []);
 
-  const stageMode = useMemo(() => {
-    if (
-      activeStage === "screen" &&
-      (screenAvailable || sharingScreen)
-    ) {
-      return "screen";
-    }
+  const disableAudio = useCallback(() => {
+    audioStreamRef.current.getAudioTracks().forEach((track) => {
+      track.enabled = false;
+    });
+    setAudioEnabled(false);
+  }, []);
 
-    if (
-      activeStage === "presentation" &&
-      presentationUrl
-    ) {
-      return "presentation";
-    }
-
-    if (activeStage === "whiteboard") {
-      return "whiteboard";
-    }
-
-    if (sharingScreen && screenAvailable) {
-      return "screen";
-    }
-
-    if (
-      presentationUrl &&
-      activeStage === "waiting"
-    ) {
-      return "presentation";
-    }
-
-    if (
-      whiteboardImage &&
-      activeStage === "waiting"
-    ) {
-      return "whiteboard";
-    }
-
-    return "waiting";
-  }, [
-    activeStage,
-    sharingScreen,
-    screenAvailable,
-    presentationUrl,
-    whiteboardImage,
-  ]);
-
-  const screenIsMain =
-    stageMode === "screen" &&
-    screenAvailable;
-
-  const cameraIsVisible =
-    cameraAvailable &&
-    tutorMediaState.cameraEnabled !== false;
-
-  /* ============================================================
-     LOADING SCREEN
-  ============================================================ */
+  const isConnected = socketConnected || mediaConnected;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#020617] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#080d19] flex items-center justify-center text-white">
         <div className="text-center">
-          <Loader2
-            size={35}
-            className="animate-spin mx-auto text-blue-400"
-          />
-
-          <p className="text-sm text-slate-400 mt-4">
-            Loading classroom...
+          <Loader2 className="w-10 h-10 animate-spin text-blue-500 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold">Preparing your classroom</h2>
+          <p className="text-sm text-slate-400 mt-2">
+            Connecting you to your tutor...
           </p>
         </div>
       </div>
     );
   }
 
-  /* ============================================================
-     CLASSROOM NOT FOUND
-  ============================================================ */
-
-  if (!classroom) {
+  if (error && !classroom) {
     return (
-      <div className="min-h-screen bg-[#020617] text-white flex items-center justify-center p-5">
-        <div className="max-w-md w-full rounded-2xl border border-white/10 bg-[#071426] p-7 text-center">
-          <AlertCircle
-            size={38}
-            className="mx-auto text-red-400"
-          />
-
-          <h2 className="text-lg font-bold mt-4">
-            Unable to load classroom
-          </h2>
-
-          <p className="text-sm text-slate-400 mt-2">
-            {error || "The classroom could not be found."}
-          </p>
-
+      <div className="min-h-screen bg-[#080d19] flex items-center justify-center p-6 text-white">
+        <div className="max-w-md w-full bg-[#111a2c] border border-white/10 rounded-2xl p-7 text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Classroom unavailable</h2>
+          <p className="text-sm text-slate-400 mb-6">{error}</p>
           <button
             onClick={() => navigate("/academy/student")}
-            className="mt-6 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-semibold"
+            className="px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold"
           >
-            Return to student dashboard
+            <ArrowLeft className="w-4 h-4 inline mr-2" />
+            Back to dashboard
           </button>
         </div>
       </div>
     );
   }
-
-  /* ============================================================
-     RENDER
-  ============================================================ */
 
   return (
-    <div className="min-h-screen h-screen overflow-hidden bg-[#020617] text-white flex flex-col">
-
-      {/* Hidden tutor audio receiver */}
-      <audio
-        ref={tutorAudioRef}
-        autoPlay
-        playsInline
-        className="hidden"
-      />
-
-      {/* HEADER */}
-
-      <header className="h-[68px] shrink-0 border-b border-white/10 bg-[#071426] px-4 md:px-6 flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-[#080d19] text-white flex flex-col">
+      <header className="h-[72px] border-b border-white/10 bg-[#0d1525] flex items-center justify-between px-4 md:px-7 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
-            onClick={() => navigate("/academy/student")}
-            className="w-9 h-9 rounded-xl bg-white/[0.06] hover:bg-white/10 flex items-center justify-center shrink-0"
-            title="Back to dashboard"
+            onClick={leaveClassroom}
+            className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center"
+            title="Leave classroom"
           >
-            <ArrowLeft size={17} />
+            <ArrowLeft className="w-5 h-5" />
           </button>
-
           <div className="min-w-0">
-            <h1 className="text-sm md:text-base font-bold truncate">
-              {title}
+            <h1 className="font-bold text-sm md:text-base truncate">
+              {classTitle}
             </h1>
-
-            <p className="text-[10px] md:text-xs text-slate-400 truncate">
-              {classLabel} · {tutorName}
-            </p>
+            <p className="text-xs text-slate-400 truncate">{tutorName}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="hidden sm:flex items-center gap-2 text-[10px] text-slate-400">
-            {socketConnected ? (
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2 text-xs">
+            {isConnected ? (
               <>
-                <Wifi size={14} className="text-emerald-400" />
-                Live connection
+                <Wifi className="w-4 h-4 text-emerald-400" />
+                <span className="text-emerald-400">Connected</span>
               </>
             ) : (
               <>
-                <WifiOff size={14} className="text-amber-400" />
-                Reconnecting
+                <WifiOff className="w-4 h-4 text-amber-400" />
+                <span className="text-amber-400">Connecting...</span>
               </>
             )}
           </div>
-
-          <span className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[10px] font-bold">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-2" />
-            STUDENT VIEW
-          </span>
-
-          {joinedClass && (
-            <button
-              onClick={leaveClassroom}
-              className="px-3 md:px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-[10px] md:text-xs font-bold"
-            >
-              Leave class
-            </button>
-          )}
+          <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 text-xs text-slate-300">
+            <Users className="w-4 h-4" />
+            {participants.length} participants
+          </div>
+          <button
+            onClick={leaveClassroom}
+            className="px-3 md:px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs md:text-sm font-semibold"
+          >
+            Leave class
+          </button>
         </div>
       </header>
 
-      {/* ERROR MESSAGE */}
-
-      {error && (
-        <div className="mx-3 mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 flex items-start gap-3">
-          <AlertCircle
-            size={17}
-            className="text-red-400 shrink-0 mt-0.5"
-          />
-
-          <p className="text-xs text-red-200 flex-1">
-            {error}
-          </p>
-
-          <button
-            onClick={() => setError("")}
-            className="text-red-300 text-xs"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* JOIN SCREEN */}
-
       {!joinedClass ? (
-        <main className="flex-1 flex items-center justify-center p-5 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#071426] p-6 md:p-8 shadow-2xl">
-            <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-400/20 flex items-center justify-center mx-auto">
-              <Video
-                size={30}
-                className="text-blue-300"
-              />
+        <main className="flex-1 flex items-center justify-center p-5">
+          <div className="max-w-lg w-full bg-[#111a2c] border border-white/10 rounded-3xl p-7 text-center shadow-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-5">
+              <Video className="w-8 h-8 text-blue-400" />
             </div>
+            <h2 className="text-2xl font-bold mb-2">Join your live class</h2>
+            <p className="text-sm text-slate-400 mb-6">
+              You are about to enter {classTitle}. Your tutor's whiteboard,
+              presentation and learning materials will appear here
+              automatically.
+            </p>
 
-            <div className="text-center mt-5">
-              <h2 className="text-xl font-bold">
-                Join live classroom
-              </h2>
-
-              <p className="text-sm text-slate-400 mt-2">
-                Join the lesson and watch your tutor's live classroom activities.
-              </p>
-            </div>
-
-            <div className="mt-7 rounded-2xl border border-white/10 bg-black/20 p-4 space-y-4">
-              <div className="flex justify-between gap-4 text-xs">
-                <span className="text-slate-400">
-                  Student
-                </span>
-
-                <span className="text-white font-medium text-right">
-                  {studentName}
-                </span>
+            {error && (
+              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
+                {error}
               </div>
-
-              <div className="flex justify-between gap-4 text-xs">
-                <span className="text-slate-400">
-                  Class
-                </span>
-
-                <span className="text-white font-medium text-right">
-                  {classLabel}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4 text-xs">
-                <span className="text-slate-400">
-                  Subject
-                </span>
-
-                <span className="text-white font-medium text-right">
-                  {classroom?.subject || "Live lesson"}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4 text-xs">
-                <span className="text-slate-400">
-                  Tutor
-                </span>
-
-                <span className="text-white font-medium text-right">
-                  {tutorName}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-xl bg-blue-500/10 border border-blue-500/20 p-3">
-              <p className="text-xs text-blue-200 leading-relaxed">
-                Your classroom is view-only. Your tutor controls the whiteboard, presentation, screen sharing and lesson activities.
-              </p>
-            </div>
+            )}
 
             <button
               onClick={joinClassroom}
               disabled={joining}
-              className="w-full mt-6 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-3.5 text-sm font-bold flex items-center justify-center gap-2"
+              className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 font-bold flex items-center justify-center gap-2"
             >
               {joining ? (
                 <>
-                  <Loader2
-                    size={17}
-                    className="animate-spin"
-                  />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   Joining classroom...
                 </>
               ) : (
                 <>
-                  <Video size={17} />
+                  <Video className="w-5 h-5" />
                   Join classroom
                 </>
               )}
             </button>
+            <p className="text-xs text-slate-500 mt-4">
+              Room: {roomCode}
+            </p>
           </div>
         </main>
       ) : (
-        <main className="flex-1 min-h-0 p-3 md:p-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_350px] gap-4">
-
-          {/* MAIN LESSON STAGE */}
-
-          <section className="min-w-0 min-h-[420px] flex flex-col">
-            <div className="relative flex-1 min-h-[420px] rounded-2xl border border-white/10 bg-[#071426] overflow-hidden">
-
-              {/* STAGE HEADER */}
-
-              <div className="absolute z-30 top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-2 rounded-lg bg-black/75 backdrop-blur text-white text-[10px] font-bold uppercase tracking-wider">
-                    {stageMode === "whiteboard"
-                      ? "Tutor whiteboard"
-                      : stageMode === "presentation"
-                        ? "Tutor presentation"
-                        : stageMode === "screen"
-                          ? "Tutor screen"
-                          : "Classroom stage"}
-                  </span>
-
-                  {sharingScreen && (
-                    <span className="px-3 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-bold">
-                      <Monitor
-                        size={12}
-                        className="inline mr-1"
-                      />
-                      SCREEN SHARING
-                    </span>
-                  )}
-                </div>
-
-                <span className="px-3 py-2 rounded-lg bg-black/75 backdrop-blur text-[10px] text-slate-300">
-                  Following tutor
-                </span>
+        <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_350px]">
+          <section className="min-w-0 p-3 md:p-5 flex flex-col">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="font-bold text-sm md:text-base">
+                  Classroom stage
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Automatically synchronized with your tutor
+                </p>
               </div>
+              <button
+                onClick={audioEnabled ? disableAudio : enableAudio}
+                disabled={!audioAvailable}
+                className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-40"
+                title={audioEnabled ? "Mute tutor audio" : "Enable tutor audio"}
+              >
+                {audioEnabled ? (
+                  <Volume2 className="w-5 h-5 text-blue-400" />
+                ) : (
+                  <VolumeX className="w-5 h-5 text-slate-400" />
+                )}
+              </button>
+            </div>
 
-              {/* WHITEBOARD */}
-
-              {stageMode === "whiteboard" && (
-                <div className="absolute inset-0 bg-white flex items-center justify-center">
-                  {whiteboardImage ? (
-                    <img
-                      src={whiteboardImage}
-                      alt="Tutor's live whiteboard"
-                      className="w-full h-full object-contain"
-                    />
-                  ) : (
-                    <div className="text-center text-slate-500 p-6">
-                      <BookOpen
-                        size={42}
-                        className="mx-auto"
+            <div className="relative flex-1 min-h-[400px] rounded-2xl overflow-hidden bg-[#111a2c] border border-white/10">
+              {stageMode === "video" && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#071426] text-center p-6">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-400/20 flex items-center justify-center text-blue-200 text-2xl font-bold overflow-hidden">
+                    {tutorProfileImage ? (
+                      <img
+                        src={tutorProfileImage}
+                        alt={`${tutorName} profile`}
+                        className="w-full h-full object-cover"
                       />
-
-                      <p className="text-sm mt-3">
-                        The tutor's whiteboard is empty.
-                      </p>
-
-                      <p className="text-xs mt-1">
-                        New tutor activity will appear here.
-                      </p>
-                    </div>
-                  )}
+                    ) : (
+                      tutorInitial
+                    )}
+                  </div>
+                  <h3 className="font-semibold mt-4">Waiting for tutor activity</h3>
+                  <p className="text-sm text-slate-400 mt-2 max-w-md">
+                    Your tutor's whiteboard or presentation will appear here automatically when selected.
+                  </p>
                 </div>
               )}
 
-              {/* PRESENTATION */}
+              {stageMode === "whiteboard" && (
+                <div className="absolute inset-0 bg-white relative">
+                  {whiteboardImage ? (
+                    <img
+                      src={whiteboardImage}
+                      alt="Tutor whiteboard"
+                      className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                    />
+                  ) : null}
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 w-full h-full block"
+                  />
+                  <div className="absolute top-3 left-3 px-3 py-2 rounded-lg bg-black/70 text-white text-xs flex items-center gap-2 pointer-events-none">
+                    <Pen className="w-4 h-4" />
+                    Live whiteboard
+                  </div>
+                </div>
+              )}
 
               {stageMode === "presentation" && (
-                <div className="absolute inset-0 bg-[#0b1220] flex flex-col">
-                  <div className="h-12 shrink-0 px-4 border-b border-white/10 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Presentation
-                        size={16}
-                        className="text-blue-300 shrink-0"
-                      />
-
-                      <span className="text-xs font-semibold truncate">
-                        {presentationName}
-                      </span>
+                <div className="absolute inset-0 flex flex-col bg-[#111a2c]">
+                  <div className="h-12 px-4 flex items-center justify-between border-b border-white/10 shrink-0">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Presentation className="w-4 h-4 text-blue-400" />
+                      {presentation?.title ||
+                        presentation?.name ||
+                        "Tutor presentation"}
                     </div>
-
-                    <span className="text-[10px] text-slate-400 shrink-0">
+                    <span className="text-xs text-slate-400">
                       Page {presentationPage}
                       {presentationTotalPages > 1
-                        ? ` / ${presentationTotalPages}`
+                        ? ` of ${presentationTotalPages}`
                         : ""}
                     </span>
                   </div>
-
-                  <div className="flex-1 min-h-0 bg-[#020617] flex items-center justify-center">
-                    {presentationUrl && isPdf ? (
+                  <div className="flex-1 min-h-0 flex items-center justify-center p-3">
+                    {presentationUrl ? (
                       <iframe
-                        key={`${presentationUrl}#page=${presentationPage}`}
-                        src={`${presentationUrl}#toolbar=0&navpanes=0&page=${presentationPage}`}
+                        src={presentationUrl}
                         title="Tutor presentation"
-                        className="w-full h-full border-0 bg-white"
+                        className="w-full h-full rounded-lg bg-white"
+                        allow="fullscreen"
                       />
-                    ) : presentationUrl ? (
-                      <div className="text-center p-6">
-                        <Presentation
-                          size={42}
-                          className="mx-auto text-blue-300"
-                        />
-
-                        <h3 className="text-sm font-semibold mt-4">
-                          {presentationName}
-                        </h3>
-
-                        <p className="text-xs text-slate-400 mt-2">
-                          This presentation format may need to be opened separately.
-                        </p>
-
-                        <a
-                          href={presentationUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex mt-5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-semibold"
-                        >
-                          Open presentation
-                        </a>
-                      </div>
                     ) : (
-                      <div className="text-center p-6 text-slate-400">
-                        <Presentation
-                          size={36}
-                          className="mx-auto"
-                        />
-
-                        <p className="text-sm mt-3">
-                          Waiting for tutor presentation
-                        </p>
+                      <div className="text-center text-slate-400">
+                        <FileText className="w-12 h-12 mx-auto mb-3" />
+                        <p>No presentation is currently available.</p>
                       </div>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* SCREEN SHARE */}
-
-              {stageMode === "screen" && (
-                <div className="absolute inset-0 bg-black flex items-center justify-center">
-                  {screenAvailable ? (
-                    <video
-                      ref={screenVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-contain bg-black"
-                    />
-                  ) : (
-                    <div className="text-center p-6">
-                      <Monitor
-                        size={44}
-                        className="mx-auto text-blue-300"
-                      />
-
-                      <h3 className="mt-4 text-sm font-semibold">
-                        Waiting for tutor screen
-                      </h3>
-
-                      <p className="text-xs text-slate-400 mt-2 max-w-sm">
-                        The tutor's shared screen will appear here when the stream connects.
-                      </p>
-                    </div>
-                  )}
+              {stageMode === "material" && (
+                <div className="absolute inset-0 flex flex-col bg-[#111a2c]">
+                  <div className="h-12 px-4 flex items-center gap-2 border-b border-white/10 shrink-0">
+                    <BookOpen className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm font-semibold truncate">
+                      {materialName || "Tutor learning material"}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-h-0 p-3">
+                    {materialUrl ? (
+                      resourceKind(activeMaterial || {}) === "image" ? (
+                        <img
+                          src={materialUrl}
+                          alt={materialName}
+                          className="w-full h-full object-contain rounded-lg bg-white"
+                        />
+                      ) : resourceKind(activeMaterial || {}) === "video" ? (
+                        <video
+                          src={materialUrl}
+                          controls
+                          className="w-full h-full rounded-lg bg-black"
+                        />
+                      ) : (
+                        <iframe
+                          src={materialUrl}
+                          title="Tutor learning material"
+                          className="w-full h-full rounded-lg bg-white"
+                        />
+                      )
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-center text-slate-400">
+                        <FileText className="w-12 h-12 mb-3" />
+                        <p>No material is currently open.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* WAITING */}
-
-              {stageMode === "waiting" && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0c1d36] to-[#020617] p-6 text-center">
-                  <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-400/20 flex items-center justify-center">
-                    <BookOpen
-                      size={36}
-                      className="text-blue-300"
-                    />
-                  </div>
-
-                  <h3 className="mt-5 text-base font-bold">
-                    Waiting for tutor activity
-                  </h3>
-
-                  <p className="text-xs text-slate-400 mt-2 max-w-sm leading-relaxed">
-                    When your tutor starts writing on the whiteboard, shares a presentation or shares their screen, it will appear here automatically.
+              {!["video", "whiteboard", "presentation", "material"].includes(
+                stageMode
+              ) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
+                  <Monitor className="w-14 h-14 text-blue-400 mb-4" />
+                  <h3 className="text-lg font-bold">Waiting for your tutor</h3>
+                  <p className="text-sm text-slate-400 max-w-sm mt-2">
+                    Your tutor's whiteboard, presentation or learning material
+                    will appear here when opened.
                   </p>
-
-                  <div className="mt-5 flex items-center gap-2 text-[10px] text-slate-500">
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        socketConnected
-                          ? "bg-emerald-400"
-                          : "bg-amber-400"
-                      }`}
-                    />
-
-                    {socketConnected
-                      ? "Connected to classroom"
-                      : "Reconnecting to classroom"}
-                  </div>
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-400 mt-5" />
                 </div>
               )}
-
-              {/* TUTOR CAMERA PREVIEW */}
-
-              {cameraIsVisible && (
-                <div className="absolute z-20 bottom-4 right-4 w-32 sm:w-44 md:w-52 aspect-video rounded-xl overflow-hidden border-2 border-white/20 bg-[#020617] shadow-2xl">
-                  <video
-                    ref={cameraVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
+              <div className="absolute z-40 bottom-4 right-4 w-24 sm:w-28 aspect-square rounded-2xl overflow-hidden border-2 border-white/20 bg-[#0b1930] shadow-2xl">
+                {tutorProfileImage ? (
+                  <img
+                    src={tutorProfileImage}
+                    alt={`${tutorName} profile picture`}
                     className="w-full h-full object-cover"
                   />
-
-                  <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-black/65">
-                    <p className="text-[9px] font-semibold text-white truncate">
-                      {tutorName}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* TUTOR CAMERA PLACEHOLDER */}
-
-              {!cameraIsVisible && (
-                <div className="absolute z-20 bottom-4 right-4 w-32 sm:w-40 aspect-video rounded-xl overflow-hidden border border-white/10 bg-[#0b1930] flex flex-col items-center justify-center shadow-xl">
-                  <div className="w-9 h-9 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-200 text-sm font-bold">
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-blue-200">
                     {tutorInitial}
                   </div>
-
-                  <span className="text-[9px] text-slate-300 mt-1">
+                )}
+                <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1 text-center">
+                  <span className="text-[9px] font-semibold text-white truncate block">
                     {tutorName}
                   </span>
                 </div>
-              )}
+              </div>
             </div>
 
-            {/* STAGE STATUS BAR */}
-
-            <div className="mt-3 rounded-xl border border-white/10 bg-[#071426] px-4 py-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                {mediaConnected ? (
-                  <CheckCircle2
-                    size={15}
-                    className="text-emerald-400 shrink-0"
-                  />
-                ) : (
-                  <Wifi
-                    size={15}
-                    className="text-slate-500 shrink-0"
-                  />
-                )}
-
-                <p className="text-[10px] text-slate-400 truncate">
-                  {screenIsMain
-                    ? "Watching tutor's shared screen"
-                    : stageMode === "whiteboard"
-                      ? "Viewing tutor's live whiteboard"
-                      : stageMode === "presentation"
-                        ? "Following tutor's presentation"
-                        : "Connected to tutor's classroom"}
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="rounded-xl bg-[#111a2c] border border-white/10 p-3">
+                <p className="text-xs text-slate-400">Classroom</p>
+                <p className="font-semibold text-sm mt-1 truncate">
+                  {classTitle}
                 </p>
               </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {audioBlocked && (
-                  <button
-                    onClick={enableTutorAudio}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold"
-                  >
-                    <Volume2 size={13} />
-                    Enable tutor audio
-                  </button>
-                )}
-
-                <span className="text-[9px] text-slate-500">
-                  View only
-                </span>
+              <div className="rounded-xl bg-[#111a2c] border border-white/10 p-3">
+                <p className="text-xs text-slate-400">Tutor</p>
+                <p className="font-semibold text-sm mt-1 truncate">
+                  {tutorName}
+                </p>
+              </div>
+              <div className="hidden md:block rounded-xl bg-[#111a2c] border border-white/10 p-3">
+                <p className="text-xs text-slate-400">Connection</p>
+                <p
+                  className={`font-semibold text-sm mt-1 ${
+                    isConnected ? "text-emerald-400" : "text-amber-400"
+                  }`}
+                >
+                  {isConnected ? "Connected" : "Connecting"}
+                </p>
               </div>
             </div>
           </section>
 
-          {/* RIGHT SIDEBAR */}
-
-          <aside className="min-h-[400px] lg:min-h-0 rounded-2xl border border-white/10 bg-[#071426] flex flex-col overflow-hidden">
-            <div className="grid grid-cols-3 border-b border-white/10 shrink-0">
+          <aside className="border-t lg:border-t-0 lg:border-l border-white/10 bg-[#0d1525] flex flex-col min-h-[500px] lg:min-h-0">
+            <div className="grid grid-cols-3 border-b border-white/10">
               {[
-                {
-                  id: "chat",
-                  label: "Chat",
-                  icon: MessageCircle,
-                },
-                {
-                  id: "people",
-                  label: "People",
-                  icon: Users,
-                },
-                {
-                  id: "resources",
-                  label: "Files",
-                  icon: BookOpen,
-                },
-              ].map((tab) => {
-                const Icon = tab.icon;
-
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`py-3 flex items-center justify-center gap-1.5 text-xs font-semibold border-b-2 ${
-                      activeTab === tab.id
-                        ? "text-blue-300 border-blue-400"
-                        : "text-slate-400 border-transparent"
-                    }`}
-                  >
-                    <Icon size={14} />
-                    {tab.label}
-                  </button>
-                );
-              })}
+                ["chat", MessageCircle, "Chat"],
+                ["people", Users, "People"],
+                ["resources", BookOpen, "Materials"],
+              ].map(([tab, Icon, label]) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`py-4 text-xs font-semibold flex items-center justify-center gap-2 ${
+                    activeTab === tab
+                      ? "text-blue-400 border-b-2 border-blue-500"
+                      : "text-slate-400"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
             </div>
 
-            {/* CHAT */}
-
             {activeTab === "chat" && (
-              <>
-                <div className="flex-1 min-h-[250px] overflow-y-auto p-4 space-y-4">
+              <div className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {messages.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center py-10">
-                      <MessageCircle
-                        size={25}
-                        className="text-slate-600"
-                      />
-
-                      <p className="text-xs text-slate-400 mt-3">
-                        No messages yet.
-                      </p>
-
-                      <p className="text-[10px] text-slate-500 mt-1">
-                        Start the classroom conversation.
+                    <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
+                      <MessageCircle className="w-10 h-10 mb-3" />
+                      <p className="text-sm">No messages yet.</p>
+                      <p className="text-xs mt-1">
+                        Send a message or ask your tutor a question.
                       </p>
                     </div>
                   ) : (
                     messages.map((item, index) => {
-                      const sender = getSenderName(item);
-
-                      const senderRole = clean(
-                        item.sender_role ||
-                          item.senderRole ||
-                          item.role ||
-                          item.sender_type
-                      ).toLowerCase();
-
-                      const ownMessage =
-                        senderRole === "student" &&
-                        String(item.sender_id || "") ===
-                          String(
-                            identity.enrollmentId ||
-                              identity.studentId
-                          );
+                      const senderId = String(
+                        item.sender_id ||
+                          item.senderId ||
+                          item.student_id ||
+                          item.studentId ||
+                          ""
+                      );
+                      const isMine =
+                        senderId === String(studentReference) ||
+                        item.isMine === true;
 
                       return (
                         <div
-                          key={
-                            item.id ||
-                            item.message_id ||
-                            `${index}-${item.created_at || ""}`
-                          }
-                          className={`flex flex-col ${
-                            ownMessage
-                              ? "items-end"
-                              : "items-start"
+                          key={getMessageId(item) || index}
+                          className={`flex ${
+                            isMine ? "justify-end" : "justify-start"
                           }`}
                         >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] text-slate-400">
-                              {ownMessage ? "You" : sender}
-                            </span>
-
-                            <span className="text-[9px] text-slate-600">
-                              {formatTime(
-                                item.created_at ||
-                                  item.createdAt ||
-                                  item.timestamp
-                              )}
-                            </span>
-                          </div>
-
                           <div
-                            className={`max-w-[90%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
-                              ownMessage
-                                ? "bg-blue-600 text-white rounded-tr-sm"
-                                : "bg-white/[0.07] text-slate-200 rounded-tl-sm"
+                            className={`max-w-[85%] rounded-2xl px-3 py-2 ${
+                              isMine
+                                ? "bg-blue-600 text-white rounded-br-sm"
+                                : "bg-white/5 text-slate-200 rounded-bl-sm"
                             }`}
                           >
-                            {getMessageText(item)}
+                            <p className="text-[10px] opacity-70 mb-1">
+                              {isMine ? "You" : getSenderName(item)}
+                            </p>
+                            <p className="text-sm break-words whitespace-pre-wrap">
+                              {getMessageText(item)}
+                            </p>
+                            {(item.created_at || item.createdAt) && (
+                              <p className="text-[9px] opacity-60 mt-1 text-right">
+                                {new Date(
+                                  item.created_at || item.createdAt
+                                ).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
                     })
                   )}
-
                   <div ref={chatEndRef} />
                 </div>
 
                 <form
                   onSubmit={sendMessage}
-                  className="p-3 border-t border-white/10 flex items-center gap-2 shrink-0"
+                  className="p-3 border-t border-white/10 flex items-center gap-2"
                 >
                   <input
-                    value={message}
-                    onChange={(event) =>
-                      setMessage(event.target.value)
-                    }
-                    placeholder="Write a message..."
-                    className="flex-1 min-w-0 rounded-xl bg-[#020617] border border-white/10 px-3 py-3 text-xs text-white outline-none focus:border-blue-500"
+                    value={messageInput}
+                    onChange={(event) => setMessageInput(event.target.value)}
+                    placeholder="Ask your tutor..."
+                    className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm outline-none focus:border-blue-500"
                   />
-
                   <button
                     type="submit"
-                    disabled={
-                      !message.trim() ||
-                      sendingMessage
-                    }
-                    className="p-3 rounded-xl bg-blue-600 disabled:opacity-40 text-white"
+                    disabled={!messageInput.trim() || sendingMessage}
+                    className="w-11 h-11 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 flex items-center justify-center"
                   >
                     {sendingMessage ? (
-                      <Loader2
-                        size={16}
-                        className="animate-spin"
-                      />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Send size={16} />
+                      <Send className="w-4 h-4" />
                     )}
                   </button>
                 </form>
-              </>
+              </div>
             )}
 
-            {/* PARTICIPANTS */}
-
             {activeTab === "people" && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+              <div className="flex-1 overflow-y-auto p-4">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
                   In this classroom
-                </p>
+                </h3>
 
-                <div className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3">
-                  <div className="w-9 h-9 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-200 text-xs font-bold">
-                    {tutorInitial}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center overflow-hidden">
+                    {tutorProfileImage ? (
+                      <img
+                        src={tutorProfileImage}
+                        alt={`${tutorName} profile`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-sm font-bold text-blue-200">{tutorInitial}</span>
+                    )}
                   </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate">
                       {tutorName}
                     </p>
-
-                    <p className="text-[10px] text-slate-500">
-                      Tutor
-                    </p>
+                    <p className="text-xs text-emerald-400">Tutor</p>
                   </div>
-
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 </div>
 
-                {participants
-                  .filter(
-                    (person) =>
-                      person.is_present !== false
-                  )
-                  .map((person, index) => {
-                    const name =
-                      person.student_name ||
-                      person.studentName ||
-                      person.name ||
-                      "Student";
+                {participants.map((person, index) => {
+                  const name =
+                    person.name ||
+                    person.studentName ||
+                    person.student_name ||
+                    "Student";
 
-                    return (
-                      <div
-                        key={
-                          person.id ||
-                          person.student_id ||
-                          person.enrollment_id ||
-                          index
-                        }
-                        className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3"
-                      >
-                        <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold">
-                          {name.charAt(0).toUpperCase()}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">
-                            {name}
-                          </p>
-
-                          <p className="text-[10px] text-slate-500">
-                            Student
-                          </p>
-                        </div>
-
-                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  return (
+                    <div
+                      key={getParticipantId(person) || index}
+                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold">
+                        {name.charAt(0).toUpperCase()}
                       </div>
-                    );
-                  })}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{name}</p>
+                        <p className="text-xs text-slate-500">Student</p>
+                      </div>
+                    </div>
+                  );
+                })}
 
                 {participants.length === 0 && (
-                  <p className="text-xs text-slate-500 text-center py-8">
-                    No other students are listed yet.
+                  <p className="text-sm text-slate-500 text-center py-8">
+                    No other participants are listed yet.
                   </p>
                 )}
               </div>
             )}
 
-            {/* RESOURCES */}
-
             {activeTab === "resources" && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
-                  Shared class materials
-                </p>
+              <div className="flex-1 overflow-y-auto p-4">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+                  Shared learning materials
+                </h3>
 
                 {resources.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <Paperclip
-                      size={25}
-                      className="mx-auto text-slate-600"
-                    />
-
-                    <p className="text-xs text-slate-400 mt-3">
-                      No resources shared yet.
-                    </p>
+                  <div className="text-center py-12 text-slate-500">
+                    <BookOpen className="w-10 h-10 mx-auto mb-3" />
+                    <p className="text-sm">No materials shared yet.</p>
                   </div>
                 ) : (
-                  resources.map((resource, index) => {
-                    const url = getResourceUrl(resource);
-
-                    const isPresentation =
-                      isPresentationResource(resource);
-
-                    return (
-                      <div
-                        key={resource.id || index}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/5"
-                      >
-                        <div className="w-9 h-9 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
-                          {isPresentation ? (
-                            <Presentation
-                              size={17}
-                              className="text-blue-300"
-                            />
-                          ) : url ? (
-                            <FileText
-                              size={17}
-                              className="text-blue-300"
-                            />
-                          ) : (
-                            <LinkIcon
-                              size={17}
-                              className="text-blue-300"
-                            />
-                          )}
+                  <div className="space-y-3">
+                    {resources.map((resource, index) => {
+                      const url = getResourceUrl(resource);
+                      return (
+                        <div
+                          key={resource.id || resource._id || index}
+                          className="p-3 rounded-xl bg-white/5 border border-white/10"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                              <FileText className="w-5 h-5 text-blue-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold break-words">
+                                {getResourceName(resource)}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {resource.type ||
+                                  resource.fileType ||
+                                  resource.resource_type ||
+                                  "Class resource"}
+                              </p>
+                              {url && (
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-3"
+                                >
+                                  <LinkIcon className="w-3 h-3" />
+                                  Open material
+                                </a>
+                              )}
+                            </div>
+                          </div>
                         </div>
-
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">
-                            {getResourceName(resource)}
-                          </p>
-
-                          <p className="text-[10px] text-slate-500">
-                            {resource.resource_type ||
-                              resource.type ||
-                              "Class resource"}
-                          </p>
-                        </div>
-
-                        {url && (
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-blue-300 hover:text-white font-semibold shrink-0"
-                          >
-                            Open
-                          </a>
-                        )}
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}
           </aside>
         </main>
       )}
+
+      <audio ref={audioRef} autoPlay playsInline />
     </div>
   );
-};
+}
 
 export default StudentLiveClassroom;

@@ -253,6 +253,53 @@ const io = new SocketIOServer(server, {
 });
 
 // ============================================================
+// LIVE CLASSROOM STATE
+// ============================================================
+
+const liveClassroomStates = new Map();
+
+const createDefaultClassroomState = () => ({
+  stage: "video",
+  presentation: null,
+  activeMaterial: null,
+  updatedAt: new Date().toISOString(),
+});
+
+const getClassroomState = (classId) => {
+  const key = String(classId);
+
+  if (!liveClassroomStates.has(key)) {
+    liveClassroomStates.set(
+      key,
+      createDefaultClassroomState()
+    );
+  }
+
+  return liveClassroomStates.get(key);
+};
+
+const updateClassroomState = (classId, updates = {}) => {
+  const current = getClassroomState(classId);
+
+  const next = {
+    ...current,
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+
+  liveClassroomStates.set(String(classId), next);
+
+  return next;
+};
+
+const sendClassroomState = (socket, classId) => {
+  socket.emit("live:classroom-state", {
+    classId: String(classId),
+    ...getClassroomState(classId),
+  });
+};
+
+// ============================================================
 // LIVE CLASSROOM HELPERS
 // ============================================================
 
@@ -329,11 +376,6 @@ const getSocketError = (message, code = "LIVE_CLASS_ERROR") => ({
   message,
 });
 
-// ============================================================
-// WEBRTC TARGET HELPER
-// ACCEPTS ALL CLIENT TARGET FIELD VARIATIONS
-// ============================================================
-
 const getWebRTCTargetId = (payload = {}) => {
   return clean(
     payload.targetSocketId ||
@@ -342,6 +384,19 @@ const getWebRTCTargetId = (payload = {}) => {
     payload.socketId ||
     payload.socket_id
   );
+};
+
+const validateSocketPayload = (value, maxBytes = 30000) => {
+  try {
+    return (
+      Buffer.byteLength(
+        JSON.stringify(value ?? null),
+        "utf8"
+      ) <= maxBytes
+    );
+  } catch {
+    return false;
+  }
 };
 
 // ============================================================
@@ -363,7 +418,6 @@ io.use((socket, next) => {
     }
 
     const payload = jwt.verify(token, JWT_SECRET);
-
     const role = getTokenRole(payload);
 
     if (!role) {
@@ -448,10 +502,11 @@ const authorizeLiveClass = async (socket, classId) => {
   }
 
   const classroom = classroomResult.rows[0];
-
   const status = clean(classroom.status).toLowerCase();
 
-  if (["ended", "completed", "cancelled", "canceled"].includes(status)) {
+  if (
+    ["ended", "completed", "cancelled", "canceled"].includes(status)
+  ) {
     throw new Error("This live classroom has already ended.");
   }
 
@@ -572,9 +627,7 @@ io.on("connection", (socket) => {
     message: "Authenticated live connection established.",
   });
 
-  // ----------------------------------------------------------
   // JOIN CLASSROOM
-  // ----------------------------------------------------------
 
   socket.on("live:join", async (payload = {}, callback) => {
     try {
@@ -601,8 +654,10 @@ io.on("connection", (socket) => {
         classId: String(classId),
         room,
         role: socket.data.identity.role,
-        tutorReference: socket.data.identity.tutorReference || "",
-        enrollmentId: socket.data.identity.enrollmentId || "",
+        tutorReference:
+          socket.data.identity.tutorReference || "",
+        enrollmentId:
+          socket.data.identity.enrollmentId || "",
         joinedAt: new Date().toISOString(),
       };
 
@@ -622,13 +677,14 @@ io.on("connection", (socket) => {
         callback(response);
       }
 
+      sendClassroomState(socket, classId);
+
       socket.to(room).emit("live:peer-joined", {
         socketId: socket.id,
         role: socket.data.identity.role,
         classId: String(classId),
       });
 
-      // Tutor joins: notify students already waiting.
       if (socket.data.identity.role === "tutor") {
         socket.to(room).emit("live:tutor-available", {
           tutorSocketId: socket.id,
@@ -636,7 +692,6 @@ io.on("connection", (socket) => {
         });
       }
 
-      // Student joins: notify tutor and send existing media state.
       if (socket.data.identity.role === "student") {
         socket.to(room).emit("live:student-ready", {
           studentSocketId: socket.id,
@@ -662,11 +717,6 @@ io.on("connection", (socket) => {
             classId: String(classId),
             ...tutorSocket.data.mediaState,
           });
-
-          console.log(
-            "SENT EXISTING TUTOR MEDIA STATE TO STUDENT:",
-            socket.id
-          );
         }
       }
 
@@ -689,9 +739,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ----------------------------------------------------------
   // STUDENT READY
-  // ----------------------------------------------------------
 
   socket.on("live:ready", () => {
     const liveClass = socket.data.liveClass;
@@ -706,9 +754,387 @@ io.on("connection", (socket) => {
     });
   });
 
-  // ----------------------------------------------------------
+  // TUTOR CHANGES CLASSROOM STAGE
+
+  socket.on("live:stage-update", (payload = {}, callback) => {
+    try {
+      const liveClass = socket.data.liveClass;
+
+      if (!liveClass || liveClass.role !== "tutor") {
+        throw new Error("Only the tutor can change the classroom stage.");
+      }
+
+      const allowedStages = [
+        "video",
+        "whiteboard",
+        "presentation",
+        "material",
+      ];
+
+      const stage = clean(payload.stage).toLowerCase();
+
+      if (!allowedStages.includes(stage)) {
+        throw new Error("Invalid classroom stage.");
+      }
+
+      const state = updateClassroomState(
+        liveClass.classId,
+        { stage }
+      );
+
+      socket.to(liveClass.room).emit("live:stage-update", {
+        classId: liveClass.classId,
+        stage,
+        updatedAt: state.updatedAt,
+      });
+
+      if (typeof callback === "function") {
+        callback({ success: true, stage });
+      }
+    } catch (error) {
+      console.error("LIVE STAGE ERROR:", error.message);
+
+      if (typeof callback === "function") {
+        callback(
+          getSocketError(error.message, "STAGE_UPDATE_FAILED")
+        );
+      }
+    }
+  });
+
+  // PRESENTATION UPDATES
+
+  socket.on(
+    "live:presentation-update",
+    (payload = {}, callback) => {
+      try {
+        const liveClass = socket.data.liveClass;
+
+        if (!liveClass || liveClass.role !== "tutor") {
+          throw new Error(
+            "Only the tutor can update the presentation."
+          );
+        }
+
+        const presentation =
+          payload.presentation ?? payload.data ?? null;
+
+        if (!validateSocketPayload(presentation, 100000)) {
+          throw new Error("Presentation update is too large.");
+        }
+
+        const state = updateClassroomState(
+          liveClass.classId,
+          {
+            presentation,
+            stage: presentation ? "presentation" : "video",
+          }
+        );
+
+        const update = {
+          classId: liveClass.classId,
+          presentation: state.presentation,
+          stage: state.stage,
+          updatedAt: state.updatedAt,
+        };
+
+        socket.to(liveClass.room).emit(
+          "live:presentation-update",
+          update
+        );
+
+        socket.to(liveClass.room).emit("live:stage-update", {
+          classId: liveClass.classId,
+          stage: state.stage,
+          updatedAt: state.updatedAt,
+        });
+
+        if (typeof callback === "function") {
+          callback({ success: true });
+        }
+      } catch (error) {
+        console.error(
+          "LIVE PRESENTATION ERROR:",
+          error.message
+        );
+
+        if (typeof callback === "function") {
+          callback(
+            getSocketError(
+              error.message,
+              "PRESENTATION_UPDATE_FAILED"
+            )
+          );
+        }
+      }
+    }
+  );
+
+  // TUTOR OPENS A LEARNING MATERIAL
+
+  socket.on("live:material-update", (payload = {}, callback) => {
+    try {
+      const liveClass = socket.data.liveClass;
+
+      if (!liveClass || liveClass.role !== "tutor") {
+        throw new Error(
+          "Only the tutor can open classroom materials."
+        );
+      }
+
+      const material =
+        payload.material ?? payload.activeMaterial ?? null;
+
+      if (!validateSocketPayload(material, 100000)) {
+        throw new Error("Material information is too large.");
+      }
+
+      const state = updateClassroomState(
+        liveClass.classId,
+        {
+          activeMaterial: material,
+          stage: material ? "material" : "video",
+        }
+      );
+
+      socket.to(liveClass.room).emit("live:material-update", {
+        classId: liveClass.classId,
+        material: state.activeMaterial,
+        stage: state.stage,
+        updatedAt: state.updatedAt,
+      });
+
+      socket.to(liveClass.room).emit("live:stage-update", {
+        classId: liveClass.classId,
+        stage: state.stage,
+        updatedAt: state.updatedAt,
+      });
+
+      if (typeof callback === "function") {
+        callback({ success: true });
+      }
+    } catch (error) {
+      console.error("LIVE MATERIAL ERROR:", error.message);
+
+      if (typeof callback === "function") {
+        callback(
+          getSocketError(error.message, "MATERIAL_UPDATE_FAILED")
+        );
+      }
+    }
+  });
+
+  // WHITEBOARD DRAWING EVENTS
+
+  socket.on("live:whiteboard-draw", (payload = {}, callback) => {
+    try {
+      const liveClass = socket.data.liveClass;
+
+      if (!liveClass || liveClass.role !== "tutor") {
+        throw new Error(
+          "Only the tutor can draw on the whiteboard."
+        );
+      }
+
+      const drawing = payload.drawing ?? payload;
+
+      if (!validateSocketPayload(drawing, 30000)) {
+        throw new Error("Whiteboard drawing data is too large.");
+      }
+
+      const state = updateClassroomState(
+        liveClass.classId,
+        { stage: "whiteboard" }
+      );
+
+      socket.to(liveClass.room).emit("live:whiteboard-draw", {
+        classId: liveClass.classId,
+        drawing,
+        updatedAt: state.updatedAt,
+      });
+
+      if (typeof callback === "function") {
+        callback({ success: true });
+      }
+    } catch (error) {
+      console.error("WHITEBOARD DRAW ERROR:", error.message);
+
+      if (typeof callback === "function") {
+        callback(
+          getSocketError(error.message, "WHITEBOARD_DRAW_FAILED")
+        );
+      }
+    }
+  });
+
+  // WHITEBOARD UPDATE EVENTS
+
+  socket.on("live:whiteboard-update", (payload = {}, callback) => {
+    try {
+      const liveClass = socket.data.liveClass;
+
+      if (!liveClass || liveClass.role !== "tutor") {
+        throw new Error(
+          "Only the tutor can update the whiteboard."
+        );
+      }
+
+      const drawing = payload.drawing ?? payload.data ?? null;
+
+      if (!validateSocketPayload(drawing, 30000)) {
+        throw new Error(
+          "Whiteboard update is too large for live broadcasting."
+        );
+      }
+
+      const state = updateClassroomState(
+        liveClass.classId,
+        { stage: "whiteboard" }
+      );
+
+      socket.to(liveClass.room).emit("live:whiteboard-update", {
+        classId: liveClass.classId,
+        drawing,
+        updatedAt: state.updatedAt,
+      });
+
+      socket.to(liveClass.room).emit("live:stage-update", {
+        classId: liveClass.classId,
+        stage: "whiteboard",
+        updatedAt: state.updatedAt,
+      });
+
+      if (typeof callback === "function") {
+        callback({ success: true });
+      }
+    } catch (error) {
+      console.error("WHITEBOARD UPDATE ERROR:", error.message);
+
+      if (typeof callback === "function") {
+        callback(
+          getSocketError(error.message, "WHITEBOARD_UPDATE_FAILED")
+        );
+      }
+    }
+  });
+
+  // STUDENT QUESTIONS
+
+  socket.on("live:student-question", (payload = {}, callback) => {
+    try {
+      const liveClass = socket.data.liveClass;
+
+      if (!liveClass || liveClass.role !== "student") {
+        throw new Error(
+          "Only students can send classroom questions."
+        );
+      }
+
+      const message = clean(payload.message);
+
+      if (!message) {
+        throw new Error("Please enter your question.");
+      }
+
+      if (message.length > 5000) {
+        throw new Error("Your question is too long.");
+      }
+
+      const question = {
+        id: `${socket.id}-${Date.now()}`,
+        classId: liveClass.classId,
+        senderId: liveClass.enrollmentId,
+        senderName: clean(
+          payload.senderName ||
+          socket.data.participant?.student_name ||
+          "Student"
+        ),
+        senderRole: "student",
+        message,
+        createdAt: new Date().toISOString(),
+      };
+
+      socket.to(liveClass.room).emit(
+        "live:student-question",
+        question
+      );
+
+      if (typeof callback === "function") {
+        callback({
+          success: true,
+          question,
+        });
+      }
+    } catch (error) {
+      console.error("STUDENT QUESTION ERROR:", error.message);
+
+      if (typeof callback === "function") {
+        callback(
+          getSocketError(error.message, "STUDENT_QUESTION_FAILED")
+        );
+      }
+    }
+  });
+
+  // TUTOR RESPONDS TO A STUDENT QUESTION
+
+  socket.on(
+    "live:tutor-question-response",
+    (payload = {}, callback) => {
+      try {
+        const liveClass = socket.data.liveClass;
+
+        if (!liveClass || liveClass.role !== "tutor") {
+          throw new Error(
+            "Only the tutor can respond to classroom questions."
+          );
+        }
+
+        const message = clean(payload.message);
+
+        if (!message) {
+          throw new Error("Response cannot be empty.");
+        }
+
+        if (message.length > 5000) {
+          throw new Error("Your response is too long.");
+        }
+
+        const response = {
+          id: `${socket.id}-${Date.now()}`,
+          classId: liveClass.classId,
+          senderId: liveClass.tutorReference,
+          senderName: clean(payload.senderName || "Tutor"),
+          senderRole: "tutor",
+          message,
+          replyTo: clean(payload.questionId),
+          createdAt: new Date().toISOString(),
+        };
+
+        socket.to(liveClass.room).emit(
+          "live:tutor-question-response",
+          response
+        );
+
+        if (typeof callback === "function") {
+          callback({
+            success: true,
+            response,
+          });
+        }
+      } catch (error) {
+        console.error("TUTOR QUESTION RESPONSE ERROR:", error.message);
+
+        if (typeof callback === "function") {
+          callback(
+            getSocketError(error.message, "TUTOR_RESPONSE_FAILED")
+          );
+        }
+      }
+    }
+  );
+
   // WEBRTC OFFER: TUTOR -> STUDENT
-  // ----------------------------------------------------------
 
   socket.on("webrtc:offer", async (payload = {}, callback) => {
     try {
@@ -737,12 +1163,6 @@ io.on("connection", (socket) => {
         classId: liveClass.classId,
       });
 
-      console.log("WEBRTC OFFER RELAYED:", {
-        from: socket.id,
-        to: target.id,
-        classId: liveClass.classId,
-      });
-
       if (typeof callback === "function") {
         callback({
           success: true,
@@ -753,14 +1173,14 @@ io.on("connection", (socket) => {
       console.error("WEBRTC OFFER ERROR:", error?.message);
 
       if (typeof callback === "function") {
-        callback(getSocketError(error.message, "WEBRTC_OFFER_FAILED"));
+        callback(
+          getSocketError(error.message, "WEBRTC_OFFER_FAILED")
+        );
       }
     }
   });
 
-  // ----------------------------------------------------------
   // WEBRTC ANSWER: STUDENT -> TUTOR
-  // ----------------------------------------------------------
 
   socket.on("webrtc:answer", async (payload = {}, callback) => {
     try {
@@ -789,12 +1209,6 @@ io.on("connection", (socket) => {
         classId: liveClass.classId,
       });
 
-      console.log("WEBRTC ANSWER RELAYED:", {
-        from: socket.id,
-        to: target.id,
-        classId: liveClass.classId,
-      });
-
       if (typeof callback === "function") {
         callback({
           success: true,
@@ -805,15 +1219,14 @@ io.on("connection", (socket) => {
       console.error("WEBRTC ANSWER ERROR:", error?.message);
 
       if (typeof callback === "function") {
-        callback(getSocketError(error.message, "WEBRTC_ANSWER_FAILED"));
+        callback(
+          getSocketError(error.message, "WEBRTC_ANSWER_FAILED")
+        );
       }
     }
   });
 
-  // ----------------------------------------------------------
   // ICE CANDIDATE RELAY
-  // TUTOR <-> STUDENT
-  // ----------------------------------------------------------
 
   socket.on(
     "webrtc:ice-candidate",
@@ -842,13 +1255,6 @@ io.on("connection", (socket) => {
           classId: liveClass.classId,
         });
 
-        console.log("ICE CANDIDATE RELAYED:", {
-          from: socket.id,
-          to: target.id,
-          role: liveClass.role,
-          classId: liveClass.classId,
-        });
-
         if (typeof callback === "function") {
           callback({
             success: true,
@@ -867,9 +1273,7 @@ io.on("connection", (socket) => {
     }
   );
 
-  // ----------------------------------------------------------
   // MEDIA STATE
-  // ----------------------------------------------------------
 
   socket.on("live:media-state", (payload = {}, callback) => {
     try {
@@ -881,7 +1285,6 @@ io.on("connection", (socket) => {
         );
       }
 
-      // Supports both nested and flat payload structures.
       const media = payload.mediaState || payload;
 
       const mediaState = {
@@ -890,26 +1293,12 @@ io.on("connection", (socket) => {
         screenSharing: Boolean(media.screenSharing),
       };
 
-      // Save the latest state on this socket.
       socket.data.mediaState = mediaState;
 
-      const outgoingPayload = {
+      socket.to(liveClass.room).emit("live:media-state", {
         socketId: socket.id,
         role: liveClass.role,
         classId: liveClass.classId,
-        ...mediaState,
-      };
-
-      // Send media state to the other classroom participants.
-      socket.to(liveClass.room).emit(
-        "live:media-state",
-        outgoingPayload
-      );
-
-      console.log("LIVE MEDIA STATE:", {
-        role: liveClass.role,
-        classId: liveClass.classId,
-        socketId: socket.id,
         ...mediaState,
       });
 
@@ -930,9 +1319,38 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ----------------------------------------------------------
+  // END CLASSROOM
+
+  socket.on("live:end", (payload = {}, callback) => {
+    try {
+      const liveClass = socket.data.liveClass;
+
+      if (!liveClass || liveClass.role !== "tutor") {
+        throw new Error("Only the tutor can end the classroom.");
+      }
+
+      io.to(liveClass.room).emit("live:ended", {
+        classId: liveClass.classId,
+        message: "The tutor has ended this live class.",
+      });
+
+      liveClassroomStates.delete(String(liveClass.classId));
+
+      if (typeof callback === "function") {
+        callback({ success: true });
+      }
+    } catch (error) {
+      console.error("LIVE END ERROR:", error.message);
+
+      if (typeof callback === "function") {
+        callback(
+          getSocketError(error.message, "LIVE_END_FAILED")
+        );
+      }
+    }
+  });
+
   // LEAVE CLASSROOM
-  // ----------------------------------------------------------
 
   socket.on("live:leave", () => {
     const liveClass = socket.data.liveClass;
@@ -958,9 +1376,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // ----------------------------------------------------------
   // DISCONNECT
-  // ----------------------------------------------------------
 
   socket.on("disconnect", (reason) => {
     const liveClass = socket.data.liveClass;
@@ -973,7 +1389,11 @@ io.on("connection", (socket) => {
       });
     }
 
-    console.log("Live socket disconnected:", socket.id, reason);
+    console.log(
+      "Live socket disconnected:",
+      socket.id,
+      reason
+    );
   });
 });
 
@@ -981,6 +1401,7 @@ io.on("connection", (socket) => {
 // BODY PARSERS
 // ============================================================
 
+// Paystack webhook must receive the raw request body.
 app.use(
   "/api/payments/webhook",
   express.raw({
@@ -989,16 +1410,17 @@ app.use(
   })
 );
 
+// Increased from 2mb to 25mb for Base64 whiteboard PNG images.
 app.use(
   express.json({
-    limit: "2mb",
+    limit: "25mb",
   })
 );
 
 app.use(
   express.urlencoded({
     extended: true,
-    limit: "2mb",
+    limit: "25mb",
   })
 );
 
@@ -1153,6 +1575,12 @@ app.get("/", (req, res) => {
       liveAnswerEvent: "webrtc:answer",
       liveIceEvent: "webrtc:ice-candidate",
       liveMediaStateEvent: "live:media-state",
+      liveStageEvent: "live:stage-update",
+      livePresentationEvent: "live:presentation-update",
+      liveMaterialEvent: "live:material-update",
+      liveWhiteboardEvent: "live:whiteboard-draw",
+      liveQuestionEvent: "live:student-question",
+      liveTutorResponseEvent: "live:tutor-question-response",
     },
 
     database: {
@@ -1256,7 +1684,14 @@ app.get("/api/health", async (req, res) => {
       authentication: jwtConfigured,
       signalingHandlers: true,
       mediaStateRelay: true,
-      transport: "WebRTC signaling",
+      classroomStateRelay: true,
+      stageBroadcast: true,
+      presentationBroadcast: true,
+      materialBroadcast: true,
+      whiteboardBroadcast: true,
+      studentQuestions: true,
+      tutorResponses: true,
+      transport: "WebRTC + Socket.IO",
     },
 
     payment: {
@@ -1669,8 +2104,13 @@ server.listen(PORT, () => {
   console.log("   Classroom authorization: ENABLED");
   console.log("   WebRTC signaling: ENABLED");
   console.log("   Offer / Answer / ICE relay: ENABLED");
-  console.log("   Target socket aliases: ENABLED");
-  console.log("   Media state relay: ENABLED");
+  console.log("   Classroom state sync: ENABLED");
+  console.log("   Stage broadcasting: ENABLED");
+  console.log("   Presentation broadcasting: ENABLED");
+  console.log("   Material broadcasting: ENABLED");
+  console.log("   Whiteboard event broadcasting: ENABLED");
+  console.log("   Student questions: ENABLED");
+  console.log("   Tutor responses: ENABLED");
 
   console.log("");
   console.log("HEALTH:");

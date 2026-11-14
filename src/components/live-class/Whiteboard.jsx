@@ -13,6 +13,10 @@ import {
   RotateCw,
   Trash2,
   Type,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Check,
+  X,
 } from "lucide-react";
 
 const COLORS = [
@@ -93,6 +97,7 @@ export default function Whiteboard({
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const textInputRef = useRef(null);
 
   const drawingRef = useRef(false);
   const lastPointRef = useRef(null);
@@ -117,11 +122,20 @@ export default function Whiteboard({
   const [historyIndex, setHistoryIndex] = useState(-1);
 
   const [textMode, setTextMode] = useState(false);
+  const [textEditor, setTextEditor] = useState(null);
+  const [textValue, setTextValue] = useState("");
+
   const [syncError, setSyncError] = useState("");
+
+  const [toolbarOpen, setToolbarOpen] = useState(true);
 
   const [syncStatus, setSyncStatus] = useState(
     liveClassId ? "loading" : "local"
   );
+
+  // ============================================================
+  // HISTORY
+  // ============================================================
 
   const updateHistory = useCallback((items, index) => {
     historyRef.current = items;
@@ -133,7 +147,10 @@ export default function Whiteboard({
 
   const getCanvasImage = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !canvas.width || !canvas.height) return "";
+
+    if (!canvas || !canvas.width || !canvas.height) {
+      return "";
+    }
 
     try {
       return canvas.toDataURL("image/png");
@@ -145,6 +162,7 @@ export default function Whiteboard({
 
   const commitHistory = useCallback(() => {
     const image = getCanvasImage();
+
     if (!image) return "";
 
     let next = historyRef.current.slice(
@@ -217,6 +235,10 @@ export default function Whiteboard({
     imageObject.src = image;
   }, []);
 
+  // ============================================================
+  // RESIZE CANVAS
+  // ============================================================
+
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -260,6 +282,7 @@ export default function Whiteboard({
     canvas.height = newHeight;
 
     const context = canvas.getContext("2d");
+
     if (!context) return;
 
     context.setTransform(
@@ -353,8 +376,6 @@ export default function Whiteboard({
           }),
         });
 
-        // Read the response as text first.
-        // This also captures HTML error pages and plain-text errors.
         const responseText = await response.text();
 
         let data = {};
@@ -451,7 +472,9 @@ export default function Whiteboard({
       return payload.startsWith("data:image/") ? payload : "";
     }
 
-    if (!payload || typeof payload !== "object") return "";
+    if (!payload || typeof payload !== "object") {
+      return "";
+    }
 
     return (
       payload.image ||
@@ -574,7 +597,9 @@ export default function Whiteboard({
 
         if (mountedRef.current) {
           setSyncStatus("offline");
-          setSyncError(error?.message || "Could not load whiteboard.");
+          setSyncError(
+            error?.message || "Could not load whiteboard."
+          );
         }
       }
     },
@@ -679,58 +704,78 @@ export default function Whiteboard({
   }, []);
 
   // ============================================================
-  // TEXT TOOL
+  // TEXT EDITOR
   // ============================================================
 
-  const addText = useCallback(
+  const openTextEditor = useCallback(
     (event) => {
       event.preventDefault();
 
-      const text = window.prompt("Enter text for the board:");
-
-      if (!text?.trim()) return;
-
-      const canvas = canvasRef.current;
-      const context = canvas?.getContext("2d");
-
-      if (!canvas || !context) return;
-
       const point = getPoint(event);
 
-      context.save();
-      context.globalCompositeOperation = "source-over";
-      context.fillStyle = color;
-      context.font = `${Math.max(18, size * 5)}px Arial`;
-      context.textBaseline = "alphabetic";
+      setTextValue("");
+      setTextEditor(point);
 
-      const lines = text.trim().split("\n");
-      const lineHeight = Math.max(24, size * 7);
-
-      lines.forEach((line, index) => {
-        context.fillText(
-          line,
-          point.x,
-          point.y + index * lineHeight
-        );
+      requestAnimationFrame(() => {
+        textInputRef.current?.focus();
       });
-
-      context.restore();
-
-      const image = commitHistory();
-
-      queueRemoteSave(image);
-
-      setTextMode(false);
-      setTool("pen");
     },
-    [
-      color,
-      size,
-      getPoint,
-      commitHistory,
-      queueRemoteSave,
-    ]
+    [getPoint]
   );
+
+  const submitText = useCallback(() => {
+    const text = textValue.trim();
+
+    if (!text || !textEditor) return;
+
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context) return;
+
+    context.save();
+
+    context.globalCompositeOperation = "source-over";
+    context.fillStyle = color;
+    context.font = `${Math.max(18, size * 5)}px Arial`;
+    context.textBaseline = "top";
+
+    const lines = text.split("\n");
+    const lineHeight = Math.max(24, size * 7);
+
+    lines.forEach((line, index) => {
+      context.fillText(
+        line,
+        textEditor.x,
+        textEditor.y + index * lineHeight
+      );
+    });
+
+    context.restore();
+
+    const image = commitHistory();
+
+    queueRemoteSave(image);
+
+    setTextEditor(null);
+    setTextValue("");
+    setTextMode(false);
+    setTool("pen");
+  }, [
+    textValue,
+    textEditor,
+    color,
+    size,
+    commitHistory,
+    queueRemoteSave,
+  ]);
+
+  const cancelText = useCallback(() => {
+    setTextEditor(null);
+    setTextValue("");
+    setTextMode(false);
+    setTool("pen");
+  }, []);
 
   // ============================================================
   // START DRAWING
@@ -745,7 +790,7 @@ export default function Whiteboard({
       }
 
       if (tool === "text") {
-        addText(event);
+        openTextEditor(event);
         return;
       }
 
@@ -797,7 +842,7 @@ export default function Whiteboard({
       context.fill();
       context.restore();
     },
-    [tool, size, color, getPoint, addText]
+    [tool, size, color, getPoint, openTextEditor]
   );
 
   // ============================================================
@@ -961,6 +1006,8 @@ export default function Whiteboard({
   const selectTool = (nextTool) => {
     setTool(nextTool);
     setTextMode(nextTool === "text");
+    setTextEditor(null);
+    setTextValue("");
   };
 
   // ============================================================
@@ -976,6 +1023,10 @@ export default function Whiteboard({
         target instanceof HTMLTextAreaElement ||
         target?.isContentEditable
       ) {
+        if (event.key === "Escape" && textEditor) {
+          cancelText();
+        }
+
         return;
       }
 
@@ -994,6 +1045,10 @@ export default function Whiteboard({
         event.preventDefault();
         redo();
       }
+
+      if (event.key === "Escape" && textEditor) {
+        cancelText();
+      }
     };
 
     window.addEventListener("keydown", handleKeyboard);
@@ -1001,7 +1056,7 @@ export default function Whiteboard({
     return () => {
       window.removeEventListener("keydown", handleKeyboard);
     };
-  }, [undo, redo]);
+  }, [undo, redo, textEditor, cancelText]);
 
   // ============================================================
   // SYNC STATUS
@@ -1015,150 +1070,206 @@ export default function Whiteboard({
     local: "Local board",
   }[syncStatus] || "Local board";
 
+  // ============================================================
+  // RENDER
+  // ============================================================
+
   return (
     <div
-      className="relative flex w-full flex-col overflow-hidden rounded-xl border border-slate-700 bg-white"
+      className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-slate-300 bg-white"
       style={{
-        height: "520px",
-        minHeight: "420px",
+        height: "100%",
+        minHeight: 0,
         width: "100%",
+        flex: 1,
       }}
     >
-      {/* TOOLBAR */}
+      {/* COLLAPSIBLE TOOLBAR */}
 
-      <div className="z-20 flex min-h-14 shrink-0 items-center gap-2 overflow-x-auto border-b border-white/10 bg-slate-900 px-3 py-2 text-white">
-        <button
-          type="button"
-          onClick={() => selectTool("pen")}
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
-            tool === "pen"
-              ? "bg-blue-600"
-              : "bg-white/10 hover:bg-white/15"
-          }`}
-          title="Marker"
-        >
-          <Pen size={18} />
-        </button>
+      {toolbarOpen && (
+        <div className="z-20 flex min-h-14 shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-700 bg-slate-900 px-3 py-2 text-white">
 
-        <button
-          type="button"
-          onClick={() => selectTool("eraser")}
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
-            tool === "eraser"
-              ? "bg-blue-600"
-              : "bg-white/10 hover:bg-white/15"
-          }`}
-          title="Eraser"
-        >
-          <Eraser size={18} />
-        </button>
+          {/* PANEL TOGGLE */}
 
-        <button
-          type="button"
-          onClick={() => selectTool("text")}
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
-            tool === "text"
-              ? "bg-blue-600"
-              : "bg-white/10 hover:bg-white/15"
-          }`}
-          title="Text"
-        >
-          <Type size={18} />
-        </button>
+          <button
+            type="button"
+            onClick={() => setToolbarOpen(false)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/10 hover:text-white"
+            title="Hide toolbar"
+            aria-label="Hide toolbar"
+          >
+            <PanelLeftClose size={20} />
+          </button>
 
-        <div className="mx-1 h-7 w-px shrink-0 bg-white/10" />
+          <div className="mx-1 h-7 w-px shrink-0 bg-white/10" />
 
-        <div className="flex shrink-0 items-center gap-1.5">
-          {COLORS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                setColor(item);
-                setTool("pen");
-                setTextMode(false);
-              }}
-              className={`h-7 w-7 shrink-0 rounded-full border-2 transition ${
-                color === item
-                  ? "scale-110 border-white"
-                  : "border-white/20 hover:border-white/60"
-              }`}
-              style={{ backgroundColor: item }}
-              title={`Pen color ${item}`}
-              aria-label={`Select ${item} color`}
-            />
-          ))}
-        </div>
+          {/* PEN */}
 
-        <div className="mx-1 h-7 w-px shrink-0 bg-white/10" />
+          <button
+            type="button"
+            onClick={() => selectTool("pen")}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
+              tool === "pen"
+                ? "bg-slate-600"
+                : "bg-white/10 hover:bg-white/15"
+            }`}
+            title="Marker"
+          >
+            <Pen size={18} />
+          </button>
 
-        <div className="flex shrink-0 items-center gap-1">
-          {SIZES.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setSize(item)}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
-                size === item
-                  ? "bg-white/20"
-                  : "hover:bg-white/10"
-              }`}
-              title={`Marker size ${item}`}
-            >
-              <span
-                className="rounded-full bg-white"
-                style={{
-                  width: Math.min(item + 2, 18),
-                  height: Math.min(item + 2, 18),
+          {/* ERASER */}
+
+          <button
+            type="button"
+            onClick={() => selectTool("eraser")}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
+              tool === "eraser"
+                ? "bg-slate-600"
+                : "bg-white/10 hover:bg-white/15"
+            }`}
+            title="Eraser"
+          >
+            <Eraser size={18} />
+          </button>
+
+          {/* TEXT */}
+
+          <button
+            type="button"
+            onClick={() => selectTool("text")}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
+              tool === "text"
+                ? "bg-slate-600"
+                : "bg-white/10 hover:bg-white/15"
+            }`}
+            title="Text"
+          >
+            <Type size={18} />
+          </button>
+
+          <div className="mx-1 h-7 w-px shrink-0 bg-white/10" />
+
+          {/* COLORS */}
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            {COLORS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => {
+                  setColor(item);
+                  setTool("pen");
+                  setTextMode(false);
+                  setTextEditor(null);
                 }}
+                className={`h-7 w-7 shrink-0 rounded-full border-2 transition ${
+                  color === item
+                    ? "scale-110 border-white"
+                    : "border-white/20 hover:border-white/60"
+                }`}
+                style={{ backgroundColor: item }}
+                title={`Pen color ${item}`}
+                aria-label={`Select ${item} color`}
               />
-            </button>
-          ))}
+            ))}
+          </div>
+
+          <div className="mx-1 h-7 w-px shrink-0 bg-white/10" />
+
+          {/* SIZES */}
+
+          <div className="flex shrink-0 items-center gap-1">
+            {SIZES.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setSize(item)}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                  size === item
+                    ? "bg-white/20"
+                    : "hover:bg-white/10"
+                }`}
+                title={`Marker size ${item}`}
+              >
+                <span
+                  className="rounded-full bg-white"
+                  style={{
+                    width: Math.min(item + 2, 18),
+                    height: Math.min(item + 2, 18),
+                  }}
+                />
+              </button>
+            ))}
+          </div>
+
+          <div className="min-w-2 flex-1" />
+
+          {/* UNDO */}
+
+          <button
+            type="button"
+            onClick={undo}
+            disabled={historyIndex <= 0}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 transition hover:bg-white/15 disabled:opacity-30"
+            title="Undo"
+          >
+            <RotateCcw size={18} />
+          </button>
+
+          {/* REDO */}
+
+          <button
+            type="button"
+            onClick={redo}
+            disabled={historyIndex >= history.length - 1}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 transition hover:bg-white/15 disabled:opacity-30"
+            title="Redo"
+          >
+            <RotateCw size={18} />
+          </button>
+
+          {/* CLEAR */}
+
+          <button
+            type="button"
+            onClick={clearBoard}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-slate-300 transition hover:bg-white/20 hover:text-white"
+            title="Clear board"
+          >
+            <Trash2 size={18} />
+          </button>
         </div>
+      )}
 
-        <div className="min-w-2 flex-1" />
-
-        <button
-          type="button"
-          onClick={undo}
-          disabled={historyIndex <= 0}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 transition hover:bg-white/15 disabled:opacity-30"
-          title="Undo"
-        >
-          <RotateCcw size={18} />
-        </button>
-
-        <button
-          type="button"
-          onClick={redo}
-          disabled={historyIndex >= history.length - 1}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 transition hover:bg-white/15 disabled:opacity-30"
-          title="Redo"
-        >
-          <RotateCw size={18} />
-        </button>
-
-        <button
-          type="button"
-          onClick={clearBoard}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-300 transition hover:bg-red-500/25"
-          title="Clear board"
-        >
-          <Trash2 size={18} />
-        </button>
-      </div>
-
-      {/* WHITEBOARD */}
+      {/* WHITEBOARD AREA */}
 
       <div
         ref={containerRef}
-        className="relative block min-h-0 flex-1 overflow-hidden bg-white"
+        className="relative min-h-0 flex-1 overflow-hidden bg-white"
         style={{
-          height: "100%",
           width: "100%",
+          height: "100%",
+          flex: 1,
           touchAction: "none",
         }}
       >
+        {/* OPEN PANEL BUTTON */}
+
+        {!toolbarOpen && (
+          <button
+            type="button"
+            onClick={() => setToolbarOpen(true)}
+            className="absolute left-3 top-3 z-30 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 shadow-sm transition hover:bg-slate-100"
+            title="Show toolbar"
+            aria-label="Show toolbar"
+          >
+            <PanelLeftOpen size={20} />
+          </button>
+        )}
+
+        {/* CANVAS */}
+
         <canvas
           ref={canvasRef}
           onPointerDown={startDrawing}
@@ -1186,12 +1297,79 @@ export default function Whiteboard({
           }}
         />
 
+        {/* TEXT EDITOR */}
+
+        {textEditor && (
+          <div
+            className="absolute z-20 w-64 rounded-lg border border-slate-300 bg-white p-2 shadow-lg"
+            style={{
+              left: Math.max(
+                8,
+                Math.min(
+                  textEditor.x,
+                  (containerRef.current?.clientWidth || 300) - 270
+                )
+              ),
+              top: Math.max(
+                8,
+                Math.min(
+                  textEditor.y,
+                  (containerRef.current?.clientHeight || 300) - 130
+                )
+              ),
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerMove={(event) => event.stopPropagation()}
+          >
+            <textarea
+              ref={textInputRef}
+              value={textValue}
+              onChange={(event) => setTextValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  submitText();
+                }
+
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  cancelText();
+                }
+              }}
+              placeholder="Type your text..."
+              rows={3}
+              className="w-full resize-none rounded-md border border-slate-300 bg-white p-2 text-sm text-slate-900 outline-none focus:border-slate-500"
+            />
+
+            <div className="mt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelText}
+                className="flex h-8 items-center gap-1 rounded-md border border-slate-300 px-3 text-xs text-slate-700 hover:bg-slate-100"
+              >
+                <X size={14} />
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={submitText}
+                disabled={!textValue.trim()}
+                className="flex h-8 items-center gap-1 rounded-md bg-slate-800 px-3 text-xs text-white hover:bg-slate-700 disabled:opacity-40"
+              >
+                <Check size={14} />
+                Add text
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* TOOL INSTRUCTION */}
 
         <div className="pointer-events-none absolute bottom-3 left-3 z-10">
           <div className="rounded-lg bg-slate-900/85 px-3 py-1.5 text-xs text-white shadow-lg">
             {textMode
-              ? "Click the board to add text"
+              ? "Click the board to type"
               : tool === "eraser"
                 ? "Eraser selected"
                 : "Marker selected"}

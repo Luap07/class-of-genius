@@ -74,6 +74,7 @@ if (envResult.error) {
 }
 
 const app = express();
+
 app.disable("x-powered-by");
 
 const PORT = Number(process.env.PORT) || 5000;
@@ -112,21 +113,25 @@ const PREMIUM_PRODUCTS = {
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
+
   novel: {
     name: "Premium Novels",
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
+
   multilingual: {
     name: "Multilingual Access",
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
+
   lms: {
     name: "LMS Premium Access",
     priceNaira: PREMIUM_PRICE_NAIRA,
     priceKobo: PREMIUM_PRICE_KOBO,
   },
+
   virtual_lab: {
     name: "Virtual Laboratory",
     priceNaira: PREMIUM_PRICE_NAIRA,
@@ -206,10 +211,20 @@ const allowedOrigins = new Set([
 
 const corsOptions = {
   origin: (origin, callback) => {
-    return callback(null, true);
+    callback(null, true);
   },
+
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
   allowedHeaders: [
     "Origin",
     "Content-Type",
@@ -224,6 +239,7 @@ const corsOptions = {
     "x-student-token",
     "x-material-access-token",
   ],
+
   optionsSuccessStatus: 204,
 };
 
@@ -246,11 +262,20 @@ const io = new SocketIOServer(server, {
     credentials: true,
     methods: ["GET", "POST"],
   },
+
   transports: ["websocket", "polling"],
+
   pingInterval: 25000,
   pingTimeout: 20000,
-  maxHttpBufferSize: 1e6,
+
+  // Increased to support large whiteboard image payloads.
+  maxHttpBufferSize: 25 * 1024 * 1024,
 });
+
+// IMPORTANT:
+// This makes the Socket.IO instance available inside Express routes.
+// Academy live-class routes can use req.app.get("io").
+app.set("io", io);
 
 // ============================================================
 // LIVE CLASSROOM STATE
@@ -370,7 +395,10 @@ const getLiveRoomName = (classId) => {
   return `scholiqen-live-${String(classId)}`;
 };
 
-const getSocketError = (message, code = "LIVE_CLASS_ERROR") => ({
+const getSocketError = (
+  message,
+  code = "LIVE_CLASS_ERROR"
+) => ({
   success: false,
   code,
   message,
@@ -386,7 +414,10 @@ const getWebRTCTargetId = (payload = {}) => {
   );
 };
 
-const validateSocketPayload = (value, maxBytes = 30000) => {
+const validateSocketPayload = (
+  value,
+  maxBytes = 25 * 1024 * 1024
+) => {
   try {
     return (
       Buffer.byteLength(
@@ -414,21 +445,27 @@ io.use((socket, next) => {
     const token = getSocketToken(socket);
 
     if (!token) {
-      return next(new Error("Authentication token is required."));
+      return next(
+        new Error("Authentication token is required.")
+      );
     }
 
     const payload = jwt.verify(token, JWT_SECRET);
     const role = getTokenRole(payload);
 
     if (!role) {
-      return next(new Error("Invalid classroom account role."));
+      return next(
+        new Error("Invalid classroom account role.")
+      );
     }
 
     if (role === "tutor") {
       const tutorReference = getTutorReference(payload);
 
       if (!tutorReference) {
-        return next(new Error("Tutor reference is missing."));
+        return next(
+          new Error("Tutor reference is missing.")
+        );
       }
 
       socket.data.identity = {
@@ -461,7 +498,9 @@ io.use((socket, next) => {
     console.error("LIVE SOCKET AUTH ERROR:", error?.message);
 
     return next(
-      new Error("Invalid or expired classroom authentication token.")
+      new Error(
+        "Invalid or expired classroom authentication token."
+      )
     );
   }
 });
@@ -532,7 +571,9 @@ const authorizeLiveClass = async (socket, classId) => {
     ).toLowerCase();
 
     if (tutorStatus !== "verified") {
-      throw new Error("Only verified tutors can host live classes.");
+      throw new Error(
+        "Only verified tutors can host live classes."
+      );
     }
 
     if (
@@ -582,7 +623,10 @@ const authorizeLiveClass = async (socket, classId) => {
 // SOCKET TARGET VALIDATION
 // ============================================================
 
-const getAuthorizedTarget = async (socket, targetSocketId) => {
+const getAuthorizedTarget = async (
+  socket,
+  targetSocketId
+) => {
   const targetId = clean(targetSocketId);
 
   if (!targetId) {
@@ -592,18 +636,24 @@ const getAuthorizedTarget = async (socket, targetSocketId) => {
   const targetSocket = io.sockets.sockets.get(targetId);
 
   if (!targetSocket) {
-    throw new Error("The other classroom participant is offline.");
+    throw new Error(
+      "The other classroom participant is offline."
+    );
   }
 
   const sender = socket.data.liveClass;
   const target = targetSocket.data.liveClass;
 
   if (!sender || !target) {
-    throw new Error("Both participants must join the classroom first.");
+    throw new Error(
+      "Both participants must join the classroom first."
+    );
   }
 
   if (String(sender.classId) !== String(target.classId)) {
-    throw new Error("Participants are not in the same classroom.");
+    throw new Error(
+      "Participants are not in the same classroom."
+    );
   }
 
   if (sender.role === target.role) {
@@ -627,7 +677,9 @@ io.on("connection", (socket) => {
     message: "Authenticated live connection established.",
   });
 
+  // ==========================================================
   // JOIN CLASSROOM
+  // ==========================================================
 
   socket.on("live:join", async (payload = {}, callback) => {
     try {
@@ -739,7 +791,9 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ==========================================================
   // STUDENT READY
+  // ==========================================================
 
   socket.on("live:ready", () => {
     const liveClass = socket.data.liveClass;
@@ -754,14 +808,18 @@ io.on("connection", (socket) => {
     });
   });
 
+  // ==========================================================
   // TUTOR CHANGES CLASSROOM STAGE
+  // ==========================================================
 
   socket.on("live:stage-update", (payload = {}, callback) => {
     try {
       const liveClass = socket.data.liveClass;
 
       if (!liveClass || liveClass.role !== "tutor") {
-        throw new Error("Only the tutor can change the classroom stage.");
+        throw new Error(
+          "Only the tutor can change the classroom stage."
+        );
       }
 
       const allowedStages = [
@@ -802,7 +860,9 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ==========================================================
   // PRESENTATION UPDATES
+  // ==========================================================
 
   socket.on(
     "live:presentation-update",
@@ -819,8 +879,10 @@ io.on("connection", (socket) => {
         const presentation =
           payload.presentation ?? payload.data ?? null;
 
-        if (!validateSocketPayload(presentation, 100000)) {
-          throw new Error("Presentation update is too large.");
+        if (!validateSocketPayload(presentation, 25 * 1024 * 1024)) {
+          throw new Error(
+            "Presentation update is too large."
+          );
         }
 
         const state = updateClassroomState(
@@ -870,7 +932,9 @@ io.on("connection", (socket) => {
     }
   );
 
+  // ==========================================================
   // TUTOR OPENS A LEARNING MATERIAL
+  // ==========================================================
 
   socket.on("live:material-update", (payload = {}, callback) => {
     try {
@@ -885,8 +949,10 @@ io.on("connection", (socket) => {
       const material =
         payload.material ?? payload.activeMaterial ?? null;
 
-      if (!validateSocketPayload(material, 100000)) {
-        throw new Error("Material information is too large.");
+      if (!validateSocketPayload(material, 25 * 1024 * 1024)) {
+        throw new Error(
+          "Material information is too large."
+        );
       }
 
       const state = updateClassroomState(
@@ -924,7 +990,9 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ==========================================================
   // WHITEBOARD DRAWING EVENTS
+  // ==========================================================
 
   socket.on("live:whiteboard-draw", (payload = {}, callback) => {
     try {
@@ -938,8 +1006,10 @@ io.on("connection", (socket) => {
 
       const drawing = payload.drawing ?? payload;
 
-      if (!validateSocketPayload(drawing, 30000)) {
-        throw new Error("Whiteboard drawing data is too large.");
+      if (!validateSocketPayload(drawing, 25 * 1024 * 1024)) {
+        throw new Error(
+          "Whiteboard drawing data is too large."
+        );
       }
 
       const state = updateClassroomState(
@@ -947,27 +1017,51 @@ io.on("connection", (socket) => {
         { stage: "whiteboard" }
       );
 
-      socket.to(liveClass.room).emit("live:whiteboard-draw", {
+      const update = {
         classId: liveClass.classId,
         drawing,
+        whiteboard: drawing,
+        payload: drawing,
         updatedAt: state.updatedAt,
-      });
+      };
+
+      socket.to(liveClass.room).emit(
+        "live:whiteboard-draw",
+        update
+      );
+
+      socket.to(liveClass.room).emit(
+        "live:stage-update",
+        {
+          classId: liveClass.classId,
+          stage: "whiteboard",
+          updatedAt: state.updatedAt,
+        }
+      );
 
       if (typeof callback === "function") {
-        callback({ success: true });
+        callback({
+          success: true,
+          message: "Whiteboard drawing synchronized.",
+        });
       }
     } catch (error) {
       console.error("WHITEBOARD DRAW ERROR:", error.message);
 
       if (typeof callback === "function") {
         callback(
-          getSocketError(error.message, "WHITEBOARD_DRAW_FAILED")
+          getSocketError(
+            error.message,
+            "WHITEBOARD_DRAW_FAILED"
+          )
         );
       }
     }
   });
 
+  // ==========================================================
   // WHITEBOARD UPDATE EVENTS
+  // ==========================================================
 
   socket.on("live:whiteboard-update", (payload = {}, callback) => {
     try {
@@ -979,11 +1073,24 @@ io.on("connection", (socket) => {
         );
       }
 
-      const drawing = payload.drawing ?? payload.data ?? null;
+      const drawing =
+        payload.drawing ??
+        payload.data ??
+        payload.whiteboard ??
+        payload.whiteboardState ??
+        payload.state ??
+        payload.payload ??
+        null;
 
-      if (!validateSocketPayload(drawing, 30000)) {
+      if (!drawing) {
         throw new Error(
-          "Whiteboard update is too large for live broadcasting."
+          "Whiteboard drawing data is missing."
+        );
+      }
+
+      if (!validateSocketPayload(drawing, 25 * 1024 * 1024)) {
+        throw new Error(
+          "Whiteboard update is too large."
         );
       }
 
@@ -992,33 +1099,55 @@ io.on("connection", (socket) => {
         { stage: "whiteboard" }
       );
 
-      socket.to(liveClass.room).emit("live:whiteboard-update", {
+      const update = {
         classId: liveClass.classId,
         drawing,
+        whiteboard: drawing,
+        whiteboardState: drawing,
+        payload: drawing,
         updatedAt: state.updatedAt,
-      });
+      };
 
-      socket.to(liveClass.room).emit("live:stage-update", {
-        classId: liveClass.classId,
-        stage: "whiteboard",
-        updatedAt: state.updatedAt,
-      });
+      socket.to(liveClass.room).emit(
+        "live:whiteboard-update",
+        update
+      );
+
+      socket.to(liveClass.room).emit(
+        "live:stage-update",
+        {
+          classId: liveClass.classId,
+          stage: "whiteboard",
+          updatedAt: state.updatedAt,
+        }
+      );
 
       if (typeof callback === "function") {
-        callback({ success: true });
+        callback({
+          success: true,
+          message: "Whiteboard synchronized successfully.",
+        });
       }
     } catch (error) {
-      console.error("WHITEBOARD UPDATE ERROR:", error.message);
+      console.error(
+        "LIVE WHITEBOARD UPDATE ERROR:",
+        error.message
+      );
 
       if (typeof callback === "function") {
         callback(
-          getSocketError(error.message, "WHITEBOARD_UPDATE_FAILED")
+          getSocketError(
+            error.message,
+            "WHITEBOARD_UPDATE_FAILED"
+          )
         );
       }
     }
   });
 
+  // ==========================================================
   // STUDENT QUESTIONS
+  // ==========================================================
 
   socket.on("live:student-question", (payload = {}, callback) => {
     try {
@@ -1070,13 +1199,18 @@ io.on("connection", (socket) => {
 
       if (typeof callback === "function") {
         callback(
-          getSocketError(error.message, "STUDENT_QUESTION_FAILED")
+          getSocketError(
+            error.message,
+            "STUDENT_QUESTION_FAILED"
+          )
         );
       }
     }
   });
 
+  // ==========================================================
   // TUTOR RESPONDS TO A STUDENT QUESTION
+  // ==========================================================
 
   socket.on(
     "live:tutor-question-response",
@@ -1123,25 +1257,35 @@ io.on("connection", (socket) => {
           });
         }
       } catch (error) {
-        console.error("TUTOR QUESTION RESPONSE ERROR:", error.message);
+        console.error(
+          "TUTOR QUESTION RESPONSE ERROR:",
+          error.message
+        );
 
         if (typeof callback === "function") {
           callback(
-            getSocketError(error.message, "TUTOR_RESPONSE_FAILED")
+            getSocketError(
+              error.message,
+              "TUTOR_RESPONSE_FAILED"
+            )
           );
         }
       }
     }
   );
 
+  // ==========================================================
   // WEBRTC OFFER: TUTOR -> STUDENT
+  // ==========================================================
 
   socket.on("webrtc:offer", async (payload = {}, callback) => {
     try {
       const liveClass = socket.data.liveClass;
 
       if (!liveClass || liveClass.role !== "tutor") {
-        throw new Error("Only the classroom tutor can send offers.");
+        throw new Error(
+          "Only the classroom tutor can send offers."
+        );
       }
 
       if (!payload.offer) {
@@ -1154,7 +1298,9 @@ io.on("connection", (socket) => {
       );
 
       if (target.data.liveClass.role !== "student") {
-        throw new Error("WebRTC offer must be sent to a student.");
+        throw new Error(
+          "WebRTC offer must be sent to a student."
+        );
       }
 
       target.emit("webrtc:offer", {
@@ -1174,20 +1320,27 @@ io.on("connection", (socket) => {
 
       if (typeof callback === "function") {
         callback(
-          getSocketError(error.message, "WEBRTC_OFFER_FAILED")
+          getSocketError(
+            error.message,
+            "WEBRTC_OFFER_FAILED"
+          )
         );
       }
     }
   });
 
+  // ==========================================================
   // WEBRTC ANSWER: STUDENT -> TUTOR
+  // ==========================================================
 
   socket.on("webrtc:answer", async (payload = {}, callback) => {
     try {
       const liveClass = socket.data.liveClass;
 
       if (!liveClass || liveClass.role !== "student") {
-        throw new Error("Only students can answer classroom offers.");
+        throw new Error(
+          "Only students can answer classroom offers."
+        );
       }
 
       if (!payload.answer) {
@@ -1200,7 +1353,9 @@ io.on("connection", (socket) => {
       );
 
       if (target.data.liveClass.role !== "tutor") {
-        throw new Error("WebRTC answer must be sent to the tutor.");
+        throw new Error(
+          "WebRTC answer must be sent to the tutor."
+        );
       }
 
       target.emit("webrtc:answer", {
@@ -1220,13 +1375,18 @@ io.on("connection", (socket) => {
 
       if (typeof callback === "function") {
         callback(
-          getSocketError(error.message, "WEBRTC_ANSWER_FAILED")
+          getSocketError(
+            error.message,
+            "WEBRTC_ANSWER_FAILED"
+          )
         );
       }
     }
   });
 
+  // ==========================================================
   // ICE CANDIDATE RELAY
+  // ==========================================================
 
   socket.on(
     "webrtc:ice-candidate",
@@ -1241,7 +1401,9 @@ io.on("connection", (socket) => {
         }
 
         if (!payload.candidate) {
-          throw new Error("ICE candidate data is missing.");
+          throw new Error(
+            "ICE candidate data is missing."
+          );
         }
 
         const target = await getAuthorizedTarget(
@@ -1266,14 +1428,19 @@ io.on("connection", (socket) => {
 
         if (typeof callback === "function") {
           callback(
-            getSocketError(error.message, "ICE_CANDIDATE_FAILED")
+            getSocketError(
+              error.message,
+              "ICE_CANDIDATE_FAILED"
+            )
           );
         }
       }
     }
   );
 
+  // ==========================================================
   // MEDIA STATE
+  // ==========================================================
 
   socket.on("live:media-state", (payload = {}, callback) => {
     try {
@@ -1309,24 +1476,34 @@ io.on("connection", (socket) => {
         });
       }
     } catch (error) {
-      console.error("LIVE MEDIA STATE ERROR:", error.message);
+      console.error(
+        "LIVE MEDIA STATE ERROR:",
+        error.message
+      );
 
       if (typeof callback === "function") {
         callback(
-          getSocketError(error.message, "MEDIA_STATE_FAILED")
+          getSocketError(
+            error.message,
+            "MEDIA_STATE_FAILED"
+          )
         );
       }
     }
   });
 
+  // ==========================================================
   // END CLASSROOM
+  // ==========================================================
 
   socket.on("live:end", (payload = {}, callback) => {
     try {
       const liveClass = socket.data.liveClass;
 
       if (!liveClass || liveClass.role !== "tutor") {
-        throw new Error("Only the tutor can end the classroom.");
+        throw new Error(
+          "Only the tutor can end the classroom."
+        );
       }
 
       io.to(liveClass.room).emit("live:ended", {
@@ -1334,7 +1511,9 @@ io.on("connection", (socket) => {
         message: "The tutor has ended this live class.",
       });
 
-      liveClassroomStates.delete(String(liveClass.classId));
+      liveClassroomStates.delete(
+        String(liveClass.classId)
+      );
 
       if (typeof callback === "function") {
         callback({ success: true });
@@ -1350,7 +1529,9 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ==========================================================
   // LEAVE CLASSROOM
+  // ==========================================================
 
   socket.on("live:leave", () => {
     const liveClass = socket.data.liveClass;
@@ -1376,7 +1557,9 @@ io.on("connection", (socket) => {
     });
   });
 
+  // ==========================================================
   // DISCONNECT
+  // ==========================================================
 
   socket.on("disconnect", (reason) => {
     const liveClass = socket.data.liveClass;
@@ -1402,6 +1585,7 @@ io.on("connection", (socket) => {
 // ============================================================
 
 // Paystack webhook must receive the raw request body.
+// Keep this before express.json().
 app.use(
   "/api/payments/webhook",
   express.raw({
@@ -1410,7 +1594,7 @@ app.use(
   })
 );
 
-// Increased from 2mb to 25mb for Base64 whiteboard PNG images.
+// Support large Base64 whiteboard PNG images.
 app.use(
   express.json({
     limit: "25mb",
@@ -1457,10 +1641,22 @@ app.use(
   "/uploads",
   express.static(UPLOADS_DIR, {
     fallthrough: true,
+
     setHeaders: (res, filePath) => {
-      res.setHeader("Access-Control-Allow-Origin", FRONTEND_URL);
-      res.setHeader("Access-Control-Allow-Credentials", "true");
-      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.setHeader(
+        "Access-Control-Allow-Origin",
+        FRONTEND_URL
+      );
+
+      res.setHeader(
+        "Access-Control-Allow-Credentials",
+        "true"
+      );
+
+      res.setHeader(
+        "Access-Control-Allow-Methods",
+        "GET, OPTIONS"
+      );
 
       res.setHeader(
         "Access-Control-Allow-Headers",
@@ -1478,7 +1674,10 @@ app.use(
         ].join(", ")
       );
 
-      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader(
+        "Cache-Control",
+        "public, max-age=3600"
+      );
 
       const lowerPath = String(filePath || "").toLowerCase();
 
@@ -1495,15 +1694,26 @@ app.use(
       const extension = path.extname(lowerPath);
 
       if (mimeTypes[extension]) {
-        res.setHeader("Content-Type", mimeTypes[extension]);
+        res.setHeader(
+          "Content-Type",
+          mimeTypes[extension]
+        );
       }
 
-      if ([".pdf", ".mp4", ".webm", ".mov"].includes(extension)) {
-        res.setHeader("Content-Disposition", "inline");
+      if (
+        [".pdf", ".mp4", ".webm", ".mov"].includes(extension)
+      ) {
+        res.setHeader(
+          "Content-Disposition",
+          "inline"
+        );
       }
 
       if ([".pdf", ".doc", ".docx"].includes(extension)) {
-        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader(
+          "X-Content-Type-Options",
+          "nosniff"
+        );
       }
     },
   })
@@ -1578,7 +1788,7 @@ app.get("/", (req, res) => {
       liveStageEvent: "live:stage-update",
       livePresentationEvent: "live:presentation-update",
       liveMaterialEvent: "live:material-update",
-      liveWhiteboardEvent: "live:whiteboard-draw",
+      liveWhiteboardEvent: "live:whiteboard-update",
       liveQuestionEvent: "live:student-question",
       liveTutorResponseEvent: "live:tutor-question-response",
     },
@@ -1642,6 +1852,7 @@ app.get("/api/health", async (req, res) => {
   if (databaseConfigured) {
     try {
       await pool.query("SELECT 1");
+
       databaseStatus = true;
       databaseMessage = "connected";
     } catch (error) {
@@ -1677,7 +1888,8 @@ app.get("/api/health", async (req, res) => {
     paystackConfigured,
     paystackMode,
 
-    academyCBTConfigured: databaseConfigured && jwtConfigured,
+    academyCBTConfigured:
+      databaseConfigured && jwtConfigured,
 
     liveClassroom: {
       socketIO: true,
@@ -1689,6 +1901,7 @@ app.get("/api/health", async (req, res) => {
       presentationBroadcast: true,
       materialBroadcast: true,
       whiteboardBroadcast: true,
+      whiteboardMaxPayloadBytes: 25 * 1024 * 1024,
       studentQuestions: true,
       tutorResponses: true,
       transport: "WebRTC + Socket.IO",
@@ -1773,7 +1986,10 @@ app.get("/api/cbt/questions", async (req, res) => {
         AND LOWER(TRIM(subject))
         IN (
           ${placeholders
-            .map((placeholder) => `LOWER(TRIM(${placeholder}))`)
+            .map(
+              (placeholder) =>
+                `LOWER(TRIM(${placeholder}))`
+            )
             .join(", ")}
         )
       `;
@@ -1831,7 +2047,9 @@ app.get("/api/cbt/questions/count", async (req, res) => {
       FROM cbt_questions
     `);
 
-    const count = Number(result.rows[0]?.count || 0);
+    const count = Number(
+      result.rows[0]?.count || 0
+    );
 
     return res.status(200).json({
       success: true,
@@ -1947,14 +2165,29 @@ app.get("/:filename", (req, res, next) => {
       ".mov": "video/quicktime",
     };
 
-    if (!Object.prototype.hasOwnProperty.call(mimeTypes, extension)) {
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        mimeTypes,
+        extension
+      )
+    ) {
       return next();
     }
 
-    const assignmentRoot = path.resolve(ACADEMY_ASSIGNMENTS_DIR);
-    const filePath = path.resolve(assignmentRoot, filename);
+    const assignmentRoot = path.resolve(
+      ACADEMY_ASSIGNMENTS_DIR
+    );
 
-    if (!filePath.startsWith(`${assignmentRoot}${path.sep}`)) {
+    const filePath = path.resolve(
+      assignmentRoot,
+      filename
+    );
+
+    if (
+      !filePath.startsWith(
+        `${assignmentRoot}${path.sep}`
+      )
+    ) {
       return next();
     }
 
@@ -1968,9 +2201,20 @@ app.get("/:filename", (req, res, next) => {
       return next();
     }
 
-    res.setHeader("Content-Type", mimeTypes[extension]);
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.setHeader(
+      "Content-Type",
+      mimeTypes[extension]
+    );
+
+    res.setHeader(
+      "X-Content-Type-Options",
+      "nosniff"
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "private, max-age=3600"
+    );
 
     const previewExtensions = new Set([
       ".pdf",
@@ -1987,9 +2231,15 @@ app.get("/:filename", (req, res, next) => {
     ]);
 
     if (previewExtensions.has(extension)) {
-      res.setHeader("Content-Disposition", "inline");
+      res.setHeader(
+        "Content-Disposition",
+        "inline"
+      );
     } else {
-      const safeFilename = filename.replace(/["\\\r\n]/g, "_");
+      const safeFilename = filename.replace(
+        /["\\\r\n]/g,
+        "_"
+      );
 
       res.setHeader(
         "Content-Disposition",
@@ -2003,12 +2253,17 @@ app.get("/:filename", (req, res, next) => {
           return next();
         }
 
-        console.error("Legacy assignment file delivery failed:", {
-          filename,
-          message: error.message,
-        });
+        console.error(
+          "Legacy assignment file delivery failed:",
+          {
+            filename,
+            message: error.message,
+          }
+        );
 
-        return res.status(error.statusCode || 500).json({
+        return res.status(
+          error.statusCode || 500
+        ).json({
           success: false,
           error: "Unable to open assignment file.",
         });
@@ -2075,6 +2330,7 @@ server.listen(PORT, () => {
   console.log("==================================================");
   console.log("SCHOLIQEN BACKEND SERVER");
   console.log("==================================================");
+
   console.log(`Server: http://localhost:${PORT}`);
   console.log(`Frontend: ${FRONTEND_URL}`);
   console.log(`Uploads: ${UPLOADS_DIR}`);
@@ -2109,6 +2365,7 @@ server.listen(PORT, () => {
   console.log("   Presentation broadcasting: ENABLED");
   console.log("   Material broadcasting: ENABLED");
   console.log("   Whiteboard event broadcasting: ENABLED");
+  console.log("   Whiteboard payload limit: 25 MB");
   console.log("   Student questions: ENABLED");
   console.log("   Tutor responses: ENABLED");
 
@@ -2152,6 +2409,7 @@ const shutdown = async (signal) => {
   server.close(async () => {
     try {
       await pool.end();
+
       console.log("Database connection pool closed.");
     } catch (error) {
       console.error(

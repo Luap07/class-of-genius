@@ -27,7 +27,10 @@ import {
   Pen,
 } from "lucide-react";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
+).replace(/\/$/, "");
+
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -43,6 +46,7 @@ const TOKEN_KEYS = [
   "access_token",
   "token",
 ];
+
 const STUDENT_KEYS = [
   "scholiqen_academy_user",
   "scholiqen_student",
@@ -65,26 +69,31 @@ const readStoredStudent = () => {
   for (const key of STUDENT_KEYS) {
     const raw = localStorage.getItem(key);
     if (!raw) continue;
+
     try {
       const value = JSON.parse(raw);
       if (value && typeof value === "object") {
         return value.user || value.student || value;
       }
     } catch {
-      // Ignore malformed local-storage entries.
+      // Ignore invalid stored values.
     }
   }
+
   return {};
 };
 
 const getStudentIdentity = () => {
   const student = readStoredStudent();
+
   return {
     enrollmentId:
       student.enrollmentId ||
       student.enrollment_id ||
       student.studentEnrollmentId ||
       student.student_enrollment_id ||
+      student.enrollmentReference ||
+      student.enrollment_reference ||
       student.reference ||
       "",
     studentId:
@@ -114,6 +123,7 @@ const getStudentIdentity = () => {
 
 const getHeaders = () => {
   const token = getToken();
+
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -131,20 +141,28 @@ const apiRequest = async (endpoint, options = {}) => {
   });
 
   const data = await response.json().catch(() => ({}));
+
   if (!response.ok) {
     throw new Error(
-      data.message || data.error || `Request failed (${response.status})`
+      data.message ||
+        data.error ||
+        `Request failed (${response.status})`
     );
   }
+
   return data;
 };
 
 const getList = (data, keys = []) => {
   if (Array.isArray(data)) return data;
+
   for (const key of keys) {
     if (Array.isArray(data?.[key])) return data[key];
   }
-  return Array.isArray(data?.data) ? data.data : [];
+
+  if (Array.isArray(data?.data)) return data.data;
+
+  return [];
 };
 
 const getResourceUrl = (resource) =>
@@ -189,8 +207,10 @@ const getTutorProfileImageValue = (source = {}) =>
 
 const toPublicAssetUrl = (value) => {
   const url = clean(value);
+
   if (!url) return "";
   if (/^(data:image|https?:\/\/)/i.test(url)) return url;
+
   try {
     return new URL(url, `${API_URL}/`).toString();
   } catch {
@@ -244,6 +264,7 @@ const mergeUnique = (oldItems, newItems, getId) => {
 
   newItems.forEach((item) => {
     const id = getId(item);
+
     if (!ids.has(id)) {
       ids.add(id);
       result.push(item);
@@ -253,52 +274,115 @@ const mergeUnique = (oldItems, newItems, getId) => {
   return result;
 };
 
-const getWhiteboardImage = (response) => {
-  const payload =
-    response?.whiteboard ??
-    response?.data?.whiteboard ??
-    response?.data ??
-    response?.event?.payload ??
-    response?.payload ??
-    response;
+/*
+  Handles the different response shapes used by the classroom
+  whiteboard API and Socket.IO events.
+*/
+const getWhiteboardImage = (response, depth = 0) => {
+  if (!response || depth > 6) return "";
 
-  if (!payload) return "";
-  if (typeof payload === "string") {
-    return /^(data:image|https?:\/\/)/i.test(payload) ? payload : "";
+  if (typeof response === "string") {
+    const value = response.trim();
+
+    return /^(data:image|https?:\/\/)/i.test(value)
+      ? value
+      : "";
   }
 
-  return (
-    payload.image ||
-    payload.dataUrl ||
-    payload.imageData ||
-    payload.canvas ||
-    payload.state?.image ||
-    payload.state?.dataUrl ||
-    ""
-  );
+  if (typeof response !== "object") return "";
+
+  const directImage =
+    response.image ||
+    response.dataUrl ||
+    response.data_url ||
+    response.imageData ||
+    response.image_data ||
+    response.canvas ||
+    response.canvasImage ||
+    response.canvas_image ||
+    response.state?.image ||
+    response.state?.dataUrl ||
+    response.payload?.image ||
+    response.payload?.dataUrl;
+
+  if (typeof directImage === "string" && directImage.trim()) {
+    return directImage.trim();
+  }
+
+  const nestedKeys = [
+    "whiteboard",
+    "data",
+    "event",
+    "payload",
+    "state",
+    "result",
+    "snapshot",
+  ];
+
+  for (const key of nestedKeys) {
+    if (response[key]) {
+      const image = getWhiteboardImage(
+        response[key],
+        depth + 1
+      );
+
+      if (image) return image;
+    }
+  }
+
+  return "";
 };
 
 const isClearEvent = (payload = {}) =>
   Boolean(
-    payload.cleared ||
-      payload.whiteboardCleared ||
-      payload.action === "clear" ||
-      payload.type === "clear" ||
-      payload.type === "cleared"
+    payload?.cleared ||
+      payload?.whiteboardCleared ||
+      payload?.whiteboard_cleared ||
+      payload?.action === "clear" ||
+      payload?.type === "clear" ||
+      payload?.type === "cleared" ||
+      payload?.eventType === "clear"
   );
 
 const resourceKind = (resource) => {
-  const type = `${resource?.mime_type || resource?.resource_type || resource?.type || ""} ${getResourceUrl(resource)}`.toLowerCase();
-  if (type.includes("pdf") || /\.pdf([?#]|$)/.test(type)) return "pdf";
-  if (type.includes("image") || /\.(png|jpe?g|gif|webp)([?#]|$)/.test(type)) return "image";
-  if (type.includes("video") || /\.(mp4|webm|mov)([?#]|$)/.test(type)) return "video";
+  const type = `${
+    resource?.mime_type ||
+    resource?.resource_type ||
+    resource?.type ||
+    ""
+  } ${getResourceUrl(resource)}`.toLowerCase();
+
+  if (type.includes("pdf") || /\.pdf([?#]|$)/.test(type)) {
+    return "pdf";
+  }
+
+  if (
+    type.includes("image") ||
+    /\.(png|jpe?g|gif|webp)([?#]|$)/.test(type)
+  ) {
+    return "image";
+  }
+
+  if (
+    type.includes("video") ||
+    /\.(mp4|webm|mov)([?#]|$)/.test(type)
+  ) {
+    return "video";
+  }
+
   return "file";
 };
 
 function StudentLiveClassroom() {
   const navigate = useNavigate();
   const params = useParams();
-  const roomCode = params.roomCode || params.code || params.id || "";
+
+  const roomCode =
+    params.roomCode ||
+    params.code ||
+    params.id ||
+    "";
+
   const identity = useMemo(() => getStudentIdentity(), []);
 
   const socketRef = useRef(null);
@@ -315,6 +399,8 @@ function StudentLiveClassroom() {
   const joiningRef = useRef(false);
   const joinedRef = useRef(false);
   const whiteboardImageRef = useRef("");
+  const whiteboardLoadIdRef = useRef(0);
+  const lastWhiteboardSyncRef = useRef(0);
 
   const [classroom, setClassroom] = useState(null);
   const [tutorProfileImage, setTutorProfileImage] = useState("");
@@ -328,7 +414,8 @@ function StudentLiveClassroom() {
   const [whiteboardImage, setWhiteboardImage] = useState("");
   const [presentation, setPresentation] = useState(null);
   const [presentationPage, setPresentationPage] = useState(1);
-  const [presentationTotalPages, setPresentationTotalPages] = useState(1);
+  const [presentationTotalPages, setPresentationTotalPages] =
+    useState(1);
   const [activeMaterial, setActiveMaterial] = useState(null);
   const [activeStage, setActiveStage] = useState("waiting");
   const [activeTab, setActiveTab] = useState("chat");
@@ -345,20 +432,27 @@ function StudentLiveClassroom() {
     classroom?.live_class_id ||
     classroom?.liveClassId ||
     "";
-  const studentReference = identity.enrollmentId || identity.studentId || "";
+
+  const studentReference =
+    identity.enrollmentId || identity.studentId || "";
+
   const studentName = identity.studentName;
+
   const classTitle =
     classroom?.title ||
     classroom?.subject ||
     classroom?.className ||
     classroom?.name ||
     "Live Classroom";
+
   const tutorName =
     classroom?.tutor_name ||
     classroom?.tutorName ||
     classroom?.tutor?.name ||
     "Your tutor";
+
   const tutorInitial = tutorName.charAt(0).toUpperCase();
+
   const materialUrl = getResourceUrl(activeMaterial);
   const presentationUrl = getPresentationUrl(presentation);
   const materialName = getResourceName(activeMaterial || {});
@@ -366,19 +460,31 @@ function StudentLiveClassroom() {
 
   const attachCamera = useCallback((stream) => {
     const video = cameraVideoRef.current;
+
     if (!video) return;
-    if (video.srcObject !== stream) video.srcObject = stream || null;
-    if (stream) video.play?.().catch(() => {});
+
+    if (video.srcObject !== stream) {
+      video.srcObject = stream || null;
+    }
+
+    if (stream) {
+      video.play?.().catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
-    attachCamera(cameraAvailable ? cameraStreamRef.current : null);
+    attachCamera(
+      cameraAvailable ? cameraStreamRef.current : null
+    );
   }, [cameraAvailable, attachCamera]);
 
   useEffect(() => {
     const audio = audioRef.current;
+
     if (!audio) return;
+
     audio.srcObject = audioStreamRef.current;
+
     if (audioEnabled && audioAvailable) {
       audio.play().catch(() => setAudioEnabled(false));
     }
@@ -386,13 +492,22 @@ function StudentLiveClassroom() {
 
   const clearWhiteboardCanvas = useCallback(() => {
     const canvas = canvasRef.current;
+
     if (!canvas) return;
+
     const context = canvas.getContext("2d");
-    context?.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!context) return;
+
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.restore();
   }, []);
 
   const addMessage = useCallback((incoming) => {
     if (!incoming) return;
+
     const item =
       incoming.chat ||
       incoming.messageData ||
@@ -402,10 +517,27 @@ function StudentLiveClassroom() {
       incoming;
 
     if (!item || typeof item !== "object") return;
+
     setMessages((previous) =>
       mergeUnique(previous, [item], getMessageId)
     );
   }, []);
+
+  const applyWhiteboardImage = useCallback((image) => {
+    if (!image || !mountedRef.current) return;
+
+    whiteboardImageRef.current = image;
+    setWhiteboardImage(image);
+    setActiveStage("whiteboard");
+    lastWhiteboardSyncRef.current = Date.now();
+  }, []);
+
+  const clearWhiteboard = useCallback(() => {
+    whiteboardLoadIdRef.current += 1;
+    whiteboardImageRef.current = "";
+    setWhiteboardImage("");
+    clearWhiteboardCanvas();
+  }, [clearWhiteboardCanvas]);
 
   const applyClassroomState = useCallback(
     (state = {}) => {
@@ -422,7 +554,8 @@ function StudentLiveClassroom() {
         data.activeStage ||
           data.active_stage ||
           data.stage ||
-          data.currentTool
+          data.currentTool ||
+          data.current_tool
       ).toLowerCase();
 
       const aliases = {
@@ -434,28 +567,34 @@ function StudentLiveClassroom() {
         materials: "material",
         idle: "waiting",
       };
+
       const normalizedStage = aliases[rawStage] || rawStage;
 
       if (
-        ["video", "whiteboard", "presentation", "material", "waiting"].includes(
-          normalizedStage
-        )
+        [
+          "video",
+          "whiteboard",
+          "presentation",
+          "material",
+          "waiting",
+        ].includes(normalizedStage)
       ) {
         setActiveStage(normalizedStage);
       }
 
-      const boardPayload = data.whiteboard || data;
-      const boardImage = getWhiteboardImage(boardPayload);
-
-      if (boardImage) {
-        whiteboardImageRef.current = boardImage;
-        setWhiteboardImage(boardImage);
-      }
+      const boardPayload =
+        data.whiteboard ||
+        data.whiteboard_state ||
+        data;
 
       if (isClearEvent(boardPayload)) {
-        whiteboardImageRef.current = "";
-        setWhiteboardImage("");
-        clearWhiteboardCanvas();
+        clearWhiteboard();
+      } else {
+        const boardImage = getWhiteboardImage(boardPayload);
+
+        if (boardImage) {
+          applyWhiteboardImage(boardImage);
+        }
       }
 
       const nextPresentation =
@@ -464,13 +603,18 @@ function StudentLiveClassroom() {
         data.active_presentation;
 
       if (nextPresentation !== undefined) {
-        if (!nextPresentation || isClearEvent(nextPresentation)) {
+        if (
+          !nextPresentation ||
+          isClearEvent(nextPresentation)
+        ) {
           setPresentation(null);
           setPresentationPage(1);
           setPresentationTotalPages(1);
         } else {
           setPresentation(nextPresentation);
-          setPresentationPage(getPresentationPage(nextPresentation));
+          setPresentationPage(
+            getPresentationPage(nextPresentation)
+          );
           setPresentationTotalPages(
             Math.max(
               1,
@@ -485,7 +629,9 @@ function StudentLiveClassroom() {
       }
 
       const nextMaterial =
-        data.activeMaterial ?? data.active_material;
+        data.activeMaterial ??
+        data.active_material;
+
       if (nextMaterial !== undefined) {
         setActiveMaterial(
           !nextMaterial || isClearEvent(nextMaterial)
@@ -509,12 +655,17 @@ function StudentLiveClassroom() {
         );
       }
     },
-    [clearWhiteboardCanvas]
+    [applyWhiteboardImage, clearWhiteboard]
   );
 
   const loadTutorProfileImage = useCallback(async (room) => {
-    const directImage = toPublicAssetUrl(getTutorProfileImageValue(room));
-    if (directImage) setTutorProfileImage(directImage);
+    const directImage = toPublicAssetUrl(
+      getTutorProfileImageValue(room)
+    );
+
+    if (directImage && mountedRef.current) {
+      setTutorProfileImage(directImage);
+    }
 
     const tutorReference =
       room?.tutor_reference ||
@@ -527,8 +678,11 @@ function StudentLiveClassroom() {
 
     try {
       const response = await apiRequest(
-        `/api/academy/tutor-application/${encodeURIComponent(tutorReference)}`
+        `/api/academy/tutor-application/${encodeURIComponent(
+          tutorReference
+        )}`
       );
+
       const profile =
         response?.tutor ||
         response?.profile ||
@@ -537,15 +691,23 @@ function StudentLiveClassroom() {
         response?.data?.profile ||
         response?.data ||
         response;
+
       const image = toPublicAssetUrl(
         getTutorProfileImageValue(profile) ||
-        getTutorProfileImageValue(response)
+          getTutorProfileImageValue(response)
       );
 
-      if (image && mountedRef.current) setTutorProfileImage(image);
+      if (image && mountedRef.current) {
+        setTutorProfileImage(image);
+      }
+
       return image || directImage;
-    } catch (error) {
-      console.warn("Unable to load tutor profile picture:", error.message);
+    } catch (profileError) {
+      console.warn(
+        "Unable to load tutor profile picture:",
+        profileError.message
+      );
+
       return directImage;
     }
   }, []);
@@ -555,9 +717,29 @@ function StudentLiveClassroom() {
       throw new Error("Classroom room code is missing.");
     }
 
-    const result = await apiRequest(
-      `/api/academy/live-class/room/${encodeURIComponent(roomCode)}`
-    );
+    let result;
+
+    try {
+      result = await apiRequest(
+        `/api/academy/live-class/room/${encodeURIComponent(
+          roomCode
+        )}`
+      );
+    } catch (firstError) {
+      if (
+        !String(firstError.message).includes("404") &&
+        !String(firstError.message).toLowerCase().includes("not found")
+      ) {
+        throw firstError;
+      }
+
+      result = await apiRequest(
+        `/api/academy/live-classes/room/${encodeURIComponent(
+          roomCode
+        )}`
+      );
+    }
+
     const room =
       result.classroom ||
       result.session ||
@@ -566,24 +748,77 @@ function StudentLiveClassroom() {
       result.data ||
       result;
 
-    if (!room?.id && !room?.live_class_id && !room?.liveClassId) {
+    if (
+      !room?.id &&
+      !room?.live_class_id &&
+      !room?.liveClassId
+    ) {
       throw new Error("The classroom could not be found.");
     }
 
-    if (mountedRef.current) setClassroom(room);
+    if (mountedRef.current) {
+      setClassroom(room);
+    }
+
     loadTutorProfileImage(room);
+
     return room;
   }, [roomCode, loadTutorProfileImage]);
+
+  const loadWhiteboard = useCallback(
+    async (id, force = false) => {
+      if (!id) return;
+
+      const requestStarted = Date.now();
+
+      if (
+        !force &&
+        requestStarted - lastWhiteboardSyncRef.current < 1500
+      ) {
+        return;
+      }
+
+      try {
+        const result = await apiRequest(
+          `/api/academy/live-classes/${id}/whiteboard`
+        );
+
+        if (!mountedRef.current) return;
+
+        if (isClearEvent(result)) {
+          clearWhiteboard();
+          return;
+        }
+
+        const image = getWhiteboardImage(result);
+
+        if (image) {
+          applyWhiteboardImage(image);
+        }
+      } catch (whiteboardError) {
+        console.warn(
+          "Whiteboard sync failed:",
+          whiteboardError.message
+        );
+      }
+    },
+    [applyWhiteboardImage, clearWhiteboard]
+  );
 
   const loadClassroomData = useCallback(
     async (id) => {
       if (!id) return;
 
       const endpoints = [
-        ["participants", `/api/academy/live-classes/${id}/participants`],
+        [
+          "participants",
+          `/api/academy/live-classes/${id}/participants`,
+        ],
         ["chat", `/api/academy/live-classes/${id}/chat`],
-        ["whiteboard", `/api/academy/live-classes/${id}/whiteboard`],
-        ["resources", `/api/academy/live-classes/${id}/resources`],
+        [
+          "resources",
+          `/api/academy/live-classes/${id}/resources`,
+        ],
         ["state", `/api/academy/live-classes/${id}/state`],
       ];
 
@@ -594,92 +829,130 @@ function StudentLiveClassroom() {
       if (!mountedRef.current) return;
 
       results.forEach((result, index) => {
-        if (result.status !== "fulfilled") return;
+        if (result.status !== "fulfilled") {
+          const [key] = endpoints[index];
+
+          if (key === "state") {
+            console.warn(
+              "Classroom state endpoint unavailable:",
+              result.reason?.message
+            );
+          }
+
+          return;
+        }
+
         const [key] = endpoints[index];
         const value = result.value;
 
         if (key === "participants") {
-          setParticipants(getList(value, ["participants", "items"]));
+          setParticipants(
+            getList(value, ["participants", "items"])
+          );
         }
 
         if (key === "chat") {
-          const list = getList(value, ["messages", "chat", "items"]);
+          const list = getList(value, [
+            "messages",
+            "chat",
+            "items",
+          ]);
+
           setMessages((previous) =>
             mergeUnique(previous, list, getMessageId).sort(
               (a, b) =>
-                new Date(a.created_at || a.createdAt || 0) -
-                new Date(b.created_at || b.createdAt || 0)
+                new Date(
+                  a.created_at || a.createdAt || 0
+                ) -
+                new Date(
+                  b.created_at || b.createdAt || 0
+                )
             )
           );
         }
 
-        if (key === "whiteboard") {
-          const image = getWhiteboardImage(value);
-          if (image) {
-            whiteboardImageRef.current = image;
-            setWhiteboardImage(image);
-          }
-          if (isClearEvent(value)) {
-            whiteboardImageRef.current = "";
-            setWhiteboardImage("");
-            clearWhiteboardCanvas();
-          }
-        }
-
         if (key === "resources") {
-          setResources(getList(value, ["resources", "items"]));
+          setResources(
+            getList(value, ["resources", "items"])
+          );
         }
 
         if (key === "state") {
-          applyClassroomState(value.classroomState || value.state || value);
+          applyClassroomState(
+            value.classroomState ||
+              value.classroom_state ||
+              value.state ||
+              value
+          );
         }
       });
+
+      await loadWhiteboard(id, true);
     },
-    [applyClassroomState, clearWhiteboardCanvas]
+    [applyClassroomState, loadWhiteboard]
   );
 
   const drawWhiteboardEvent = useCallback(
     (payload = {}) => {
       const canvas = canvasRef.current;
+
       if (!canvas) return;
 
       const context = canvas.getContext("2d");
+
       if (!context) return;
 
       const action = clean(
-        payload.action || payload.type || payload.event
+        payload.action ||
+          payload.type ||
+          payload.event
       ).toLowerCase();
 
       if (
         ["clear", "cleared", "reset"].includes(action) ||
         isClearEvent(payload)
       ) {
-        clearWhiteboardCanvas();
-        whiteboardImageRef.current = "";
-        setWhiteboardImage("");
+        clearWhiteboard();
         return;
       }
 
-      if (["undo", "erase-all"].includes(action)) return;
+      if (["undo", "erase-all"].includes(action)) {
+        return;
+      }
 
       const stroke =
         payload.stroke ||
         payload.data ||
         payload.drawing ||
         payload;
+
       const points =
         stroke.points ||
         stroke.path ||
         stroke.coordinates ||
         [];
 
-      if (!Array.isArray(points) || points.length === 0) return;
+      if (!Array.isArray(points) || points.length === 0) {
+        return;
+      }
 
       const rect = canvas.getBoundingClientRect();
+
       const point = (item) => {
-        const x = Number(item.x ?? item.clientX ?? item[0] ?? 0);
-        const y = Number(item.y ?? item.clientY ?? item[1] ?? 0);
-        const normalized = Boolean(item.normalized || item.relative);
+        if (!item) return { x: 0, y: 0 };
+
+        const x = Number(
+          item.x ?? item.clientX ?? item[0] ?? 0
+        );
+
+        const y = Number(
+          item.y ?? item.clientY ?? item[1] ?? 0
+        );
+
+        const normalized = Boolean(
+          item.normalized || item.relative
+        );
+
         return {
           x: normalized ? x * rect.width : x,
           y: normalized ? y * rect.height : y,
@@ -687,21 +960,30 @@ function StudentLiveClassroom() {
       };
 
       const first = point(points[0]);
+
       context.save();
+
       context.strokeStyle =
         stroke.color ||
         stroke.strokeStyle ||
         payload.color ||
         "#111827";
+
       context.lineWidth = Number(
-        stroke.lineWidth || stroke.width || payload.lineWidth || 3
+        stroke.lineWidth ||
+          stroke.width ||
+          payload.lineWidth ||
+          3
       );
+
       context.lineCap = "round";
       context.lineJoin = "round";
+
       context.globalCompositeOperation =
         action === "erase" || stroke.tool === "eraser"
           ? "destination-out"
           : "source-over";
+
       context.beginPath();
       context.moveTo(first.x, first.y);
 
@@ -716,26 +998,44 @@ function StudentLiveClassroom() {
 
       context.stroke();
       context.restore();
+
+      setActiveStage("whiteboard");
     },
-    [clearWhiteboardCanvas]
+    [clearWhiteboard]
   );
 
   useEffect(() => {
     const canvas = canvasRef.current;
+
     if (!canvas || stageMode !== "whiteboard") return;
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
-      const ratio = window.devicePixelRatio || 1;
+
+      if (!rect.width || !rect.height) return;
+
+      const ratio = Math.max(
+        1,
+        window.devicePixelRatio || 1
+      );
+
       const previous = document.createElement("canvas");
       previous.width = canvas.width;
       previous.height = canvas.height;
-      previous.getContext("2d")?.drawImage(canvas, 0, 0);
 
-      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
-      canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+      const previousContext = previous.getContext("2d");
+
+      if (previousContext) {
+        previousContext.drawImage(canvas, 0, 0);
+      }
+
+      canvas.width = Math.floor(rect.width * ratio);
+      canvas.height = Math.floor(rect.height * ratio);
 
       const context = canvas.getContext("2d");
+
+      if (!context) return;
+
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
 
       if (previous.width && previous.height) {
@@ -754,30 +1054,51 @@ function StudentLiveClassroom() {
     };
 
     resize();
+
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
-    return () => observer.disconnect();
+
+    window.addEventListener("resize", resize);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", resize);
+    };
   }, [joinedClass, stageMode]);
 
   useEffect(() => {
-    if (!canvasRef.current || !whiteboardImage) return;
-    const canvas = canvasRef.current;
+    if (!whiteboardImage) return;
+
     const image = new Image();
+    const loadId = ++whiteboardLoadIdRef.current;
 
     image.onload = () => {
-      const context = canvas.getContext("2d");
-      if (!context) return;
-      const rect = canvas.getBoundingClientRect();
-      context.clearRect(0, 0, rect.width, rect.height);
-      context.drawImage(image, 0, 0, rect.width, rect.height);
+      if (
+        !mountedRef.current ||
+        loadId !== whiteboardLoadIdRef.current
+      ) {
+        return;
+      }
+
+      setActiveStage("whiteboard");
+    };
+
+    image.onerror = () => {
+      console.warn("Unable to display whiteboard snapshot.");
     };
 
     image.src = whiteboardImage;
-  }, [whiteboardImage, stageMode]);
+
+    return () => {
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [whiteboardImage]);
 
   const closePeer = useCallback(() => {
     if (peerRef.current) {
       peerRef.current.ontrack = null;
+      peerRef.current.onicecandidate = null;
       peerRef.current.close();
       peerRef.current = null;
     }
@@ -790,8 +1111,13 @@ function StudentLiveClassroom() {
       audioStreamRef.current.removeTrack(track);
     });
 
-    if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
-    if (audioRef.current) audioRef.current.srcObject = null;
+    if (cameraVideoRef.current) {
+      cameraVideoRef.current.srcObject = null;
+    }
+
+    if (audioRef.current) {
+      audioRef.current.srcObject = null;
+    }
 
     setMediaConnected(false);
     setCameraAvailable(false);
@@ -803,36 +1129,48 @@ function StudentLiveClassroom() {
       if (peerRef.current) return peerRef.current;
 
       const peer = new RTCPeerConnection(ICE_SERVERS);
-      peer.addTransceiver("video", { direction: "recvonly" });
-      peer.addTransceiver("audio", { direction: "recvonly" });
+
+      peer.addTransceiver("video", {
+        direction: "recvonly",
+      });
+
+      peer.addTransceiver("audio", {
+        direction: "recvonly",
+      });
 
       peer.ontrack = (event) => {
         const track = event.track;
 
         if (track.kind === "video") {
           const stream =
-            event.streams?.[0] || new MediaStream([track]);
+            event.streams?.[0] ||
+            new MediaStream([track]);
+
           cameraStreamRef.current = stream;
           attachCamera(stream);
+
           setCameraAvailable(true);
           setMediaConnected(true);
 
           track.onended = () => {
             cameraStreamRef.current = null;
+
             if (cameraVideoRef.current) {
               cameraVideoRef.current.srcObject = null;
             }
+
             setCameraAvailable(false);
           };
+
           return;
         }
 
         if (track.kind === "audio") {
-          if (
-            !audioStreamRef.current
-              .getAudioTracks()
-              .some((item) => item.id === track.id)
-          ) {
+          const exists = audioStreamRef.current
+            .getAudioTracks()
+            .some((item) => item.id === track.id);
+
+          if (!exists) {
             audioStreamRef.current.addTrack(track);
           }
 
@@ -840,7 +1178,9 @@ function StudentLiveClassroom() {
           setMediaConnected(true);
 
           if (audioRef.current) {
-            audioRef.current.srcObject = audioStreamRef.current;
+            audioRef.current.srcObject =
+              audioStreamRef.current;
+
             audioRef.current.play().catch(() => {
               setAudioEnabled(false);
             });
@@ -848,6 +1188,7 @@ function StudentLiveClassroom() {
 
           track.onended = () => {
             audioStreamRef.current.removeTrack(track);
+
             setAudioAvailable(
               audioStreamRef.current.getAudioTracks().length > 0
             );
@@ -856,17 +1197,28 @@ function StudentLiveClassroom() {
       };
 
       peer.onicecandidate = (event) => {
-        if (!event.candidate || !tutorSocketIdRef.current) return;
+        if (
+          !event.candidate ||
+          !tutorSocketIdRef.current
+        ) {
+          return;
+        }
 
-        socketRef.current?.emit("webrtc:ice-candidate", {
-          liveClassId: roomId,
-          targetSocketId: tutorSocketIdRef.current,
-          candidate: event.candidate,
-        });
+        socketRef.current?.emit(
+          "webrtc:ice-candidate",
+          {
+            liveClassId: roomId,
+            targetSocketId: tutorSocketIdRef.current,
+            candidate: event.candidate,
+          }
+        );
       };
 
       peer.onconnectionstatechange = () => {
-        setMediaConnected(peer.connectionState === "connected");
+        setMediaConnected(
+          peer.connectionState === "connected"
+        );
+
         if (
           ["failed", "closed", "disconnected"].includes(
             peer.connectionState
@@ -877,6 +1229,7 @@ function StudentLiveClassroom() {
       };
 
       peerRef.current = peer;
+
       return peer;
     },
     [attachCamera]
@@ -885,6 +1238,7 @@ function StudentLiveClassroom() {
   const connectSocket = useCallback(
     (roomId) => {
       const token = getToken();
+
       if (!token) {
         throw new Error(
           "Your student login session has expired. Please sign in again."
@@ -892,6 +1246,7 @@ function StudentLiveClassroom() {
       }
 
       socketRef.current?.disconnect();
+      closePeer();
 
       const socket = io(API_URL, {
         transports: ["websocket", "polling"],
@@ -903,12 +1258,12 @@ function StudentLiveClassroom() {
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
       });
 
       socketRef.current = socket;
 
-      socket.on("connect", () => {
-        setSocketConnected(true);
+      const joinSocketRoom = () => {
         socket.emit("live:join", {
           liveClassId: roomId,
           role: "student",
@@ -917,27 +1272,52 @@ function StudentLiveClassroom() {
           studentName: identity.studentName,
           className: identity.className,
         });
+      };
+
+      socket.on("connect", () => {
+        if (!mountedRef.current) return;
+
+        setSocketConnected(true);
+        joinSocketRoom();
       });
 
       socket.on("live:joined", (data) => {
         if (data?.success === false) {
-          setError(data.message || "Unable to join classroom connection.");
+          setError(
+            data.message ||
+              "Unable to join classroom connection."
+          );
           return;
         }
 
         setSocketConnected(true);
+
         applyClassroomState(
-          data?.classroomState || data?.state || data
+          data?.classroomState ||
+            data?.classroom_state ||
+            data?.state ||
+            data
         );
 
         socket.emit("live:student-ready", {
           liveClassId: roomId,
           role: "student",
         });
+
+        loadClassroomData(roomId).catch((syncError) => {
+          console.warn(
+            "Initial classroom sync failed:",
+            syncError
+          );
+        });
       });
 
       socket.on("connect_error", (socketError) => {
-        console.error("STUDENT SOCKET ERROR:", socketError);
+        console.error(
+          "STUDENT SOCKET ERROR:",
+          socketError
+        );
+
         setSocketConnected(false);
       });
 
@@ -948,12 +1328,15 @@ function StudentLiveClassroom() {
 
       socket.on("live:peer-left", closePeer);
 
-      const handleState = (payload) => applyClassroomState(payload);
+      const handleState = (payload) => {
+        applyClassroomState(payload);
+      };
 
       [
         "live:classroom-state",
         "live:state-sync",
         "live:activity-update",
+        "live:state",
       ].forEach((eventName) => {
         socket.on(eventName, handleState);
       });
@@ -968,11 +1351,15 @@ function StudentLiveClassroom() {
             payload.socketId;
 
           if (!tutorId) {
-            console.error("Tutor socket ID missing from offer", payload);
+            console.error(
+              "Tutor socket ID missing from offer:",
+              payload
+            );
             return;
           }
 
           tutorSocketIdRef.current = tutorId;
+
           const peer = getOrCreatePeer(roomId);
 
           if (
@@ -992,13 +1379,17 @@ function StudentLiveClassroom() {
                 new RTCIceCandidate(candidate)
               );
             } catch (candidateError) {
-              console.warn("Queued ICE candidate:", candidateError);
+              console.warn(
+                "Queued ICE candidate:",
+                candidateError
+              );
             }
           }
 
           pendingIceCandidatesRef.current = [];
 
           const answer = await peer.createAnswer();
+
           await peer.setLocalDescription(answer);
 
           socket.emit("webrtc:answer", {
@@ -1007,7 +1398,10 @@ function StudentLiveClassroom() {
             answer,
           });
         } catch (offerError) {
-          console.error("STUDENT WEBRTC OFFER ERROR:", offerError);
+          console.error(
+            "STUDENT WEBRTC OFFER ERROR:",
+            offerError
+          );
         }
       });
 
@@ -1015,8 +1409,11 @@ function StudentLiveClassroom() {
         if (!payload?.candidate) return;
 
         const peer = peerRef.current;
+
         if (!peer?.remoteDescription) {
-          pendingIceCandidatesRef.current.push(payload.candidate);
+          pendingIceCandidatesRef.current.push(
+            payload.candidate
+          );
           return;
         }
 
@@ -1025,7 +1422,10 @@ function StudentLiveClassroom() {
             new RTCIceCandidate(payload.candidate)
           );
         } catch (candidateError) {
-          console.warn("Student ICE candidate:", candidateError);
+          console.warn(
+            "Student ICE candidate:",
+            candidateError
+          );
         }
       });
 
@@ -1047,13 +1447,17 @@ function StudentLiveClassroom() {
         }
 
         setPresentation(next);
-        setPresentationPage(getPresentationPage(next));
+        setPresentationPage(
+          getPresentationPage(next)
+        );
+
         setPresentationTotalPages(
           Math.max(
             1,
             Number(next.total_pages || next.totalPages || 1)
           )
         );
+
         setActiveStage("presentation");
       });
 
@@ -1069,38 +1473,54 @@ function StudentLiveClassroom() {
         );
 
         setPresentationPage(page);
+
         setPresentation((previous) =>
           previous
-            ? { ...previous, current_page: page, currentPage: page }
+            ? {
+                ...previous,
+                current_page: page,
+                currentPage: page,
+              }
             : previous
         );
       });
 
-      socket.on("live:whiteboard-update", (payload = {}) => {
+      const handleWhiteboardUpdate = (payload = {}) => {
         if (
           isClearEvent(payload) ||
           isClearEvent(payload.whiteboard || {})
         ) {
-          whiteboardImageRef.current = "";
-          setWhiteboardImage("");
-          clearWhiteboardCanvas();
+          clearWhiteboard();
           setActiveStage("whiteboard");
           return;
         }
 
-        const image = getWhiteboardImage(
-          payload.whiteboard ??
-            payload.payload ??
-            payload.event?.payload ??
-            payload
-        );
+        const image = getWhiteboardImage(payload);
 
         if (image) {
-          whiteboardImageRef.current = image;
-          setWhiteboardImage(image);
+          applyWhiteboardImage(image);
+        } else {
+          setActiveStage("whiteboard");
         }
+      };
 
-        setActiveStage("whiteboard");
+      [
+        "live:whiteboard-update",
+        "live:whiteboard-state",
+        "live:whiteboard-snapshot",
+        "whiteboard:update",
+      ].forEach((eventName) => {
+        socket.on(eventName, handleWhiteboardUpdate);
+      });
+
+      [
+        "live:whiteboard-cleared",
+        "whiteboard:cleared",
+      ].forEach((eventName) => {
+        socket.on(eventName, () => {
+          clearWhiteboard();
+          setActiveStage("whiteboard");
+        });
       });
 
       [
@@ -1118,7 +1538,10 @@ function StudentLiveClassroom() {
         const profileImage = toPublicAssetUrl(
           getTutorProfileImageValue(payload || {})
         );
-        if (profileImage) setTutorProfileImage(profileImage);
+
+        if (profileImage) {
+          setTutorProfileImage(profileImage);
+        }
 
         const raw = clean(
           payload?.stage ||
@@ -1136,14 +1559,23 @@ function StudentLiveClassroom() {
           materials: "material",
           idle: "waiting",
         };
+
         const stage = aliases[raw] || raw;
 
         if (
-          ["video", "whiteboard", "presentation", "material", "waiting"].includes(
-            stage
-          )
+          [
+            "video",
+            "whiteboard",
+            "presentation",
+            "material",
+            "waiting",
+          ].includes(stage)
         ) {
           setActiveStage(stage);
+        }
+
+        if (stage === "whiteboard") {
+          loadWhiteboard(roomId, true);
         }
       });
 
@@ -1169,22 +1601,31 @@ function StudentLiveClassroom() {
 
       socket.on("live:participant-update", (payload) => {
         const person =
-          payload?.participant || payload?.data || payload;
+          payload?.participant ||
+          payload?.data ||
+          payload;
+
         if (!person) return;
 
         const id = getParticipantId(person);
+
         if (
           payload?.action === "left" ||
           person.is_present === false
         ) {
           setParticipants((previous) =>
-            previous.filter((item) => getParticipantId(item) !== id)
+            previous.filter(
+              (item) => getParticipantId(item) !== id
+            )
           );
+
           return;
         }
 
         setParticipants((previous) =>
-          previous.some((item) => getParticipantId(item) === id)
+          previous.some(
+            (item) => getParticipantId(item) === id
+          )
             ? previous.map((item) =>
                 getParticipantId(item) === id
                   ? { ...item, ...person }
@@ -1196,7 +1637,10 @@ function StudentLiveClassroom() {
 
       socket.on("live:resource-added", (payload) => {
         const resource =
-          payload?.resource || payload?.data || payload;
+          payload?.resource ||
+          payload?.data ||
+          payload;
+
         if (!resource) return;
 
         setResources((previous) =>
@@ -1231,10 +1675,13 @@ function StudentLiveClassroom() {
       identity.studentName,
       addMessage,
       applyClassroomState,
-      clearWhiteboardCanvas,
+      applyWhiteboardImage,
+      clearWhiteboard,
       closePeer,
       drawWhiteboardEvent,
       getOrCreatePeer,
+      loadClassroomData,
+      loadWhiteboard,
     ]
   );
 
@@ -1247,10 +1694,15 @@ function StudentLiveClassroom() {
 
     try {
       const room = classroom || (await loadClassroom());
-      const id =
-        room.id || room.live_class_id || room.liveClassId;
 
-      if (!id) throw new Error("Invalid classroom identifier.");
+      const id =
+        room.id ||
+        room.live_class_id ||
+        room.liveClassId;
+
+      if (!id) {
+        throw new Error("Invalid classroom identifier.");
+      }
 
       if (!studentReference) {
         throw new Error(
@@ -1258,28 +1710,41 @@ function StudentLiveClassroom() {
         );
       }
 
-      await apiRequest(`/api/academy/live-classes/${id}/join`, {
-        method: "POST",
-        body: JSON.stringify({
-          enrollmentId: identity.enrollmentId,
-          studentId: identity.studentId,
-          studentName: identity.studentName,
-          className: identity.className,
-        }),
-      });
+      await apiRequest(
+        `/api/academy/live-classes/${id}/join`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            enrollmentId: identity.enrollmentId,
+            studentId: identity.studentId,
+            studentName: identity.studentName,
+            className: identity.className,
+          }),
+        }
+      );
 
       if (!mountedRef.current) return;
 
       joinedRef.current = true;
       setJoinedClass(true);
+
       await loadClassroomData(id);
-      connectSocket(id);
+
+      if (mountedRef.current) {
+        connectSocket(id);
+      }
     } catch (joinError) {
       console.error("STUDENT JOIN ERROR:", joinError);
-      setError(joinError.message || "Unable to join classroom.");
+
+      setError(
+        joinError.message || "Unable to join classroom."
+      );
     } finally {
       joiningRef.current = false;
-      if (mountedRef.current) setJoining(false);
+
+      if (mountedRef.current) {
+        setJoining(false);
+      }
     }
   }, [
     classroom,
@@ -1296,11 +1761,13 @@ function StudentLiveClassroom() {
   const sendMessage = useCallback(
     async (event) => {
       event?.preventDefault();
+
       const text = messageInput.trim();
 
       if (!text || !classId || sendingMessage) return;
 
       setSendingMessage(true);
+
       try {
         const result = await apiRequest(
           `/api/academy/live-classes/${classId}/chat`,
@@ -1343,7 +1810,9 @@ function StudentLiveClassroom() {
 
         setMessageInput("");
       } catch (sendError) {
-        setError(sendError.message || "Unable to send message.");
+        setError(
+          sendError.message || "Unable to send message."
+        );
       } finally {
         setSendingMessage(false);
       }
@@ -1373,28 +1842,37 @@ function StudentLiveClassroom() {
 
       socketRef.current?.disconnect();
       socketRef.current = null;
+
       closePeer();
 
       if (id) {
-        await apiRequest(`/api/academy/live-classes/${id}/leave`, {
-          method: "POST",
-          body: JSON.stringify({
-            enrollmentId: identity.enrollmentId,
-            studentId: identity.studentId,
-            studentReference,
-          }),
-        }).catch(() => {});
+        await apiRequest(
+          `/api/academy/live-classes/${id}/leave`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              enrollmentId: identity.enrollmentId,
+              studentId: identity.studentId,
+              studentReference,
+            }),
+          }
+        ).catch(() => {});
       }
     } catch (leaveError) {
-      console.error("Leave classroom error:", leaveError);
+      console.error(
+        "Leave classroom error:",
+        leaveError
+      );
     } finally {
       joinedRef.current = false;
       joiningRef.current = false;
+
       setJoinedClass(false);
       setSocketConnected(false);
       setMessages([]);
       setParticipants([]);
       setResources([]);
+
       navigate("/academy/student");
     }
   }, [
@@ -1412,6 +1890,7 @@ function StudentLiveClassroom() {
     if (!roomCode) {
       setLoading(false);
       setError("Classroom room code is missing.");
+
       return () => {
         mountedRef.current = false;
       };
@@ -1423,14 +1902,24 @@ function StudentLiveClassroom() {
       try {
         setLoading(true);
         setError("");
+
         await loadClassroom();
       } catch (loadError) {
-        console.error("Classroom initialization error:", loadError);
+        console.error(
+          "Classroom initialization error:",
+          loadError
+        );
+
         if (active) {
-          setError(loadError.message || "Unable to load this classroom.");
+          setError(
+            loadError.message ||
+              "Unable to load this classroom."
+          );
         }
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     };
 
@@ -1449,29 +1938,39 @@ function StudentLiveClassroom() {
       try {
         await loadClassroomData(classId);
       } catch (refreshError) {
-        console.warn("Classroom refresh failed:", refreshError);
+        console.warn(
+          "Classroom refresh failed:",
+          refreshError
+        );
       }
     };
 
     const interval = window.setInterval(refresh, 10000);
+
     return () => window.clearInterval(interval);
   }, [joinedClass, classId, loadClassroomData]);
 
   useEffect(() => {
-    const container = chatEndRef.current;
-    container?.scrollIntoView({ behavior: "smooth", block: "end" });
+    chatEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
   }, [messages]);
 
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
+
       socketRef.current?.disconnect();
       socketRef.current = null;
+
       peerRef.current?.close();
       peerRef.current = null;
 
       cameraStreamRef.current?.getTracks().forEach((track) => {
         track.stop();
       });
+
       audioStreamRef.current.getTracks().forEach((track) => {
         track.stop();
       });
@@ -1479,17 +1978,24 @@ function StudentLiveClassroom() {
   }, []);
 
   const enableAudio = useCallback(() => {
-    audioStreamRef.current.getAudioTracks().forEach((track) => {
-      track.enabled = true;
-    });
+    audioStreamRef.current
+      .getAudioTracks()
+      .forEach((track) => {
+        track.enabled = true;
+      });
+
     setAudioEnabled(true);
+
     audioRef.current?.play().catch(() => {});
   }, []);
 
   const disableAudio = useCallback(() => {
-    audioStreamRef.current.getAudioTracks().forEach((track) => {
-      track.enabled = false;
-    });
+    audioStreamRef.current
+      .getAudioTracks()
+      .forEach((track) => {
+        track.enabled = false;
+      });
+
     setAudioEnabled(false);
   }, []);
 
@@ -1500,7 +2006,9 @@ function StudentLiveClassroom() {
       <div className="min-h-screen bg-[#080d19] flex items-center justify-center text-white">
         <div className="text-center">
           <Loader2 className="w-10 h-10 animate-spin text-blue-500 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold">Preparing your classroom</h2>
+          <h2 className="text-lg font-semibold">
+            Preparing your classroom
+          </h2>
           <p className="text-sm text-slate-400 mt-2">
             Connecting you to your tutor...
           </p>
@@ -1514,8 +2022,15 @@ function StudentLiveClassroom() {
       <div className="min-h-screen bg-[#080d19] flex items-center justify-center p-6 text-white">
         <div className="max-w-md w-full bg-[#111a2c] border border-white/10 rounded-2xl p-7 text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Classroom unavailable</h2>
-          <p className="text-sm text-slate-400 mb-6">{error}</p>
+
+          <h2 className="text-xl font-bold mb-2">
+            Classroom unavailable
+          </h2>
+
+          <p className="text-sm text-slate-400 mb-6">
+            {error}
+          </p>
+
           <button
             onClick={() => navigate("/academy/student")}
             className="px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-semibold"
@@ -1539,11 +2054,14 @@ function StudentLiveClassroom() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+
           <div className="min-w-0">
             <h1 className="font-bold text-sm md:text-base truncate">
               {classTitle}
             </h1>
-            <p className="text-xs text-slate-400 truncate">{tutorName}</p>
+            <p className="text-xs text-slate-400 truncate">
+              {tutorName}
+            </p>
           </div>
         </div>
 
@@ -1552,19 +2070,25 @@ function StudentLiveClassroom() {
             {isConnected ? (
               <>
                 <Wifi className="w-4 h-4 text-emerald-400" />
-                <span className="text-emerald-400">Connected</span>
+                <span className="text-emerald-400">
+                  Connected
+                </span>
               </>
             ) : (
               <>
                 <WifiOff className="w-4 h-4 text-amber-400" />
-                <span className="text-amber-400">Connecting...</span>
+                <span className="text-amber-400">
+                  Connecting...
+                </span>
               </>
             )}
           </div>
+
           <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 text-xs text-slate-300">
             <Users className="w-4 h-4" />
             {participants.length} participants
           </div>
+
           <button
             onClick={leaveClassroom}
             className="px-3 md:px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs md:text-sm font-semibold"
@@ -1580,11 +2104,15 @@ function StudentLiveClassroom() {
             <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-5">
               <Video className="w-8 h-8 text-blue-400" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Join your live class</h2>
+
+            <h2 className="text-2xl font-bold mb-2">
+              Join your live class
+            </h2>
+
             <p className="text-sm text-slate-400 mb-6">
-              You are about to enter {classTitle}. Your tutor's whiteboard,
-              presentation and learning materials will appear here
-              automatically.
+              You are about to enter {classTitle}. Your tutor's
+              whiteboard, presentation and learning materials
+              will appear here automatically.
             </p>
 
             {error && (
@@ -1610,6 +2138,7 @@ function StudentLiveClassroom() {
                 </>
               )}
             </button>
+
             <p className="text-xs text-slate-500 mt-4">
               Room: {roomCode}
             </p>
@@ -1623,15 +2152,23 @@ function StudentLiveClassroom() {
                 <h2 className="font-bold text-sm md:text-base">
                   Classroom stage
                 </h2>
+
                 <p className="text-xs text-slate-400 mt-1">
                   Automatically synchronized with your tutor
                 </p>
               </div>
+
               <button
-                onClick={audioEnabled ? disableAudio : enableAudio}
+                onClick={
+                  audioEnabled ? disableAudio : enableAudio
+                }
                 disabled={!audioAvailable}
                 className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-40"
-                title={audioEnabled ? "Mute tutor audio" : "Enable tutor audio"}
+                title={
+                  audioEnabled
+                    ? "Mute tutor audio"
+                    : "Enable tutor audio"
+                }
               >
                 {audioEnabled ? (
                   <Volume2 className="w-5 h-5 text-blue-400" />
@@ -1655,30 +2192,49 @@ function StudentLiveClassroom() {
                       tutorInitial
                     )}
                   </div>
-                  <h3 className="font-semibold mt-4">Waiting for tutor activity</h3>
+
+                  <h3 className="font-semibold mt-4">
+                    Waiting for tutor activity
+                  </h3>
+
                   <p className="text-sm text-slate-400 mt-2 max-w-md">
-                    Your tutor's whiteboard or presentation will appear here automatically when selected.
+                    Your tutor's whiteboard or presentation will
+                    appear here automatically when selected.
                   </p>
                 </div>
               )}
 
               {stageMode === "whiteboard" && (
-                <div className="absolute inset-0 bg-white relative">
-                  {whiteboardImage ? (
+                <div className="absolute inset-0 bg-white">
+                  {whiteboardImage && (
                     <img
                       src={whiteboardImage}
                       alt="Tutor whiteboard"
-                      className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                      className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
+                      draggable="false"
                     />
-                  ) : null}
+                  )}
+
                   <canvas
                     ref={canvasRef}
-                    className="absolute inset-0 w-full h-full block"
+                    className="absolute inset-0 w-full h-full block pointer-events-none"
                   />
+
                   <div className="absolute top-3 left-3 px-3 py-2 rounded-lg bg-black/70 text-white text-xs flex items-center gap-2 pointer-events-none">
                     <Pen className="w-4 h-4" />
                     Live whiteboard
                   </div>
+
+                  {!whiteboardImage && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="text-center text-slate-400">
+                        <Pen className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                        <p className="text-sm">
+                          Waiting for tutor to write...
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1691,6 +2247,7 @@ function StudentLiveClassroom() {
                         presentation?.name ||
                         "Tutor presentation"}
                     </div>
+
                     <span className="text-xs text-slate-400">
                       Page {presentationPage}
                       {presentationTotalPages > 1
@@ -1698,6 +2255,7 @@ function StudentLiveClassroom() {
                         : ""}
                     </span>
                   </div>
+
                   <div className="flex-1 min-h-0 flex items-center justify-center p-3">
                     {presentationUrl ? (
                       <iframe
@@ -1709,7 +2267,9 @@ function StudentLiveClassroom() {
                     ) : (
                       <div className="text-center text-slate-400">
                         <FileText className="w-12 h-12 mx-auto mb-3" />
-                        <p>No presentation is currently available.</p>
+                        <p>
+                          No presentation is currently available.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1720,19 +2280,23 @@ function StudentLiveClassroom() {
                 <div className="absolute inset-0 flex flex-col bg-[#111a2c]">
                   <div className="h-12 px-4 flex items-center gap-2 border-b border-white/10 shrink-0">
                     <BookOpen className="w-4 h-4 text-blue-400" />
+
                     <span className="text-sm font-semibold truncate">
                       {materialName || "Tutor learning material"}
                     </span>
                   </div>
+
                   <div className="flex-1 min-h-0 p-3">
                     {materialUrl ? (
-                      resourceKind(activeMaterial || {}) === "image" ? (
+                      resourceKind(activeMaterial || {}) ===
+                      "image" ? (
                         <img
                           src={materialUrl}
                           alt={materialName}
                           className="w-full h-full object-contain rounded-lg bg-white"
                         />
-                      ) : resourceKind(activeMaterial || {}) === "video" ? (
+                      ) : resourceKind(activeMaterial || {}) ===
+                        "video" ? (
                         <video
                           src={materialUrl}
                           controls
@@ -1755,19 +2319,28 @@ function StudentLiveClassroom() {
                 </div>
               )}
 
-              {!["video", "whiteboard", "presentation", "material"].includes(
-                stageMode
-              ) && (
+              {![
+                "video",
+                "whiteboard",
+                "presentation",
+                "material",
+              ].includes(stageMode) && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
                   <Monitor className="w-14 h-14 text-blue-400 mb-4" />
-                  <h3 className="text-lg font-bold">Waiting for your tutor</h3>
+
+                  <h3 className="text-lg font-bold">
+                    Waiting for your tutor
+                  </h3>
+
                   <p className="text-sm text-slate-400 max-w-sm mt-2">
-                    Your tutor's whiteboard, presentation or learning material
-                    will appear here when opened.
+                    Your tutor's whiteboard, presentation or
+                    learning material will appear here when opened.
                   </p>
+
                   <Loader2 className="w-5 h-5 animate-spin text-blue-400 mt-5" />
                 </div>
               )}
+
               <div className="absolute z-40 bottom-4 right-4 w-24 sm:w-28 aspect-square rounded-2xl overflow-hidden border-2 border-white/20 bg-[#0b1930] shadow-2xl">
                 {tutorProfileImage ? (
                   <img
@@ -1780,6 +2353,7 @@ function StudentLiveClassroom() {
                     {tutorInitial}
                   </div>
                 )}
+
                 <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1 text-center">
                   <span className="text-[9px] font-semibold text-white truncate block">
                     {tutorName}
@@ -1790,22 +2364,31 @@ function StudentLiveClassroom() {
 
             <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
               <div className="rounded-xl bg-[#111a2c] border border-white/10 p-3">
-                <p className="text-xs text-slate-400">Classroom</p>
+                <p className="text-xs text-slate-400">
+                  Classroom
+                </p>
                 <p className="font-semibold text-sm mt-1 truncate">
                   {classTitle}
                 </p>
               </div>
+
               <div className="rounded-xl bg-[#111a2c] border border-white/10 p-3">
                 <p className="text-xs text-slate-400">Tutor</p>
                 <p className="font-semibold text-sm mt-1 truncate">
                   {tutorName}
                 </p>
               </div>
+
               <div className="hidden md:block rounded-xl bg-[#111a2c] border border-white/10 p-3">
-                <p className="text-xs text-slate-400">Connection</p>
+                <p className="text-xs text-slate-400">
+                  Connection
+                </p>
+
                 <p
                   className={`font-semibold text-sm mt-1 ${
-                    isConnected ? "text-emerald-400" : "text-amber-400"
+                    isConnected
+                      ? "text-emerald-400"
+                      : "text-amber-400"
                   }`}
                 >
                   {isConnected ? "Connected" : "Connecting"}
@@ -1856,6 +2439,7 @@ function StudentLiveClassroom() {
                           item.studentId ||
                           ""
                       );
+
                       const isMine =
                         senderId === String(studentReference) ||
                         item.isMine === true;
@@ -1864,7 +2448,9 @@ function StudentLiveClassroom() {
                         <div
                           key={getMessageId(item) || index}
                           className={`flex ${
-                            isMine ? "justify-end" : "justify-start"
+                            isMine
+                              ? "justify-end"
+                              : "justify-start"
                           }`}
                         >
                           <div
@@ -1875,15 +2461,21 @@ function StudentLiveClassroom() {
                             }`}
                           >
                             <p className="text-[10px] opacity-70 mb-1">
-                              {isMine ? "You" : getSenderName(item)}
+                              {isMine
+                                ? "You"
+                                : getSenderName(item)}
                             </p>
+
                             <p className="text-sm break-words whitespace-pre-wrap">
                               {getMessageText(item)}
                             </p>
-                            {(item.created_at || item.createdAt) && (
+
+                            {(item.created_at ||
+                              item.createdAt) && (
                               <p className="text-[9px] opacity-60 mt-1 text-right">
                                 {new Date(
-                                  item.created_at || item.createdAt
+                                  item.created_at ||
+                                    item.createdAt
                                 ).toLocaleTimeString([], {
                                   hour: "2-digit",
                                   minute: "2-digit",
@@ -1895,6 +2487,7 @@ function StudentLiveClassroom() {
                       );
                     })
                   )}
+
                   <div ref={chatEndRef} />
                 </div>
 
@@ -1904,13 +2497,18 @@ function StudentLiveClassroom() {
                 >
                   <input
                     value={messageInput}
-                    onChange={(event) => setMessageInput(event.target.value)}
+                    onChange={(event) =>
+                      setMessageInput(event.target.value)
+                    }
                     placeholder="Ask your tutor..."
                     className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm outline-none focus:border-blue-500"
                   />
+
                   <button
                     type="submit"
-                    disabled={!messageInput.trim() || sendingMessage}
+                    disabled={
+                      !messageInput.trim() || sendingMessage
+                    }
                     className="w-11 h-11 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 flex items-center justify-center"
                   >
                     {sendingMessage ? (
@@ -1938,14 +2536,19 @@ function StudentLiveClassroom() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-sm font-bold text-blue-200">{tutorInitial}</span>
+                      <span className="text-sm font-bold text-blue-200">
+                        {tutorInitial}
+                      </span>
                     )}
                   </div>
+
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold truncate">
                       {tutorName}
                     </p>
-                    <p className="text-xs text-emerald-400">Tutor</p>
+                    <p className="text-xs text-emerald-400">
+                      Tutor
+                    </p>
                   </div>
                 </div>
 
@@ -1964,9 +2567,14 @@ function StudentLiveClassroom() {
                       <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold">
                         {name.charAt(0).toUpperCase()}
                       </div>
+
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{name}</p>
-                        <p className="text-xs text-slate-500">Student</p>
+                        <p className="text-sm font-medium truncate">
+                          {name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Student
+                        </p>
                       </div>
                     </div>
                   );
@@ -1989,31 +2597,41 @@ function StudentLiveClassroom() {
                 {resources.length === 0 ? (
                   <div className="text-center py-12 text-slate-500">
                     <BookOpen className="w-10 h-10 mx-auto mb-3" />
-                    <p className="text-sm">No materials shared yet.</p>
+                    <p className="text-sm">
+                      No materials shared yet.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {resources.map((resource, index) => {
                       const url = getResourceUrl(resource);
+
                       return (
                         <div
-                          key={resource.id || resource._id || index}
+                          key={
+                            resource.id ||
+                            resource._id ||
+                            index
+                          }
                           className="p-3 rounded-xl bg-white/5 border border-white/10"
                         >
                           <div className="flex items-start gap-3">
                             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
                               <FileText className="w-5 h-5 text-blue-400" />
                             </div>
+
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold break-words">
                                 {getResourceName(resource)}
                               </p>
+
                               <p className="text-xs text-slate-500 mt-1">
                                 {resource.type ||
                                   resource.fileType ||
                                   resource.resource_type ||
                                   "Class resource"}
                               </p>
+
                               {url && (
                                 <a
                                   href={url}

@@ -22,6 +22,8 @@ import {
   X,
   Pen,
   FileText,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import LiveVideo from "../../components/live-class/LiveVideo";
@@ -29,7 +31,6 @@ import PresentationViewer from "../../components/live-class/PresentationViewer";
 import Whiteboard from "../../components/live-class/Whiteboard";
 import LiveChat from "../../components/live-class/LiveChat";
 import ParticipantsPanel from "../../components/live-class/ParticipantsPanel";
-import ClassroomToolbar from "../../components/live-class/ClassroomToolbar";
 
 /* =========================================================
    CONFIGURATION
@@ -220,6 +221,15 @@ const PANEL_TITLES = {
   resources: "Resources",
 };
 
+const CONTROL_ITEMS = [
+  { id: "video", label: "Video", icon: Video },
+  { id: "presentation", label: "Presentation", icon: BookOpen },
+  { id: "whiteboard", label: "Whiteboard", icon: Pen },
+  { id: "chat", label: "Chat", icon: MessageCircle },
+  { id: "participants", label: "People", icon: Users },
+  { id: "resources", label: "Resources", icon: FileText },
+];
+
 const getPanelIcon = (panel) => {
   switch (panel) {
     case "presentation":
@@ -250,6 +260,7 @@ const RemoteVideoTile = ({ stream, socketId }) => {
     if (!video || !stream) return;
 
     video.srcObject = stream;
+
     video.play().catch((error) => {
       console.warn("REMOTE VIDEO AUTOPLAY:", error);
     });
@@ -395,7 +406,6 @@ const TutorLiveClassroom = () => {
   const mountedRef = useRef(true);
   const pollingRef = useRef(null);
 
-  // Prevent duplicate simultaneous offers for the same student.
   const offerLocksRef = useRef(new Set());
 
   const [classroom, setClassroom] = useState(null);
@@ -412,6 +422,9 @@ const TutorLiveClassroom = () => {
   const [messages, setMessages] = useState([]);
 
   const [activePanel, setActivePanel] = useState("video");
+
+  // Left-side collapsible control panel.
+  const [controlPanelOpen, setControlPanelOpen] = useState(false);
 
   const [screenSharing, setScreenSharing] = useState(false);
   const [presentation, setPresentation] = useState(null);
@@ -726,8 +739,6 @@ const TutorLiveClassroom = () => {
 
       const peer = peersRef.current.get(socketId);
 
-      // Queue candidates if the peer is not created yet
-      // or if the remote description has not been applied.
       if (!peer || !peer.remoteDescription) {
         const queue = iceQueuesRef.current.get(socketId) || [];
 
@@ -803,7 +814,6 @@ const TutorLiveClassroom = () => {
 
       peersRef.current.set(socketId, peer);
 
-      // Preserve candidates that arrived before this peer.
       if (!iceQueuesRef.current.has(socketId)) {
         iceQueuesRef.current.set(socketId, []);
       }
@@ -946,15 +956,13 @@ const TutorLiveClassroom = () => {
   );
 
   /* =======================================================
-     PUBLISH ACTIVE TUTOR CLASSROOM STAGE TO STUDENTS
+     PUBLISH ACTIVE TUTOR CLASSROOM STAGE
   ======================================================= */
 
   const publishTutorStage = useCallback(
     (panelOverride = null) => {
       const panel = panelOverride || activePanel;
 
-      // Chat, participants and resources are tutor-only panels.
-      // They must not replace the lesson content being shown to students.
       const stageByPanel = {
         video: "waiting",
         whiteboard: "whiteboard",
@@ -976,8 +984,6 @@ const TutorLiveClassroom = () => {
         tutor_profile_image_url: getTutorProfileImage(),
       };
 
-      // Persist the selected lesson stage. Students also poll /state, so
-      // switching tools still works if a socket event is missed.
       apiRequest(
         `/api/academy/live-classes/${encodeURIComponent(classId)}/stage`,
         {
@@ -989,28 +995,35 @@ const TutorLiveClassroom = () => {
             stage_state: {
               stage,
               activeStage: stage,
-              presentation: panel === "presentation" ? presentation : undefined,
+              presentation:
+                panel === "presentation" ? presentation : undefined,
             },
             stageState: {
               stage,
               activeStage: stage,
-              presentation: panel === "presentation" ? presentation : undefined,
+              presentation:
+                panel === "presentation" ? presentation : undefined,
             },
             tutorReference,
             tutor_reference: tutorReference,
           }),
         }
       ).catch((error) => {
-        console.warn("Unable to persist live classroom stage:", error.message);
+        console.warn(
+          "Unable to persist live classroom stage:",
+          error.message
+        );
       });
 
       socketRef.current?.emit("live:stage-update", payload);
+
       socketRef.current?.emit("live:classroom-state", {
         ...payload,
         classroomState: {
           stage,
           activeStage: stage,
-          presentation: panel === "presentation" ? presentation : null,
+          presentation:
+            panel === "presentation" ? presentation : null,
         },
       });
 
@@ -1034,7 +1047,6 @@ const TutorLiveClassroom = () => {
       throw new Error("Tutor reference is missing.");
     }
 
-    // Avoid opening duplicate sockets.
     if (socketRef.current?.connected) {
       return socketRef.current;
     }
@@ -1093,9 +1105,7 @@ const TutorLiveClassroom = () => {
       setSocketConnected(false);
     });
 
-    /* -----------------------------------------------
-       STUDENT JOINED
-    ----------------------------------------------- */
+    /* STUDENT JOINED */
 
     socket.on("live:peer-joined", async (payload) => {
       const socketId =
@@ -1142,9 +1152,7 @@ const TutorLiveClassroom = () => {
       }
     });
 
-    /* -----------------------------------------------
-       STUDENT LEFT
-    ----------------------------------------------- */
+    /* STUDENT LEFT */
 
     socket.on("live:peer-left", (payload) => {
       const socketId =
@@ -1158,9 +1166,7 @@ const TutorLiveClassroom = () => {
       }
     });
 
-    /* -----------------------------------------------
-       RECEIVE STUDENT ANSWER
-    ----------------------------------------------- */
+    /* RECEIVE STUDENT ANSWER */
 
     socket.on("webrtc:answer", async (payload) => {
       try {
@@ -1191,21 +1197,13 @@ const TutorLiveClassroom = () => {
 
         await flushIceCandidates(socketId);
 
-        console.log(
-          "STUDENT ANSWER RECEIVED:",
-          socketId
-        );
+        console.log("STUDENT ANSWER RECEIVED:", socketId);
       } catch (peerError) {
-        console.error(
-          "TUTOR ANSWER ERROR:",
-          peerError
-        );
+        console.error("TUTOR ANSWER ERROR:", peerError);
       }
     });
 
-    /* -----------------------------------------------
-       RECEIVE STUDENT OFFER
-    ----------------------------------------------- */
+    /* RECEIVE STUDENT OFFER */
 
     socket.on("webrtc:offer", async (payload) => {
       const socketId =
@@ -1217,7 +1215,6 @@ const TutorLiveClassroom = () => {
 
       if (!socketId || !payload?.offer) return;
 
-      // Prevent overlapping offer processing.
       if (offerLocksRef.current.has(socketId)) {
         console.warn(
           "STUDENT OFFER ALREADY PROCESSING:",
@@ -1296,7 +1293,6 @@ const TutorLiveClassroom = () => {
           };
         }
 
-        // Handle simultaneous offers.
         if (peer.signalingState === "have-local-offer") {
           await peer.setLocalDescription({
             type: "rollback",
@@ -1315,7 +1311,6 @@ const TutorLiveClassroom = () => {
           new RTCSessionDescription(payload.offer)
         );
 
-        // Apply queued ICE candidates after remote description.
         await flushIceCandidates(socketId);
 
         const answer = await peer.createAnswer();
@@ -1340,9 +1335,7 @@ const TutorLiveClassroom = () => {
       }
     });
 
-    /* -----------------------------------------------
-       RECEIVE ICE CANDIDATES
-    ----------------------------------------------- */
+    /* RECEIVE ICE CANDIDATES */
 
     socket.on("webrtc:ice-candidate", async (payload) => {
       const socketId =
@@ -1360,9 +1353,7 @@ const TutorLiveClassroom = () => {
       );
     });
 
-    /* -----------------------------------------------
-       CHAT
-    ----------------------------------------------- */
+    /* CHAT */
 
     socket.on("live:chat-message", (payload) => {
       const item =
@@ -1393,9 +1384,7 @@ const TutorLiveClassroom = () => {
       });
     });
 
-    /* -----------------------------------------------
-       PARTICIPANT UPDATE
-    ----------------------------------------------- */
+    /* PARTICIPANT UPDATE */
 
     socket.on("live:participant-update", (payload) => {
       const participant = payload?.participant || payload;
@@ -1493,7 +1482,6 @@ const TutorLiveClassroom = () => {
 
       publishTutorMediaState(nextMedia);
 
-      // Synchronise the actual screen/camera tracks.
       const peers = [...peersRef.current.entries()];
 
       for (const [socketId, peer] of peers) {
@@ -1527,7 +1515,11 @@ const TutorLiveClassroom = () => {
         activeStage: "presentation",
       };
 
-      socketRef.current?.emit("live:presentation-update", payload);
+      socketRef.current?.emit(
+        "live:presentation-update",
+        payload
+      );
+
       publishTutorStage("presentation");
     },
     [classId, publishTutorStage]
@@ -1613,35 +1605,38 @@ const TutorLiveClassroom = () => {
      PANEL NAVIGATION
   ======================================================= */
 
-  const handlePanelChange = useCallback((panel) => {
-    const aliases = {
-      people: "participants",
-      participants: "participants",
-      board: "whiteboard",
-      whiteboard: "whiteboard",
-      presentation: "presentation",
-      chat: "chat",
-      resources: "resources",
-      resource: "resources",
-      video: "video",
-    };
+  const handlePanelChange = useCallback(
+    (panel) => {
+      const aliases = {
+        people: "participants",
+        participants: "participants",
+        board: "whiteboard",
+        whiteboard: "whiteboard",
+        presentation: "presentation",
+        chat: "chat",
+        resources: "resources",
+        resource: "resources",
+        video: "video",
+      };
 
-    const selectedPanel = aliases[panel] || panel;
+      const selectedPanel = aliases[panel] || panel;
 
-    const validPanels = [
-      "video",
-      "presentation",
-      "whiteboard",
-      "chat",
-      "participants",
-      "resources",
-    ];
+      const validPanels = [
+        "video",
+        "presentation",
+        "whiteboard",
+        "chat",
+        "participants",
+        "resources",
+      ];
 
-    if (!validPanels.includes(selectedPanel)) return;
+      if (!validPanels.includes(selectedPanel)) return;
 
-    setActivePanel(selectedPanel);
-    publishTutorStage(selectedPanel);
-  }, [publishTutorStage]);
+      setActivePanel(selectedPanel);
+      publishTutorStage(selectedPanel);
+    },
+    [publishTutorStage]
+  );
 
   /* =======================================================
      START CLASS
@@ -2109,20 +2104,131 @@ const TutorLiveClassroom = () => {
 
       {/* WORKSPACE */}
 
-      <main
-        className={`grid min-h-0 flex-1 gap-3 overflow-hidden p-2 md:p-4 ${
-          isToolPanel
-            ? "grid-cols-1 grid-rows-[minmax(0,1fr)_210px] lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-1"
-            : "grid-cols-1 grid-rows-[minmax(0,1fr)]"
-        }`}
-      >
-        {/* MAIN WORKSPACE */}
+      <main className="flex min-h-0 flex-1 overflow-hidden">
 
-        <section className="flex min-h-0 min-w-0 flex-col gap-3">
+        {/* LEFT COLLAPSIBLE CONTROL PANEL */}
 
-          {/* MAIN STAGE */}
+        <aside
+          className={`relative z-40 h-full shrink-0 border-r border-white/10 bg-[#071426] transition-[width] duration-300 ease-in-out ${
+            controlPanelOpen
+              ? "w-[220px]"
+              : "w-0 border-r-0"
+          }`}
+        >
+          {controlPanelOpen && (
+            <div className="flex h-full w-[220px] min-h-0 flex-col">
 
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#071426]">
+              {/* PANEL HEADER */}
+
+              <div className="border-b border-white/10 p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  Classroom controls
+                </p>
+
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Manage your classroom tools
+                </p>
+              </div>
+
+              {/* PANEL ITEMS */}
+
+              <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+                {CONTROL_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  const selected = activePanel === item.id;
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handlePanelChange(item.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
+                        selected
+                          ? "border border-white/10 bg-white/10 text-white"
+                          : "text-slate-400 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <Icon
+                        size={17}
+                        className={
+                          selected
+                            ? "text-blue-300"
+                            : "text-slate-400"
+                        }
+                      />
+
+                      <span className="flex-1 text-xs font-semibold">
+                        {item.label}
+                      </span>
+
+                      {selected && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+
+              {/* PANEL FOOTER */}
+
+              <div className="border-t border-white/10 p-3">
+                <div className="flex items-center gap-2 rounded-xl bg-[#0B1930] p-3">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      screenSharing
+                        ? "bg-emerald-400"
+                        : "bg-slate-500"
+                    }`}
+                  />
+
+                  <span className="text-[10px] font-medium text-slate-300">
+                    {screenSharing
+                      ? "Screen sharing active"
+                      : "Screen sharing inactive"}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between px-1 text-[10px] text-slate-500">
+                  <span>Participants</span>
+                  <span>{participants.length}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CENTRE TOGGLE */}
+
+          <button
+            type="button"
+            onClick={() =>
+              setControlPanelOpen((previous) => !previous)
+            }
+            title={
+              controlPanelOpen
+                ? "Close control panel"
+                : "Open control panel"
+            }
+            aria-label={
+              controlPanelOpen
+                ? "Close control panel"
+                : "Open control panel"
+            }
+            aria-expanded={controlPanelOpen}
+            className="absolute -right-4 top-1/2 z-50 flex h-12 w-8 -translate-y-1/2 items-center justify-center rounded-r-xl border border-l-0 border-white/15 bg-[#10213a] text-slate-200 shadow-xl transition hover:bg-[#1b3555] hover:text-white"
+          >
+            {controlPanelOpen ? (
+              <ChevronLeft size={19} />
+            ) : (
+              <ChevronRight size={19} />
+            )}
+          </button>
+        </aside>
+
+        {/* MAIN CLASSROOM STAGE */}
+
+        <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#071426]">
+
+          <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
 
             {isToolPanel ? (
               <div className="flex h-full min-h-0 w-full flex-col">
@@ -2166,10 +2272,11 @@ const TutorLiveClassroom = () => {
             )}
           </div>
 
-          {/* CLASS CONTROLS */}
+          {/* START / END CLASS CONTROLS */}
 
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#071426] p-3">
-            <div className="flex items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-[#071426] p-3">
+
+            <div className="flex min-w-0 items-center gap-2">
               <span className="text-[11px] text-slate-400">
                 {screenSharing ? (
                   <span className="flex items-center gap-1.5 text-blue-300">
@@ -2194,6 +2301,7 @@ const TutorLiveClassroom = () => {
                   ) : (
                     <CheckCircle2 size={15} />
                   )}
+
                   Start class
                 </button>
               ) : (
@@ -2207,63 +2315,13 @@ const TutorLiveClassroom = () => {
                   ) : (
                     <X size={15} />
                   )}
+
                   End class
                 </button>
               )}
             </div>
           </div>
-
-          {/* TOOLBAR */}
-
-          <div className="shrink-0">
-            <ClassroomToolbar
-              activePanel={activePanel}
-              onPanelChange={handlePanelChange}
-              isLive={isLive}
-              screenSharing={screenSharing}
-              participantCount={participants.length}
-            />
-          </div>
         </section>
-
-        {/* CAMERA PREVIEW */}
-
-        {isToolPanel && (
-          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071426]">
-
-            <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-[#0B1930] px-3">
-              <div className="flex items-center gap-2">
-                <Video
-                  size={14}
-                  className="text-blue-300"
-                />
-
-                <span className="text-xs font-bold text-white">
-                  Tutor camera
-                </span>
-              </div>
-
-              <span className="rounded-full bg-red-600/20 px-2 py-1 text-[9px] font-bold text-red-300">
-                {isLive ? "LIVE" : "PREVIEW"}
-              </span>
-            </div>
-
-            <div className="relative min-h-0 flex-1 p-2">
-              {renderVideoStage(true)}
-            </div>
-
-            <div className="flex shrink-0 items-center justify-between border-t border-white/10 px-3 py-2">
-              <span className="truncate text-[10px] font-semibold text-slate-300">
-                {tutorName}
-              </span>
-
-              <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                <Users size={12} />
-                {participants.length}
-              </span>
-            </div>
-          </aside>
-        )}
       </main>
     </div>
   );
